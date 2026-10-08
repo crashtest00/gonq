@@ -113,3 +113,14 @@ test('a document without headings renders', () => {
   expect(screen.getByText('just a paragraph')).toBeInTheDocument();
   expect(screen.queryByRole('heading')).not.toBeInTheDocument();
 });
+
+test('<ins> renders underlined while other raw HTML stays skipped', () => {
+  const doc = { name: 'a.md', path: '/a.md', text: 'a <ins>under</ins> <b>bold</b> <ins>x *em*</ins>\n' } as OpenedDocument;
+  const files = {} as FileAccess;
+  const { container } = render(<MarkdownView doc={doc} files={files} />);
+  const ins = container.querySelectorAll('ins');
+  expect(ins).toHaveLength(2);
+  expect(ins[0].textContent).toBe('under');
+  expect(ins[1].querySelector('em')?.textContent).toBe('em');
+  expect(container.querySelector('b')).toBeNull();
+});

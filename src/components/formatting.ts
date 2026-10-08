@@ -1,3 +1,5 @@
+import { parseCommentMarkers } from '../comment-threads';
+
 /** Markdown edits for the formatting toolbar: pure functions from a field's text and selection to its new text and selection. */
 export interface Edit {
   value: string;
@@ -5,22 +7,88 @@ export interface Edit {
   end: number;
 }
 
-export type Format = 'bold' | 'italic' | 'strike' | 'link' | 'bullet' | 'numbered' | 'task' | 'table';
+export type Format = 'bold' | 'italic' | 'underline' | 'strike' | 'link' | 'bullet' | 'numbered' | 'task' | 'table';
 
-const WRAPS: Record<'bold' | 'italic' | 'strike', string> = { bold: '**', italic: '*', strike: '~~' };
+const INLINE = ['bold', 'italic', 'underline', 'strike', 'link'];
 
-function wrap(value: string, start: number, end: number, mark: string): Edit {
-  const m = mark.length;
+/** Opening and closing text of each wrapping format; underline is written as `<ins>`. */
+const WRAPS: Record<'bold' | 'italic' | 'underline' | 'strike', [string, string]> = {
+  bold: ['**', '**'],
+  italic: ['*', '*'],
+  underline: ['<ins>', '</ins>'],
+  strike: ['~~', '~~'],
+};
+
+/** Source ranges of fenced code blocks (whole lines, fences included) and inline code spans. */
+function codeRanges(value: string): { from: number; to: number; fenced: boolean }[] {
+  const out: { from: number; to: number; fenced: boolean }[] = [];
+  const prose: [number, number][] = [];
+  let open: { from: number; ch: string; len: number } | null = null;
+  let proseFrom = 0;
+  let at = 0;
+  for (const line of value.split('\n')) {
+    const lineEnd = at + line.length;
+    const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (open === null) {
+      if (fence) {
+        open = { from: at, ch: fence[1][0], len: fence[1].length };
+        prose.push([proseFrom, at]);
+      }
+    } else if (fence && fence[1][0] === open.ch && fence[1].length >= open.len && line.trim() === fence[1]) {
+      out.push({ from: open.from, to: lineEnd, fenced: true });
+      open = null;
+      proseFrom = lineEnd;
+    }
+    at = lineEnd + 1;
+  }
+  if (open !== null) out.push({ from: open.from, to: value.length, fenced: true });
+  else prose.push([proseFrom, value.length]);
+  for (const [from, to] of prose) {
+    const text = value.slice(from, to);
+    for (const m of text.matchAll(/(?<!`)(`+)(?!`)([\s\S]*?[^`])\1(?!`)/g)) {
+      out.push({ from: from + m.index!, to: from + m.index! + m[0].length, fenced: false });
+    }
+  }
+  return out;
+}
+
+/** A selection touching code: inline marks written there would be literal text, not formatting. */
+function inCode(value: string, start: number, end: number): boolean {
+  return codeRanges(value).some((r) => {
+    const inside = (p: number) => (r.fenced ? p >= r.from && p <= r.to : p > r.from && p < r.to);
+    return inside(start) || inside(end);
+  });
+}
+
+/** Moves a selection to the edges of any comment marker it cuts into, so a marker is never split. */
+function clampToMarkers(value: string, start: number, end: number): [number, number] {
+  for (const m of [...parseCommentMarkers(value).values()].flat()) {
+    if (start === end) {
+      if (start > m.from && start < m.to) start = end = m.to;
+      continue;
+    }
+    if (start > m.from && start < m.to) start = m.from;
+    if (end > m.from && end < m.to) end = m.to;
+  }
+  return [start, end];
+}
+
+function wrap(value: string, start: number, end: number, [open, close]: [string, string]): Edit {
   // Selection already wrapped (marks just outside it, or included in it): unwrap.
-  if (value.slice(start - m, start) === mark && value.slice(end, end + m) === mark && start >= m) {
-    return { value: value.slice(0, start - m) + value.slice(start, end) + value.slice(end + m), start: start - m, end: end - m };
+  if (start >= open.length && value.slice(start - open.length, start) === open && value.slice(end, end + close.length) === close) {
+    return {
+      value: value.slice(0, start - open.length) + value.slice(start, end) + value.slice(end + close.length),
+      start: start - open.length,
+      end: end - open.length,
+    };
   }
   const inner = value.slice(start, end);
-  if (inner.length >= 2 * m && inner.startsWith(mark) && inner.endsWith(mark)) {
-    const bare = inner.slice(m, inner.length - m);
+  if (inner.length >= open.length + close.length && inner.startsWith(open) && inner.endsWith(close)) {
+    const bare = inner.slice(open.length, inner.length - close.length);
     return { value: value.slice(0, start) + bare + value.slice(end), start, end: start + bare.length };
   }
-  return { value: value.slice(0, start) + mark + inner + mark + value.slice(end), start: start + m, end: end + m };
+  // Nothing selected leaves the caret between the marks.
+  return { value: value.slice(0, start) + open + inner + close + value.slice(end), start: start + open.length, end: end + open.length };
 }
 
 const PREFIX = { bullet: /^([-*+]) /, numbered: /^\d+[.)] /, task: /^[-*+] \[[ xX]\] / } as const;
@@ -48,17 +116,23 @@ function lines(value: string, start: number, end: number, kind: 'bullet' | 'numb
 
 const TABLE = '| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |';
 
-export function applyFormat(format: Format, value: string, start: number, end: number): Edit {
+/** `url` is what the user entered for a link; it is ignored by every other format. */
+export function applyFormat(format: Format, value: string, start: number, end: number, url = ''): Edit {
+  if (INLINE.includes(format)) {
+    [start, end] = clampToMarkers(value, start, end);
+    if (inCode(value, start, end)) return { value, start, end };
+  }
   switch (format) {
     case 'bold':
     case 'italic':
+    case 'underline':
     case 'strike':
       return wrap(value, start, end, WRAPS[format]);
     case 'link': {
       const label = value.slice(start, end) || 'text';
-      const url = 'https://';
-      const head = value.slice(0, start) + `[${label}](`;
-      return { value: head + url + ')' + value.slice(end), start: head.length, end: head.length + url.length };
+      const link = `[${label}](${url})`;
+      const at = start + link.length;
+      return { value: value.slice(0, start) + link + value.slice(end), start: at, end: at };
     }
     case 'table': {
       // A table is its own block: separate it from text on the same line.

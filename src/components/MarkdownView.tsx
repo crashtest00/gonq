@@ -10,6 +10,7 @@ import {
 import type { FileAccess, OpenedDocument } from '../platform/files';
 import { detectEol, fromEditable, toEditable } from '../document/splice';
 import { keepMarkersWhole } from './atomicMarkers';
+import { remarkIns } from './remarkIns';
 import { MarkdownImage } from './MarkdownImage';
 import { threadKey, type ThreadItem } from './threads';
 
@@ -54,6 +55,8 @@ export interface BlockEditing {
    */
   rawAll?: boolean;
 }
+
+const REMARK_PLUGINS = [remarkGfm, remarkIns];
 
 const BLOCK_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'pre', 'blockquote', 'table', 'hr'] as const;
 
@@ -308,17 +311,17 @@ export function MarkdownView({
     <article ref={articleRef} className="gonq-doc" data-testid="markdown-view" onClick={onClick} onKeyDown={onKeyDown}>
       {rawAll ? (
         <RawContext.Provider value={{ text: doc.text, editing }}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={RAW_COMPONENTS} skipHtml>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={RAW_COMPONENTS} skipHtml>
             {source}
           </ReactMarkdown>
         </RawContext.Provider>
       ) : region === null ? (
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={before} skipHtml>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={before} skipHtml>
           {source}
         </ReactMarkdown>
       ) : (
         <>
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={before} skipHtml>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={before} skipHtml>
             {source.slice(0, region.from)}
           </ReactMarkdown>
           <BlockEditor
@@ -326,7 +329,7 @@ export function MarkdownView({
             onChange={(v) => editing?.onChange(fromEditable(v, eol))}
             onClose={() => editing?.onClose()}
           />
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={after} skipHtml>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={after} skipHtml>
             {source.slice(region.to)}
           </ReactMarkdown>
         </>

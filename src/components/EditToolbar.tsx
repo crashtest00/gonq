@@ -1,4 +1,4 @@
-import { Bold, Italic, Link, List, ListChecks, ListOrdered, Redo2, Strikethrough, Table, Undo2, type LucideIcon } from 'lucide-react';
+import { Bold, Italic, Link, List, ListChecks, ListOrdered, Redo2, Strikethrough, Table, Underline, Undo2, type LucideIcon } from 'lucide-react';
 import { applyFormat, type Format } from './formatting';
 
 const button =
@@ -7,6 +7,7 @@ const button =
 const FORMATS: { format: Format; label: string; icon: LucideIcon; divider?: boolean }[] = [
   { format: 'bold', label: 'Bold', icon: Bold, divider: true },
   { format: 'italic', label: 'Italic', icon: Italic },
+  { format: 'underline', label: 'Underline', icon: Underline },
   { format: 'strike', label: 'Strikethrough', icon: Strikethrough },
   { format: 'link', label: 'Insert link', icon: Link, divider: true },
   { format: 'bullet', label: 'Bullet list', icon: List },
@@ -19,7 +20,14 @@ const FORMATS: { format: Format; label: string; icon: LucideIcon; divider?: bool
 function formatActiveField(format: Format) {
   const el = document.activeElement;
   if (!(el instanceof HTMLTextAreaElement) || !el.hasAttribute('data-block-editor')) return;
-  const next = applyFormat(format, el.value, el.selectionStart, el.selectionEnd);
+  let url = '';
+  if (format === 'link') {
+    // Ask for the address; cancelling (or an empty answer) changes nothing.
+    const answer = window.prompt('Link URL', 'https://')?.trim();
+    if (!answer || !el.isConnected) return;
+    url = answer;
+  }
+  const next = applyFormat(format, el.value, el.selectionStart, el.selectionEnd, url);
   if (next.value !== el.value) {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(el, next.value);
     el.dispatchEvent(new Event('input', { bubbles: true }));

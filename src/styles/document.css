@@ -69,3 +69,4 @@
   display: block; font-size: var(--text-caption); color: var(--muted-foreground);
   text-align: center; margin: 8px 0 24px;
 }
+.gonq-doc ins { text-decoration: underline; }
