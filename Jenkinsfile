@@ -246,8 +246,6 @@ pipeline {
         // the platform's, made in one handler, evidence first (REQ-04,
         // REQ-05).
         //
-        // TODO: replace yourdomain.com with this project's actual BETA_DOMAIN
-        //
         // Built with `jq` and published through the raw entry point of the
         // commons publish tool, which validates it before the write -- so a
         // malformed event fails this step rather than being dropped
@@ -263,7 +261,7 @@ pipeline {
         // build that passed.
         script {
           withEnv([
-            "BETA_URL=https://${env.PROJECT_NAME}.beta.yourdomain.com",
+            "BETA_URL=http://gonq.beta.192.168.1.137.nip.io:8181",
             "PUBLISH_FAILURE_MARKER=.beta-deployed-publish-failure"
           ]) {
             sh '''
