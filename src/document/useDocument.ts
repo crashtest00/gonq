@@ -85,6 +85,15 @@ export function useDocument() {
     setHistory((h) => edit(h, splice(h.text, from, to, insert)));
   }, []);
 
+  /** Replaces the whole text with a document built by the comment-threads library, as one undo step. */
+  const replaceText = useCallback(
+    (next: string) => {
+      setRegion(null);
+      setHistory((h) => edit(h, next));
+    },
+    [setRegion],
+  );
+
   const closeEdit = useCallback(() => setRegion(null), [setRegion]);
 
   const doUndo = useCallback(() => {
@@ -115,11 +124,12 @@ export function useDocument() {
       changeEdit,
       closeEdit,
       replaceRange,
+      replaceText,
       undo: doUndo,
       redo: doRedo,
       /** Records that `savedText` is now on disk under `next`. */
       saved: rename,
     }),
-    [meta, history, region, load, startEdit, startAppend, changeEdit, closeEdit, replaceRange, doUndo, doRedo, rename],
+    [meta, history, region, load, startEdit, startAppend, changeEdit, closeEdit, replaceRange, replaceText, doUndo, doRedo, rename],
   );
 }

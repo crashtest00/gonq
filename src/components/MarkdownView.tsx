@@ -13,6 +13,7 @@ import { keepMarkersWhole } from './atomicMarkers';
 import { remarkIns } from './remarkIns';
 import { MarkdownImage } from './MarkdownImage';
 import { threadKey, type ThreadItem } from './threads';
+import type { Segment } from './newThread';
 
 /**
  * The text handed to the renderer: the document with its thread blocks blanked
@@ -46,6 +47,8 @@ export interface BlockEditing {
   /** Receives the editor's new text, in the file's own line endings. */
   onChange: (value: string) => void;
   onClose: () => void;
+  /** The caret moved in the field editing the block at `from`: its offset in the file. */
+  onCaret?: (offset: number) => void;
   /** Rewrites text[from, to) in the file; a task checkbox uses it to flip its own `[ ]`. */
   onToggleTask?: (from: number, to: number, insert: string) => void;
   /**
@@ -54,6 +57,28 @@ export interface BlockEditing {
    * may add or remove blank lines) keep a stable range until focus leaves.
    */
   rawAll?: boolean;
+}
+
+/**
+ * Per rendered text node under a hast element, in document order: its source
+ * range in the file, and whether the rendered text equals that source. A node
+ * with no position of its own (an inline code span's text) takes its parent's.
+ */
+function textSegments(node: any, source: string, base: number): Segment[] {
+  const out: Segment[] = [];
+  const walk = (n: any, inherited: any) => {
+    const here = n.position ?? inherited;
+    if (n.type === 'text') {
+      const start = here?.start.offset;
+      const end = here?.end.offset;
+      if (start === undefined || end === undefined) out.push([0, 0, 0]);
+      else out.push([base + start, base + end, n.position !== undefined && source.slice(base + start, base + end) === n.value ? 1 : 0]);
+    } else {
+      for (const child of n.children ?? []) walk(child, here);
+    }
+  };
+  walk(node, undefined);
+  return out;
 }
 
 const REMARK_PLUGINS = [remarkGfm, remarkIns];
@@ -65,12 +90,15 @@ function BlockEditor({
   onChange,
   onClose,
   onFocus,
+  onCaret,
   autoFocus = true,
 }: {
   value: string;
   onChange: (v: string) => void;
   onClose: () => void;
   onFocus?: () => void;
+  /** Reports the caret as an offset into `value`, whenever it is placed or the text under it changes. */
+  onCaret?: (offset: number) => void;
   /** False in the document-wide raw view, where every block is a field and none is focused for you. */
   autoFocus?: boolean;
 }) {
@@ -82,6 +110,10 @@ function BlockEditor({
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
   }, []);
+  useEffect(() => {
+    const el = ref.current;
+    if (el && el === el.ownerDocument.activeElement) onCaret?.(el.selectionStart);
+  }, [value, onCaret]);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -108,6 +140,7 @@ function BlockEditor({
         });
       }}
       onFocus={onFocus}
+      onSelect={(e) => onCaret?.(e.currentTarget.selectionStart)}
       onBlur={onClose}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
@@ -137,6 +170,9 @@ function RawBlock({ node }: { node?: any }) {
     <BlockEditor
       autoFocus={false}
       value={toEditable(text.slice(range.from, range.to))}
+      onCaret={(i) =>
+        editing?.onCaret?.(range.from + fromEditable(toEditable(text.slice(range.from, range.to)).slice(0, i), detectEol(text)).length)
+      }
       onFocus={() => active?.from !== from && editing?.onStart({ from, to })}
       onChange={(v) => {
         editing?.onChange(fromEditable(v, detectEol(text)));
@@ -187,7 +223,8 @@ export function MarkdownView({
           pos?.start.offset === undefined || pos.end.offset === undefined
             ? {}
             : { 'data-from': base + pos.start.offset, 'data-to': base + pos.end.offset };
-        return createElement(tag, { ...props, ...range }, children);
+        const segs = tag === 'p' && node ? { 'data-segs': JSON.stringify(textSegments(node, source, base)) } : {};
+        return createElement(tag, { ...props, ...range, ...segs }, children);
       };
     }
     return {
@@ -234,7 +271,11 @@ export function MarkdownView({
       li({ node, children, ...props }: any) {
         const start = node?.position?.start.offset;
         return (
-          <li {...props} {...(start === undefined ? {} : { 'data-item-from': base + start })}>
+          <li
+            {...props}
+            {...(start === undefined ? {} : { 'data-item-from': base + start })}
+            {...(node ? { 'data-segs': JSON.stringify(textSegments(node, source, base)) } : {})}
+          >
             {children}
           </li>
         );
@@ -259,13 +300,13 @@ export function MarkdownView({
   const before = useMemo(
     () => componentsFor(0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc, files, markers, threads, onOpenThread],
+    [doc, files, markers, threads, onOpenThread, source],
   );
   const afterBase = region?.to ?? 0;
   const after = useMemo(
     () => componentsFor(afterBase),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc, files, markers, threads, onOpenThread, afterBase],
+    [doc, files, markers, threads, onOpenThread, afterBase, source],
   );
 
   /** The block (a direct child of the article) a DOM node sits in, if it is a source block. */
@@ -327,6 +368,9 @@ export function MarkdownView({
           <BlockEditor
             value={toEditable(doc.text.slice(region.from, region.to))}
             onChange={(v) => editing?.onChange(fromEditable(v, eol))}
+            onCaret={(i) =>
+              editing?.onCaret?.(region.from + fromEditable(toEditable(doc.text.slice(region.from, region.to)).slice(0, i), eol).length)
+            }
             onClose={() => editing?.onClose()}
           />
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={after} skipHtml>

@@ -61,7 +61,7 @@ test('toggle shows/hides the sidebar and reopening shows All threads', async () 
   await user.click(toggle);
   const side = screen.getByRole('complementary', { name: 'Comments' });
   expect(side).toHaveClass('w-[340px]');
-  await user.click(within(side).getAllByRole('button')[0]);
+  await user.click(within(within(side).getByRole('list')).getAllByRole('button')[0]);
   expect(screen.getByRole('button', { name: 'Close thread' })).toBeInTheDocument();
   await user.click(toggle);
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
@@ -126,7 +126,7 @@ test('no write controls anywhere', async () => {
   const user = await openDoc(DOC);
   await user.click(screen.getByRole('button', { name: '💬' }));
   expect(screen.queryByRole('textbox')).toBeNull();
-  expect(screen.queryByRole('button', { name: /add comment|reply|resolve|reopen|edit|delete|save|submit/i })).toBeNull();
+  expect(screen.queryByRole('button', { name: /reply|resolve|reopen|edit|delete|save|submit/i })).toBeNull();
 });
 
 test('malformed block is skipped and the file still opens', async () => {

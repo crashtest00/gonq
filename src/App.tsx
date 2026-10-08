@@ -5,6 +5,8 @@ import { EditToolbar } from './components/EditToolbar';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
 import { listThreads } from './components/threads';
+import { USER_AUTHOR, isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
+import { normalizeAnchor, openThread as openThreadIn } from './comment-threads';
 import { RawSwitch } from './components/RawSwitch';
 import { MarkdownView } from './components/MarkdownView';
 import { useDocument } from './document/useDocument';
@@ -20,15 +22,89 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [rawAll, setRawAll] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
+  const [selection, setSelection] = useState<{ from: number; to: number; text: string; x: number; y: number } | null>(null);
+  const [caret, setCaret] = useState<{ offset: number; text: string } | null>(null);
+  const [reveal, setReveal] = useState<string | null>(null);
   const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const doc = useMemo(() => (meta === null ? null : { name: meta.name, path: meta.path, text }), [meta, text]);
 
+  const textRef = useRef(text);
+  textRef.current = text;
+  const liveSelection = selection !== null && selection.text === text ? selection : null;
+  const liveCaret = caret !== null && caret.text === text ? caret.offset : null;
+  const canAddAtCursor = liveCaret !== null && isCommentableAt(text, liveCaret);
+
+  const startDraft = useCallback(
+    (target: ThreadTarget) => {
+      const anchor = typeof target === 'number' ? undefined : normalizeAnchor(text.slice(target.from, target.to));
+      setSelectedKey(null);
+      setCommentsOpen(true);
+      setDraft({ target, text, ...(anchor === undefined ? {} : { anchor }) });
+    },
+    [text],
+  );
+  const addComment = useCallback(() => {
+    if (liveSelection !== null) startDraft(liveSelection);
+    else if (canAddAtCursor && liveCaret !== null) startDraft(liveCaret);
+  }, [liveSelection, canAddAtCursor, liveCaret, startDraft]);
+
+  const submitDraft = useCallback(
+    (body: string) => {
+      if (draft === null || body.trim() === '') return;
+      if (draft.text !== text) {
+        setDraft(null);
+        return setError('The document changed while you were writing; start the comment again.');
+      }
+      try {
+        const { doc: next, thread } = openThreadIn(text, draft.target, USER_AUTHOR, body.trim());
+        session.replaceText(next);
+        const created = listThreads(next).find((t) => t.thread.id === thread.id);
+        setError(null);
+        setDraft(null);
+        setSelection(null);
+        window.getSelection()?.removeAllRanges();
+        if (created) {
+          setSelectedKey(created.key);
+          setReveal(created.key);
+        }
+      } catch (e) {
+        failed(e);
+      }
+    },
+    [draft, text, session.replaceText],
+  );
+
+  // Once the new marker is rendered, bring it into view.
+  useEffect(() => {
+    if (reveal === null) return;
+    const main = mainRef.current;
+    const marker = main?.querySelector<HTMLElement>(`[data-thread-key="${CSS.escape(reveal)}"]`);
+    if (main && marker) main.scrollTop += marker.getBoundingClientRect().top - main.getBoundingClientRect().top - 40;
+    setReveal(null);
+  }, [reveal, text]);
+
   const toggleComments = useCallback(() => {
     // Each reopen starts at the All threads list.
     setSelectedKey(null);
+    setDraft(null);
     setCommentsOpen((open) => !open);
+  }, []);
+
+  // A selection inside one paragraph or task item offers a comment button next to it.
+  useEffect(() => {
+    const onChange = () => {
+      const article = mainRef.current?.querySelector('[data-testid="markdown-view"]');
+      const sel = window.getSelection();
+      const range = article && sel ? selectionToRange(article, sel, textRef.current) : null;
+      if (!range || !sel) return setSelection(null);
+      const box = sel.getRangeAt(0).getBoundingClientRect?.() ?? { right: 0, top: 0 };
+      setSelection({ ...range, text: textRef.current, x: box.right + 4, y: Math.max(0, box.top - 30) });
+    };
+    document.addEventListener('selectionchange', onChange);
+    return () => document.removeEventListener('selectionchange', onChange);
   }, []);
 
   const openThread = useCallback((key: string) => {
@@ -81,6 +157,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     if (!(await confirmDiscard())) return;
     setError(null);
     setSelectedKey(null);
+    setDraft(null);
     session.load({ name: UNTITLED, path: null, text: '' });
   }, [confirmDiscard, session.load]);
 
@@ -91,6 +168,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       if (opened === null) return;
       setError(null);
       setSelectedKey(null);
+      setDraft(null);
       session.load(opened);
     } catch (e) {
       // A file that cannot be opened leaves whatever is already open untouched.
@@ -165,6 +243,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                       region,
                       onStart: session.startEdit,
                       onChange: session.changeEdit,
+                      onCaret: (offset) =>
+                        setCaret((c) => (c !== null && c.offset === offset && c.text === text ? c : { offset, text })),
                       onClose: session.closeEdit,
                       onToggleTask: session.replaceRange,
                       rawAll,
@@ -198,9 +278,39 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           )}
         </div>
         {commentsOpen && (
-          <CommentsSidebar threads={threads} selectedKey={selectedKey} onOpen={openThread} onClose={() => setSelectedKey(null)} />
+          <CommentsSidebar
+            threads={threads}
+            selectedKey={selectedKey}
+            onOpen={(key) => {
+              setDraft(null);
+              openThread(key);
+            }}
+            onClose={() => setSelectedKey(null)}
+            draft={draft === null ? null : { anchor: draft.anchor }}
+            canAdd={meta !== null && (liveSelection !== null || canAddAtCursor)}
+            onAdd={addComment}
+            onCancelDraft={() => {
+              setDraft(null);
+              window.getSelection()?.removeAllRanges();
+            }}
+            onSubmitDraft={submitDraft}
+          />
         )}
       </div>
+      {liveSelection !== null && draft === null && (
+        <button
+          type="button"
+          aria-label="Comment on selection"
+          title="Add comment"
+          // Keep the text selected while the button is pressed.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => startDraft(liveSelection)}
+          style={{ position: 'fixed', left: liveSelection.x, top: liveSelection.y }}
+          className="z-10 cursor-pointer rounded-control border border-solid border-border bg-background px-1 py-0.5 text-sm leading-none shadow-sm"
+        >
+          💬
+        </button>
+      )}
       {asking !== null && <UnsavedChangesDialog name={asking.name} onChoose={asking.resolve} />}
     </div>
   );

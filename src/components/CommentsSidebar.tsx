@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import { preview, relativeTime, type ThreadItem } from './threads';
 
@@ -19,10 +20,30 @@ function Anchor({ text }: { text: string }) {
   );
 }
 
-function ThreadList({ threads, onOpen }: { threads: ThreadItem[]; onOpen: (key: string) => void }) {
+function ThreadList({
+  threads,
+  onOpen,
+  onAdd,
+  canAdd,
+}: {
+  threads: ThreadItem[];
+  onOpen: (key: string) => void;
+  onAdd: () => void;
+  canAdd: boolean;
+}) {
   return (
     <>
       <h2 className="m-0 px-4 pb-3 pt-4 text-sm font-semibold">Comments</h2>
+      <div className="px-4 pb-3">
+        <button
+          type="button"
+          disabled={!canAdd}
+          onClick={onAdd}
+          className="w-full cursor-pointer rounded-control border-0 bg-accent px-3.5 py-2.5 font-sans text-[13.5px] font-semibold text-accent-foreground disabled:cursor-default disabled:opacity-50"
+        >
+          Add comment
+        </button>
+      </div>
       {threads.length === 0 ? (
         <p className="m-0 px-4 text-[13px] text-muted-foreground">No comments yet.</p>
       ) : (
@@ -84,27 +105,76 @@ function SingleThread({ item, onClose }: { item: ThreadItem; onClose: () => void
   );
 }
 
-/** Read-only: lists threads and shows one; nothing here writes to the document. */
+function Draft({ anchor, onCancel, onSubmit }: { anchor?: string; onCancel: () => void; onSubmit: (body: string) => void }) {
+  const [body, setBody] = useState('');
+  return (
+    <div className="flex flex-col gap-3.5 p-5">
+      <span className="text-sm font-semibold">New comment</span>
+      {anchor !== undefined && <Anchor text={`On: '${anchor}'`} />}
+      <textarea
+        aria-label="Comment"
+        placeholder="Write a comment…"
+        rows={4}
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        className="box-border w-full rounded-control border border-ring bg-background p-3 font-sans text-[13.5px] text-foreground outline-none"
+      />
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="cursor-pointer rounded-control border border-solid border-border bg-transparent px-3.5 py-2 font-sans text-[13px] font-semibold text-foreground"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => body.trim() !== '' && onSubmit(body)}
+          className="cursor-pointer rounded-control border-0 bg-primary px-3.5 py-2 font-sans text-[13px] font-semibold text-primary-foreground"
+        >
+          Submit
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Lists threads, shows one, and drafts a new one; writing the document is the caller's. */
 export function CommentsSidebar({
   threads,
   selectedKey,
   onOpen,
   onClose,
+  draft = null,
+  canAdd = false,
+  onAdd,
+  onCancelDraft,
+  onSubmitDraft,
 }: {
   threads: ThreadItem[];
   selectedKey: string | null;
   onOpen: (key: string) => void;
   onClose: () => void;
+  /** The comment being written, if any; `anchor` is the quoted text for a selection. */
+  draft?: { anchor?: string } | null;
+  canAdd?: boolean;
+  onAdd?: () => void;
+  onCancelDraft?: () => void;
+  onSubmitDraft?: (body: string) => void;
 }) {
   const selected = selectedKey === null ? undefined : threads.find((t) => t.key === selectedKey);
   return (
     <aside aria-label="Comments" className="flex w-[340px] shrink-0 overflow-hidden">
       <div className="w-px shrink-0" style={{ background: 'var(--brass-hairline-v)' }} />
       <div className="min-w-0 flex-1 overflow-y-auto">
-        {selected !== undefined ? (
+        {draft !== null ? (
+          <Draft anchor={draft.anchor} onCancel={() => onCancelDraft?.()} onSubmit={(b) => onSubmitDraft?.(b)} />
+        ) : selected !== undefined ? (
           <SingleThread item={selected} onClose={onClose} />
         ) : (
-          <ThreadList threads={threads} onOpen={onOpen} />
+          <ThreadList threads={threads} onOpen={onOpen} onAdd={() => onAdd?.()} canAdd={canAdd} />
         )}
       </div>
     </aside>
