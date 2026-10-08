@@ -11,12 +11,12 @@ const files: FileAccess = {
   saveDocumentAs: async (d) => ({ name: d.name, path: null }),
 };
 
-async function open() {
+async function open(d: OpenedDocument = doc) {
   const user = userEvent.setup();
-  render(<App files={files} />);
+  render(<App files={{ ...files, pickDocument: async () => d }} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
-  await screen.findByRole('heading', { level: 1, name: 'Title' });
+  await screen.findByTestId('markdown-view');
   return user;
 }
 
@@ -48,4 +48,67 @@ test('an empty outline says so', async () => {
   render(<App files={files} />);
   await user.click(screen.getByRole('button', { name: 'Document outline' }));
   expect(screen.getByText('No headings.')).toBeInTheDocument();
+});
+
+const entries = () => Array.from(screen.getByRole('complementary', { name: 'Outline' }).querySelectorAll('li')).map((li) => li.textContent);
+
+test('H3 is excluded, setext H1 and H2 are included', async () => {
+  const user = await open({ ...doc, text: 'Setext One\n===\n\nSetext Two\n---\n\n### Deep\n\n## Atx\n' });
+  await user.click(screen.getByRole('button', { name: 'Document outline' }));
+  expect(entries()).toEqual(['Setext One', 'Setext Two', 'Atx']);
+});
+
+test('a heading with a marker shows its text without the glyph', async () => {
+  const user = await open({ ...doc, text: '# Marked [💬](#md-thread-abc) heading\n' });
+  await user.click(screen.getByRole('button', { name: 'Document outline' }));
+  expect(entries()).toEqual(['Marked heading']);
+});
+
+test('identical headings each scroll to their own position', async () => {
+  const user = await open({ ...doc, text: '## Same\n\none\n\n## Same\n\ntwo\n' });
+  await user.click(screen.getByRole('button', { name: 'Document outline' }));
+  const main = screen.getByRole('main');
+  main.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
+  const [first, second] = screen.getAllByRole('heading', { name: 'Same' });
+  first.getBoundingClientRect = () => ({ top: 120 }) as DOMRect;
+  second.getBoundingClientRect = () => ({ top: 700 }) as DOMRect;
+  const [b1, b2] = screen.getAllByRole('button', { name: 'Same' });
+  await user.click(b2);
+  expect(main.scrollTop).toBe(680);
+  main.scrollTop = 0;
+  await user.click(b1);
+  expect(main.scrollTop).toBe(100);
+});
+
+test('renaming, adding and removing a heading updates the outline live', async () => {
+  const user = await open();
+  await user.click(screen.getByRole('button', { name: 'Document outline' }));
+  const editor = () => screen.getByRole('textbox', { name: /Markdown source/ }) as HTMLTextAreaElement;
+  const edit = async (target: string, value: string) => {
+    await user.click(screen.getByText(target, { selector: 'main *' }));
+    await user.clear(editor());
+    await user.type(editor(), value);
+    await user.keyboard('{Escape}');
+  };
+  await edit('Part A', '## Renamed');
+  expect(entries()).toEqual(['Title', 'Renamed', 'Part B']);
+  await edit('intro', 'intro\n\n## Added');
+  expect(entries()).toEqual(['Title', 'Added', 'Renamed', 'Part B']);
+  await edit('Renamed', 'plain text');
+  expect(entries()).toEqual(['Title', 'Added', 'Part B']);
+});
+
+test('a document with text but no headings says "No headings."', async () => {
+  const user = await open({ ...doc, text: 'just a paragraph\n\nanother\n' });
+  await user.click(screen.getByRole('button', { name: 'Document outline' }));
+  expect(screen.getByText('No headings.')).toBeInTheDocument();
+});
+
+test('a document with only H2s uses H2 styling', async () => {
+  const user = await open({ ...doc, text: '## Only A\n\n## Only B\n' });
+  await user.click(screen.getByRole('button', { name: 'Document outline' }));
+  const btn = screen.getByRole('button', { name: 'Only A' });
+  expect(btn).toHaveClass('text-[12.5px]', 'text-muted-foreground');
+  expect(btn).not.toHaveClass('font-semibold');
+  expect(btn.style.paddingLeft).toBe('22px');
 });
