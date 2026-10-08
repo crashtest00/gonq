@@ -4,10 +4,12 @@ import remarkGfm from 'remark-gfm';
 import {
   RESOLVED_COMMENT_LABEL,
   parseCommentMarkerFragment,
+  parseCommentMarkers,
   parseCommentThreads,
 } from '../comment-threads';
 import type { FileAccess, OpenedDocument } from '../platform/files';
 import { MarkdownImage } from './MarkdownImage';
+import { threadKey, type ThreadItem } from './threads';
 
 /**
  * The text handed to the renderer: the document with its thread blocks cut out,
@@ -25,19 +27,49 @@ export function viewText(text: string): string {
   return (out + text.slice(at)).replace(/^﻿/, '');
 }
 
-export function MarkdownView({ doc, files }: { doc: OpenedDocument; files: FileAccess }) {
+export function MarkdownView({
+  doc,
+  files,
+  threads = [],
+  onOpenThread,
+}: {
+  doc: OpenedDocument;
+  files: FileAccess;
+  threads?: ThreadItem[];
+  onOpenThread?: (key: string) => void;
+}) {
   const source = useMemo(() => viewText(doc.text), [doc.text]);
+  const markers = useMemo(() => parseCommentMarkers(source), [source]);
 
   const components = useMemo<Components>(
     () => ({
-      a({ node: _node, href, children, ...props }) {
+      a({ node, href, children, ...props }) {
         const threadId = href === undefined ? undefined : parseCommentMarkerFragment(href);
         if (threadId !== undefined) {
           const resolved = String(children) === RESOLVED_COMMENT_LABEL;
+          const className = `gonq-marker ${resolved ? 'gonq-marker-resolved' : 'gonq-marker-open'}`;
+          // Pair with its block by ordinal among same-id markers, as the library does.
+          const offset = node?.position?.start.offset;
+          const ordinal = (markers.get(threadId) ?? []).findIndex((m) => m.from === offset);
+          const key = ordinal < 0 ? undefined : threadKey(threadId, ordinal);
+          const target = key === undefined ? undefined : threads.find((t) => t.key === key);
+          if (key === undefined || target === undefined || onOpenThread === undefined) {
+            // Dangling marker: just the glyph.
+            return <span className={className}>{children}</span>;
+          }
           return (
             <span
-              className={`gonq-marker ${resolved ? 'gonq-marker-resolved' : 'gonq-marker-open'}`}
-              data-thread-id={threadId}
+              role="button"
+              tabIndex={0}
+              className={`${className} gonq-marker-link`}
+              data-thread-key={key}
+              onClick={() => onOpenThread(key)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpenThread(key);
+                }
+              }}
             >
               {children}
             </span>
@@ -53,7 +85,7 @@ export function MarkdownView({ doc, files }: { doc: OpenedDocument; files: FileA
         return typeof src === 'string' ? <MarkdownImage doc={doc} files={files} src={src} alt={alt} /> : null;
       },
     }),
-    [doc, files],
+    [doc, files, markers, threads, onOpenThread],
   );
 
   return (

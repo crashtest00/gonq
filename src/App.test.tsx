@@ -13,7 +13,7 @@ async function openMenuItem() {
   await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
 }
 
-test('shows the menu bar and no editing, comment or sidebar controls', () => {
+test('shows the menu bar and no editing or left-sidebar controls', () => {
   render(<App files={fakeFiles(async () => null)} />);
   for (const name of ['File', 'Edit', 'View', 'Insert', 'Format', 'Help']) {
     expect(screen.getByRole('menuitem', { name })).toBeInTheDocument();
@@ -21,7 +21,7 @@ test('shows the menu bar and no editing, comment or sidebar controls', () => {
   expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
   expect(screen.queryByRole('switch')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText(/comments|outline|folder/i)).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/outline|folder/i)).not.toBeInTheDocument();
 });
 
 test('File > Open renders the file and names the tab', async () => {
