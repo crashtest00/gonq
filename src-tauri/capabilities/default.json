@@ -7,13 +7,7 @@
     "core:default",
     "dialog:allow-open",
     "dialog:allow-save",
-    {
-      "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "**/*.md" }]
-    },
-    {
-      "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "**/*.md" }]
-    }
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file"
   ]
 }
