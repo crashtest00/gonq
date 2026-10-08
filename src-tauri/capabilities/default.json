@@ -3,5 +3,17 @@
   "identifier": "default",
   "description": "Default capability for the main window",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "**/*.md" }]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "**/*.md" }]
+    }
+  ]
 }
