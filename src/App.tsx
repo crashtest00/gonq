@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MenuBar } from './components/MenuBar';
 import { TabStrip } from './components/TabStrip';
 import { EditToolbar } from './components/EditToolbar';
+import { OutlineSidebar } from './components/OutlineSidebar';
+import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
 import { listThreads } from './components/threads';
@@ -21,6 +23,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [error, setError] = useState<string | null>(null);
   const [rawAll, setRawAll] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
   const [selection, setSelection] = useState<{ from: number; to: number; text: string; x: number; y: number } | null>(null);
@@ -29,6 +32,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
+  const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
   const doc = useMemo(() => (meta === null ? null : { name: meta.name, path: meta.path, text }), [meta, text]);
 
   const textRef = useRef(text);
@@ -178,6 +182,12 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     }
   }, []);
 
+  const jumpToHeading = useCallback((from: number) => {
+    const main = mainRef.current;
+    const heading = main?.querySelector<HTMLElement>(`:is(h1,h2,h3,h4,h5,h6)[data-from="${from}"]`);
+    if (main && heading) main.scrollTop += heading.getBoundingClientRect().top - main.getBoundingClientRect().top - 20;
+  }, []);
+
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
   /** Writes the document; true when it is on disk, false when cancelled or failed. */
@@ -279,8 +289,9 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onUndo={session.undo}
         onRedo={session.redo}
       />
-      <TabStrip name={meta?.name ?? null} dirty={dirty} commentsOpen={commentsOpen} onToggleComments={toggleComments} />
+      <TabStrip name={meta?.name ?? null} dirty={dirty} outlineOpen={outlineOpen} onToggleOutline={() => setOutlineOpen((o) => !o)} commentsOpen={commentsOpen} onToggleComments={toggleComments} />
       <div className="flex min-h-0 flex-1">
+        {outlineOpen && <OutlineSidebar items={outline} onJump={jumpToHeading} />}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {doc !== null && (
             <EditToolbar editing={region !== null} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={session.undo} onRedo={session.redo} />

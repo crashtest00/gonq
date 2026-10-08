@@ -1,19 +1,35 @@
-import { MessageSquare } from 'lucide-react';
+import { ListTree, MessageSquare } from 'lucide-react';
 
 export function TabStrip({
   name,
   dirty = false,
+  outlineOpen = false,
+  onToggleOutline,
   commentsOpen,
   onToggleComments,
 }: {
   name: string | null;
   dirty?: boolean;
+  outlineOpen?: boolean;
+  onToggleOutline?: () => void;
   commentsOpen: boolean;
   onToggleComments: () => void;
 }) {
   return (
     <>
       <div className="flex h-[46px] shrink-0 items-center overflow-x-auto px-3">
+        <button
+          type="button"
+          aria-label="Document outline"
+          title="Document outline"
+          aria-pressed={outlineOpen}
+          onClick={onToggleOutline}
+          className={`mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-control border-0 p-0 text-foreground hover:bg-surface ${
+            outlineOpen ? 'bg-surface' : 'bg-transparent'
+          }`}
+        >
+          <ListTree size={18} aria-hidden />
+        </button>
         {name !== null && (
           <div
             role="tab"
