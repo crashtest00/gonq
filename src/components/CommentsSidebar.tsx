@@ -1,5 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { preview, relativeTime, type ThreadItem } from './threads';
 
 function Badge({ status }: { status: 'open' | 'resolved' }) {
@@ -150,40 +159,21 @@ function EditBox({ initial, onCancel, onSave }: { initial: string; onCancel: () 
   );
 }
 
-function DeleteDialog({ onChoose }: { onChoose: (confirmed: boolean) => void }) {
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => cancelRef.current?.focus(), []);
-  const button =
-    'h-8 cursor-pointer rounded-control border px-3 font-sans text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring';
+function DeleteDialog({ item, onChoose }: { item: ThreadItem; onChoose: (confirmed: boolean) => void }) {
+  const { thread } = item;
+  const label = thread.anchor !== undefined && thread.anchor !== '' ? `\u201c${preview(thread.anchor)}\u201d` : thread.messages[0] ? `\u201c${preview(thread.messages[0].body)}\u201d` : 'this thread';
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="delete-thread-title"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onChoose(false);
-        }}
-        className="w-[380px] rounded-container border border-border bg-surface p-5 [box-shadow:var(--shadow-dialog)]"
-      >
-        <h2 id="delete-thread-title" className="m-0 mb-2 text-[15px] font-semibold">
-          Delete this thread?
-        </h2>
-        <p className="m-0 mb-5 text-[13px] text-muted-foreground">The whole thread, including its replies, is removed from the document.</p>
-        <div className="flex justify-end gap-2">
-          <button type="button" ref={cancelRef} onClick={() => onChoose(false)} className={`${button} border-border bg-transparent`}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => onChoose(true)}
-            className={`${button} border-destructive bg-destructive text-destructive-foreground`}
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
+    <AlertDialog open onOpenChange={(open) => !open && onChoose(false)}>
+      {/* Radix focuses Cancel by default, which is the safe choice for a destructive action. */}
+      <AlertDialogContent>
+        <AlertDialogTitle>Delete thread {label}?</AlertDialogTitle>
+        <AlertDialogDescription>The whole thread, including its replies, is removed from the document.</AlertDialogDescription>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => onChoose(true)}>Delete</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -254,6 +244,7 @@ function SingleThread({
       )}
       {confirming && (
         <DeleteDialog
+          item={item}
           onChoose={(ok) => {
             setConfirming(false);
             if (ok) onDelete();
