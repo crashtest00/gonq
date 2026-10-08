@@ -72,7 +72,15 @@ function ThreadList({
   );
 }
 
-function ReplyBox({ onReply }: { onReply: (body: string) => void }) {
+function ReplyBox({
+  status,
+  onReply,
+  onToggleStatus,
+}: {
+  status: 'open' | 'resolved';
+  onReply: (body: string) => void;
+  onToggleStatus: () => void;
+}) {
   const [body, setBody] = useState('');
   return (
     <div className="flex flex-col gap-2">
@@ -84,7 +92,14 @@ function ReplyBox({ onReply }: { onReply: (body: string) => void }) {
         onChange={(e) => setBody(e.target.value)}
         className="box-border w-full rounded-control border border-border bg-background p-3 font-sans text-[13.5px] text-foreground outline-none focus:border-ring"
       />
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onToggleStatus}
+          className="cursor-pointer rounded-control border border-solid border-border bg-transparent px-3 py-1.5 font-sans text-[12.5px] font-semibold text-foreground"
+        >
+          {status === 'open' ? 'Resolve' : 'Reopen'}
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -101,7 +116,17 @@ function ReplyBox({ onReply }: { onReply: (body: string) => void }) {
   );
 }
 
-function SingleThread({ item, onClose, onReply }: { item: ThreadItem; onClose: () => void; onReply: (body: string) => void }) {
+function SingleThread({
+  item,
+  onClose,
+  onReply,
+  onSetStatus,
+}: {
+  item: ThreadItem;
+  onClose: () => void;
+  onReply: (body: string) => void;
+  onSetStatus: (status: 'open' | 'resolved') => void;
+}) {
   const { thread } = item;
   return (
     <div className="flex flex-col gap-3 p-4">
@@ -130,7 +155,12 @@ function SingleThread({ item, onClose, onReply }: { item: ThreadItem; onClose: (
           </li>
         ))}
       </ol>
-      <ReplyBox key={item.key} onReply={onReply} />
+      <ReplyBox
+        key={item.key}
+        status={thread.status}
+        onReply={onReply}
+        onToggleStatus={() => onSetStatus(thread.status === 'open' ? 'resolved' : 'open')}
+      />
     </div>
   );
 }
@@ -183,6 +213,7 @@ export function CommentsSidebar({
   onCancelDraft,
   onSubmitDraft,
   onReply,
+  onSetStatus,
 }: {
   threads: ThreadItem[];
   selectedKey: string | null;
@@ -195,6 +226,7 @@ export function CommentsSidebar({
   onCancelDraft?: () => void;
   onSubmitDraft?: (body: string) => void;
   onReply?: (key: string, body: string) => void;
+  onSetStatus?: (key: string, status: 'open' | 'resolved') => void;
 }) {
   const selected = selectedKey === null ? undefined : threads.find((t) => t.key === selectedKey);
   return (
@@ -204,7 +236,12 @@ export function CommentsSidebar({
         {draft !== null ? (
           <Draft anchor={draft.anchor} onCancel={() => onCancelDraft?.()} onSubmit={(b) => onSubmitDraft?.(b)} />
         ) : selected !== undefined ? (
-          <SingleThread item={selected} onClose={onClose} onReply={(b) => onReply?.(selected.key, b)} />
+          <SingleThread
+            item={selected}
+            onClose={onClose}
+            onReply={(b) => onReply?.(selected.key, b)}
+            onSetStatus={(st) => onSetStatus?.(selected.key, st)}
+          />
         ) : (
           <ThreadList threads={threads} onOpen={onOpen} onAdd={() => onAdd?.()} canAdd={canAdd} />
         )}
