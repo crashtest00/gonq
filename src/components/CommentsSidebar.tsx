@@ -72,7 +72,36 @@ function ThreadList({
   );
 }
 
-function SingleThread({ item, onClose }: { item: ThreadItem; onClose: () => void }) {
+function ReplyBox({ onReply }: { onReply: (body: string) => void }) {
+  const [body, setBody] = useState('');
+  return (
+    <div className="flex flex-col gap-2">
+      <textarea
+        aria-label="Reply"
+        placeholder="Reply…"
+        rows={3}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        className="box-border w-full rounded-control border border-border bg-background p-3 font-sans text-[13.5px] text-foreground outline-none focus:border-ring"
+      />
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => {
+            if (body.trim() === '') return;
+            onReply(body);
+            setBody('');
+          }}
+          className="cursor-pointer rounded-control border-0 bg-primary px-3.5 py-2 font-sans text-[13px] font-semibold text-primary-foreground"
+        >
+          Reply
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SingleThread({ item, onClose, onReply }: { item: ThreadItem; onClose: () => void; onReply: (body: string) => void }) {
   const { thread } = item;
   return (
     <div className="flex flex-col gap-3 p-4">
@@ -101,6 +130,7 @@ function SingleThread({ item, onClose }: { item: ThreadItem; onClose: () => void
           </li>
         ))}
       </ol>
+      <ReplyBox key={item.key} onReply={onReply} />
     </div>
   );
 }
@@ -152,6 +182,7 @@ export function CommentsSidebar({
   onAdd,
   onCancelDraft,
   onSubmitDraft,
+  onReply,
 }: {
   threads: ThreadItem[];
   selectedKey: string | null;
@@ -163,6 +194,7 @@ export function CommentsSidebar({
   onAdd?: () => void;
   onCancelDraft?: () => void;
   onSubmitDraft?: (body: string) => void;
+  onReply?: (key: string, body: string) => void;
 }) {
   const selected = selectedKey === null ? undefined : threads.find((t) => t.key === selectedKey);
   return (
@@ -172,7 +204,7 @@ export function CommentsSidebar({
         {draft !== null ? (
           <Draft anchor={draft.anchor} onCancel={() => onCancelDraft?.()} onSubmit={(b) => onSubmitDraft?.(b)} />
         ) : selected !== undefined ? (
-          <SingleThread item={selected} onClose={onClose} />
+          <SingleThread item={selected} onClose={onClose} onReply={(b) => onReply?.(selected.key, b)} />
         ) : (
           <ThreadList threads={threads} onOpen={onOpen} onAdd={() => onAdd?.()} canAdd={canAdd} />
         )}
