@@ -35,6 +35,8 @@ export interface FileAccess {
   saveDocument(doc: { name: string; path: string | null; text: string }): Promise<SavedDocument | null>;
   /** Always asks where to put the file. Resolves null when the user cancels. */
   saveDocumentAs(doc: { name: string; text: string }): Promise<SavedDocument | null>;
+  /** Reads a known file (desktop only; absent in the browser). Rejects when it cannot be opened. */
+  openPath?(path: string): Promise<OpenedDocument>;
   /** Resolves a displayable URL for an image, or null when it cannot be loaded. */
   loadImage(doc: OpenedDocument, src: string): Promise<string | null>;
 }
@@ -110,6 +112,13 @@ const tauriFiles: FileAccess = {
     const name = basename(path);
     const text = decodeUtf8(await readFile(path), name);
     // Lets the document's own folder (only) be read, for relative images.
+    await invoke('allow_document_folder', { path });
+    return { name, path, text };
+  },
+
+  async openPath(path) {
+    const name = basename(path);
+    const text = decodeUtf8(await readFile(path), name);
     await invoke('allow_document_folder', { path });
     return { name, path, text };
   },

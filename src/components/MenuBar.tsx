@@ -5,6 +5,7 @@ const EMPTY_MENUS = ['View', 'Insert', 'Format', 'Help'];
 export interface MenuActions {
   onNew: () => void;
   onOpen: () => void;
+  onOpenFolder?: () => void;
   onSave: () => void;
   onSaveAs: () => void;
   onUndo: () => void;
@@ -17,6 +18,7 @@ export function MenuBar({
   canRedo,
   onNew,
   onOpen,
+  onOpenFolder,
   onSave,
   onSaveAs,
   onUndo,
@@ -34,6 +36,7 @@ export function MenuBar({
             <MenubarItem onSelect={onOpen}>
               Open…<MenubarShortcut>Ctrl+O</MenubarShortcut>
             </MenubarItem>
+            {onOpenFolder && <MenubarItem onSelect={onOpenFolder}>Open Folder…</MenubarItem>}
             <MenubarSeparator />
             <MenubarItem disabled={!hasDocument} onSelect={onSave}>
               Save<MenubarShortcut>Ctrl+S</MenubarShortcut>
