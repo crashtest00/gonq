@@ -1,23 +1,23 @@
 # gonq — Project Map
 
-<!-- Fill in each section before the first agent runs.
-     Agents use this file to locate files efficiently — keep it concise.
-     Update at the directory/pattern level when structure changes; not individual files. -->
-
 ## Framework / Runtime
-<!-- e.g. Node 22 + Express, plain HTML/CSS, React + Vite, Python 3.11 + FastAPI -->
+Tauri 2 desktop app (Rust) with a React 18 + TypeScript + Vite 5 frontend. Node 22.
 
 ## Key Directories
-<!--
-- src/           — application source
--->
+- src/            — React frontend (components, tests alongside as *.test.tsx)
+- src-tauri/      — Rust crate, tauri.conf.json, capabilities, icons
+- .github/workflows/ — build-desktop (workflow_dispatch only) and release-desktop (v* tags); both Jenkins-driven, never trigger by hand
+- dist/           — web build output (gitignored); served by nginx in the Dockerfile for beta
 
 ## Entry Points
-<!-- e.g. src/index.html, src/index.js, src/app.py -->
+- index.html → src/main.tsx → src/App.tsx
+- src-tauri/src/main.rs → lib.rs (`run`)
 
 ## Conventions
-<!-- Non-obvious patterns agents need to follow:
-     e.g. CSS modules, named exports only, all API responses wrapped in { data, error } -->
+- `npm run dev` is the web dev loop (port 1420); `npm run build` type-checks then builds the web frontend.
+- `npm run tauri build` makes the native bundle (nsis/dmg/appimage, unsigned). Updater is disabled.
+- Beta deploys the web build (Dockerfile → nginx). Jenkinsfile follows /agent-docs template; don't hand-edit its shared stages.
+- Branches: feature|bugfix|chore/<reference>-description, targeting `dev`.
 
 ## Test Framework
-<!-- e.g. Jest + React Testing Library, pytest, or "none configured" -->
+Vitest + jsdom + React Testing Library (`npm test`, setup in src/setupTests.ts).

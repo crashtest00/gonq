@@ -1,8 +1,11 @@
-FROM node:22-bookworm-slim
+# Beta deploy image: the built web frontend served by nginx.
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci
 COPY . .
-ENV PORT=3000
-EXPOSE 3000
-CMD ["node", "server.js"]
+RUN npm run build
+
+FROM nginx:1.27-alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
