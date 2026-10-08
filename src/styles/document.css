@@ -53,6 +53,7 @@
 
 /* Thread markers: the literal glyph as written, never an icon. */
 .gonq-marker { font-size: 1em; }
+.gonq-marker-link { cursor: pointer; }
 .gonq-marker-open { color: var(--accent-foreground); }
 .gonq-marker-resolved { color: var(--muted-foreground); opacity: 0.65; }
 
