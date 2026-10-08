@@ -13,7 +13,7 @@ async function openMenuItem() {
   await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
 }
 
-test('shows the menu bar and no editing or folder controls', () => {
+test('shows the menu bar, the folder toggle (closed) and no editing controls', () => {
   render(<App files={fakeFiles(async () => null)} />);
   for (const name of ['File', 'Edit', 'View', 'Insert', 'Format', 'Help']) {
     expect(screen.getByRole('menuitem', { name })).toBeInTheDocument();
@@ -21,7 +21,8 @@ test('shows the menu bar and no editing or folder controls', () => {
   expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
   expect(screen.queryByRole('switch')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText(/folder/i)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Folder navigator' })).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.queryByRole('complementary', { name: 'Folder navigator' })).not.toBeInTheDocument();
 });
 
 test('File > Open renders the file and names the tab', async () => {

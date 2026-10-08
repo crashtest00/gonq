@@ -1,10 +1,12 @@
-import { ListTree, MessageSquare } from 'lucide-react';
+import { FolderTree, ListTree, MessageSquare } from 'lucide-react';
 
 export function TabStrip({
   name,
   dirty = false,
   outlineOpen = false,
   onToggleOutline,
+  folderOpen = false,
+  onToggleFolder,
   commentsOpen,
   onToggleComments,
 }: {
@@ -12,6 +14,8 @@ export function TabStrip({
   dirty?: boolean;
   outlineOpen?: boolean;
   onToggleOutline?: () => void;
+  folderOpen?: boolean;
+  onToggleFolder?: () => void;
   commentsOpen: boolean;
   onToggleComments: () => void;
 }) {
@@ -29,6 +33,18 @@ export function TabStrip({
           }`}
         >
           <ListTree size={18} aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label="Folder navigator"
+          title="Folder navigator"
+          aria-pressed={folderOpen}
+          onClick={onToggleFolder}
+          className={`mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-control border-0 p-0 text-foreground hover:bg-surface ${
+            folderOpen ? 'bg-surface' : 'bg-transparent'
+          }`}
+        >
+          <FolderTree size={18} aria-hidden />
         </button>
         {name !== null && (
           <div

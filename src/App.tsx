@@ -14,6 +14,9 @@ import { MarkdownView } from './components/MarkdownView';
 import { useDocument } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
+import { FolderSidebar } from './components/FolderSidebar';
+import { foldersSupported, pathExists, pickFolder } from './platform/folders';
+import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from './platform/recents';
 
 const UNTITLED = 'Untitled.md';
 
@@ -24,6 +27,9 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [rawAll, setRawAll] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [folderOpen, setFolderOpen] = useState(false);
+  const [folder, setFolder] = useState<string | null>(null);
+  const [recents, setRecents] = useState<RecentDocument[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
   const [selection, setSelection] = useState<{ from: number; to: number; text: string; x: number; y: number } | null>(null);
@@ -34,6 +40,17 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
   const doc = useMemo(() => (meta === null ? null : { name: meta.name, path: meta.path, text }), [meta, text]);
+
+  useEffect(() => {
+    let live = true;
+    listRecents().then((list) => live && setRecents(list), () => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  const remember = useCallback((path: string | null) => {
+    if (path !== null) addRecent(path).then(setRecents, () => {});
+  }, []);
 
   const textRef = useRef(text);
   textRef.current = text;
@@ -203,13 +220,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         if (saved === null) return false;
         setError(null);
         session.saved(saved, snapshot);
+        if (saved.path !== meta.path) remember(saved.path);
         return true;
       } catch (e) {
         failed(e);
         return false;
       }
     },
-    [files, meta, text, session.saved],
+    [files, meta, text, session.saved, remember],
   );
   const save = useCallback(() => write(false), [write]);
   const saveAs = useCallback(() => write(true), [write]);
@@ -240,11 +258,50 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       setSelectedKey(null);
       setDraft(null);
       session.load(opened);
+      remember(opened.path);
     } catch (e) {
       // A file that cannot be opened leaves whatever is already open untouched.
       failed(e);
     }
-  }, [files, confirmDiscard, session.load]);
+  }, [files, confirmDiscard, session.load, remember]);
+
+  /** Opens a file chosen in the folder navigator or the recent list. */
+  const openKnownPath = useCallback(
+    async (path: string, fromRecents: boolean) => {
+      if (files.openPath === undefined || !(await confirmDiscard())) return;
+      try {
+        if (fromRecents) {
+          await allowRecentDocument(path);
+          if (!(await pathExists(path))) {
+            await removeRecent(path).then(setRecents, () => {});
+            return setError(`${path} no longer exists, so it was removed from recent documents.`);
+          }
+        }
+        const opened = await files.openPath(path);
+        setError(null);
+        setSelectedKey(null);
+        setDraft(null);
+        session.load(opened);
+        remember(opened.path);
+      } catch (e) {
+        failed(e);
+      }
+    },
+    [files, confirmDiscard, session.load, remember],
+  );
+
+  const openFolder = useCallback(async () => {
+    try {
+      const picked = await pickFolder();
+      if (picked === null) return;
+      setFolder(picked);
+      setError(null);
+      setOutlineOpen(false);
+      setFolderOpen(true);
+    } catch (e) {
+      failed(e);
+    }
+  }, []);
 
   // Keyboard shortcuts read the latest handlers through a ref, so the listener is added once.
   const actions = useRef({ newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo });
@@ -284,14 +341,33 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         canRedo={session.canRedo}
         onNew={() => void newFile()}
         onOpen={() => void openFile()}
+        onOpenFolder={foldersSupported() ? () => void openFolder() : undefined}
         onSave={() => void save()}
         onSaveAs={() => void saveAs()}
         onUndo={session.undo}
         onRedo={session.redo}
       />
-      <TabStrip name={meta?.name ?? null} dirty={dirty} outlineOpen={outlineOpen} onToggleOutline={() => setOutlineOpen((o) => !o)} commentsOpen={commentsOpen} onToggleComments={toggleComments} />
+      <TabStrip name={meta?.name ?? null} dirty={dirty} outlineOpen={outlineOpen} onToggleOutline={() => {
+          setOutlineOpen((o) => !o);
+          setFolderOpen(false);
+        }} folderOpen={folderOpen} onToggleFolder={() => {
+          setFolderOpen((o) => !o);
+          setOutlineOpen(false);
+        }} commentsOpen={commentsOpen} onToggleComments={toggleComments} />
       <div className="flex min-h-0 flex-1">
         {outlineOpen && <OutlineSidebar items={outline} onJump={jumpToHeading} />}
+        {folderOpen && (
+          <FolderSidebar
+            supported={foldersSupported()}
+            folder={folder}
+            recents={recents}
+            currentPath={meta?.path ?? null}
+            onOpenFolder={() => void openFolder()}
+            onOpenFile={(path) => void openKnownPath(path, false)}
+            onOpenRecent={(path) => void openKnownPath(path, true)}
+            onRemoveRecent={(path) => void removeRecent(path).then(setRecents, () => {})}
+          />
+        )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {doc !== null && (
             <EditToolbar editing={region !== null} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={session.undo} onRedo={session.redo} />
