@@ -7,7 +7,8 @@ Tauri 2 desktop app (Rust) with a React 18 + TypeScript + Vite 5 frontend. Node 
 - src/            — React frontend (components, tests alongside as *.test.tsx)
 - src/comment-threads/ — Markdown comment-threads library (barrel in index.ts; editor/ is unbuilt, excluded from tsc, not exported)
 - src/components/ — app shell + Markdown view; ui/ holds shadcn/ui primitives (Tailwind, themed by CSS vars in src/styles/tokens.css)
-- src/platform/   — native/web file-access boundary (Tauri dialog+fs, browser fallback); keep native calls here
+- src/document/   — document state: undo/redo history, dirty tracking, the one block open for editing (edits splice source text; nothing is re-serialised)
+- src/platform/   — native/web file-access boundary (Tauri dialog+fs open/save, window-close guard; browser fallback); keep native calls here
 - src-tauri/      — Rust crate, tauri.conf.json, capabilities, icons
 - .github/workflows/ — build-desktop.yml (workflow_dispatch with `sha`, dispatched by Jenkins only) and release-desktop.yml (`v*` tag push, tagged by Jenkins only); never add other triggers or run/tag by hand
 - dist/           — web build output (gitignored); served by nginx in the Dockerfile for beta

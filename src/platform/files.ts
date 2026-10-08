@@ -1,8 +1,8 @@
 // Native file access lives behind this boundary so the web beta stays usable:
 // in a browser, File > Open falls back to an <input type="file">.
 import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
-import { readFile } from '@tauri-apps/plugin-fs';
+import { open, save } from '@tauri-apps/plugin-dialog';
+import { readFile, writeTextFile } from '@tauri-apps/plugin-fs';
 
 export interface OpenedDocument {
   name: string;
@@ -19,9 +19,22 @@ export class NotUtf8Error extends Error {
   }
 }
 
+/** What a document is called and where it lives after it has been written. */
+export interface SavedDocument {
+  name: string;
+  path: string | null;
+}
+
 export interface FileAccess {
   /** Resolves null when the user cancels. Rejects (NotUtf8Error, ...) when the file cannot be opened. */
   pickDocument(): Promise<OpenedDocument | null>;
+  /**
+   * Writes the text to the document's own path, or asks where to put it when it has none.
+   * Resolves null when the user cancels. Rejects when the file cannot be written.
+   */
+  saveDocument(doc: { name: string; path: string | null; text: string }): Promise<SavedDocument | null>;
+  /** Always asks where to put the file. Resolves null when the user cancels. */
+  saveDocumentAs(doc: { name: string; text: string }): Promise<SavedDocument | null>;
   /** Resolves a displayable URL for an image, or null when it cannot be loaded. */
   loadImage(doc: OpenedDocument, src: string): Promise<string | null>;
 }
@@ -74,6 +87,18 @@ export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+/** The text goes to disk exactly as held: no newline, BOM or whitespace normalisation. */
+async function tauriWrite(path: string, text: string): Promise<SavedDocument> {
+  await writeTextFile(path, text);
+  try {
+    // A document saved to a new place can show its relative images from there.
+    await invoke('allow_document_folder', { path });
+  } catch {
+    // Images are a nicety; the save itself succeeded.
+  }
+  return { name: basename(path), path };
+}
+
 const tauriFiles: FileAccess = {
   async pickDocument() {
     const path = await open({
@@ -87,6 +112,19 @@ const tauriFiles: FileAccess = {
     // Lets the document's own folder (only) be read, for relative images.
     await invoke('allow_document_folder', { path });
     return { name, path, text };
+  },
+
+  async saveDocument(doc) {
+    if (doc.path === null) return tauriFiles.saveDocumentAs(doc);
+    return tauriWrite(doc.path, doc.text);
+  },
+
+  async saveDocumentAs(doc) {
+    const path = await save({
+      defaultPath: /\.(md|markdown)$/i.test(doc.name) ? doc.name : `${doc.name}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+    });
+    return path === null ? null : tauriWrite(path, doc.text);
   },
 
   async loadImage(doc, src) {
@@ -120,6 +158,22 @@ const webFiles: FileAccess = {
       });
       input.click();
     });
+  },
+
+  // A browser cannot overwrite a file it opened, so saving downloads the text.
+  async saveDocument(doc) {
+    return webFiles.saveDocumentAs(doc);
+  },
+
+  async saveDocumentAs(doc) {
+    const name = /\.(md|markdown)$/i.test(doc.name) ? doc.name : `${doc.name}.md`;
+    const url = URL.createObjectURL(new Blob([doc.text], { type: 'text/markdown;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    link.click();
+    URL.revokeObjectURL(url);
+    return { name, path: null };
   },
 
   async loadImage(_doc, src) {

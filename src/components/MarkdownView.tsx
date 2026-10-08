@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { createElement, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -8,23 +8,80 @@ import {
   parseCommentThreads,
 } from '../comment-threads';
 import type { FileAccess, OpenedDocument } from '../platform/files';
+import { detectEol, fromEditable, toEditable } from '../document/splice';
 import { MarkdownImage } from './MarkdownImage';
 import { threadKey, type ThreadItem } from './threads';
 
 /**
- * The text handed to the renderer: the document with its thread blocks cut out,
- * located by the comment-threads library. This is a throwaway copy; the
- * document text itself is never changed.
+ * The text handed to the renderer: the document with its thread blocks blanked
+ * out, located by the comment-threads library. Same length as the document, so
+ * a rendered node's offset is also its offset in the file, which is what lets a
+ * click find the exact source text of a block. A throwaway copy; the document
+ * text itself is never changed.
  */
-export function viewText(text: string): string {
+export function maskThreadBlocks(text: string): string {
+  const blank = (s: string) => s.replace(/[^\n]/g, ' ');
   let out = '';
   let at = 0;
   for (const thread of [...parseCommentThreads(text)].sort((a, b) => a.from - b.from)) {
-    out += text.slice(at, thread.from);
+    out += text.slice(at, thread.from) + blank(text.slice(thread.from, thread.to));
     at = thread.to;
   }
-  // Drop a leading BOM for rendering only; it stays in the document text.
-  return (out + text.slice(at)).replace(/^﻿/, '');
+  // A leading BOM stays in the document text; the renderer sees a space in its place.
+  return (out + text.slice(at)).replace(/^\uFEFF/, ' ');
+}
+
+/** The source range of one top-level block: text[from, to). */
+export interface BlockRange {
+  from: number;
+  to: number;
+}
+
+export interface BlockEditing {
+  /** The block being edited, if any; it is shown as its Markdown source in place of the rendered block. */
+  region: BlockRange | null;
+  onStart: (range: BlockRange) => void;
+  /** Receives the editor's new text, in the file's own line endings. */
+  onChange: (value: string) => void;
+  onClose: () => void;
+}
+
+const BLOCK_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'pre', 'blockquote', 'table', 'hr'] as const;
+
+function BlockEditor({ value, onChange, onClose }: { value: string; onChange: (v: string) => void; onClose: () => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  // Focus once, caret at the end; the editor is never remounted while a block is being edited.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, []);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      data-block-editor
+      aria-label="Markdown source of this block"
+      spellCheck={false}
+      value={value}
+      rows={1}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onClose}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      className="mb-5 box-border block w-full resize-none overflow-hidden rounded-control border border-ring bg-surface px-3 py-2 font-mono text-[13.5px] leading-[1.6] text-foreground outline-none [box-shadow:0_0_0_3px_color-mix(in_srgb,var(--ring)_18%,transparent)]"
+    />
+  );
 }
 
 export function MarkdownView({
@@ -32,17 +89,42 @@ export function MarkdownView({
   files,
   threads = [],
   onOpenThread,
+  editing,
 }: {
   doc: OpenedDocument;
   files: FileAccess;
   threads?: ThreadItem[];
   onOpenThread?: (key: string) => void;
+  editing?: BlockEditing;
 }) {
-  const source = useMemo(() => viewText(doc.text), [doc.text]);
+  const source = useMemo(() => maskThreadBlocks(doc.text), [doc.text]);
   const markers = useMemo(() => parseCommentMarkers(source), [source]);
+  const articleRef = useRef<HTMLElement>(null);
+  const region = editing?.region ?? null;
 
-  const components = useMemo<Components>(
-    () => ({
+  // Top-level blocks are keyboard-reachable: Enter on a focused block edits it.
+  useEffect(() => {
+    for (const el of Array.from(articleRef.current?.children ?? [])) {
+      if (el.hasAttribute('data-from')) (el as HTMLElement).tabIndex = 0;
+    }
+  });
+
+  /** Renderer overrides for a piece of the source that starts at `base` in the file. */
+  const componentsFor = (base: number): Components => {
+    const blocks: Record<string, unknown> = {};
+    for (const tag of BLOCK_TAGS) {
+      // Each block carries its source range so a click can be traced back to the file text.
+      blocks[tag] = ({ node, children, ...props }: any) => {
+        const pos = node?.position;
+        const range =
+          pos?.start.offset === undefined || pos.end.offset === undefined
+            ? {}
+            : { 'data-from': base + pos.start.offset, 'data-to': base + pos.end.offset };
+        return createElement(tag, { ...props, ...range }, children);
+      };
+    }
+    return {
+      ...blocks,
       a({ node, href, children, ...props }) {
         const threadId = href === undefined ? undefined : parseCommentMarkerFragment(href);
         if (threadId !== undefined) {
@@ -50,7 +132,7 @@ export function MarkdownView({
           const className = `gonq-marker ${resolved ? 'gonq-marker-resolved' : 'gonq-marker-open'}`;
           // Pair with its block by ordinal among same-id markers, as the library does.
           const offset = node?.position?.start.offset;
-          const ordinal = (markers.get(threadId) ?? []).findIndex((m) => m.from === offset);
+          const ordinal = (markers.get(threadId) ?? []).findIndex((m) => offset !== undefined && m.from === base + offset);
           const key = ordinal < 0 ? undefined : threadKey(threadId, ordinal);
           const target = key === undefined ? undefined : threads.find((t) => t.key === key);
           if (key === undefined || target === undefined || onOpenThread === undefined) {
@@ -67,6 +149,7 @@ export function MarkdownView({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
+                  e.stopPropagation();
                   onOpenThread(key);
                 }
               }}
@@ -84,15 +167,71 @@ export function MarkdownView({
       img({ node: _node, src, alt }) {
         return typeof src === 'string' ? <MarkdownImage doc={doc} files={files} src={src} alt={alt} /> : null;
       },
-    }),
+    };
+  };
+
+  const before = useMemo(
+    () => componentsFor(0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [doc, files, markers, threads, onOpenThread],
   );
+  const afterBase = region?.to ?? 0;
+  const after = useMemo(
+    () => componentsFor(afterBase),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [doc, files, markers, threads, onOpenThread, afterBase],
+  );
 
+  /** The block (a direct child of the article) a DOM node sits in, if it is a source block. */
+  const blockOf = (node: EventTarget | null): HTMLElement | null => {
+    let el = node instanceof Element ? node : null;
+    while (el && el.parentElement !== articleRef.current) el = el.parentElement;
+    return el instanceof HTMLElement && el.hasAttribute('data-from') ? el : null;
+  };
+  const startEdit = (block: HTMLElement) =>
+    editing?.onStart({ from: Number(block.dataset.from), to: Number(block.dataset.to) });
+
+  const onClick = (e: MouseEvent) => {
+    if (!editing) return;
+    const target = e.target as Element;
+    // Markers and links keep their own behaviour; a drag-selection is not an edit.
+    if (target.closest('[data-thread-key], a')) return;
+    if (!window.getSelection()?.isCollapsed) return;
+    const block = blockOf(target);
+    if (block) startEdit(block);
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== 'Enter' || e.target !== e.currentTarget.ownerDocument.activeElement) return;
+    const block = blockOf(e.target);
+    if (editing && block && block === e.target) {
+      e.preventDefault();
+      startEdit(block);
+    }
+  };
+
+  const eol = detectEol(doc.text);
   return (
-    <article className="gonq-doc" data-testid="markdown-view">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>
-        {source}
-      </ReactMarkdown>
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <article ref={articleRef} className="gonq-doc" data-testid="markdown-view" onClick={onClick} onKeyDown={onKeyDown}>
+      {region === null ? (
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={before} skipHtml>
+          {source}
+        </ReactMarkdown>
+      ) : (
+        <>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={before} skipHtml>
+            {source.slice(0, region.from)}
+          </ReactMarkdown>
+          <BlockEditor
+            value={toEditable(doc.text.slice(region.from, region.to))}
+            onChange={(v) => editing?.onChange(fromEditable(v, eol))}
+            onClose={() => editing?.onClose()}
+          />
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={after} skipHtml>
+            {source.slice(region.to)}
+          </ReactMarkdown>
+        </>
+      )}
     </article>
   );
 }
