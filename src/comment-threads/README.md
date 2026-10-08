@@ -91,6 +91,17 @@ Placement:
 All functions are pure: strings and plain objects in, strings and plain objects
 out. Nothing reads the filesystem or mutates its arguments.
 
+## Guidance for agents
+
+When Gonq creates a thread in a file that lacks it, it also writes one short
+HTML comment (`AGENT_GUIDANCE`, `guidance.ts`) just ahead of the new thread
+block, explaining the format: read a thread, reply by appending a
+`[<signature> | <timestamp>]` message, resolve. Agents may open threads, reply,
+resolve and reopen; they must never edit or delete existing messages or threads.
+It has no `@thread` directive, so it is never parsed as a thread and never
+rendered. It is written once per file (`hasAgentGuidance`), never on reply
+alone, and never to a file without threads.
+
 ## Duplicate ids and marker pairing
 
 Ids are meant to be unique, but a document can carry two blocks with the same
@@ -188,6 +199,7 @@ timestamp.
 | `commands.ts` | Create, reply, edit, resolve; anchor normalisation |
 | `positions.ts` | Safe insertion offsets |
 | `document.ts` | Document-level operations, including edit and delete |
+| `guidance.ts` | The embedded note for AI agents |
 | `index.ts` | Barrel |
 | `editor/codemirror.ts` | Editor layer — not built, not exported from the barrel |
 

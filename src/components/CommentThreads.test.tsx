@@ -122,11 +122,12 @@ test('list row click opens the thread', async () => {
   expect(screen.getByText(/Second thread body/)).toBeInTheDocument();
 });
 
-test('no write controls anywhere', async () => {
+test('no resolve, edit or delete controls; only a reply box', async () => {
   const user = await openDoc(DOC);
   await user.click(screen.getByRole('button', { name: '💬' }));
-  expect(screen.queryByRole('textbox')).toBeNull();
-  expect(screen.queryByRole('button', { name: /reply|resolve|reopen|edit|delete|save|submit/i })).toBeNull();
+  expect(screen.getAllByRole('textbox')).toHaveLength(1);
+  expect(screen.getByRole('textbox', { name: 'Reply' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /resolve|reopen|edit|delete|save|submit/i })).toBeNull();
 });
 
 test('malformed block is skipped and the file still opens', async () => {

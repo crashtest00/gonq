@@ -6,7 +6,7 @@ import { CommentsSidebar } from './components/CommentsSidebar';
 import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
 import { listThreads } from './components/threads';
 import { USER_AUTHOR, isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
-import { normalizeAnchor, openThread as openThreadIn } from './comment-threads';
+import { appendToThread, normalizeAnchor, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
 import { RawSwitch } from './components/RawSwitch';
 import { MarkdownView } from './components/MarkdownView';
 import { useDocument } from './document/useDocument';
@@ -59,7 +59,10 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         return setError('The document changed while you were writing; start the comment again.');
       }
       try {
-        const { doc: next, thread } = openThreadIn(text, draft.target, USER_AUTHOR, body.trim());
+        const opened = openThreadIn(text, draft.target, USER_AUTHOR, body.trim());
+        const { thread } = opened;
+        // The note for agents goes just ahead of the new block, once per file.
+        const next = withAgentGuidance(opened.doc, thread.from);
         session.replaceText(next);
         const created = listThreads(next).find((t) => t.thread.id === thread.id);
         setError(null);
@@ -75,6 +78,20 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       }
     },
     [draft, text, session.replaceText],
+  );
+
+  const reply = useCallback(
+    (key: string, body: string) => {
+      const item = threads.find((t) => t.key === key);
+      if (item === undefined || body.trim() === '') return;
+      try {
+        session.replaceText(appendToThread(text, { id: item.thread.id, ordinal: item.ordinal }, USER_AUTHOR, body.trim()));
+        setError(null);
+      } catch (e) {
+        failed(e);
+      }
+    },
+    [threads, text, session.replaceText],
   );
 
   // Once the new marker is rendered, bring it into view.
@@ -294,6 +311,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
               window.getSelection()?.removeAllRanges();
             }}
             onSubmitDraft={submitDraft}
+            onReply={reply}
           />
         )}
       </div>
