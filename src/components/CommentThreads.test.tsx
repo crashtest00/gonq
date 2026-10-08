@@ -127,7 +127,7 @@ test('no resolve, edit or delete controls; only a reply box', async () => {
   await user.click(screen.getByRole('button', { name: '💬' }));
   expect(screen.getAllByRole('textbox')).toHaveLength(1);
   expect(screen.getByRole('textbox', { name: 'Reply' })).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /resolve|reopen|edit|delete|save|submit/i })).toBeNull();
+  expect(screen.queryByRole('button', { name: /edit|delete|save|submit/i })).toBeNull();
 });
 
 test('malformed block is skipped and the file still opens', async () => {

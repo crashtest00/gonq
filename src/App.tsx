@@ -6,7 +6,7 @@ import { CommentsSidebar } from './components/CommentsSidebar';
 import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
 import { listThreads } from './components/threads';
 import { USER_AUTHOR, isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
-import { appendToThread, normalizeAnchor, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
+import { appendToThread, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
 import { RawSwitch } from './components/RawSwitch';
 import { MarkdownView } from './components/MarkdownView';
 import { useDocument } from './document/useDocument';
@@ -86,6 +86,20 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       if (item === undefined || body.trim() === '') return;
       try {
         session.replaceText(appendToThread(text, { id: item.thread.id, ordinal: item.ordinal }, USER_AUTHOR, body.trim()));
+        setError(null);
+      } catch (e) {
+        failed(e);
+      }
+    },
+    [threads, text, session.replaceText],
+  );
+
+  const setStatus = useCallback(
+    (key: string, status: 'open' | 'resolved') => {
+      const item = threads.find((t) => t.key === key);
+      if (item === undefined) return;
+      try {
+        session.replaceText(setThreadStatus(text, { id: item.thread.id, ordinal: item.ordinal }, status));
         setError(null);
       } catch (e) {
         failed(e);
@@ -312,6 +326,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             }}
             onSubmitDraft={submitDraft}
             onReply={reply}
+            onSetStatus={setStatus}
           />
         )}
       </div>
