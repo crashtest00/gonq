@@ -23,7 +23,7 @@ const B = 'c20260910143022a3f9c2';
 
 function open(text: string) {
   const d: OpenedDocument = { name: 'a.md', path: '/d/a.md', text };
-  const files: FileAccess = { pickDocument: async () => d, loadImage: async () => null };
+  const files: FileAccess = { pickDocument: async () => d, loadImage: async () => null, saveDocument: async (x) => ({ name: x.name, path: x.path }), saveDocumentAs: async (x) => ({ name: x.name, path: null }) };
   return files;
 }
 

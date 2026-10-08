@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { MarkdownView, viewText } from './MarkdownView';
+import { MarkdownView, maskThreadBlocks } from './MarkdownView';
 import type { FileAccess, OpenedDocument } from '../platform/files';
 
 const THREAD = `<!--
@@ -46,7 +46,12 @@ ${THREAD}
 `;
 
 const doc = (text: string): OpenedDocument => ({ name: 'a.md', path: '/d/a.md', text });
-const files = (image: string | null): FileAccess => ({ pickDocument: async () => null, loadImage: async () => image });
+const files = (image: string | null): FileAccess => ({
+  pickDocument: async () => null,
+  loadImage: async () => image,
+  saveDocument: async (x) => ({ name: x.name, path: x.path }),
+  saveDocumentAs: async (x) => ({ name: x.name, path: null }),
+});
 
 test('renders every GFM block type', async () => {
   const { container } = render(<MarkdownView doc={doc(TEXT)} files={files(null)} />);
@@ -79,11 +84,13 @@ test('thread markers show as literal glyphs and thread blocks and comments are h
   expect(container).not.toHaveTextContent('ordinary comment');
 });
 
-test('viewText cuts thread blocks but the document text is not touched', () => {
+test('maskThreadBlocks blanks thread blocks without moving anything else', () => {
   const before = TEXT;
-  const view = viewText(before);
+  const view = maskThreadBlocks(before);
+  expect(view).toHaveLength(TEXT.length);
   expect(view).not.toContain('@thread');
   expect(view).toContain('[💬](#md-thread-c20260910143022a3f9c1)');
+  expect(view.indexOf('![Timeline]')).toBe(TEXT.indexOf('![Timeline]'));
   expect(before).toBe(TEXT);
   expect(before).toContain(THREAD);
 });

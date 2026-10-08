@@ -2,10 +2,12 @@ import { MessageSquare } from 'lucide-react';
 
 export function TabStrip({
   name,
+  dirty = false,
   commentsOpen,
   onToggleComments,
 }: {
   name: string | null;
+  dirty?: boolean;
   commentsOpen: boolean;
   onToggleComments: () => void;
 }) {
@@ -21,6 +23,7 @@ export function TabStrip({
             style={{ clipPath: 'polygon(10px 0, calc(100% - 10px) 0, 100% 100%, 0 100%)' }}
           >
             <span className="truncate">{name}</span>
+            {dirty && <span aria-label="unsaved changes" title="Unsaved changes" className="ml-1.5 text-accent-foreground">●</span>}
           </div>
         )}
         <button

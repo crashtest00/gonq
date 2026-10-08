@@ -4,7 +4,7 @@ import App from './App';
 import { NotUtf8Error, type FileAccess, type OpenedDocument } from './platform/files';
 
 function fakeFiles(pick: () => Promise<OpenedDocument | null>, image: string | null = null): FileAccess {
-  return { pickDocument: pick, loadImage: async () => image };
+  return { pickDocument: pick, loadImage: async () => image, saveDocument: async (d) => ({ name: d.name, path: d.path }), saveDocumentAs: async (d) => ({ name: d.name, path: null }) };
 }
 
 async function openMenuItem() {
