@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import type { FileAccess, OpenedDocument } from './platform/files';
@@ -6,6 +6,20 @@ import { vi } from 'vitest';
 
 // Each test drives the whole app through user-event; on slow CI they run close to the 5s default.
 vi.setConfig({ testTimeout: 30000 });
+
+// The window-close hook is captured so tests can play the native close request (the native side is in lifecycle.test.ts).
+const closeGuard = vi.hoisted(() => ({ confirm: null as null | (() => Promise<boolean>), destroyed: 0 }));
+vi.mock('./platform/lifecycle', () => ({
+  guardClose: (isDirty: () => boolean, confirm: () => Promise<boolean>) => {
+    closeGuard.confirm = async () => {
+      if (!isDirty()) return true;
+      const ok = await confirm();
+      if (ok) closeGuard.destroyed++;
+      return ok;
+    };
+    return () => {};
+  },
+}));
 
 // Deliberately unusual Markdown: none of it may be normalised by editing elsewhere.
 const ORIGINAL = '*  odd bullet\n*  second\n\nSetext Title\n===\n\ntrailing spaces here  \nnext line\n\n+ plus list\n\nlast paragraph';
@@ -168,5 +182,195 @@ describe('unsaved changes prompt', () => {
     await openDoc(user);
     await menu(user, 'File', /New/);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('thread markers stay whole while a block is edited', () => {
+  const MARKER = '[💬](#md-thread-c20260910143022a3f9c1)';
+  const THREAD = '<!--\n@thread c20260910143022a3f9c1\n@status open\n\n[User | 2026-09-10T14:30:22+02:00]\nHi\n-->\n';
+  const DOC = `Intro\n\nPara ${MARKER} end\n\n${THREAD}`;
+
+  async function editMarkerBlock() {
+    const ctx = setup(DOC);
+    await openDoc(ctx.user);
+    await ctx.user.click(screen.getByText(/^Para/));
+    expect(editor().value).toBe(`Para ${MARKER} end`);
+    const start = editor().value.indexOf('[');
+    return { ...ctx, start, end: start + MARKER.length };
+  }
+  const caretAt = (n: number, m = n) => editor().setSelectionRange(n, m);
+
+  test('Backspace at the end of the marker leaves it intact', async () => {
+    const { user, end } = await editMarkerBlock();
+    caretAt(end);
+    await user.keyboard('{Backspace}');
+    expect(editor().value).toBe(`Para ${MARKER} end`);
+  });
+
+  test('Delete at the start of the marker leaves it intact', async () => {
+    const { user, start } = await editMarkerBlock();
+    caretAt(start);
+    await user.keyboard('{Delete}');
+    expect(editor().value).toBe(`Para ${MARKER} end`);
+  });
+
+  test('Delete and Backspace inside the marker leave it intact', async () => {
+    const { user, start } = await editMarkerBlock();
+    caretAt(start + 2);
+    await user.keyboard('{Delete}');
+    caretAt(start + 10);
+    await user.keyboard('{Backspace}');
+    expect(editor().value).toBe(`Para ${MARKER} end`);
+  });
+
+  test('typing inside the marker lands after it', async () => {
+    const { user, start, end } = await editMarkerBlock();
+    caretAt(start + 12);
+    await user.keyboard('Z');
+    expect(editor().value).toBe(`Para ${MARKER}Z end`);
+    expect(editor().selectionStart).toBe(end + 1);
+  });
+
+  test('a selection spanning part of the marker deletes only the text outside it', async () => {
+    const { user, start } = await editMarkerBlock();
+    caretAt(2, start + 5);
+    await user.keyboard('{Delete}');
+    expect(editor().value).toBe(`Pa${MARKER} end`);
+  });
+
+  test('a selection covering the whole marker may remove it, whole', async () => {
+    const { user, start, end } = await editMarkerBlock();
+    caretAt(start - 1, end + 1);
+    await user.keyboard('{Delete}');
+    expect(editor().value).toBe('Paraend');
+  });
+
+  test('editing text next to the marker saves byte-exactly with the thread block intact', async () => {
+    const { user, saveDocument, end } = await editMarkerBlock();
+    caretAt(end + 4);
+    await user.keyboard('!');
+    await user.keyboard('{Escape}{Control>}s{/Control}');
+    expect(saveDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ text: `Intro\n\nPara ${MARKER} end!\n\n${THREAD}` }),
+    );
+  });
+});
+
+test('editing a middle block changes none of the other bytes', async () => {
+  const { user, saveDocument } = setup();
+  await openDoc(user);
+  await user.click(screen.getByText(/trailing spaces here/));
+  expect(editor().value).toBe('trailing spaces here  \nnext line');
+  await user.type(editor(), ' X');
+  await user.keyboard('{Escape}{Control>}s{/Control}');
+  const expected = ORIGINAL.replace('next line', 'next line X');
+  expect(expected).not.toBe(ORIGINAL);
+  expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: expected }));
+  expect(expected.startsWith('*  odd bullet\n*  second\n\nSetext Title\n===\n\ntrailing spaces here  \nnext line X\n\n+ plus list\n\nlast paragraph')).toBe(true);
+});
+
+describe('unsaved changes prompt on Open', () => {
+  async function dirtyThenOpen() {
+    const ctx = setup();
+    await openDoc(ctx.user);
+    await ctx.user.click(screen.getByText('last paragraph'));
+    await ctx.user.type(editor(), '!');
+    await ctx.user.keyboard('{Escape}');
+    await menu(ctx.user, 'File', /Open/);
+    return { ...ctx, dialog: await screen.findByRole('dialog') };
+  }
+
+  test('Cancel keeps the document and opens nothing', async () => {
+    const { user, dialog, saveDocument } = await dirtyThenOpen();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(saveDocument).not.toHaveBeenCalled();
+    expect(screen.getByText('last paragraph!')).toBeInTheDocument();
+  });
+
+  test("Don't save discards the edit and opens the file", async () => {
+    const { user, dialog, saveDocument } = await dirtyThenOpen();
+    await user.click(within(dialog).getByRole('button', { name: /Don.t save/ }));
+    expect(saveDocument).not.toHaveBeenCalled();
+    expect(await screen.findByText('last paragraph')).toBeInTheDocument();
+    expect(screen.queryByLabelText('unsaved changes')).not.toBeInTheDocument();
+  });
+
+  test('Save writes the edit, then opens the file', async () => {
+    const { user, dialog, saveDocument } = await dirtyThenOpen();
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: ORIGINAL + '!' }));
+    expect(await screen.findByText('last paragraph')).toBeInTheDocument();
+  });
+});
+
+describe('Edit menu and shortcuts', () => {
+  async function edited() {
+    const ctx = setup();
+    await openDoc(ctx.user);
+    await ctx.user.click(screen.getByText('last paragraph'));
+    await ctx.user.type(editor(), '!');
+    await ctx.user.keyboard('{Escape}');
+    expect(screen.getByText('last paragraph!')).toBeInTheDocument();
+    return ctx;
+  }
+
+  test('Edit > Undo and Edit > Redo', async () => {
+    const { user } = await edited();
+    await menu(user, 'Edit', /^Undo/);
+    expect(screen.getByText('last paragraph')).toBeInTheDocument();
+    await menu(user, 'Edit', /^Redo/);
+    expect(screen.getByText('last paragraph!')).toBeInTheDocument();
+  });
+
+  test('Ctrl+Shift+Z and Ctrl+Y redo', async () => {
+    const { user } = await edited();
+    await user.keyboard('{Control>}z{/Control}');
+    expect(screen.getByText('last paragraph')).toBeInTheDocument();
+    await user.keyboard('{Control>}{Shift>}z{/Shift}{/Control}');
+    expect(screen.getByText('last paragraph!')).toBeInTheDocument();
+    await user.keyboard('{Control>}z{/Control}');
+    expect(screen.getByText('last paragraph')).toBeInTheDocument();
+    await user.keyboard('{Control>}y{/Control}');
+    expect(screen.getByText('last paragraph!')).toBeInTheDocument();
+  });
+});
+
+describe('closing the window with unsaved changes', () => {
+  async function dirtyThenClose() {
+    const ctx = setup();
+    closeGuard.destroyed = 0;
+    await openDoc(ctx.user);
+    await ctx.user.click(screen.getByText('last paragraph'));
+    await ctx.user.type(editor(), '!');
+    await ctx.user.keyboard('{Escape}');
+    let result: Promise<boolean> = Promise.resolve(false);
+    act(() => {
+      result = closeGuard.confirm!();
+    });
+    return { ...ctx, result, dialog: await screen.findByRole('dialog') };
+  }
+
+  test('Cancel keeps the window open', async () => {
+    const { user, dialog, result } = await dirtyThenClose();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(await result).toBe(false);
+    expect(closeGuard.destroyed).toBe(0);
+  });
+
+  test("Don't save closes without writing", async () => {
+    const { user, dialog, result, saveDocument } = await dirtyThenClose();
+    await user.click(within(dialog).getByRole('button', { name: /Don.t save/ }));
+    expect(await result).toBe(true);
+    expect(saveDocument).not.toHaveBeenCalled();
+    expect(closeGuard.destroyed).toBe(1);
+  });
+
+  test('Save writes, then closes', async () => {
+    const { user, dialog, result, saveDocument } = await dirtyThenClose();
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await result).toBe(true);
+    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: ORIGINAL + '!' }));
+    expect(closeGuard.destroyed).toBe(1);
   });
 });
