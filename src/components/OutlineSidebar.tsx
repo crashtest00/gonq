@@ -1,7 +1,6 @@
 import type { OutlineItem } from './outline';
 
 export function OutlineSidebar({ items, onJump }: { items: OutlineItem[]; onJump: (from: number) => void }) {
-  const top = items.length === 0 ? 1 : Math.min(...items.map((i) => i.level));
   return (
     <aside aria-label="Outline" className="flex w-[240px] shrink-0 overflow-hidden">
       <nav className="min-w-0 flex-1 overflow-y-auto px-4 py-3">
@@ -16,9 +15,9 @@ export function OutlineSidebar({ items, onJump }: { items: OutlineItem[]; onJump
                   type="button"
                   onClick={() => onJump(item.from)}
                   title={item.text}
-                  style={{ paddingLeft: (item.level - top) * 22 }}
+                  style={{ paddingLeft: item.level === 1 ? 0 : 22 }}
                   className={`block w-full cursor-pointer truncate border-0 bg-transparent py-1 text-left hover:text-foreground ${
-                    item.level === top ? 'text-[13px] font-semibold text-foreground' : 'text-[12.5px] text-muted-foreground'
+                    item.level === 1 ? 'text-[13px] font-semibold text-foreground' : 'text-[12.5px] text-muted-foreground'
                   }`}
                 >
                   {item.text}
