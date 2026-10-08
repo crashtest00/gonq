@@ -1,0 +1,19 @@
+{
+  "name": "hello-web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI Gang web deployment-target boilerplate — a minimal, real, independently runnable and deployable web app.",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.19.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
