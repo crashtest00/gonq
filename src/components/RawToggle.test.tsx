@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import App from '../App';
@@ -45,7 +45,7 @@ async function save(user: ReturnType<typeof userEvent.setup>) {
 const editors = () => screen.queryAllByRole('textbox', { name: /Markdown source/ }) as HTMLTextAreaElement[];
 const sw = () => screen.getByRole('switch', { name: /Raw Markdown/ });
 
-const BLOCKS: [string, () => HTMLElement, string][] = [
+const BLOCKS: [string, () => HTMLElement | Promise<HTMLElement>, string][] = [
   ['heading', () => screen.getByRole('heading', { name: 'Title' }), '# Title'],
   ['paragraph', () => screen.getByText(/First para/), `First para [💬](#md-thread-${ID}) here.`],
   ['list', () => screen.getByText('odd item'), '*  odd item\n*  second'],
@@ -53,14 +53,14 @@ const BLOCKS: [string, () => HTMLElement, string][] = [
   ['blockquote', () => screen.getByText('quoted text'), '> quoted text'],
   ['code block', () => screen.getByText('const x = 1;'), '```js\nconst x = 1;\n```'],
   ['table', () => screen.getByRole('cell', { name: '1' }), '| a | b |\n|---|---|\n| 1 | 2 |'],
-  ['image', () => screen.getByTestId('figure-placeholder'), '![alt text](pic.png)'],
+  ['image', () => screen.findByTestId('figure-placeholder'), '![alt text](pic.png)'],
 ];
 
 test.each(BLOCKS)('clicking a %s shows its Markdown source; leaving returns to formatted', async (_n, find, source) => {
   const { user } = setup();
   await openDoc(user);
-  await user.click(find());
-  expect(editors()).toHaveLength(1);
+  await user.click(await find());
+  await waitFor(() => expect(editors()).toHaveLength(1));
   expect(editors()[0].value).toBe(source);
   await user.keyboard('{Escape}');
   expect(editors()).toHaveLength(0);
