@@ -80,6 +80,11 @@ export function useDocument() {
     [setRegion],
   );
 
+  /** Replaces text[from, to) as one undo step, outside any block being edited. */
+  const replaceRange = useCallback((from: number, to: number, insert: string) => {
+    setHistory((h) => edit(h, splice(h.text, from, to, insert)));
+  }, []);
+
   const closeEdit = useCallback(() => setRegion(null), [setRegion]);
 
   const doUndo = useCallback(() => {
@@ -109,11 +114,12 @@ export function useDocument() {
       startAppend,
       changeEdit,
       closeEdit,
+      replaceRange,
       undo: doUndo,
       redo: doRedo,
       /** Records that `savedText` is now on disk under `next`. */
       saved: rename,
     }),
-    [meta, history, region, load, startEdit, startAppend, changeEdit, closeEdit, doUndo, doRedo, rename],
+    [meta, history, region, load, startEdit, startAppend, changeEdit, closeEdit, replaceRange, doUndo, doRedo, rename],
   );
 }

@@ -36,7 +36,7 @@
 .gonq-doc th, .gonq-doc td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
 .gonq-doc th { background: var(--surface); font-weight: 600; }
 
-/* Task lists: read-only custom checkbox (18px, 4px radius, 1.5px primary border). */
+/* Task lists: custom checkbox, clickable (18px, 4px radius, 1.5px primary border). */
 .gonq-doc ul.contains-task-list { list-style: none; padding-left: 0; }
 .gonq-doc li.task-list-item { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 10px; }
 .gonq-doc li.task-list-item > p { display: contents; }

@@ -45,6 +45,8 @@ export interface BlockEditing {
   /** Receives the editor's new text, in the file's own line endings. */
   onChange: (value: string) => void;
   onClose: () => void;
+  /** Rewrites text[from, to) in the file; a task checkbox uses it to flip its own `[ ]`. */
+  onToggleTask?: (from: number, to: number, insert: string) => void;
   /**
    * Document-wide raw view: every block is shown as source, overriding per-block
    * state. Focusing a block's field makes it the `region`, so edits to it (which
@@ -226,6 +228,25 @@ export function MarkdownView({
           </a>
         );
       },
+      li({ node, children, ...props }: any) {
+        const start = node?.position?.start.offset;
+        return (
+          <li {...props} {...(start === undefined ? {} : { 'data-item-from': base + start })}>
+            {children}
+          </li>
+        );
+      },
+      input({ node: _node, type, checked, disabled: _disabled, ...props }: any) {
+        if (type !== 'checkbox') return <input type={type} checked={checked} disabled {...props} />;
+        return (
+          <input
+            type="checkbox"
+            checked={checked === true}
+            aria-label="Task done"
+            onChange={(e) => toggleTask(e.currentTarget)}
+          />
+        );
+      },
       img({ node: _node, src, alt }) {
         return typeof src === 'string' ? <MarkdownImage doc={doc} files={files} src={src} alt={alt} /> : null;
       },
@@ -253,11 +274,21 @@ export function MarkdownView({
   const startEdit = (block: HTMLElement) =>
     editing?.onStart({ from: Number(block.dataset.from), to: Number(block.dataset.to) });
 
+  /** Flips the `[ ]`/`[x]` of the list item a checkbox sits in, in the file's own text. */
+  const toggleTask = (box: HTMLInputElement) => {
+    const from = Number(box.closest('li')?.dataset.itemFrom);
+    if (!editing?.onToggleTask || Number.isNaN(from)) return;
+    const m = /^(?:[-*+]|\d+[.)])[ \t]+\[( |x|X)\]/.exec(doc.text.slice(from, from + 40));
+    if (!m) return;
+    const at = from + m[0].length - 2;
+    editing.onToggleTask(at, at + 1, m[1] === ' ' ? 'x' : ' ');
+  };
+
   const onClick = (e: MouseEvent) => {
     if (!editing || rawAll) return;
     const target = e.target as Element;
     // Markers and links keep their own behaviour; a drag-selection is not an edit.
-    if (target.closest('[data-thread-key], a')) return;
+    if (target.closest('[data-thread-key], a, input')) return;
     if (!window.getSelection()?.isCollapsed) return;
     const block = blockOf(target);
     if (block) startEdit(block);

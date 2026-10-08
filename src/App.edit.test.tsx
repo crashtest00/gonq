@@ -374,3 +374,36 @@ describe('closing the window with unsaved changes', () => {
     expect(closeGuard.destroyed).toBe(1);
   });
 });
+
+test('toolbar formats the selection in the open block, and undo reverts it', async () => {
+  const { user } = setup('plain words\n\nother');
+  await openDoc(user);
+  const bold = screen.getByRole('button', { name: 'Bold' });
+  expect(bold).toBeDisabled();
+  await user.click(screen.getByText('plain words'));
+  editor().setSelectionRange(6, 11);
+  await user.click(bold);
+  expect(editor().value).toBe('plain **words**');
+  await user.click(screen.getByRole('button', { name: 'Bullet list' }));
+  expect(editor().value).toBe('- plain **words**');
+  await user.keyboard('{Escape}');
+  expect(screen.getByText('words').tagName).toBe('STRONG');
+  await user.click(screen.getByRole('button', { name: 'Undo' }));
+  await user.click(screen.getByRole('button', { name: 'Undo' }));
+  expect(screen.getByText('plain words')).toBeInTheDocument();
+});
+
+test('clicking a task checkbox flips only its marker and can be undone', async () => {
+  const { user, saveDocument } = setup('- [ ] one\n- [x] two\n\n1.  [ ] odd\n');
+  await openDoc(user);
+  const boxes = screen.getAllByRole('checkbox');
+  expect(boxes.map((b) => (b as HTMLInputElement).checked)).toEqual([false, true, false]);
+  await user.click(boxes[0]);
+  await user.click(screen.getAllByRole('checkbox')[1]);
+  await user.click(screen.getAllByRole('checkbox')[2]);
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  await menu(user, 'File', /^Save(?! As)/);
+  expect(saveDocument).toHaveBeenCalledWith({ name: 'a.md', path: '/d/a.md', text: '- [x] one\n- [ ] two\n\n1.  [x] odd\n' });
+  await user.click(screen.getByRole('button', { name: 'Undo' }));
+  expect((screen.getAllByRole('checkbox')[2] as HTMLInputElement).checked).toBe(false);
+});

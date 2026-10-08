@@ -145,7 +145,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {doc !== null && (
-            <EditToolbar canUndo={session.canUndo} canRedo={session.canRedo} onUndo={session.undo} onRedo={session.redo} />
+            <EditToolbar editing={region !== null} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={session.undo} onRedo={session.redo} />
           )}
           <main ref={mainRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             <div className="mx-auto box-border w-full max-w-[760px] px-10 pb-16 pt-5">
@@ -166,6 +166,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                       onStart: session.startEdit,
                       onChange: session.changeEdit,
                       onClose: session.closeEdit,
+                      onToggleTask: session.replaceRange,
                       rawAll,
                     }}
                   />
