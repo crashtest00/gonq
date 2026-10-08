@@ -1,4 +1,4 @@
-import { createElement, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react';
+import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -45,16 +45,35 @@ export interface BlockEditing {
   /** Receives the editor's new text, in the file's own line endings. */
   onChange: (value: string) => void;
   onClose: () => void;
+  /**
+   * Document-wide raw view: every block is shown as source, overriding per-block
+   * state. Focusing a block's field makes it the `region`, so edits to it (which
+   * may add or remove blank lines) keep a stable range until focus leaves.
+   */
+  rawAll?: boolean;
 }
 
 const BLOCK_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'pre', 'blockquote', 'table', 'hr'] as const;
 
-function BlockEditor({ value, onChange, onClose }: { value: string; onChange: (v: string) => void; onClose: () => void }) {
+function BlockEditor({
+  value,
+  onChange,
+  onClose,
+  onFocus,
+  autoFocus = true,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onClose: () => void;
+  onFocus?: () => void;
+  /** False in the document-wide raw view, where every block is a field and none is focused for you. */
+  autoFocus?: boolean;
+}) {
   const ref = useRef<HTMLTextAreaElement>(null);
   // Focus once, caret at the end; the editor is never remounted while a block is being edited.
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !autoFocus) return;
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
   }, []);
@@ -83,6 +102,7 @@ function BlockEditor({ value, onChange, onClose }: { value: string; onChange: (v
           if (el.isConnected) el.setSelectionRange(repaired.caret, repaired.caret);
         });
       }}
+      onFocus={onFocus}
       onBlur={onClose}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
@@ -94,6 +114,36 @@ function BlockEditor({ value, onChange, onClose }: { value: string; onChange: (v
     />
   );
 }
+
+const RawContext = createContext<{ text: string; editing?: BlockEditing }>({ text: '' });
+
+/** One top-level block of the document-wide raw view: its source in a field. */
+function RawBlock({ node }: { node?: any }) {
+  const { text, editing } = useContext(RawContext);
+  const pos = node?.position;
+  if (pos?.start.offset === undefined || pos.end.offset === undefined) return null;
+  const from: number = pos.start.offset;
+  const to: number = pos.end.offset;
+  const active = editing?.region ?? null;
+  // A block swallowed by the field being edited (typed in as a new paragraph) shows once that loses focus.
+  if (active !== null && from > active.from && to <= active.to) return null;
+  const range = active !== null && from === active.from ? active : { from, to };
+  return (
+    <BlockEditor
+      autoFocus={false}
+      value={toEditable(text.slice(range.from, range.to))}
+      onFocus={() => active?.from !== from && editing?.onStart({ from, to })}
+      onChange={(v) => {
+        editing?.onChange(fromEditable(v, detectEol(text)));
+        if (v === '') editing?.onClose();
+      }}
+      onClose={() => editing?.onClose()}
+    />
+  );
+}
+
+// Defined once, so React keeps a field (and its focus) mounted while its text changes.
+const RAW_COMPONENTS = Object.fromEntries(BLOCK_TAGS.map((tag) => [tag, RawBlock])) as Components;
 
 export function MarkdownView({
   doc,
@@ -111,7 +161,8 @@ export function MarkdownView({
   const source = useMemo(() => maskThreadBlocks(doc.text), [doc.text]);
   const markers = useMemo(() => parseCommentMarkers(source), [source]);
   const articleRef = useRef<HTMLElement>(null);
-  const region = editing?.region ?? null;
+  const rawAll = editing?.rawAll === true;
+  const region = rawAll ? null : (editing?.region ?? null);
 
   // Top-level blocks are keyboard-reachable: Enter on a focused block edits it.
   useEffect(() => {
@@ -203,7 +254,7 @@ export function MarkdownView({
     editing?.onStart({ from: Number(block.dataset.from), to: Number(block.dataset.to) });
 
   const onClick = (e: MouseEvent) => {
-    if (!editing) return;
+    if (!editing || rawAll) return;
     const target = e.target as Element;
     // Markers and links keep their own behaviour; a drag-selection is not an edit.
     if (target.closest('[data-thread-key], a')) return;
@@ -214,7 +265,7 @@ export function MarkdownView({
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== 'Enter' || e.target !== e.currentTarget.ownerDocument.activeElement) return;
     const block = blockOf(e.target);
-    if (editing && block && block === e.target) {
+    if (editing && !rawAll && block && block === e.target) {
       e.preventDefault();
       startEdit(block);
     }
@@ -224,7 +275,13 @@ export function MarkdownView({
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <article ref={articleRef} className="gonq-doc" data-testid="markdown-view" onClick={onClick} onKeyDown={onKeyDown}>
-      {region === null ? (
+      {rawAll ? (
+        <RawContext.Provider value={{ text: doc.text, editing }}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={RAW_COMPONENTS} skipHtml>
+            {source}
+          </ReactMarkdown>
+        </RawContext.Provider>
+      ) : region === null ? (
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={before} skipHtml>
           {source}
         </ReactMarkdown>
