@@ -5,6 +5,7 @@ import { EditToolbar } from './components/EditToolbar';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
 import { listThreads } from './components/threads';
+import { RawSwitch } from './components/RawSwitch';
 import { MarkdownView } from './components/MarkdownView';
 import { useDocument } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
@@ -16,6 +17,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const session = useDocument();
   const { meta, text, dirty, region } = session;
   const [error, setError] = useState<string | null>(null);
+  const [rawAll, setRawAll] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
@@ -164,9 +166,10 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                       onStart: session.startEdit,
                       onChange: session.changeEdit,
                       onClose: session.closeEdit,
+                      rawAll,
                     }}
                   />
-                  {region === null && (
+                  {region === null && !rawAll && (
                     <div
                       data-testid="append-area"
                       className="min-h-24 cursor-text text-[13px] text-muted-foreground"
@@ -183,6 +186,15 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
               )}
             </div>
           </main>
+          {doc !== null && (
+            <RawSwitch
+              raw={rawAll}
+              onChange={(raw) => {
+                session.closeEdit();
+                setRawAll(raw);
+              }}
+            />
+          )}
         </div>
         {commentsOpen && (
           <CommentsSidebar threads={threads} selectedKey={selectedKey} onOpen={openThread} onClose={() => setSelectedKey(null)} />
