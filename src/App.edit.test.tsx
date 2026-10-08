@@ -407,3 +407,95 @@ test('clicking a task checkbox flips only its marker and can be undone', async (
   await user.click(screen.getByRole('button', { name: 'Undo' }));
   expect((screen.getAllByRole('checkbox')[2] as HTMLInputElement).checked).toBe(false);
 });
+
+describe('toolbar actions', () => {
+  const press = (user: ReturnType<typeof userEvent.setup>, name: string) => user.click(screen.getByRole('button', { name }));
+  const undo = (user: ReturnType<typeof userEvent.setup>) => press(user, 'Undo');
+  const redo = (user: ReturnType<typeof userEvent.setup>) => press(user, 'Redo');
+
+  async function openBlock(text: string, from: number, to: number) {
+    const { user, saveDocument } = setup(text);
+    await openDoc(user);
+    await user.click(screen.getByTestId('markdown-view').firstElementChild!);
+    editor().setSelectionRange(from, to);
+    return { user, saveDocument };
+  }
+
+  const ACTIONS: [string, string, string][] = [
+    ['Bold', 'plain **words**', 'plain words'],
+    ['Italic', 'plain *words*', 'plain words'],
+    ['Underline', 'plain <ins>words</ins>', 'plain words'],
+    ['Strikethrough', 'plain ~~words~~', 'plain words'],
+    ['Bullet list', '- plain words', 'plain words'],
+    ['Numbered list', '1. plain words', 'plain words'],
+    ['Checkbox list', '- [ ] plain words', 'plain words'],
+  ];
+
+  test.each(ACTIONS)('%s applies and undo/redo round-trips it', async (name, applied, original) => {
+    const { user } = await openBlock('plain words', 6, 11);
+    await press(user, name);
+    expect(editor().value).toBe(applied);
+    await user.keyboard('{Escape}');
+    await undo(user);
+    expect(screen.getByRole('button', { name: 'Redo' })).toBeEnabled();
+    await user.click(screen.getByTestId('markdown-view').firstElementChild!);
+    expect(editor().value).toBe(original);
+    await user.keyboard('{Escape}');
+    await redo(user);
+    await user.click(screen.getByTestId('markdown-view').firstElementChild!);
+    expect(editor().value).toBe(applied);
+  });
+
+  test('Underline toggles off and renders underlined', async () => {
+    const { user } = await openBlock('plain words', 6, 11);
+    await press(user, 'Underline');
+    expect(editor().value).toBe('plain <ins>words</ins>');
+    editor().setSelectionRange(11, 16);
+    await press(user, 'Underline');
+    expect(editor().value).toBe('plain words');
+    editor().setSelectionRange(6, 11);
+    await press(user, 'Underline');
+    await user.keyboard('{Escape}');
+    const ins = screen.getByText('words');
+    expect(ins.tagName).toBe('INS');
+    expect(ins.parentElement?.textContent).toBe('plain words');
+  });
+
+  test('Insert link asks for a URL and writes [text](url)', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('https://example.com');
+    const { user } = await openBlock('plain words', 6, 11);
+    await press(user, 'Insert link');
+    expect(prompt).toHaveBeenCalled();
+    expect(editor().value).toBe('plain [words](https://example.com)');
+    await undo(user);
+    await user.click(screen.getByText('plain words'));
+    expect(editor().value).toBe('plain words');
+    prompt.mockRestore();
+  });
+
+  test('cancelling the link prompt changes nothing', async () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(null);
+    const { user } = await openBlock('plain words', 6, 11);
+    await press(user, 'Insert link');
+    expect(editor().value).toBe('plain words');
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(screen.queryByText(/unsaved|●/)).not.toBeInTheDocument();
+    prompt.mockRestore();
+  });
+
+  test('no selection inserts empty markup with the caret inside', async () => {
+    const { user } = await openBlock('ab', 1, 1);
+    await press(user, 'Underline');
+    expect(editor().value).toBe('a<ins></ins>b');
+    expect(editor().selectionStart).toBe(6);
+    await user.keyboard('X');
+    expect(editor().value).toBe('a<ins>X</ins>b');
+  });
+
+  test('formatting skips code', async () => {
+    const { user } = await openBlock('```\ncode\n```', 5, 9);
+    await press(user, 'Bold');
+    expect(editor().value).toBe('```\ncode\n```');
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+  });
+});
