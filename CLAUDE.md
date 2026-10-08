@@ -6,7 +6,7 @@ Tauri 2 desktop app (Rust) with a React 18 + TypeScript + Vite 5 frontend. Node 
 ## Key Directories
 - src/            — React frontend (components, tests alongside as *.test.tsx)
 - src-tauri/      — Rust crate, tauri.conf.json, capabilities, icons
-- .github/workflows/ — desktop GitHub Actions workflows are added by a later story (not in this scaffold)
+- .github/workflows/ — build-desktop.yml (workflow_dispatch with `sha`, dispatched by Jenkins only) and release-desktop.yml (`v*` tag push, tagged by Jenkins only); never add other triggers or run/tag by hand
 - dist/           — web build output (gitignored); served by nginx in the Dockerfile for beta
 
 ## Entry Points
