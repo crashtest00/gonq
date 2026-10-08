@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Pencil, Trash2, X } from 'lucide-react';
 import { preview, relativeTime, type ThreadItem } from './threads';
 
 function Badge({ status }: { status: 'open' | 'resolved' }) {
@@ -15,9 +15,7 @@ function Badge({ status }: { status: 'open' | 'resolved' }) {
 }
 
 function Anchor({ text }: { text: string }) {
-  return (
-    <blockquote className="m-0 border-l-2 border-accent pl-2 text-[12.5px] italic text-muted-foreground">{text}</blockquote>
-  );
+  return <blockquote className="m-0 border-l-2 border-accent pl-2 text-[12.5px] italic text-muted-foreground">{text}</blockquote>;
 }
 
 function ThreadList({
@@ -116,51 +114,152 @@ function ReplyBox({
   );
 }
 
+const iconButton =
+  'flex h-6 w-6 cursor-pointer items-center justify-center rounded-control border-0 bg-transparent p-0 text-muted-foreground hover:bg-surface';
+
+function EditBox({ initial, onCancel, onSave }: { initial: string; onCancel: () => void; onSave: (body: string) => void }) {
+  const [body, setBody] = useState(initial);
+  return (
+    <div className="flex flex-col gap-2">
+      <textarea
+        aria-label="Edit comment"
+        rows={4}
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        className="box-border w-full rounded-control border border-ring bg-background p-3 font-sans text-[13.5px] text-foreground outline-none"
+      />
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="cursor-pointer rounded-control border border-solid border-border bg-transparent px-3 py-1.5 font-sans text-[12.5px] font-semibold text-foreground"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => body.trim() !== '' && onSave(body)}
+          className="cursor-pointer rounded-control border-0 bg-primary px-3.5 py-2 font-sans text-[13px] font-semibold text-primary-foreground"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DeleteDialog({ onChoose }: { onChoose: (confirmed: boolean) => void }) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => cancelRef.current?.focus(), []);
+  const button =
+    'h-8 cursor-pointer rounded-control border px-3 font-sans text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-thread-title"
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onChoose(false);
+        }}
+        className="w-[380px] rounded-container border border-border bg-surface p-5 [box-shadow:var(--shadow-dialog)]"
+      >
+        <h2 id="delete-thread-title" className="m-0 mb-2 text-[15px] font-semibold">
+          Delete this thread?
+        </h2>
+        <p className="m-0 mb-5 text-[13px] text-muted-foreground">The whole thread, including its replies, is removed from the document.</p>
+        <div className="flex justify-end gap-2">
+          <button type="button" ref={cancelRef} onClick={() => onChoose(false)} className={`${button} border-border bg-transparent`}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onChoose(true)}
+            className={`${button} border-destructive bg-destructive text-destructive-foreground`}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SingleThread({
   item,
   onClose,
   onReply,
   onSetStatus,
+  onEdit,
+  onDelete,
 }: {
   item: ThreadItem;
   onClose: () => void;
   onReply: (body: string) => void;
   onSetStatus: (status: 'open' | 'resolved') => void;
+  onEdit: (body: string) => void;
+  onDelete: () => void;
 }) {
   const { thread } = item;
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="flex flex-col gap-3 p-4">
       <div className="flex items-center gap-2">
         <Badge status={thread.status} />
-        <span className="text-[11px] text-muted-foreground">
-          {thread.messages[0] ? relativeTime(thread.messages[0].timestamp) : ''}
+        <span className="text-[11px] text-muted-foreground">{thread.messages[0] ? relativeTime(thread.messages[0].timestamp) : ''}</span>
+        <span className="ml-auto flex gap-1">
+          <button type="button" aria-label="Edit thread" disabled={editing} onClick={() => setEditing(true)} className={iconButton}>
+            <Pencil size={14} aria-hidden />
+          </button>
+          <button type="button" aria-label="Delete thread" onClick={() => setConfirming(true)} className={iconButton}>
+            <Trash2 size={14} aria-hidden />
+          </button>
+          <button type="button" aria-label="Close thread" onClick={onClose} className={iconButton}>
+            <X size={16} aria-hidden />
+          </button>
         </span>
-        <button
-          type="button"
-          aria-label="Close thread"
-          onClick={onClose}
-          className="ml-auto flex h-6 w-6 items-center justify-center rounded-control border-0 bg-transparent p-0 text-muted-foreground hover:bg-surface"
-        >
-          <X size={16} aria-hidden />
-        </button>
       </div>
       {thread.anchor !== undefined && <Anchor text={thread.anchor} />}
-      <ol className="m-0 flex list-none flex-col gap-3 p-0">
-        {thread.messages.map((m, i) => (
-          <li key={i}>
-            <div className="text-[11.5px] font-semibold text-muted-foreground">
-              <span>{m.author}</span> · <span title={m.timestamp}>{relativeTime(m.timestamp)}</span>
-            </div>
-            <div className="whitespace-pre-wrap text-[13.5px]">{m.body}</div>
-          </li>
-        ))}
-      </ol>
-      <ReplyBox
-        key={item.key}
-        status={thread.status}
-        onReply={onReply}
-        onToggleStatus={() => onSetStatus(thread.status === 'open' ? 'resolved' : 'open')}
-      />
+      {editing ? (
+        <EditBox
+          initial={thread.messages[0]?.body ?? ''}
+          onCancel={() => setEditing(false)}
+          onSave={(b) => {
+            onEdit(b);
+            setEditing(false);
+          }}
+        />
+      ) : (
+        <>
+          <ol className="m-0 flex list-none flex-col gap-3 p-0">
+            {thread.messages.map((m, i) => (
+              <li key={i}>
+                <div className="text-[11.5px] font-semibold text-muted-foreground">
+                  <span>{m.author}</span> · <span title={m.timestamp}>{relativeTime(m.timestamp)}</span>
+                </div>
+                <div className="whitespace-pre-wrap text-[13.5px]">{m.body}</div>
+              </li>
+            ))}
+          </ol>
+          <ReplyBox
+            key={item.key}
+            status={thread.status}
+            onReply={onReply}
+            onToggleStatus={() => onSetStatus(thread.status === 'open' ? 'resolved' : 'open')}
+          />
+        </>
+      )}
+      {confirming && (
+        <DeleteDialog
+          onChoose={(ok) => {
+            setConfirming(false);
+            if (ok) onDelete();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -214,6 +313,8 @@ export function CommentsSidebar({
   onSubmitDraft,
   onReply,
   onSetStatus,
+  onEdit,
+  onDelete,
 }: {
   threads: ThreadItem[];
   selectedKey: string | null;
@@ -227,6 +328,10 @@ export function CommentsSidebar({
   onSubmitDraft?: (body: string) => void;
   onReply?: (key: string, body: string) => void;
   onSetStatus?: (key: string, status: 'open' | 'resolved') => void;
+  /** Replaces the text of the thread's first message. */
+  onEdit?: (key: string, body: string) => void;
+  /** Removes the thread; the sidebar has already confirmed. */
+  onDelete?: (key: string) => void;
 }) {
   const selected = selectedKey === null ? undefined : threads.find((t) => t.key === selectedKey);
   return (
@@ -237,10 +342,13 @@ export function CommentsSidebar({
           <Draft anchor={draft.anchor} onCancel={() => onCancelDraft?.()} onSubmit={(b) => onSubmitDraft?.(b)} />
         ) : selected !== undefined ? (
           <SingleThread
+            key={selected.key}
             item={selected}
             onClose={onClose}
             onReply={(b) => onReply?.(selected.key, b)}
             onSetStatus={(st) => onSetStatus?.(selected.key, st)}
+            onEdit={(b) => onEdit?.(selected.key, b)}
+            onDelete={() => onDelete?.(selected.key)}
           />
         ) : (
           <ThreadList threads={threads} onOpen={onOpen} onAdd={() => onAdd?.()} canAdd={canAdd} />

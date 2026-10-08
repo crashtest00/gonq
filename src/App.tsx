@@ -6,7 +6,7 @@ import { CommentsSidebar } from './components/CommentsSidebar';
 import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
 import { listThreads } from './components/threads';
 import { USER_AUTHOR, isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
-import { appendToThread, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
+import { appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
 import { RawSwitch } from './components/RawSwitch';
 import { MarkdownView } from './components/MarkdownView';
 import { useDocument } from './document/useDocument';
@@ -101,6 +101,35 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       try {
         session.replaceText(setThreadStatus(text, { id: item.thread.id, ordinal: item.ordinal }, status));
         setError(null);
+      } catch (e) {
+        failed(e);
+      }
+    },
+    [threads, text, session.replaceText],
+  );
+
+  const edit = useCallback(
+    (key: string, body: string) => {
+      const item = threads.find((t) => t.key === key);
+      if (item === undefined || body.trim() === '') return;
+      try {
+        session.replaceText(editThreadMessage(text, { id: item.thread.id, ordinal: item.ordinal }, body.trim()));
+        setError(null);
+      } catch (e) {
+        failed(e);
+      }
+    },
+    [threads, text, session.replaceText],
+  );
+
+  const remove = useCallback(
+    (key: string) => {
+      const item = threads.find((t) => t.key === key);
+      if (item === undefined) return;
+      try {
+        session.replaceText(deleteThread(text, { id: item.thread.id, ordinal: item.ordinal }));
+        setError(null);
+        setSelectedKey(null);
       } catch (e) {
         failed(e);
       }
@@ -327,6 +356,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             onSubmitDraft={submitDraft}
             onReply={reply}
             onSetStatus={setStatus}
+            onEdit={edit}
+            onDelete={remove}
           />
         )}
       </div>
