@@ -2,6 +2,10 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import type { FileAccess, OpenedDocument } from './platform/files';
+import { vi } from 'vitest';
+
+// Each test drives the whole app through user-event; on slow CI they run close to the 5s default.
+vi.setConfig({ testTimeout: 30000 });
 
 // Deliberately unusual Markdown: none of it may be normalised by editing elsewhere.
 const ORIGINAL = '*  odd bullet\n*  second\n\nSetext Title\n===\n\ntrailing spaces here  \nnext line\n\n+ plus list\n\nlast paragraph';
