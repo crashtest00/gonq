@@ -9,6 +9,7 @@ import {
 } from '../comment-threads';
 import type { FileAccess, OpenedDocument } from '../platform/files';
 import { detectEol, fromEditable, toEditable } from '../document/splice';
+import { keepMarkersWhole } from './atomicMarkers';
 import { MarkdownImage } from './MarkdownImage';
 import { threadKey, type ThreadItem } from './threads';
 
@@ -71,7 +72,17 @@ function BlockEditor({ value, onChange, onClose }: { value: string; onChange: (v
       spellCheck={false}
       value={value}
       rows={1}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => {
+        const el = e.target;
+        // A thread marker is one atomic unit: edits that would split it are repaired.
+        const repaired = keepMarkersWhole(value, el.value);
+        if (repaired === null) return onChange(el.value);
+        if (repaired.value !== value) onChange(repaired.value);
+        // React puts the controlled value back after this handler; the caret is set once it has.
+        queueMicrotask(() => {
+          if (el.isConnected) el.setSelectionRange(repaired.caret, repaired.caret);
+        });
+      }}
       onBlur={onClose}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
