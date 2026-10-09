@@ -38,7 +38,8 @@ export function fencedCodeRanges (doc: string): DocumentRange[] {
   let openedAt: number|null = null
   let fence = ''
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
     const match = FENCE_RE.exec(line)
 
     if (openedAt === null) {
@@ -51,7 +52,7 @@ export function fencedCodeRanges (doc: string): DocumentRange[] {
       openedAt = null
     }
 
-    offset += line.length + 1
+    offset += rawLine.length + 1
   }
 
   if (openedAt !== null) {
@@ -138,7 +139,8 @@ export function htmlCommentRanges (doc: string): DocumentRange[] {
  * following line, not the offset just past the delimiter.
  */
 function throughEndOfLine (doc: string, range: DocumentRange): DocumentRange {
-  return doc[range.to] === '\n' ? { from: range.from, to: range.to + 1 } : range
+  const eol = doc.startsWith('\r\n', range.to) ? 2 : doc[range.to] === '\n' ? 1 : 0
+  return eol > 0 ? { from: range.from, to: range.to + eol } : range
 }
 
 /**

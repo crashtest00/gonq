@@ -181,15 +181,15 @@ export function editThreadMessage (doc: string, ref: ThreadRef, body: string, me
 export function deleteThread (doc: string, ref: ThreadRef): string {
   const thread = resolveThreadRef(doc, ref)
 
-  const before = doc.slice(0, thread.from).replace(/\n*$/, '')
-  const after = doc.slice(thread.to).replace(/^\n*/, '')
+  const before = doc.slice(0, thread.from).replace(/[\r\n]*$/, '')
+  const after = doc.slice(thread.to).replace(/^[\r\n]*/, '')
   let next = after.length === 0 ? `${before}\n` : `${before}\n\n${after}`
 
   // The block is after its marker, so removing it first leaves marker offsets valid.
   for (const marker of [ ...thread.markers ].sort((a, b) => b.from - a.from)) {
     const lineStart = marker.from === 0 || next[marker.from - 1] === '\n'
-    const ownLine = lineStart && next[marker.to] === '\n'
-    next = next.slice(0, marker.from) + next.slice(marker.to + (ownLine ? 1 : 0))
+    const eol = next.startsWith('\r\n', marker.to) ? 2 : next[marker.to] === '\n' ? 1 : 0
+    next = next.slice(0, marker.from) + next.slice(marker.to + (lineStart ? eol : 0))
   }
 
   return next

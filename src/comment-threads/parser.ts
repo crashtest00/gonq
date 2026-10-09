@@ -145,7 +145,10 @@ function parseBlock (block: string[], from: number, to: number, lineNumber: numb
 export function parseCommentThreads (doc: string): CommentThread[] {
   const threads: CommentThread[] = []
   const markers = parseCommentMarkers(doc)
-  const lines = doc.split('\n')
+  // Raw lines keep any trailing CR so offsets stay exact on CRLF documents;
+  // `lines` is what gets matched.
+  const rawLines = doc.split('\n')
+  const lines = rawLines.map(l => l.endsWith('\r') ? l.slice(0, -1) : l)
   // How many blocks carrying each id we have passed, so the nth block for an id
   // pairs with the nth marker for that id. See pairing note above.
   const ordinals = new Map<string, number>()
@@ -156,14 +159,14 @@ export function parseCommentThreads (doc: string): CommentThread[] {
     const openMatch = /^(\s*)<!--$/.exec(line)
 
     if (openMatch === null || !isCommentOpenLine(line)) {
-      offset += line.length + (i < lines.length - 1 ? 1 : 0)
+      offset += rawLines[i].length + (i < lines.length - 1 ? 1 : 0)
       continue
     }
 
     const indent = openMatch[1]
     const from = offset
     const block = [line]
-    let blockOffset = offset + line.length + (i < lines.length - 1 ? 1 : 0)
+    let blockOffset = offset + rawLines[i].length + (i < lines.length - 1 ? 1 : 0)
     let closingIndex = -1
 
     for (let j = i + 1; j < lines.length; j++) {
@@ -174,11 +177,11 @@ export function parseCommentThreads (doc: string): CommentThread[] {
         closingIndex = j
         break
       }
-      blockOffset += candidate.length + (j < lines.length - 1 ? 1 : 0)
+      blockOffset += rawLines[j].length + (j < lines.length - 1 ? 1 : 0)
     }
 
     if (closingIndex === -1) {
-      offset += line.length + (i < lines.length - 1 ? 1 : 0)
+      offset += rawLines[i].length + (i < lines.length - 1 ? 1 : 0)
       continue
     }
 
@@ -194,9 +197,9 @@ export function parseCommentThreads (doc: string): CommentThread[] {
     }
 
     for (; i < closingIndex; i++) {
-      offset += lines[i].length + (i < lines.length - 1 ? 1 : 0)
+      offset += rawLines[i].length + (i < lines.length - 1 ? 1 : 0)
     }
-    offset += lines[closingIndex].length + (closingIndex < lines.length - 1 ? 1 : 0)
+    offset += rawLines[closingIndex].length + (closingIndex < lines.length - 1 ? 1 : 0)
   }
 
   return threads
