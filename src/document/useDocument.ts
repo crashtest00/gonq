@@ -23,13 +23,54 @@ interface Region {
   suffix: string;
 }
 
-/** Document text, its dirty state and undo history, and the one block currently open for editing. */
+/** One open document: everything that belongs to it and must survive switching tabs. */
+interface Tab {
+  id: number;
+  meta: DocumentMeta;
+  history: History;
+  scrollTop: number;
+  raw: boolean;
+}
+
+interface Tabs {
+  tabs: Tab[];
+  activeId: number | null;
+}
+
+export interface TabInfo {
+  id: number;
+  name: string;
+  path: string | null;
+  dirty: boolean;
+}
+
+const EMPTY_HISTORY = createHistory('');
+const NO_TABS: Tabs = { tabs: [], activeId: null };
+
+/** "Untitled.md", then "Untitled 2.md", ... — the first name no open tab uses. */
+function untitledName(tabs: Tab[]): string {
+  const used = new Set(tabs.map((t) => t.meta.name));
+  for (let n = 1; ; n++) {
+    const name = n === 1 ? 'Untitled.md' : `Untitled ${n}.md`;
+    if (!used.has(name)) return name;
+  }
+}
+
+/**
+ * The open documents and which one is active. The returned document fields (text, history,
+ * dirty...) are the active tab's; the one block open for editing belongs to it too.
+ */
 export function useDocument() {
-  const [meta, setMeta] = useState<DocumentMeta | null>(null);
-  const [history, setHistory] = useState<History>(() => createHistory(''));
+  const [state, setState] = useState<Tabs>(NO_TABS);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const active = state.tabs.find((t) => t.id === state.activeId) ?? null;
+  const meta = active?.meta ?? null;
+  const history = active?.history ?? EMPTY_HISTORY;
   const [region, setRegionState] = useState<Region | null>(null);
   const regionRef = useRef<Region | null>(null);
   const nextId = useRef(1);
+  const nextTabId = useRef(1);
   const textRef = useRef('');
   textRef.current = history.text;
 
@@ -38,13 +79,99 @@ export function useDocument() {
     setRegionState(r);
   }, []);
 
-  const load = useCallback(
-    (doc: OpenedDocument) => {
+  /** Applies `fn` to the active tab's history. */
+  const setHistory = useCallback((fn: (h: History) => History) => {
+    setState((s) => ({
+      ...s,
+      tabs: s.tabs.map((t) => (t.id === s.activeId ? { ...t, history: fn(t.history) } : t)),
+    }));
+  }, []);
+
+  /** The id of the tab showing this file, if it is open. */
+  const findByPath = useCallback(
+    (path: string | null) => (path === null ? null : (stateRef.current.tabs.find((t) => t.meta.path === path)?.id ?? null)),
+    [],
+  );
+
+  const activate = useCallback(
+    (id: number) => {
+      if (!stateRef.current.tabs.some((t) => t.id === id)) return;
       setRegion(null);
-      setMeta({ name: doc.name, path: doc.path });
-      setHistory(createHistory(doc.text));
+      setState((s) => (s.activeId === id ? s : { ...s, activeId: id }));
     },
     [setRegion],
+  );
+
+  /** Opens a document in a new tab; a file that is already open just gets its tab shown. */
+  const open = useCallback(
+    (doc: OpenedDocument) => {
+      setRegion(null);
+      const existing = findByPath(doc.path);
+      if (existing !== null) return activate(existing);
+      const id = nextTabId.current++;
+      const tab: Tab = { id, meta: { name: doc.name, path: doc.path }, history: createHistory(doc.text), scrollTop: 0, raw: false };
+      setState((s) => ({ tabs: [...s.tabs, tab], activeId: id }));
+    },
+    [setRegion, findByPath, activate],
+  );
+
+  /** Opens a new empty untitled document in a new tab. */
+  const openUntitled = useCallback(() => {
+    setRegion(null);
+    const id = nextTabId.current++;
+    setState((s) => {
+      const tab: Tab = { id, meta: { name: untitledName(s.tabs), path: null }, history: createHistory(''), scrollTop: 0, raw: false };
+      return { tabs: [...s.tabs, tab], activeId: id };
+    });
+  }, [setRegion]);
+
+  /** Closes a tab without asking; closing the last one leaves a new untitled tab. */
+  const close = useCallback(
+    (id: number) => {
+      setRegion(null);
+      setState((s) => {
+        const i = s.tabs.findIndex((t) => t.id === id);
+        if (i < 0) return s;
+        const tabs = s.tabs.filter((t) => t.id !== id);
+        if (tabs.length === 0) {
+          const fresh: Tab = {
+            id: nextTabId.current++,
+            meta: { name: 'Untitled.md', path: null },
+            history: createHistory(''),
+            scrollTop: 0,
+            raw: false,
+          };
+          return { tabs: [fresh], activeId: fresh.id };
+        }
+        const activeId = s.activeId === id ? tabs[Math.min(i, tabs.length - 1)].id : s.activeId;
+        return { tabs, activeId };
+      });
+    },
+    [setRegion],
+  );
+
+  const setRaw = useCallback((raw: boolean) => {
+    setState((s) => ({ ...s, tabs: s.tabs.map((t) => (t.id === s.activeId ? { ...t, raw } : t)) }));
+  }, []);
+
+  /** Scroll offset is remembered without re-rendering. */
+  const setScrollTop = useCallback((scrollTop: number) => {
+    const t = stateRef.current.tabs.find((x) => x.id === stateRef.current.activeId);
+    if (t) t.scrollTop = scrollTop;
+  }, []);
+
+  /** A tab's current name, path, text and dirty state, read without waiting for a render. */
+  const peek = useCallback((id: number) => {
+    const t = stateRef.current.tabs.find((x) => x.id === id);
+    return t ? { meta: t.meta, text: t.history.text, dirty: isDirty(t.history) } : null;
+  }, []);
+  const peekTabs = useCallback(
+    (): TabInfo[] => stateRef.current.tabs.map((t) => ({ id: t.id, name: t.meta.name, path: t.meta.path, dirty: isDirty(t.history) })),
+    [],
+  );
+  const dirtyIds = useCallback(
+    () => stateRef.current.tabs.filter((t) => isDirty(t.history)).map((t) => t.id),
+    [],
   );
 
   const startEdit = useCallback(
@@ -105,20 +232,36 @@ export function useDocument() {
     setHistory(redo);
   }, [setRegion]);
 
-  const rename = useCallback((next: DocumentMeta, savedText: string) => {
-    setMeta(next);
-    setHistory((h) => markSaved(h, savedText));
+  /** Records that `savedText` is now on disk for tab `id` under `next`. */
+  const rename = useCallback((id: number, next: DocumentMeta, savedText: string) => {
+    setState((s) => ({
+      ...s,
+      tabs: s.tabs.map((t) => (t.id === id ? { ...t, meta: next, history: markSaved(t.history, savedText) } : t)),
+    }));
   }, []);
 
   return useMemo(
     () => ({
       meta,
+      tabs: state.tabs.map((t): TabInfo => ({ id: t.id, name: t.meta.name, path: t.meta.path, dirty: isDirty(t.history) })),
+      activeId: state.activeId,
+      activeTab: active,
+      raw: active?.raw ?? false,
       text: history.text,
       dirty: meta !== null && isDirty(history),
       canUndo: history.past.length > 0,
       canRedo: history.future.length > 0,
       region: region === null ? null : { from: region.from, to: region.to },
-      load,
+      open,
+      openUntitled,
+      close,
+      activate,
+      findByPath,
+      setRaw,
+      setScrollTop,
+      peek,
+      peekTabs,
+      dirtyIds,
       startEdit,
       startAppend,
       changeEdit,
@@ -127,9 +270,8 @@ export function useDocument() {
       replaceText,
       undo: doUndo,
       redo: doRedo,
-      /** Records that `savedText` is now on disk under `next`. */
       saved: rename,
     }),
-    [meta, history, region, load, startEdit, startAppend, changeEdit, closeEdit, replaceRange, replaceText, doUndo, doRedo, rename],
+    [meta, state, active, history, region, open, openUntitled, close, activate, findByPath, setRaw, setScrollTop, peek, peekTabs, dirtyIds, startEdit, startAppend, changeEdit, closeEdit, replaceRange, replaceText, doUndo, doRedo, rename],
   );
 }

@@ -25,6 +25,16 @@ export interface SavedDocument {
   path: string | null;
 }
 
+/** Returns true for a path that must not be written (another open tab already holds it). */
+export type PathTaken = (path: string) => boolean;
+
+export class PathTakenError extends Error {
+  constructor(path: string) {
+    super(`${path} is already open in another tab, so it was not saved there. Choose another name.`);
+    this.name = 'PathTakenError';
+  }
+}
+
 export interface FileAccess {
   /** Resolves null when the user cancels. Rejects (NotUtf8Error, ...) when the file cannot be opened. */
   pickDocument(): Promise<OpenedDocument | null>;
@@ -32,9 +42,12 @@ export interface FileAccess {
    * Writes the text to the document's own path, or asks where to put it when it has none.
    * Resolves null when the user cancels. Rejects when the file cannot be written.
    */
-  saveDocument(doc: { name: string; path: string | null; text: string }): Promise<SavedDocument | null>;
+  saveDocument(
+    doc: { name: string; path: string | null; text: string },
+    taken?: PathTaken,
+  ): Promise<SavedDocument | null>;
   /** Always asks where to put the file. Resolves null when the user cancels. */
-  saveDocumentAs(doc: { name: string; text: string }): Promise<SavedDocument | null>;
+  saveDocumentAs(doc: { name: string; text: string }, taken?: PathTaken): Promise<SavedDocument | null>;
   /** Reads a known file (desktop only; absent in the browser). Rejects when it cannot be opened. */
   openPath?(path: string): Promise<OpenedDocument>;
   /** Resolves a displayable URL for an image, or null when it cannot be loaded. */
@@ -123,17 +136,20 @@ const tauriFiles: FileAccess = {
     return { name, path, text };
   },
 
-  async saveDocument(doc) {
-    if (doc.path === null) return tauriFiles.saveDocumentAs(doc);
+  async saveDocument(doc, taken) {
+    if (doc.path === null) return tauriFiles.saveDocumentAs(doc, taken);
     return tauriWrite(doc.path, doc.text);
   },
 
-  async saveDocumentAs(doc) {
+  async saveDocumentAs(doc, taken) {
     const path = await save({
       defaultPath: /\.(md|markdown)$/i.test(doc.name) ? doc.name : `${doc.name}.md`,
       filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
     });
-    return path === null ? null : tauriWrite(path, doc.text);
+    if (path === null) return null;
+    // Refused before anything is written, so the other tab's file is never overwritten.
+    if (taken?.(path)) throw new PathTakenError(path);
+    return tauriWrite(path, doc.text);
   },
 
   async loadImage(doc, src) {
