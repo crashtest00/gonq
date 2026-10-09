@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MenuBar } from './components/MenuBar';
+import { PreferencesDialog } from './components/PreferencesDialog';
+import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
 import { TabStrip } from './components/TabStrip';
 import { EditToolbar } from './components/EditToolbar';
 import { OutlineSidebar } from './components/OutlineSidebar';
@@ -7,7 +9,7 @@ import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
 import { listThreads } from './components/threads';
-import { USER_AUTHOR, isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
+import { isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
 import { appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
 import { RawSwitch } from './components/RawSwitch';
 import { MarkdownView } from './components/MarkdownView';
@@ -44,6 +46,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [caret, setCaret] = useState<{ offset: number; text: string } | null>(null);
   const [reveal, setReveal] = useState<string | null>(null);
   const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
+  const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
@@ -51,6 +55,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
 
   useEffect(() => {
     let live = true;
+    getAuthorName().then((n) => live && setAuthor(n));
     listRecents().then((list) => live && setRecents(list), () => {});
     return () => {
       live = false;
@@ -95,7 +100,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         return setError('The document changed while you were writing; start the comment again.');
       }
       try {
-        const opened = openThreadIn(text, draft.target, USER_AUTHOR, body.trim());
+        const opened = openThreadIn(text, draft.target, authorName, body.trim());
         const { thread } = opened;
         // The note for agents goes just ahead of the new block, once per file.
         const next = withAgentGuidance(opened.doc, thread.from);
@@ -113,7 +118,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         failed(e);
       }
     },
-    [draft, text, session.replaceText],
+    [draft, text, authorName, session.replaceText],
   );
 
   const reply = useCallback(
@@ -121,13 +126,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined || body.trim() === '') return;
       try {
-        session.replaceText(appendToThread(text, { id: item.thread.id, ordinal: item.ordinal }, USER_AUTHOR, body.trim()));
+        session.replaceText(appendToThread(text, { id: item.thread.id, ordinal: item.ordinal }, authorName, body.trim()));
         setError(null);
       } catch (e) {
         failed(e);
       }
     },
-    [threads, text, session.replaceText],
+    [threads, text, authorName, session.replaceText],
   );
 
   const setStatus = useCallback(
@@ -322,8 +327,9 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   }, []);
 
   // Keyboard shortcuts read the latest handlers through a ref, so the listener is added once.
-  const actions = useRef({ newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo });
-  actions.current = { newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo };
+  const openPrefs = useCallback(() => setPrefsOpen(true), []);
+  const actions = useRef({ newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo, openPrefs });
+  actions.current = { newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo, openPrefs };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -333,7 +339,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       // Undo in any other text field is that field's own.
       const foreignField = target?.closest('input, textarea') && !target.closest('[data-block-editor]');
       let run: (() => unknown) | null = null;
-      if (key === 'o') run = a.openFile;
+      if (e.key === ',' && !e.shiftKey) run = a.openPrefs;
+      else if (key === 'o') run = a.openFile;
       else if (key === 'n') run = a.newFile;
       else if (key === 's') run = e.shiftKey ? a.saveAs : a.save;
       else if (!foreignField && key === 'z') run = e.shiftKey ? a.redo : a.undo;
@@ -364,6 +371,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onSaveAs={() => void saveAs()}
         onUndo={session.undo}
         onRedo={session.redo}
+        onPreferences={openPrefs}
       />
       <TabStrip name={meta?.name ?? null} dirty={dirty} outlineOpen={outlineOpen} onToggleOutline={() => {
           setOutlineOpen((o) => !o);
@@ -479,6 +487,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         >
           💬
         </button>
+      )}
+      {prefsOpen && (
+        <PreferencesDialog
+          authorName={authorName}
+          onSave={async (n) => setAuthor(await setAuthorName(n))}
+          onClose={() => setPrefsOpen(false)}
+        />
       )}
       {asking !== null && <UnsavedChangesDialog name={asking.name} onChoose={asking.resolve} />}
     </div>

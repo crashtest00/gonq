@@ -10,6 +10,7 @@ export interface MenuActions {
   onSaveAs: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onPreferences?: () => void;
 }
 
 export function MenuBar({
@@ -23,6 +24,7 @@ export function MenuBar({
   onSaveAs,
   onUndo,
   onRedo,
+  onPreferences,
 }: MenuActions & { hasDocument: boolean; canUndo: boolean; canRedo: boolean }) {
   return (
     <>
@@ -55,6 +57,14 @@ export function MenuBar({
             <MenubarItem disabled={!canRedo} onSelect={onRedo}>
               Redo<MenubarShortcut>Ctrl+Y</MenubarShortcut>
             </MenubarItem>
+            {onPreferences && (
+              <>
+                <MenubarSeparator />
+                <MenubarItem onSelect={onPreferences}>
+                  Preferences…<MenubarShortcut>Ctrl+,</MenubarShortcut>
+                </MenubarItem>
+              </>
+            )}
           </MenubarContent>
         </MenubarMenu>
         {EMPTY_MENUS.map((label) => (
