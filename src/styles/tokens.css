@@ -1,0 +1,40 @@
+/* Gonq design tokens, from the design handoff (tokens/*.css). Light mode only. */
+:root{
+--turquoise-fill:#146872;--turquoise-hover:#0F4F58;--turquoise-accent:#1E8A96;
+--jade-fill:#2F7D6B;--jade-text:#276B5D;
+--ink:#14171F;--ivory:#F6F2E7;--rust:#A6432E;--line:#DAD4C4;--muted:#6B6659;
+--emerald-fill:#177A59;--emerald-hover:#0F5A41;--emerald-text-icon:#2FA079;
+--burgundy-fill:#9C3B4F;--bg-dark:#14171F;--surface-dark:#1D2229;--rust-bright:#D66A52;--line-dark:#2A2F38;--muted-dark:#8A8F98;
+--brass-start-light:#A9812F;--brass-mid-light:#E8CE94;--brass-end-light:#D4AF6A;
+--brass-start-dark:#C9A227;--brass-mid-dark:#F2DFA0;--brass-end-dark:#E8C77A;
+--non-photo-blue:#A4DDED;--npb-ink-light:#1C6E86;--npb-ink-dark:#7FCBDE;
+
+--background:var(--ivory);--surface:#ffffff;--foreground:var(--ink);
+--primary:var(--turquoise-fill);--primary-hover:var(--turquoise-hover);--primary-foreground:#ffffff;
+--secondary:var(--jade-fill);--secondary-foreground:#ffffff;
+--accent:var(--non-photo-blue);--accent-foreground:var(--npb-ink-light);
+--border:var(--line);--muted-foreground:var(--muted);--destructive:var(--rust);--destructive-foreground:#ffffff;
+--brass-start:var(--brass-start-light);--brass-mid:var(--brass-mid-light);--brass-end:var(--brass-end-light);
+--ring:var(--turquoise-accent);
+}
+:root{
+--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;--space-8:64px;
+--radius-control:6px;--radius-container:10px;--radius-pill:999px;
+}
+:root{
+--shadow-sm:0 1px 2px rgba(20,23,31,.06);
+--shadow-md:0 4px 12px rgba(20,23,31,.08);
+--shadow-dialog:0 12px 32px rgba(20,23,31,.18);
+--brass-hairline:linear-gradient(90deg,var(--brass-start),var(--brass-mid) 50%,var(--brass-start));
+--brass-hairline-v:linear-gradient(180deg,var(--brass-start),var(--brass-mid) 50%,var(--brass-start));
+--duration-fast:120ms;/* @kind other */
+--duration-base:180ms;/* @kind other */
+--ease-standard:cubic-bezier(.2,.6,.3,1);/* @kind other */
+}
+:root{
+--font-sans:'Public Sans',system-ui,-apple-system,sans-serif;
+--font-mono:'JetBrains Mono',ui-monospace,'SF Mono',monospace;
+--text-ui-heading:22px;--text-ui-body:15px;--text-caption:12.5px;--text-code:13.5px;
+--weight-regular:400;--weight-medium:500;--weight-semibold:600;
+--leading-code:1.6;
+}
