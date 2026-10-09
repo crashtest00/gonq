@@ -73,6 +73,10 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Test (Rust)
+        working-directory: src-tauri
+        run: cargo test --locked
+
       - name: Build unsigned package
         run: npm run tauri build
 
