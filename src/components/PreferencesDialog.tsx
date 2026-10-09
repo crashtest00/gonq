@@ -71,7 +71,7 @@ export function PreferencesDialog({
           className="h-8 w-full rounded-control border border-border bg-background px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <p id="preferences-author-hint" role={problem || failure ? 'alert' : undefined} className={`m-0 mt-1 mb-5 text-[12px] ${problem || failure ? 'text-destructive' : 'text-muted-foreground'}`}>
-          {problem ?? failure ?? `Written on the comments and replies you add. Leave blank to use “${DEFAULT_AUTHOR}”.`}
+          {problem ?? failure ?? `Written on the comments and replies you add.`}
         </p>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className={`${button} border-border bg-transparent`}>

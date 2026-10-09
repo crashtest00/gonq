@@ -10,9 +10,10 @@ export const AUTHOR_KEY = 'gonq.authorName';
 /** The message header syntax reserves `|` and `]`; a header is one line. */
 const UNWRITABLE = /[|\]\r\n]/;
 
-/** Why a name cannot be saved, or null when it can. Blank is valid: it resets to the default. */
+/** Why a name cannot be saved, or null when it can. Blank names are refused. */
 export function authorNameProblem(name: string): string | null {
   const trimmed = name.trim();
+  if (trimmed === '') return 'Enter a name.';
   if ([...trimmed].length > MAX_AUTHOR_CHARS) return `Use at most ${MAX_AUTHOR_CHARS} characters.`;
   if (UNWRITABLE.test(trimmed)) return 'The name cannot contain "|", "]" or line breaks.';
   return null;
@@ -21,23 +22,21 @@ export function authorNameProblem(name: string): string | null {
 /** The saved name, or the default when none is set or the store is unreadable. */
 export async function getAuthorName(): Promise<string> {
   try {
-    const stored = isTauri() ? await invoke<string | null>('author_name_get') : localStorage.getItem(AUTHOR_KEY);
+    const stored = isTauri() ? await invoke<string>('get_author_name') : localStorage.getItem(AUTHOR_KEY);
     return stored && stored.trim() !== '' && authorNameProblem(stored) === null ? stored.trim() : DEFAULT_AUTHOR;
   } catch {
     return DEFAULT_AUTHOR;
   }
 }
 
-/** Saves the trimmed name (blank resets to the default) and returns the name now in effect. Rejects on failure. */
+/** Saves the trimmed name and returns the name now in effect. Rejects with the error (backend: its string) on failure. */
 export async function setAuthorName(name: string): Promise<string> {
   const problem = authorNameProblem(name);
   if (problem !== null) throw new Error(problem);
   const trimmed = name.trim();
   if (isTauri()) {
-    const stored = await invoke<string | null>('author_name_set', { name: trimmed });
-    return stored ?? DEFAULT_AUTHOR;
+    return await invoke<string>('set_author_name', { name: trimmed });
   }
-  if (trimmed === '') localStorage.removeItem(AUTHOR_KEY);
-  else localStorage.setItem(AUTHOR_KEY, trimmed);
-  return trimmed === '' ? DEFAULT_AUTHOR : trimmed;
+  localStorage.setItem(AUTHOR_KEY, trimmed);
+  return trimmed;
 }
