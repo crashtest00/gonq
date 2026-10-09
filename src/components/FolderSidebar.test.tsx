@@ -100,6 +100,7 @@ const files: FileAccess = {
 
 test('App: toggle swaps with the outline; opening a file records it and recents open it', async () => {
   listDirectory.mockResolvedValue([]);
+  localStorage.setItem(RECENTS_KEY, JSON.stringify([{ path: '/r.md', openedAt: Date.now() - 1000 }]));
   const user = userEvent.setup();
   render(<App files={files} />);
   await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
@@ -114,7 +115,7 @@ test('App: toggle swaps with the outline; opening a file records it and recents 
   await waitFor(() => expect(JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')[0].path).toBe('/n.md'));
 
   await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
-  await user.click(within(screen.getByRole('complementary', { name: 'Folder navigator' })).getByText('n.md'));
+  await user.click(await within(screen.getByRole('complementary', { name: 'Folder navigator' })).findByText('r.md'));
   expect(await screen.findByText('Recent doc')).toBeInTheDocument();
 });
 
@@ -220,8 +221,7 @@ test('App: a missing recent shows an error and is removed', async () => {
   expect(JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')).toEqual([]);
 });
 
-describe('unsaved-changes prompt from the folder pane', () => {
-  const saveDocument = vi.fn(async (d: { name: string; path: string | null }) => ({ name: d.name, path: d.path }));
+describe('opening from the folder pane uses tabs', () => {
   const opened = vi.fn();
   const f: FileAccess = {
     ...files,
@@ -230,13 +230,11 @@ describe('unsaved-changes prompt from the folder pane', () => {
       opened(path);
       return { name: 'other.md', path, text: 'Other doc text\n' };
     },
-    saveDocument,
   };
 
   async function dirtyThen(click: 'folder' | 'recent') {
     listDirectory.mockResolvedValue([{ name: 'other.md', path: '/docs/other.md', isDir: false }]);
     localStorage.setItem(RECENTS_KEY, JSON.stringify([{ path: '/r/rec.md', openedAt: Date.now() }]));
-    saveDocument.mockClear();
     opened.mockClear();
     const user = userEvent.setup();
     render(<App files={f} />);
@@ -246,31 +244,26 @@ describe('unsaved-changes prompt from the folder pane', () => {
     await user.type(editorBox(), '!');
     await user.keyboard('{Escape}');
     await user.click(click === 'folder' ? await side().findByText('other.md') : side().getByText('rec.md'));
-    return { user, dialog: await screen.findByRole('dialog') };
+    return { user };
   }
 
-  test.each(['folder', 'recent'] as const)('%s click: Cancel aborts', async (kind) => {
-    const { user, dialog } = await dirtyThen(kind);
-    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-    expect(opened).not.toHaveBeenCalled();
-    expect(saveDocument).not.toHaveBeenCalled();
+  test.each(['folder', 'recent'] as const)('%s click: opens a new tab without asking; the dirty tab is kept', async (kind) => {
+    const { user } = await dirtyThen(kind);
+    expect(await screen.findByText('Other doc text')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    await user.click(screen.getByRole('tab', { name: /n\.md/ }));
+    expect(screen.getByText('last paragraph!')).toBeInTheDocument();
   });
 
-  test.each(['folder', 'recent'] as const)('%s click: Don\'t save opens without saving', async (kind) => {
-    const { user, dialog } = await dirtyThen(kind);
-    await user.click(within(dialog).getByRole('button', { name: /Don.t save/ }));
-    expect(await screen.findByText('Other doc text')).toBeInTheDocument();
+  test('clicking a file that is already open switches to its tab', async () => {
+    const { user } = await dirtyThen('folder');
+    await screen.findByText('Other doc text');
+    await user.click(screen.getByRole('tab', { name: /n\.md/ }));
+    await user.click((await side().findAllByText('other.md'))[0]);
     expect(opened).toHaveBeenCalledTimes(1);
-    expect(saveDocument).not.toHaveBeenCalled();
-  });
-
-  test.each(['folder', 'recent'] as const)('%s click: Save saves, then opens', async (kind) => {
-    const { user, dialog } = await dirtyThen(kind);
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText('Other doc text')).toBeInTheDocument();
-    expect(saveDocument).toHaveBeenCalledTimes(1);
-    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('last paragraph!') }));
-    expect(opened).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    expect(screen.getByText('Other doc text')).toBeInTheDocument();
   });
 });

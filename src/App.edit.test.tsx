@@ -111,9 +111,9 @@ test('a document with no path asks where to save; Save As always asks', async ()
   const { user, saveDocument, saveDocumentAs } = setup(ORIGINAL, null);
   await openDoc(user);
   await menu(user, 'File', /^Save(?! As)/);
-  expect(saveDocument).toHaveBeenCalledWith({ name: 'a.md', path: null, text: ORIGINAL });
+  expect(saveDocument).toHaveBeenCalledWith({ name: 'a.md', path: null, text: ORIGINAL }, expect.any(Function));
   await menu(user, 'File', /Save As/);
-  expect(saveDocumentAs).toHaveBeenCalledWith({ name: 'a.md', text: ORIGINAL });
+  expect(saveDocumentAs).toHaveBeenCalledWith({ name: 'a.md', text: ORIGINAL }, expect.any(Function));
   expect(screen.getByRole('tab')).toHaveTextContent('copy.md');
 });
 
@@ -129,7 +129,7 @@ test('File > New starts an empty document that can be typed into and saved', asy
   await user.type(editor(), 'More');
   await user.keyboard('{Escape}');
   await menu(user, 'File', /^Save(?! As)/);
-  expect(saveDocument).toHaveBeenCalledWith({ name: 'Untitled.md', path: null, text: '# Hello\n\nMore\n' });
+  expect(saveDocument).toHaveBeenCalledWith({ name: 'Untitled.md', path: null, text: '# Hello\n\nMore\n' }, expect.any(Function));
 });
 
 test('appending goes ahead of the thread blocks at the end of the file', async () => {
@@ -142,47 +142,6 @@ test('appending goes ahead of the thread blocks at the end of the file', async (
   expect(saveDocument).toHaveBeenCalledWith(
     expect.objectContaining({ text: `Para [💬](#md-thread-c20260910143022a3f9c1)\n\nNew\n\n${thread}` }),
   );
-});
-
-describe('unsaved changes prompt', () => {
-  async function dirtyThenNew() {
-    const ctx = setup();
-    await openDoc(ctx.user);
-    await ctx.user.click(screen.getByText('last paragraph'));
-    await ctx.user.type(editor(), '!');
-    await ctx.user.keyboard('{Escape}');
-    await menu(ctx.user, 'File', /New/);
-    return { ...ctx, dialog: await screen.findByRole('dialog') };
-  }
-
-  test('Cancel keeps the document', async () => {
-    const { user, dialog } = await dirtyThenNew();
-    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('tab')).toHaveTextContent('a.md');
-    expect(screen.getByText('last paragraph!')).toBeInTheDocument();
-  });
-
-  test("Don't save discards and continues", async () => {
-    const { user, dialog, saveDocument } = await dirtyThenNew();
-    await user.click(within(dialog).getByRole('button', { name: /Don.t save/ }));
-    expect(saveDocument).not.toHaveBeenCalled();
-    expect(screen.getByRole('tab')).toHaveTextContent('Untitled.md');
-  });
-
-  test('Save writes the file, then continues', async () => {
-    const { user, dialog, saveDocument } = await dirtyThenNew();
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: ORIGINAL + '!' }));
-    expect(await screen.findByText('Click here to start writing.')).toBeInTheDocument();
-  });
-
-  test('a clean document is replaced without asking', async () => {
-    const { user } = setup();
-    await openDoc(user);
-    await menu(user, 'File', /New/);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  });
 });
 
 describe('thread markers stay whole while a block is edited', () => {
@@ -267,41 +226,6 @@ test('editing a middle block changes none of the other bytes', async () => {
   expect(expected).not.toBe(ORIGINAL);
   expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: expected }));
   expect(expected.startsWith('*  odd bullet\n*  second\n\nSetext Title\n===\n\ntrailing spaces here  \nnext line X\n\n+ plus list\n\nlast paragraph')).toBe(true);
-});
-
-describe('unsaved changes prompt on Open', () => {
-  async function dirtyThenOpen() {
-    const ctx = setup();
-    await openDoc(ctx.user);
-    await ctx.user.click(screen.getByText('last paragraph'));
-    await ctx.user.type(editor(), '!');
-    await ctx.user.keyboard('{Escape}');
-    await menu(ctx.user, 'File', /Open/);
-    return { ...ctx, dialog: await screen.findByRole('dialog') };
-  }
-
-  test('Cancel keeps the document and opens nothing', async () => {
-    const { user, dialog, saveDocument } = await dirtyThenOpen();
-    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(saveDocument).not.toHaveBeenCalled();
-    expect(screen.getByText('last paragraph!')).toBeInTheDocument();
-  });
-
-  test("Don't save discards the edit and opens the file", async () => {
-    const { user, dialog, saveDocument } = await dirtyThenOpen();
-    await user.click(within(dialog).getByRole('button', { name: /Don.t save/ }));
-    expect(saveDocument).not.toHaveBeenCalled();
-    expect(await screen.findByText('last paragraph')).toBeInTheDocument();
-    expect(screen.queryByLabelText('unsaved changes')).not.toBeInTheDocument();
-  });
-
-  test('Save writes the edit, then opens the file', async () => {
-    const { user, dialog, saveDocument } = await dirtyThenOpen();
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: ORIGINAL + '!' }));
-    expect(await screen.findByText('last paragraph')).toBeInTheDocument();
-  });
 });
 
 describe('Edit menu and shortcuts', () => {

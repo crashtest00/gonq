@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MenuBar } from './components/MenuBar';
 import { AgentSkillDialog } from './components/AgentSkillDialog';
 import { PreferencesDialog } from './components/PreferencesDialog';
@@ -21,8 +21,6 @@ import { FolderSidebar } from './components/FolderSidebar';
 import { foldersSupported, pathExists, pickFolder } from './platform/folders';
 import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from './platform/recents';
 
-const UNTITLED = 'Untitled.md';
-
 function parentDir(path: string): string | null {
   const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
   if (i < 0) return null;
@@ -32,8 +30,8 @@ function parentDir(path: string): string | null {
 export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const session = useDocument();
   const { meta, text, dirty, region } = session;
+  const rawAll = session.raw;
   const [error, setError] = useState<string | null>(null);
-  const [rawAll, setRawAll] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
@@ -47,6 +45,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [caret, setCaret] = useState<{ offset: number; text: string } | null>(null);
   const [reveal, setReveal] = useState<string | null>(null);
   const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
+  const activeId = session.activeId;
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
@@ -73,6 +72,20 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const remember = useCallback((path: string | null) => {
     if (path !== null) addRecent(path).then(setRecents, () => {});
   }, []);
+
+  // Switching tabs: the comments sidebar goes back to All threads, and the canvas gets its scroll back.
+  useEffect(() => {
+    setSelectedKey(null);
+    setDraft(null);
+    setSelection(null);
+    setCaret(null);
+    setError(null);
+  }, [activeId]);
+  useLayoutEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = session.activeTab?.scrollTop ?? 0;
+    // Only a switch restores scroll; ordinary edits keep the canvas where it is.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
 
   const textRef = useRef(text);
   textRef.current = text;
@@ -229,68 +242,86 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
 
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
-  /** Writes the document; true when it is on disk, false when cancelled or failed. */
+  /** Writes tab `id`; true when it is on disk, false when cancelled or failed. */
   const write = useCallback(
-    async (as: boolean): Promise<boolean> => {
-      if (meta === null) return true;
+    async (id: number, as: boolean): Promise<boolean> => {
+      const tab = session.peek(id);
+      if (tab === null) return true;
       // What is written is what is marked saved, even if typing continues meanwhile.
-      const snapshot = text;
+      const snapshot = tab.text;
+      // Save As may not land on a file another tab holds.
+      const taken = (path: string) => session.peekTabs().some((t) => t.id !== id && t.path === path);
       try {
         const saved = as
-          ? await files.saveDocumentAs({ name: meta.name, text: snapshot })
-          : await files.saveDocument({ name: meta.name, path: meta.path, text: snapshot });
+          ? await files.saveDocumentAs({ name: tab.meta.name, text: snapshot }, taken)
+          : tab.meta.path === null
+            ? await files.saveDocument({ name: tab.meta.name, path: null, text: snapshot }, taken)
+            : await files.saveDocument({ name: tab.meta.name, path: tab.meta.path, text: snapshot });
         if (saved === null) return false;
+        if (saved.path !== null && saved.path !== tab.meta.path && taken(saved.path)) {
+          setError(`${saved.path} is already open in another tab, so it was not saved there. Choose another name.`);
+          return false;
+        }
         setError(null);
-        session.saved(saved, snapshot);
-        if (saved.path !== meta.path) remember(saved.path);
+        session.saved(id, saved, snapshot);
+        if (saved.path !== tab.meta.path) remember(saved.path);
         return true;
       } catch (e) {
         failed(e);
         return false;
       }
     },
-    [files, meta, text, session.saved, remember],
+    [files, session.peek, session.peekTabs, session.saved, remember],
   );
-  const save = useCallback(() => write(false), [write]);
-  const saveAs = useCallback(() => write(true), [write]);
+  const save = useCallback(() => (activeId === null ? Promise.resolve(true) : write(activeId, false)), [write, activeId]);
+  const saveAs = useCallback(() => (activeId === null ? Promise.resolve(true) : write(activeId, true)), [write, activeId]);
 
-  /** Resolves true when it is fine to replace or close the document: saved, discarded or clean. */
-  const confirmDiscard = useCallback(async (): Promise<boolean> => {
-    if (meta === null || !dirty) return true;
-    const choice = await new Promise<UnsavedChoice>((resolve) => setAsking({ name: meta.name, resolve }));
-    setAsking(null);
-    if (choice === 'save') return save();
-    return choice === 'discard';
-  }, [meta, dirty, save]);
+  /** Resolves true when it is fine to close tab `id`: clean, saved or discarded. Shows the tab while it asks. */
+  const confirmTab = useCallback(
+    async (id: number): Promise<boolean> => {
+      const tab = session.peek(id);
+      if (tab === null || !tab.dirty) return true;
+      session.activate(id);
+      const choice = await new Promise<UnsavedChoice>((resolve) => setAsking({ name: tab.meta.name, resolve }));
+      setAsking(null);
+      if (choice === 'save') return write(id, false);
+      return choice === 'discard';
+    },
+    [session.peek, session.activate, write],
+  );
 
-  const newFile = useCallback(async () => {
-    if (!(await confirmDiscard())) return;
+  const closeTab = useCallback(
+    async (id: number) => {
+      if (await confirmTab(id)) session.close(id);
+    },
+    [confirmTab, session.close],
+  );
+
+  const newFile = useCallback(() => {
     setError(null);
-    setSelectedKey(null);
-    setDraft(null);
-    session.load({ name: UNTITLED, path: null, text: '' });
-  }, [confirmDiscard, session.load]);
+    session.openUntitled();
+  }, [session.openUntitled]);
 
   const openFile = useCallback(async () => {
-    if (!(await confirmDiscard())) return;
     try {
       const opened = await files.pickDocument();
       if (opened === null) return;
       setError(null);
-      setSelectedKey(null);
-      setDraft(null);
-      session.load(opened);
+      session.open(opened);
       remember(opened.path);
     } catch (e) {
       // A file that cannot be opened leaves whatever is already open untouched.
       failed(e);
     }
-  }, [files, confirmDiscard, session.load, remember]);
+  }, [files, session.open, remember]);
 
   /** Opens a file chosen in the folder navigator or the recent list. */
   const openKnownPath = useCallback(
     async (path: string, fromRecents: boolean) => {
-      if (files.openPath === undefined || !(await confirmDiscard())) return;
+      if (files.openPath === undefined) return;
+      // A file that is already open is shown as it is, unsaved changes and all.
+      const existing = session.findByPath(path);
+      if (existing !== null) return session.activate(existing);
       try {
         if (fromRecents) {
           await allowRecentDocument(path);
@@ -301,15 +332,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         }
         const opened = await files.openPath(path);
         setError(null);
-        setSelectedKey(null);
-        setDraft(null);
-        session.load(opened);
+        session.open(opened);
         remember(opened.path);
       } catch (e) {
         failed(e);
       }
     },
-    [files, confirmDiscard, session.load, remember],
+    [files, session.findByPath, session.activate, session.open, remember],
   );
 
   const openFromFolder = useCallback((path: string) => void openKnownPath(path, false), [openKnownPath]);
@@ -356,9 +385,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   }, []);
 
   // Closing the window with unsaved changes asks first.
-  const guard = useRef({ dirty, confirmDiscard });
-  guard.current = { dirty, confirmDiscard };
-  useEffect(() => guardClose(() => guard.current.dirty, () => guard.current.confirmDiscard()), []);
+  // Every unsaved tab is asked about in turn; Cancel on any of them keeps the window open.
+  const confirmWindowClose = useCallback(async () => {
+    for (const id of session.dirtyIds()) if (!(await confirmTab(id))) return false;
+    return true;
+  }, [session.dirtyIds, confirmTab]);
+  const guard = useRef({ anyDirty: session.dirtyIds, confirmWindowClose });
+  guard.current = { anyDirty: session.dirtyIds, confirmWindowClose };
+  useEffect(() => guardClose(() => guard.current.anyDirty().length > 0, () => guard.current.confirmWindowClose()), []);
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background font-sans text-foreground">
@@ -366,7 +400,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         hasDocument={meta !== null}
         canUndo={session.canUndo}
         canRedo={session.canRedo}
-        onNew={() => void newFile()}
+        onNew={newFile}
+        onCloseTab={activeId === null ? undefined : () => void closeTab(activeId)}
         onOpen={() => void openFile()}
         onOpenFolder={foldersSupported() ? () => void openFolder() : undefined}
         onSave={() => void save()}
@@ -376,7 +411,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onPreferences={openPrefs}
         onAgentSkill={() => setSkillOpen(true)}
       />
-      <TabStrip name={meta?.name ?? null} dirty={dirty} outlineOpen={outlineOpen} onToggleOutline={() => {
+      <TabStrip tabs={session.tabs} activeId={activeId} onSelect={session.activate} onClose={(id) => void closeTab(id)} onNew={newFile} outlineOpen={outlineOpen} onToggleOutline={() => {
           setOutlineOpen((o) => !o);
           setFolderOpen(false);
         }} folderOpen={folderOpen} onToggleFolder={() => {
@@ -401,7 +436,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           {doc !== null && (
             <EditToolbar editing={region !== null} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={session.undo} onRedo={session.redo} />
           )}
-          <main ref={mainRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <main ref={mainRef} onScroll={(e) => session.setScrollTop(e.currentTarget.scrollTop)} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             <div className="mx-auto box-border w-full max-w-[760px] px-10 pb-16 pt-5">
               {error !== null && (
                 <div role="alert" className="mb-5 rounded-control border border-destructive px-3 py-2 text-[13px] text-destructive">
@@ -448,7 +483,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
               raw={rawAll}
               onChange={(raw) => {
                 session.closeEdit();
-                setRawAll(raw);
+                session.setRaw(raw);
               }}
             />
           )}

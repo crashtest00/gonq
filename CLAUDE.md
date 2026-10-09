@@ -8,7 +8,7 @@ Tauri 2 desktop app (Rust) with a React 18 + TypeScript + Vite 5 frontend. Node 
 - src/comment-threads/ — Markdown comment-threads library (barrel in index.ts; editor/ is unbuilt, excluded from tsc, not exported)
 - src/components/ — app shell + Markdown view; ui/ holds shadcn/ui primitives (Tailwind, themed by CSS vars in src/styles/tokens.css)
 - src/agent-skill/ — the bundled SKILL.md for AI agents (imported ?raw; shown by Help > Agent skill…, keep in step with src/comment-threads/README.md); fixtures/ holds a .md hand-edited per SKILL.md (tested)
-- src/document/   — document state: undo/redo history, dirty tracking, the one block open for editing (edits splice source text; nothing is re-serialised)
+- src/document/   — document state: the open tabs (each with its own undo/redo history, dirty tracking, scroll, raw mode) and the one block open for editing (edits splice source text; nothing is re-serialised)
 - src/platform/   — native/web file-access boundary (Tauri dialog+fs open/save, window-close guard; browser fallback); keep native calls here
 - src/platform/ also wraps folder listing/Open Folder (folders.ts) and recent documents (recents.ts, settings.ts author name; localStorage on web)
 - src-tauri/      — Rust crate (folder.rs listing, recents.rs recent.json in app data dir, settings.rs settings.json (author name) in app config dir; commands in lib.rs), tauri.conf.json, capabilities, icons

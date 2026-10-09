@@ -4,6 +4,7 @@ const EMPTY_MENUS = ['View', 'Insert', 'Format'];
 
 export interface MenuActions {
   onNew: () => void;
+  onCloseTab?: () => void;
   onOpen: () => void;
   onOpenFolder?: () => void;
   onSave: () => void;
@@ -19,6 +20,7 @@ export function MenuBar({
   canUndo,
   canRedo,
   onNew,
+  onCloseTab,
   onOpen,
   onOpenFolder,
   onSave,
@@ -47,6 +49,10 @@ export function MenuBar({
             </MenubarItem>
             <MenubarItem disabled={!hasDocument} onSelect={onSaveAs}>
               Save As…<MenubarShortcut>Ctrl+Shift+S</MenubarShortcut>
+            </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem disabled={!hasDocument || !onCloseTab} onSelect={onCloseTab}>
+              Close Tab
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
