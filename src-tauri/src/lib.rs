@@ -38,16 +38,20 @@ fn settings_file<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     Ok(app.path().app_config_dir().map_err(|e| e.to_string())?.join("settings.json"))
 }
 
-/// The saved author name for comments, or null when never set.
+/// The saved author name for comments; "User" when none is saved or it can't be read.
 #[tauri::command]
-fn author_name_get<R: Runtime>(app: AppHandle<R>) -> Result<Option<String>, String> {
+fn get_author_name<R: Runtime>(app: AppHandle<R>) -> String {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    Ok(settings::get_author_name(&settings_file(&app)?))
+    match settings_file(&app) {
+        Ok(file) => settings::get_author_name(&file),
+        Err(_) => settings::DEFAULT_AUTHOR_NAME.to_string(),
+    }
 }
 
-/// Saves the author name (trimmed; blank clears it) and returns what is stored.
+/// Saves the author name (trimmed; blank or containing `|`, `]`, CR, LF is refused) and
+/// returns what is stored.
 #[tauri::command]
-fn author_name_set<R: Runtime>(app: AppHandle<R>, name: String) -> Result<Option<String>, String> {
+fn set_author_name<R: Runtime>(app: AppHandle<R>, name: String) -> Result<String, String> {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     settings::set_author_name(&settings_file(&app)?, &name)
 }
@@ -116,8 +120,8 @@ pub fn run() {
             recent_documents_list,
             recent_documents_remove,
             allow_recent_document,
-            author_name_get,
-            author_name_set
+            get_author_name,
+            set_author_name
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

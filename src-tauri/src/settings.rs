@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-pub const MAX_AUTHOR_NAME_CHARS: usize = 100;
+pub const DEFAULT_AUTHOR_NAME: &str = "User";
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct Settings {
@@ -25,21 +25,35 @@ fn store(file: &Path, settings: &Settings) -> Result<(), String> {
     fs::rename(&tmp, file).map_err(|e| e.to_string())
 }
 
-/// The saved author name, or `None` when never set.
-pub fn get_author_name(file: &Path) -> Option<String> {
-    load(file).author_name
+/// `Err` with the reason when `name` (already trimmed) can't be an author name.
+fn validate(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("author name must not be blank".into());
+    }
+    if name.contains(['|', ']', '\r', '\n']) {
+        return Err("author name must not contain '|', ']' or line breaks".into());
+    }
+    Ok(())
 }
 
-/// Trims and saves the name; a blank name clears it. Returns what is now stored.
-pub fn set_author_name(file: &Path, name: &str) -> Result<Option<String>, String> {
+/// The saved author name; "User" when missing, unreadable, blank or invalid. Never fails.
+pub fn get_author_name(file: &Path) -> String {
+    load(file)
+        .author_name
+        .map(|n| n.trim().to_string())
+        .filter(|n| validate(n).is_ok())
+        .unwrap_or_else(|| DEFAULT_AUTHOR_NAME.to_string())
+}
+
+/// Trims, validates and saves the name. On invalid input nothing is written.
+/// Returns the stored (trimmed) name.
+pub fn set_author_name(file: &Path, name: &str) -> Result<String, String> {
     let name = name.trim();
-    if name.chars().count() > MAX_AUTHOR_NAME_CHARS {
-        return Err(format!("author name is longer than {MAX_AUTHOR_NAME_CHARS} characters"));
-    }
+    validate(name)?;
     let mut settings = load(file);
-    settings.author_name = (!name.is_empty()).then(|| name.to_string());
+    settings.author_name = Some(name.to_string());
     store(file, &settings)?;
-    Ok(settings.author_name)
+    Ok(name.to_string())
 }
 
 #[cfg(test)]
@@ -53,39 +67,68 @@ mod tests {
     }
 
     #[test]
-    fn missing_file_is_none() {
-        assert_eq!(get_author_name(&file("missing")), None);
+    fn defaults_to_user_without_file() {
+        assert_eq!(get_author_name(&file("missing")), "User");
     }
 
     #[test]
-    fn corrupt_file_is_none_and_recoverable() {
+    fn round_trips() {
+        let f = file("roundtrip");
+        assert_eq!(set_author_name(&f, "Ann").unwrap(), "Ann");
+        assert_eq!(get_author_name(&f), "Ann");
+    }
+
+    #[test]
+    fn trims() {
+        let f = file("trim");
+        assert_eq!(set_author_name(&f, "  Ann Lee \n").unwrap(), "Ann Lee");
+        assert_eq!(get_author_name(&f), "Ann Lee");
+    }
+
+    #[test]
+    fn rejections_leave_file_byte_identical() {
+        let f = file("reject");
+        set_author_name(&f, "Ann").unwrap();
+        let before = fs::read(&f).unwrap();
+        for bad in ["", "   ", "a|b", "a]b", "a\nb", "a\rb", "\u{a0}"] {
+            assert!(set_author_name(&f, bad).is_err(), "{bad:?} should be rejected");
+            assert_eq!(fs::read(&f).unwrap(), before, "{bad:?} changed the file");
+        }
+        assert_eq!(get_author_name(&f), "Ann");
+    }
+
+    #[test]
+    fn rejection_creates_no_file() {
+        let f = file("reject-new");
+        assert!(set_author_name(&f, "a|b").is_err());
+        assert!(!f.exists());
+    }
+
+    #[test]
+    fn corrupt_file_gives_user_and_is_recoverable() {
         let f = file("corrupt");
         fs::create_dir_all(f.parent().unwrap()).unwrap();
         fs::write(&f, "{not json").unwrap();
-        assert_eq!(get_author_name(&f), None);
-        assert_eq!(set_author_name(&f, "Ann").unwrap(), Some("Ann".into()));
+        assert_eq!(get_author_name(&f), "User");
+        assert_eq!(set_author_name(&f, "Ann").unwrap(), "Ann");
     }
 
     #[test]
-    fn persists_trimmed_name() {
-        let f = file("persist");
-        assert_eq!(set_author_name(&f, "  Ann Lee ").unwrap(), Some("Ann Lee".into()));
-        assert_eq!(get_author_name(&f), Some("Ann Lee".into())); // survives a "restart"
+    fn invalid_stored_values_give_user() {
+        for bad in ["a|b", "a]b", "a\nb", "a\rb", "", "   "] {
+            let f = file("invalid");
+            fs::create_dir_all(f.parent().unwrap()).unwrap();
+            fs::write(&f, serde_json::json!({ "author_name": bad }).to_string()).unwrap();
+            assert_eq!(get_author_name(&f), "User", "stored {bad:?}");
+        }
     }
 
     #[test]
-    fn blank_clears() {
-        let f = file("blank");
-        set_author_name(&f, "Ann").unwrap();
-        assert_eq!(set_author_name(&f, "   ").unwrap(), None);
-        assert_eq!(get_author_name(&f), None);
-    }
-
-    #[test]
-    fn rejects_overlong_name_and_keeps_old() {
-        let f = file("long");
-        set_author_name(&f, "Ann").unwrap();
-        assert!(set_author_name(&f, &"x".repeat(MAX_AUTHOR_NAME_CHARS + 1)).is_err());
-        assert_eq!(get_author_name(&f), Some("Ann".into()));
+    fn non_latin_and_emoji_round_trip_exactly() {
+        for name in ["Åsa 🙂", "李雷", "Zoë"] {
+            let f = file("unicode");
+            assert_eq!(set_author_name(&f, name).unwrap(), name);
+            assert_eq!(get_author_name(&f), name);
+        }
     }
 }
