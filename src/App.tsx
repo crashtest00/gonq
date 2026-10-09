@@ -20,6 +20,12 @@ import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentD
 
 const UNTITLED = 'Untitled.md';
 
+function parentDir(path: string): string | null {
+  const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  if (i < 0) return null;
+  return i === 0 ? path.slice(0, 1) : path.slice(0, i);
+}
+
 export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const session = useDocument();
   const { meta, text, dirty, region } = session;
@@ -29,6 +35,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
   const [folder, setFolder] = useState<string | null>(null);
+  // Once the user picks a folder with Open Folder…, opening documents no longer moves the Project folder.
+  const folderChosen = useRef(false);
   const [recents, setRecents] = useState<RecentDocument[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
@@ -48,6 +56,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       live = false;
     };
   }, []);
+  // Without an explicit folder, the Project folder follows the open document's parent directory.
+  const docPath = meta?.path ?? null;
+  useEffect(() => {
+    if (docPath === null || folderChosen.current) return;
+    const parent = parentDir(docPath);
+    if (parent !== null) setFolder(parent);
+  }, [docPath]);
   const remember = useCallback((path: string | null) => {
     if (path !== null) addRecent(path).then(setRecents, () => {});
   }, []);
@@ -290,10 +305,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     [files, confirmDiscard, session.load, remember],
   );
 
+  const openFromFolder = useCallback((path: string) => void openKnownPath(path, false), [openKnownPath]);
+
   const openFolder = useCallback(async () => {
     try {
       const picked = await pickFolder();
       if (picked === null) return;
+      folderChosen.current = true;
       setFolder(picked);
       setError(null);
       setOutlineOpen(false);
@@ -363,7 +381,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             recents={recents}
             currentPath={meta?.path ?? null}
             onOpenFolder={() => void openFolder()}
-            onOpenFile={(path) => void openKnownPath(path, false)}
+            onOpenFile={openFromFolder}
             onOpenRecent={(path) => void openKnownPath(path, true)}
             onRemoveRecent={(path) => void removeRecent(path).then(setRecents, () => {})}
           />

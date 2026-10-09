@@ -2,22 +2,26 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
 import App from '../App';
-import { FolderSidebar, relativeTime } from './FolderSidebar';
+import { FolderSidebar, ROW_CHUNK, relativeTime } from './FolderSidebar';
 import type { FileAccess, OpenedDocument } from '../platform/files';
 import { RECENTS_KEY } from '../platform/recents';
 
 vi.setConfig({ testTimeout: 30000 });
 
 const listDirectory = vi.fn();
+const pathExists = vi.fn(async (_p: string) => true);
 vi.mock('../platform/folders', async (orig) => ({
   ...(await orig<typeof import('../platform/folders')>()),
   listDirectory: (p: string) => listDirectory(p),
+  pathExists: (p: string) => pathExists(p),
 }));
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
   listDirectory.mockReset();
+  pathExists.mockReset();
+  pathExists.mockResolvedValue(true);
 });
 
 const noop = () => {};
@@ -95,6 +99,7 @@ const files: FileAccess = {
 };
 
 test('App: toggle swaps with the outline; opening a file records it and recents open it', async () => {
+  listDirectory.mockResolvedValue([]);
   const user = userEvent.setup();
   render(<App files={files} />);
   await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
@@ -111,4 +116,161 @@ test('App: toggle swaps with the outline; opening a file records it and recents 
   await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
   await user.click(within(screen.getByRole('complementary', { name: 'Folder navigator' })).getByText('n.md'));
   expect(await screen.findByText('Recent doc')).toBeInTheDocument();
+});
+
+const side = () => within(screen.getByRole('complementary', { name: 'Folder navigator' }));
+const editorBox = () => screen.getByRole('textbox', { name: /Markdown source/ });
+
+async function openFileMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('menuitem', { name: 'File' }));
+  await user.click(await screen.findByRole('menuitem', { name: /Open…/ }));
+  await screen.findByTestId('markdown-view');
+}
+
+test('renders folders before files, in the order listed', async () => {
+  listDirectory.mockResolvedValue([
+    { name: 'alpha', path: '/p/alpha', isDir: true },
+    { name: 'Zeta', path: '/p/Zeta', isDir: true },
+    { name: 'a.md', path: '/p/a.md', isDir: false },
+    { name: 'B.md', path: '/p/B.md', isDir: false },
+  ]);
+  render(<FolderSidebar {...props} folder="/p" />);
+  await screen.findByText('a.md');
+  const labels = screen.getAllByRole('listitem').map((li) => li.textContent);
+  expect(labels).toEqual(['alpha', 'Zeta', 'a.md', 'B.md']);
+});
+
+test('the Project folder section collapses and expands', async () => {
+  listDirectory.mockResolvedValue([{ name: 'a.md', path: '/p/a.md', isDir: false }]);
+  const user = userEvent.setup();
+  render(<FolderSidebar {...props} folder="/p" />);
+  await screen.findByText('a.md');
+  await user.click(screen.getByRole('button', { name: 'Project folder' }));
+  expect(screen.queryByText('a.md')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Project folder' }));
+  expect(await screen.findByText('a.md')).toBeInTheDocument();
+});
+
+test('recents are shown in the given order, newest first', () => {
+  const now = Date.now();
+  render(
+    <FolderSidebar
+      {...props}
+      recents={[
+        { path: '/x/newest.md', openedAt: now },
+        { path: '/x/middle.md', openedAt: now - 3_600_000 },
+        { path: '/x/oldest.md', openedAt: now - 2 * 86_400_000 },
+      ]}
+    />,
+  );
+  const names = screen.getAllByRole('listitem').map((li) => li.querySelector('span')?.textContent);
+  expect(names).toEqual(['newest.md', 'middle.md', 'oldest.md']);
+});
+
+test('a large folder renders a bounded number of rows and reveals more on request', async () => {
+  const many = Array.from({ length: 2000 }, (_, i) => ({ name: `f${String(i).padStart(4, '0')}.md`, path: `/big/f${i}.md`, isDir: false }));
+  listDirectory.mockResolvedValue(many);
+  const user = userEvent.setup();
+  render(<FolderSidebar {...props} folder="/big" />);
+  await screen.findByText('f0000.md');
+  expect(screen.getAllByRole('listitem').length).toBeLessThanOrEqual(ROW_CHUNK + 1);
+  expect(screen.queryByText('f1999.md')).toBeNull();
+  await user.click(screen.getByRole('button', { name: /Show more \(1800 more\)/ }));
+  expect(screen.getAllByRole('listitem').length).toBeLessThanOrEqual(2 * ROW_CHUNK + 1);
+});
+
+test('App: an untitled document with no folder says "No folder open"', async () => {
+  const user = userEvent.setup();
+  render(<App files={files} />);
+  await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
+  expect(side().getByText('No folder open')).toBeInTheDocument();
+});
+
+test('App: the Project folder follows the opened document\'s parent folder', async () => {
+  listDirectory.mockResolvedValue([{ name: 'n.md', path: '/docs/n.md', isDir: false }]);
+  const user = userEvent.setup();
+  render(<App files={{ ...files, pickDocument: async () => ({ name: 'n.md', path: '/docs/n.md', text: '# T\n' }) }} />);
+  await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
+  await openFileMenu(user);
+  await waitFor(() => expect(listDirectory).toHaveBeenCalledWith('/docs'));
+  expect(side().queryByText('No folder open')).toBeNull();
+  expect(side().getByTitle('/docs')).toHaveTextContent('docs');
+});
+
+test('App: both toggles off hides the sidebar', async () => {
+  const user = userEvent.setup();
+  render(<App files={files} />);
+  const toggle = screen.getByRole('button', { name: 'Folder navigator' });
+  await user.click(toggle);
+  expect(screen.getByRole('complementary', { name: 'Folder navigator' })).toBeInTheDocument();
+  await user.click(toggle);
+  expect(screen.queryByRole('complementary', { name: 'Folder navigator' })).toBeNull();
+  expect(screen.queryByRole('complementary', { name: /outline/i })).toBeNull();
+});
+
+test('App: a missing recent shows an error and is removed', async () => {
+  localStorage.setItem(RECENTS_KEY, JSON.stringify([{ path: '/gone.md', openedAt: Date.now() }]));
+  pathExists.mockResolvedValue(false);
+  const user = userEvent.setup();
+  render(<App files={files} />);
+  await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
+  await user.click(await side().findByText('gone.md'));
+  expect(await screen.findByText(/no longer exists/)).toBeInTheDocument();
+  await waitFor(() => expect(side().queryByText('gone.md')).toBeNull());
+  expect(JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')).toEqual([]);
+});
+
+describe('unsaved-changes prompt from the folder pane', () => {
+  const saveDocument = vi.fn(async (d: { name: string; path: string | null }) => ({ name: d.name, path: d.path }));
+  const opened = vi.fn();
+  const f: FileAccess = {
+    ...files,
+    pickDocument: async () => ({ name: 'n.md', path: '/docs/n.md', text: 'first para\n\nlast paragraph' }),
+    openPath: async (path) => {
+      opened(path);
+      return { name: 'other.md', path, text: 'Other doc text\n' };
+    },
+    saveDocument,
+  };
+
+  async function dirtyThen(click: 'folder' | 'recent') {
+    listDirectory.mockResolvedValue([{ name: 'other.md', path: '/docs/other.md', isDir: false }]);
+    localStorage.setItem(RECENTS_KEY, JSON.stringify([{ path: '/r/rec.md', openedAt: Date.now() }]));
+    saveDocument.mockClear();
+    opened.mockClear();
+    const user = userEvent.setup();
+    render(<App files={f} />);
+    await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
+    await openFileMenu(user);
+    await user.click(screen.getByText('last paragraph'));
+    await user.type(editorBox(), '!');
+    await user.keyboard('{Escape}');
+    await user.click(click === 'folder' ? await side().findByText('other.md') : side().getByText('rec.md'));
+    return { user, dialog: await screen.findByRole('dialog') };
+  }
+
+  test.each(['folder', 'recent'] as const)('%s click: Cancel aborts', async (kind) => {
+    const { user, dialog } = await dirtyThen(kind);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(opened).not.toHaveBeenCalled();
+    expect(saveDocument).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  test.each(['folder', 'recent'] as const)('%s click: Don\'t save opens without saving', async (kind) => {
+    const { user, dialog } = await dirtyThen(kind);
+    await user.click(within(dialog).getByRole('button', { name: /Don.t save/ }));
+    expect(await screen.findByText('Other doc text')).toBeInTheDocument();
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(saveDocument).not.toHaveBeenCalled();
+  });
+
+  test.each(['folder', 'recent'] as const)('%s click: Save saves, then opens', async (kind) => {
+    const { user, dialog } = await dirtyThen(kind);
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Other doc text')).toBeInTheDocument();
+    expect(saveDocument).toHaveBeenCalledTimes(1);
+    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('last paragraph!') }));
+    expect(opened).toHaveBeenCalledTimes(1);
+  });
 });
