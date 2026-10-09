@@ -13,12 +13,12 @@ the threads exactly as it is.
 
 An **anchor marker** sits inline in the prose, at the passage being discussed:
 
-    The estimate holds through Q3 [💬](#md-thread-c20260910143022a3f9c1) but not beyond.
+    The estimate holds through Q3 [💬](#md-thread-c20260910143022a3f9c1d7e2b4) but not beyond.
 
 The **thread body** is an HTML comment appended at the end of the file:
 
     <!--
-    @thread c20260910143022a3f9c1
+    @thread c20260910143022a3f9c1d7e2b4
     @status open
     @anchor holds through Q3
 
@@ -33,7 +33,10 @@ The **thread body** is an HTML comment appended at the end of the file:
 - `@anchor <text>` is the selected text on one line, present only if the thread was made on a selection.
 - A message is a header `[<author> | <timestamp>]` followed by its text, up to the next header.
 - The author may contain neither `|` nor `]`. The timestamp is ISO-8601 with a UTC offset.
-- A resolved thread's marker shows `✅` instead of `💬`.
+- A resolved thread's marker shows `✅` instead of `💬`. The glyphs are the literal Unicode characters 💬 and ✅: no images, no emoji shortcodes such as `:speech_balloon:`.
+- Markers always use the `#md-thread-` namespace: the link target is `#md-thread-<id>`.
+- Ids are never shortened: keep the whole `c` + timestamp + 12 hex characters, in the marker and in `@thread`. The random suffix is what keeps ids unique.
+- Ids should be unique, but if a file has two blocks with the same id, pairing is ordinal: the Nth marker with that id pairs with the Nth block with that id, both in document order.
 - Inside a message, write `--\>` for a literal `-->`. A bare `-->` closes the block early and orphans the rest of it.
 
 ## What you may do
@@ -47,5 +50,6 @@ The **thread body** is an HTML comment appended at the end of the file:
 
 - Never edit or delete existing messages or threads, and never alter other agents' or people's messages.
 - Never place a marker inside a fenced code block, inline code, an HTML comment, or another link. Put it just after the code or link instead.
+- Never place a marker inside another marker.
 - Do not reformat, re-wrap or otherwise rewrite the rest of the document.
 - Do not remove the guidance comment titled "Gonq comment threads: guidance for AI agents".
