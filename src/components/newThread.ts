@@ -1,8 +1,5 @@
 import { fencedCodeRanges, parseCommentMarkers } from '../comment-threads';
 
-/** Author of every message written from the UI until the preferences menu exists. */
-export const USER_AUTHOR = 'User';
-
 /** Where a new thread goes: a selection (its text becomes the anchor) or a bare cursor. */
 export type ThreadTarget = { from: number; to: number } | number;
 
