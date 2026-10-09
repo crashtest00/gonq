@@ -1,5 +1,6 @@
 mod folder;
 mod recents;
+mod settings;
 
 use folder::{FolderEntry, ListError};
 use recents::Recent;
@@ -28,6 +29,27 @@ static RECENTS_LOCK: Mutex<()> = Mutex::new(());
 
 fn recents_file<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("recent.json"))
+}
+
+/// Serialises read-modify-write of settings.json.
+static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
+
+fn settings_file<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    Ok(app.path().app_config_dir().map_err(|e| e.to_string())?.join("settings.json"))
+}
+
+/// The saved author name for comments, or null when never set.
+#[tauri::command]
+fn author_name_get<R: Runtime>(app: AppHandle<R>) -> Result<Option<String>, String> {
+    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    Ok(settings::get_author_name(&settings_file(&app)?))
+}
+
+/// Saves the author name (trimmed; blank clears it) and returns what is stored.
+#[tauri::command]
+fn author_name_set<R: Runtime>(app: AppHandle<R>, name: String) -> Result<Option<String>, String> {
+    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    settings::set_author_name(&settings_file(&app)?, &name)
 }
 
 /// Read-only listing of one folder. Only folders already in the fs scope (the folder of an
@@ -93,7 +115,9 @@ pub fn run() {
             recent_documents_add,
             recent_documents_list,
             recent_documents_remove,
-            allow_recent_document
+            allow_recent_document,
+            author_name_get,
+            author_name_set
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
