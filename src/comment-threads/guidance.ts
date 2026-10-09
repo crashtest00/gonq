@@ -32,7 +32,7 @@ export function hasAgentGuidance (doc: string): boolean {
  */
 export function withAgentGuidance (doc: string, offset: number): string {
   if (hasAgentGuidance(doc)) return doc
-  const before = doc.slice(0, offset).replace(/\n*$/, '')
-  const after = doc.slice(offset).replace(/^\n*/, '')
+  const before = doc.slice(0, offset).replace(/[\r\n]*$/, '')
+  const after = doc.slice(offset).replace(/^[\r\n]*/, '')
   return `${before}${before === '' ? '' : '\n\n'}${AGENT_GUIDANCE}\n\n${after}`
 }

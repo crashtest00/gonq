@@ -78,6 +78,6 @@ export function appendThreadBlock (doc: string, block: string): string {
     return block
   }
 
-  const trailingNewlines = /\n*$/.exec(doc)?.[0].length ?? 0
+  const trailingNewlines = /(?:\r?\n)*$/.exec(doc)?.[0].replace(/\r/g, '').length ?? 0
   return `${'\n'.repeat(Math.max(0, 2 - trailingNewlines))}${block}`
 }
