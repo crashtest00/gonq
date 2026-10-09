@@ -1,6 +1,6 @@
 import { Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator, MenubarShortcut, MenubarTrigger } from './ui/menubar';
 
-const EMPTY_MENUS = ['View', 'Insert', 'Format', 'Help'];
+const EMPTY_MENUS = ['View', 'Insert', 'Format'];
 
 export interface MenuActions {
   onNew: () => void;
@@ -11,6 +11,7 @@ export interface MenuActions {
   onUndo: () => void;
   onRedo: () => void;
   onPreferences?: () => void;
+  onAgentSkill?: () => void;
 }
 
 export function MenuBar({
@@ -25,6 +26,7 @@ export function MenuBar({
   onUndo,
   onRedo,
   onPreferences,
+  onAgentSkill,
 }: MenuActions & { hasDocument: boolean; canUndo: boolean; canRedo: boolean }) {
   return (
     <>
@@ -72,6 +74,14 @@ export function MenuBar({
             <MenubarTrigger disabled>{label}</MenubarTrigger>
           </MenubarMenu>
         ))}
+        <MenubarMenu>
+          <MenubarTrigger disabled={!onAgentSkill}>Help</MenubarTrigger>
+          {onAgentSkill && (
+            <MenubarContent>
+              <MenubarItem onSelect={onAgentSkill}>Agent skill…</MenubarItem>
+            </MenubarContent>
+          )}
+        </MenubarMenu>
       </Menubar>
       <div className="h-px shrink-0 bg-border" />
     </>
