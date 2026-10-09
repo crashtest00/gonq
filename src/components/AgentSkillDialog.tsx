@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { AGENT_SKILL, AGENT_SKILL_FILENAME } from '../agent-skill/skill';
+import { AGENT_SKILL, AGENT_SKILL_BODY, AGENT_SKILL_FILENAME } from '../agent-skill/skill';
+import { copyText } from '../platform/clipboard';
+import { MarkdownView } from './MarkdownView';
 import type { FileAccess } from '../platform/files';
 
 const button =
@@ -12,7 +14,7 @@ export function AgentSkillDialog({ files, onClose }: { files: FileAccess; onClos
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(AGENT_SKILL);
+      await copyText(AGENT_SKILL);
       setStatus({ text: 'Copied to the clipboard.', error: false });
     } catch (e) {
       setStatus({ text: `Could not copy: ${e instanceof Error ? e.message : String(e)}`, error: true });
@@ -44,13 +46,14 @@ export function AgentSkillDialog({ files, onClose }: { files: FileAccess; onClos
         <p className="m-0 mb-3 text-[12px] text-muted-foreground">
           Give this to an AI agent so it can read and join comment threads in your Markdown files.
         </p>
-        <pre
+        <div
           tabIndex={0}
+          role="region"
           aria-label="SKILL.md"
-          className="m-0 mb-3 min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-control border border-border bg-background p-3 font-mono text-[12px]"
+          className="mb-3 min-h-0 flex-1 overflow-auto rounded-control border border-border bg-background px-4 py-2"
         >
-          {AGENT_SKILL}
-        </pre>
+          <MarkdownView doc={{ name: AGENT_SKILL_FILENAME, path: null, text: AGENT_SKILL_BODY }} files={files} plain />
+        </div>
         <p role={status?.error ? 'alert' : 'status'} className={`m-0 mb-3 min-h-4 text-[12px] ${status?.error ? 'text-destructive' : 'text-muted-foreground'}`}>
           {status?.text}
         </p>

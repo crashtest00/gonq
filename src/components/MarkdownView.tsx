@@ -192,14 +192,17 @@ export function MarkdownView({
   threads = [],
   onOpenThread,
   editing,
+  plain = false,
 }: {
   doc: OpenedDocument;
   files: FileAccess;
   threads?: ThreadItem[];
   onOpenThread?: (key: string) => void;
   editing?: BlockEditing;
+  /** Documentation, not a document with threads: examples of thread blocks inside it are shown, not hidden. */
+  plain?: boolean;
 }) {
-  const source = useMemo(() => maskThreadBlocks(doc.text), [doc.text]);
+  const source = useMemo(() => (plain ? doc.text.replace(/^\uFEFF/, ' ') : maskThreadBlocks(doc.text)), [doc.text, plain]);
   const markers = useMemo(() => parseCommentMarkers(source), [source]);
   const articleRef = useRef<HTMLElement>(null);
   const rawAll = editing?.rawAll === true;
