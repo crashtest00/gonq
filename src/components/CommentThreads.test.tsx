@@ -191,3 +191,15 @@ test('relative time and preview helpers', () => {
   expect(preview('x'.repeat(60))).toBe(`${'x'.repeat(50)}…`);
   expect(preview('short')).toBe('short');
 });
+
+test('a CRLF document shows its marker and sidebar thread as the LF one does', async () => {
+  const user = await openDoc(DOC.replace(/\r?\n/g, '\r\n'));
+  expect(screen.getByRole('button', { name: '💬' }).textContent).toBe('💬');
+  expect(screen.getByRole('button', { name: '✅' }).textContent).toBe('✅');
+  await user.click(screen.getByRole('button', { name: 'Comments' }));
+  const rows = within(screen.getByRole('list')).getAllByRole('listitem');
+  expect(rows).toHaveLength(2);
+  expect(rows[0]).toHaveTextContent('holds through Q3');
+  expect(rows[0]).toHaveTextContent('Where does this number come from?');
+  expect(rows[1]).toHaveTextContent('Resolved');
+});
