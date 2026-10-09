@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { ChevronRight, File, Folder, X } from 'lucide-react';
 import { ListDirectoryError, listDirectory, type FolderEntry } from '../platform/folders';
 import type { RecentDocument } from '../platform/recents';
@@ -31,15 +31,73 @@ function SectionHeader({ label, open, onToggle }: { label: string; open: boolean
   );
 }
 
+/** Rows rendered per chunk; larger folders reveal the rest on request so they stay responsive. */
+export const ROW_CHUNK = 200;
+
+const Row = memo(function Row({
+  entry,
+  depth,
+  expanded,
+  currentPath,
+  onToggle,
+  onOpenFile,
+}: {
+  entry: FolderEntry;
+  depth: number;
+  expanded: boolean;
+  currentPath: string | null;
+  onToggle: (path: string) => void;
+  onOpenFile: (path: string) => void;
+}) {
+  const pad = { paddingLeft: depth * 14 };
+  const current = entry.path === currentPath;
+  return (
+    <li>
+      {entry.isDir ? (
+        <>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => onToggle(entry.path)}
+            title={entry.path}
+            style={pad}
+            className="flex w-full cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1 text-left text-[13px] text-foreground hover:bg-surface"
+          >
+            <Folder size={12} aria-hidden className="shrink-0 fill-current" />
+            <span className="truncate">{entry.name}</span>
+          </button>
+          {expanded && <Tree path={entry.path} depth={depth + 1} currentPath={currentPath} onOpenFile={onOpenFile} />}
+        </>
+      ) : (
+        <button
+          type="button"
+          aria-current={current ? 'true' : undefined}
+          onClick={() => onOpenFile(entry.path)}
+          title={entry.path}
+          style={pad}
+          className={`flex w-full cursor-pointer items-center gap-1.5 border-0 py-1 text-left text-[13px] text-foreground hover:bg-surface ${
+            current ? 'bg-surface font-semibold' : 'bg-transparent'
+          }`}
+        >
+          <File size={12} aria-hidden className="shrink-0" />
+          <span className="truncate">{entry.name}</span>
+        </button>
+      )}
+    </li>
+  );
+});
+
 function Tree({ path, depth, currentPath, onOpenFile }: { path: string; depth: number; currentPath: string | null; onOpenFile: (path: string) => void }) {
   const [entries, setEntries] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [shown, setShown] = useState(ROW_CHUNK);
 
   useEffect(() => {
     let live = true;
     setEntries(null);
     setError(null);
+    setShown(ROW_CHUNK);
     listDirectory(path).then(
       (rows) => live && setEntries(rows),
       (e) => live && setError(e instanceof ListDirectoryError || e instanceof Error ? e.message : String(e)),
@@ -62,42 +120,32 @@ function Tree({ path, depth, currentPath, onOpenFile }: { path: string; depth: n
   if (entries === null) return <p style={pad} className="m-0 py-1 text-[12.5px] text-muted-foreground">Loading…</p>;
   if (entries.length === 0) return <p style={pad} className="m-0 py-1 text-[12.5px] text-muted-foreground">{depth === 0 ? 'No Markdown files.' : 'Empty.'}</p>;
 
+  const remaining = entries.length - shown;
   return (
     <ul className="m-0 list-none p-0">
-      {entries.map((entry) => (
-        <li key={entry.path}>
-          {entry.isDir ? (
-            <>
-              <button
-                type="button"
-                aria-expanded={expanded.has(entry.path)}
-                onClick={() => toggle(entry.path)}
-                title={entry.path}
-                style={pad}
-                className="flex w-full cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1 text-left text-[13px] text-foreground hover:bg-surface"
-              >
-                <Folder size={12} aria-hidden className="shrink-0 fill-current" />
-                <span className="truncate">{entry.name}</span>
-              </button>
-              {expanded.has(entry.path) && <Tree path={entry.path} depth={depth + 1} currentPath={currentPath} onOpenFile={onOpenFile} />}
-            </>
-          ) : (
-            <button
-              type="button"
-              aria-current={entry.path === currentPath ? 'true' : undefined}
-              onClick={() => onOpenFile(entry.path)}
-              title={entry.path}
-              style={pad}
-              className={`flex w-full cursor-pointer items-center gap-1.5 border-0 py-1 text-left text-[13px] text-foreground hover:bg-surface ${
-                entry.path === currentPath ? 'bg-surface font-semibold' : 'bg-transparent'
-              }`}
-            >
-              <File size={12} aria-hidden className="shrink-0" />
-              <span className="truncate">{entry.name}</span>
-            </button>
-          )}
-        </li>
+      {entries.slice(0, shown).map((entry) => (
+        <Row
+          key={entry.path}
+          entry={entry}
+          depth={depth}
+          expanded={expanded.has(entry.path)}
+          currentPath={currentPath}
+          onToggle={toggle}
+          onOpenFile={onOpenFile}
+        />
       ))}
+      {remaining > 0 && (
+        <li>
+          <button
+            type="button"
+            onClick={() => setShown((n) => n + ROW_CHUNK)}
+            style={pad}
+            className="w-full cursor-pointer border-0 bg-transparent py-1 text-left text-[12.5px] text-muted-foreground hover:bg-surface"
+          >
+            Show more ({remaining} more)
+          </button>
+        </li>
+      )}
     </ul>
   );
 }
@@ -135,12 +183,17 @@ export function FolderSidebar({
                 <div title={folder} className="mb-1 truncate text-[12.5px] font-semibold text-foreground">{basename(folder)}</div>
                 <Tree key={folder} path={folder} depth={0} currentPath={currentPath} onOpenFile={onOpenFile} />
               </>
-            ) : supported ? (
-              <button type="button" onClick={onOpenFolder} className="cursor-pointer rounded-control border border-solid border-border bg-transparent px-2 py-1 text-[13px] text-foreground hover:bg-surface">
-                Open Folder…
-              </button>
             ) : (
-              <p className="m-0 text-[13px] text-muted-foreground">Opening a folder is available in the desktop app.</p>
+              <>
+                <p className="m-0 mb-1 text-[13px] text-muted-foreground">No folder open</p>
+                {supported ? (
+                  <button type="button" onClick={onOpenFolder} className="cursor-pointer rounded-control border border-solid border-border bg-transparent px-2 py-1 text-[13px] text-foreground hover:bg-surface">
+                    Open Folder…
+                  </button>
+                ) : (
+                  <p className="m-0 text-[13px] text-muted-foreground">Opening a folder is available in the desktop app.</p>
+                )}
+              </>
             ))}
         </section>
         <section>
