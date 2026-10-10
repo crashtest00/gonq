@@ -125,7 +125,7 @@ export function useDocument() {
     });
   }, [setRegion]);
 
-  /** Closes a tab without asking; closing the last one leaves a new untitled tab. */
+  /** Closes a tab without asking; closing the last one leaves no tab at all. */
   const close = useCallback(
     (id: number) => {
       setRegion(null);
@@ -133,16 +133,7 @@ export function useDocument() {
         const i = s.tabs.findIndex((t) => t.id === id);
         if (i < 0) return s;
         const tabs = s.tabs.filter((t) => t.id !== id);
-        if (tabs.length === 0) {
-          const fresh: Tab = {
-            id: nextTabId.current++,
-            meta: { name: 'Untitled.md', path: null },
-            history: createHistory(''),
-            scrollTop: 0,
-            raw: false,
-          };
-          return { tabs: [fresh], activeId: fresh.id };
-        }
+        if (tabs.length === 0) return NO_TABS;
         const activeId = s.activeId === id ? tabs[Math.min(i, tabs.length - 1)].id : s.activeId;
         return { tabs, activeId };
       });

@@ -185,13 +185,58 @@ describe('closing a tab', () => {
     expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ path: '/x/a.md', text: '# Alpha\n\nfirst doc!' }));
   });
 
-  test('closing the last tab leaves one untitled tab', async () => {
+  test('closing the last tab leaves no tab and shows the empty screen', async () => {
     const { user } = setup([A]);
     await openFile(user);
     await screen.findByText('first doc');
     await user.click(screen.getByRole('button', { name: 'Close a.md' }));
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    expect(screen.getByText(/Use File > Open to open a Markdown file/)).toBeInTheDocument();
+  });
+
+  test('an empty untitled tab closes, and File > Close does the same', async () => {
+    const { user } = setup([]);
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    expect(screen.getByText(/Use File > Open to open a Markdown file/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    await user.click(screen.getByRole('menuitem', { name: 'File' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Close/ }));
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
+  });
+
+  test('a dirty untitled tab still asks; Cancel keeps it', async () => {
+    const { user } = setup([]);
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    await user.click(screen.getByTestId('append-area'));
+    await user.type(screen.getByRole('textbox', { name: /Markdown source/ }), 'hello');
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(tabs()).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Don.t save/ }));
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
+  });
+
+  test('File > New after closing the last tab starts at Untitled.md', async () => {
+    const { user } = setup([]);
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
+    await user.click(screen.getByRole('menuitem', { name: 'File' }));
+    await user.click(await screen.findByRole('menuitem', { name: /New/ }));
     expect(tabs()).toHaveLength(1);
     expect(tabs()[0]).toHaveTextContent('Untitled.md');
+  });
+
+  test('the window closes without a prompt when no tab is open', async () => {
+    const { user } = setup([A]);
+    await openFile(user);
+    await screen.findByText('first doc');
+    await user.click(screen.getByRole('button', { name: 'Close a.md' }));
+    await expect(closeGuard.confirm!()).resolves.toBe(true);
   });
 });
 
