@@ -3,7 +3,7 @@
 use super::auth::{AgentSource, Answers, ConnectResult, Env};
 use super::known_hosts;
 use super::pool::{Pool, PoolError};
-use super::test_server::{new_key, Policy, TestServer};
+use super::test_server::{new_key, to_virtual, Policy, TestServer};
 use super::uri::ConnKey;
 use russh::keys::ssh_key::{LineEnding, PrivateKey, PublicKey};
 use std::path::{Path, PathBuf};
@@ -66,6 +66,13 @@ fn answers(trust: Option<&str>, passphrase: Option<&str>, password: Option<&str>
     }
 }
 
+/// The virtual POSIX path the test server shows for a real one under the fixture folder (`/home/a.md`).
+pub(super) fn virt(dir: &std::path::Path, real: &std::path::Path) -> String {
+    let canonical = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+    let (m, r) = (canonical.to_string_lossy(), real.to_string_lossy());
+    to_virtual(&m, &r).or_else(|| to_virtual(&dir.to_string_lossy(), &r)).expect("path is under the fixture folder")
+}
+
 pub(super) fn none() -> Answers {
     Answers::default()
 }
@@ -78,6 +85,7 @@ pub(super) async fn fixture(setup: Setup) -> Fixture {
         allowed_keys: setup.allowed,
         password: setup.password.map(String::from),
         root: dir.path().join("home"),
+        mount: None,
         max_auth_attempts: setup.max_auth_attempts,
         stall_auth: setup.stall_auth,
         no_posix_rename: setup.no_posix_rename,
