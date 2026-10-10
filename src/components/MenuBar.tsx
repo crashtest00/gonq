@@ -7,6 +7,8 @@ export interface MenuActions {
   onCloseTab?: () => void;
   onOpen: () => void;
   onOpenFolder?: () => void;
+  /** File > Connect to Server…; absent (item hidden) outside the desktop app. */
+  onConnect?: () => void;
   onSave: () => void;
   onSaveAs: () => void;
   onUndo: () => void;
@@ -27,6 +29,7 @@ export function MenuBar({
   onCloseTab,
   onOpen,
   onOpenFolder,
+  onConnect,
   onSave,
   onSaveAs,
   onUndo,
@@ -50,6 +53,11 @@ export function MenuBar({
               Open…<MenubarShortcut>Ctrl+O</MenubarShortcut>
             </MenubarItem>
             {onOpenFolder && <MenubarItem onSelect={onOpenFolder}>Open Folder…</MenubarItem>}
+            {onConnect && (
+              <MenubarItem onSelect={onConnect}>
+                Connect to Server…<MenubarShortcut>Ctrl+Shift+K</MenubarShortcut>
+              </MenubarItem>
+            )}
             <MenubarSeparator />
             <MenubarItem disabled={!hasDocument} onSelect={onSave}>
               Save<MenubarShortcut>Ctrl+S</MenubarShortcut>
