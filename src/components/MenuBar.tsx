@@ -1,6 +1,6 @@
-import { Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator, MenubarShortcut, MenubarTrigger } from './ui/menubar';
+import { Menubar, MenubarCheckboxItem, MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator, MenubarShortcut, MenubarTrigger } from './ui/menubar';
 
-const EMPTY_MENUS = ['View', 'Insert', 'Format'];
+const EMPTY_MENUS = ['Insert', 'Format'];
 
 export interface MenuActions {
   onNew: () => void;
@@ -14,6 +14,9 @@ export interface MenuActions {
   onPreferences?: () => void;
   onAgentSkill?: () => void;
   onAbout?: () => void;
+  /** The View > Show markers in active block option; the item is absent without a toggle. */
+  showMarkers?: boolean;
+  onShowMarkers?: (show: boolean) => void;
 }
 
 export function MenuBar({
@@ -31,6 +34,8 @@ export function MenuBar({
   onPreferences,
   onAgentSkill,
   onAbout,
+  showMarkers = true,
+  onShowMarkers,
 }: MenuActions & { hasDocument: boolean; canUndo: boolean; canRedo: boolean }) {
   return (
     <>
@@ -76,6 +81,16 @@ export function MenuBar({
               </>
             )}
           </MenubarContent>
+        </MenubarMenu>
+        <MenubarMenu>
+          <MenubarTrigger disabled={!onShowMarkers}>View</MenubarTrigger>
+          {onShowMarkers && (
+            <MenubarContent>
+              <MenubarCheckboxItem checked={showMarkers} onCheckedChange={onShowMarkers}>
+                Show markers in active block
+              </MenubarCheckboxItem>
+            </MenubarContent>
+          )}
         </MenubarMenu>
         {EMPTY_MENUS.map((label) => (
           <MenubarMenu key={label}>
