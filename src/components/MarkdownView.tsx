@@ -193,7 +193,7 @@ function RawBlock({ node }: { node?: any }) {
 const RAW_COMPONENTS = Object.fromEntries(BLOCK_TAGS.map((tag) => [tag, RawBlock])) as Components;
 
 
-/** Blocks that are edited where they are rendered; the others (tables, rules) still open the Markdown field. */
+/** Blocks that are edited where they are rendered; the others (rules) still open the Markdown field. */
 const IN_PLACE = new Set<string>(IN_PLACE_TAGS);
 
 const hastText = (n: any): string => (n.type === 'text' ? String(n.value) : (n.children ?? []).map(hastText).join(''));
@@ -272,7 +272,7 @@ export function MarkdownView({
         const segs = tag === 'p' && node && !active ? { 'data-segs': JSON.stringify(textSegments(node, source, base)) } : {};
         const state = {
           ...(active ? { 'data-active': '' } : {}),
-          // Inside an editable document, tables and rules are not text to type into.
+          // Inside an editable document, rules are not text to type into.
           ...(mode !== null && !IN_PLACE.has(tag) ? { contentEditable: false, suppressContentEditableWarning: true } : {}),
         };
         return createElement(tag, { ...props, ...range, ...segs, ...state }, children);
@@ -582,6 +582,8 @@ export function MarkdownView({
     if (!piece) return undefined;
     // A thread marker is only ever removed by a selection that covers it.
     if (piece.el.closest('.gonq-marker')) return null;
+    // Inside a table a character is only ever removed from the cell the caret is in.
+    if (block.tagName === 'TABLE' && cellAt(block, at) !== piece.el.closest('td, th')) return null;
     if (piece.kind === 'at') return [piece.s, piece.s + piece.len];
     if (dir < 0) {
       const end = Math.min(at, piece.s + piece.len);
@@ -594,6 +596,16 @@ export function MarkdownView({
     const width = text.slice(begin, begin + 2) === '\r\n' ? 2 : /[\uD800-\uDBFF]/.test(text[begin] ?? '') ? 2 : 1;
     return [begin, begin + width];
   };
+
+  /** The table cell that holds file offset `at` inside a rendered table, if any. */
+  const cellAt = (table: HTMLElement | null, at: number): Element | null => {
+    if (!table || table.tagName !== 'TABLE') return null;
+    const covering = piecesIn(table).filter((p) => p.s <= at && at <= p.s + p.len);
+    const pick = covering.find((p) => p.kind !== 'mk' && p.len > 0) ?? covering.find((p) => p.kind !== 'mk') ?? covering[0];
+    return pick?.el.closest('td, th') ?? null;
+  };
+  const tableAt = (at: number) =>
+    topBlocks().find((b) => b.tagName === 'TABLE' && Number(b.dataset.from) <= at && at <= Number(b.dataset.to)) ?? null;
 
   const blockAtCaret = () => {
     const sel = window.getSelection();
@@ -620,7 +632,7 @@ export function MarkdownView({
     }
     const [first, second] = dir < 0 ? [blocks[i - 1], block] : [block, blocks[i + 1]];
     if (!first || !second) return null;
-    const joinable = (b: HTMLElement) => editable(b) && b.tagName !== 'PRE';
+    const joinable = (b: HTMLElement) => editable(b) && b.tagName !== 'PRE' && b.tagName !== 'TABLE';
     if (!joinable(first) || !joinable(second)) return null;
     const gap: [number, number] = [Number(first.dataset.to), Number(second.dataset.from)];
     return /\S/.test(text.slice(gap[0], gap[1])) ? null : gap;
@@ -632,6 +644,7 @@ export function MarkdownView({
     const block = topBlocks().find((b) => Number(b.dataset.from) <= at && at <= Number(b.dataset.to) && !b.hasAttribute('data-virtual'));
     const tag = block?.tagName.toLowerCase();
     if (tag === 'pre') return eol;
+    if (tag === 'table') return null;
     const lineStart = text.lastIndexOf('\n', at - 1) + 1;
     const line = text.slice(lineStart, at);
     const quote = /^(?:[ \t]{0,3}>[ \t]?)*/.exec(line)![0];
@@ -697,7 +710,16 @@ export function MarkdownView({
     const eol = detectEol(text);
     let [lo, hi] = snapCrlf(text, current[0], current[1]);
     const typed = () => e.data ?? e.dataTransfer?.getData('text/plain') ?? '';
+    // A table stays a table: an edit stays within one cell, and a pipe or line break typed there is cell text, not syntax.
+    const inTable = [lo, hi].map(tableAt);
+    const cellEdit = inTable[0] !== null || inTable[1] !== null;
+    if (cellEdit) {
+      const cell = cellAt(inTable[0], lo);
+      if (cell === null || cell !== cellAt(inTable[1], hi)) return;
+      if (type === 'insertParagraph' || type === 'insertLineBreak') return;
+    }
     const put = (s: string) => {
+      if (cellEdit) s = s.replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
       if (s !== '') apply(lo, hi, fromEditable(toEditable(s), eol));
     };
     const remove = (dir: -1 | 1) => {
@@ -825,9 +847,21 @@ export function MarkdownView({
       return;
     }
     if (e.key === 'Tab' && mode !== null) {
-      // Tab moves the caret to the start of the next (previous) block.
+      // Tab moves the caret to the start of the next (previous) block; in a table, of the next (previous) cell.
       const sel = window.getSelection();
       const here = sel?.focusNode ? blockOf(sel.focusNode) : null;
+      if (here?.tagName === 'TABLE' && sel?.focusNode) {
+        const cells = Array.from(here.querySelectorAll('td, th'));
+        const cell = cells.indexOf((sel.focusNode instanceof Element ? sel.focusNode : sel.focusNode.parentElement)?.closest('td, th') as Element);
+        const target = cell < 0 ? undefined : cells[cell + (e.shiftKey ? -1 : 1)];
+        if (target) {
+          e.preventDefault();
+          const piece = piecesIn(target as HTMLElement).find((p) => p.kind !== 'mk');
+          const point = piece ? offsetToPoint(articleRef.current!, piece.s, live.current.showMarkers) : null;
+          if (point) window.getSelection()?.collapse(point[0], point[1]);
+          return;
+        }
+      }
       const blocks = topBlocks().filter((b) => !b.hasAttribute('data-virtual'));
       const next = here ? blocks[blocks.indexOf(here) + (e.shiftKey ? -1 : 1)] : undefined;
       if (next) {

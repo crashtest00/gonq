@@ -26,7 +26,7 @@ export const activeSource = () =>
  */
 export function shownMarkers(): string[] {
   if (view().dataset.markers !== 'on') return [];
-  return Array.from(view().querySelectorAll<HTMLElement>('[data-active] .gonq-mk')).map((el) => el.textContent ?? '');
+  return Array.from(view().querySelectorAll<HTMLElement>('[data-active] .gonq-mk')).filter((el) => !el.closest('table')).map((el) => el.textContent ?? '');
 }
 
 const textNodes = (el: Element) => {

@@ -74,4 +74,6 @@
 /* Editing in place: every character of an active block's source is in a span; syntax is hidden until markers are shown. */
 .gonq-doc .gonq-mk { display: none; }
 .gonq-doc[data-markers='on'] [data-active] .gonq-mk { display: inline; color: var(--muted-foreground); }
+/* A table is always a table: its pipes and delimiter row are never shown. */
+.gonq-doc[data-markers='on'] [data-active] table .gonq-mk { display: none; }
 .gonq-doc[contenteditable='true'] { outline: none; }
