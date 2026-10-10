@@ -1,6 +1,7 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
+import { caretIn } from '../testing/inplace';
 import App from '../App';
 import { PathTakenError, type FileAccess, type OpenedDocument } from '../platform/files';
 import { tabLabels } from './TabStrip';
@@ -45,7 +46,8 @@ const tabs = () => screen.getAllByRole('tab');
 const tab = (name: RegExp) => screen.getByRole('tab', { name });
 async function type(user: U, para: string, extra: string) {
   await user.click(screen.getByText(para));
-  await user.type(screen.getByRole('textbox', { name: /Markdown source/ }), extra);
+  await caretIn(screen.getByText(para));
+  await user.keyboard(extra);
   await user.keyboard('{Escape}');
 }
 

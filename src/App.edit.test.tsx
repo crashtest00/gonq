@@ -1,4 +1,5 @@
 import { act, render, screen, within } from '@testing-library/react';
+import { activeBlocks, activeSource, caretIn, selectBetween, selectSource, settle, shownMarkers, view } from './testing/inplace';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import type { FileAccess, OpenedDocument } from './platform/files';
@@ -24,6 +25,8 @@ vi.mock('./platform/lifecycle', () => ({
 // Deliberately unusual Markdown: none of it may be normalised by editing elsewhere.
 const ORIGINAL = '*  odd bullet\n*  second\n\nSetext Title\n===\n\ntrailing spaces here  \nnext line\n\n+ plus list\n\nlast paragraph';
 
+beforeEach(() => localStorage.clear());
+
 function setup(text = ORIGINAL, path: string | null = '/d/a.md') {
   const doc: OpenedDocument = { name: 'a.md', path, text };
   const saveDocument = vi.fn(async (d: { name: string; path: string | null }) => ({ name: d.name, path: d.path ?? '/d/new.md' }));
@@ -45,26 +48,56 @@ async function openDoc(user: ReturnType<typeof userEvent.setup>) {
 }
 
 const editor = () => screen.getByRole('textbox', { name: /Markdown source/ }) as HTMLTextAreaElement;
+const noField = () => expect(screen.queryByRole('textbox', { name: /Markdown source/ })).not.toBeInTheDocument();
+
+/** Clicks a paragraph, puts the caret `at` characters into its text (default: the end) and types. */
+async function typeIn(user: ReturnType<typeof userEvent.setup>, find: () => HTMLElement, text: string, at: number | 'end' = 'end') {
+  await user.click(find());
+  await caretIn(find().closest('[data-active]') ?? find(), at);
+  await user.keyboard(text);
+}
 
 test('editing one block changes only that block of the file', async () => {
   const { user, saveDocument } = setup();
   await openDoc(user);
   await user.click(screen.getByText('last paragraph'));
-  expect(editor().value).toBe('last paragraph');
-  await user.type(editor(), ' edited');
+  // The block stays rendered: no field replaces it.
+  noField();
+  expect(screen.getByText('last paragraph')).toBeInTheDocument();
+  await caretIn(screen.getByText('last paragraph'));
+  await user.keyboard(' edited');
   await user.keyboard('{Escape}');
-  expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  expect(view()).not.toHaveAttribute('contenteditable');
   expect(screen.getByText('last paragraph edited')).toBeInTheDocument();
 
   await menu(user, 'File', /^Save(?! As)/);
   expect(saveDocument).toHaveBeenCalledWith({ name: 'a.md', path: '/d/a.md', text: ORIGINAL + ' edited' });
 });
 
-test('opening a block for editing shows its exact source and leaves the file alone', async () => {
+test('clicking a block or pressing Enter on it leaves it rendered, with no field', async () => {
   const { user } = setup();
   await openDoc(user);
   await user.click(screen.getByRole('heading', { name: 'Setext Title' }));
-  expect(editor().value).toBe('Setext Title\n===');
+  noField();
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /Setext Title/ })).toHaveAttribute('data-active');
+  expect(view()).toHaveAttribute('contenteditable', 'true');
+  await user.keyboard('{Escape}');
+  expect(activeBlocks()).toHaveLength(0);
+
+  const para = screen.getByText('last paragraph');
+  para.focus();
+  await user.keyboard('{Enter}');
+  noField();
+  expect(activeBlocks().map((b) => b.getAttribute('data-from'))).toEqual([String(ORIGINAL.indexOf('last paragraph'))]);
+  expect(screen.getByText('last paragraph')).toBeInTheDocument();
+});
+
+test('opening a block for editing leaves the file alone and keeps its exact source in the spans', async () => {
+  const { user } = setup();
+  await openDoc(user);
+  await user.click(screen.getByRole('heading', { name: 'Setext Title' }));
+  expect(activeSource()).toBe('Setext Title\n===');
   await user.keyboard('{Escape}');
   expect(screen.queryByLabelText('unsaved changes')).not.toBeInTheDocument();
 });
@@ -73,18 +106,59 @@ test('line endings of a CRLF file are kept', async () => {
   const { user, saveDocument } = setup('first\r\n\r\nsecond\r\nline\r\n');
   await openDoc(user);
   await user.click(screen.getByText(/second/));
-  expect(editor().value).toBe('second\nline');
-  await user.type(editor(), '!');
+  expect(activeSource()).toBe('second\r\nline');
+  await caretIn(screen.getByText(/second/));
+  await user.keyboard('!');
   await user.keyboard('{Escape}');
   await user.keyboard('{Control>}s{/Control}');
   expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: 'first\r\n\r\nsecond\r\nline!\r\n' }));
 });
 
+test('Enter in a CRLF file inserts a CRLF, and a pasted LF becomes CRLF', async () => {
+  const { user, saveDocument } = setup('first\r\n\r\nsecond\r\n');
+  await openDoc(user);
+  await user.click(screen.getByText('second'));
+  await caretIn(screen.getByText('second'));
+  await user.keyboard('{Enter}x');
+  await user.paste('a\nb');
+  await user.keyboard('{Escape}{Control>}s{/Control}');
+  expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: 'first\r\n\r\nsecond\r\nxa\r\nb\r\n' }));
+});
+
+test('an unedited document saves byte-identical after blocks were visited', async () => {
+  const { user, saveDocument } = setup();
+  await openDoc(user);
+  for (const el of [screen.getByText('last paragraph'), screen.getByRole('heading', { name: 'Setext Title' }), screen.getByText(/plus list/)]) {
+    await user.click(el);
+    await caretIn(view());
+  }
+  await user.keyboard('{Escape}');
+  expect(screen.queryByLabelText('unsaved changes')).not.toBeInTheDocument();
+  await menu(user, 'File', /^Save(?! As)/);
+  expect(saveDocument).toHaveBeenCalledWith({ name: 'a.md', path: '/d/a.md', text: ORIGINAL });
+});
+
+test('typing, deleting and pasting splice only the edited text', async () => {
+  const { user, saveDocument } = setup('keep  me\n\nsecond *para* here\n\nkeep too\n');
+  await openDoc(user);
+  await user.click(screen.getByText(/second/));
+  // Just before the emphasis, after "second ".
+  await selectSource(17);
+  await user.keyboard('[[');
+  await user.paste(']');
+  expect(activeSource()).toBe('second []*para* here');
+  await user.keyboard('{Backspace}{Backspace}');
+  expect(activeSource()).toBe('second *para* here');
+  await selectSource(12, 16);
+  await user.keyboard('{Delete}');
+  await user.keyboard('{Escape}{Control>}s{/Control}');
+  expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: 'keep  me\n\nse *para* here\n\nkeep too\n' }));
+});
+
 test('save clears the unsaved mark and undo brings it back', async () => {
   const { user } = setup();
   await openDoc(user);
-  await user.click(screen.getByText('last paragraph'));
-  await user.type(editor(), '!');
+  await typeIn(user, () => screen.getByText('last paragraph'), '!');
   await user.keyboard('{Escape}');
   expect(screen.getByLabelText('unsaved changes')).toBeInTheDocument();
   await menu(user, 'File', /^Save(?! As)/);
@@ -97,13 +171,23 @@ test('save clears the unsaved mark and undo brings it back', async () => {
   expect(screen.queryByLabelText('unsaved changes')).not.toBeInTheDocument();
 });
 
-test('Ctrl+Z inside the block editor undoes the document edit', async () => {
+test('typing is one undo step; the document is dirty after the first character', async () => {
   const { user } = setup();
   await openDoc(user);
-  await user.click(screen.getByText('last paragraph'));
-  await user.type(editor(), 'xyz');
+  await typeIn(user, () => screen.getByText('last paragraph'), 'xyz');
+  expect(screen.getByLabelText('unsaved changes')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Undo' }));
+  expect(screen.getByText('last paragraph')).toBeInTheDocument();
+  expect(screen.queryByLabelText('unsaved changes')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+});
+
+test('Ctrl+Z inside the edited block undoes the document edit', async () => {
+  const { user } = setup();
+  await openDoc(user);
+  await typeIn(user, () => screen.getByText('last paragraph'), 'xyz');
   await user.keyboard('{Control>}z{/Control}');
-  expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  expect(view()).not.toHaveAttribute('contenteditable');
   expect(screen.getByText('last paragraph')).toBeInTheDocument();
 });
 
@@ -148,79 +232,106 @@ describe('thread markers stay whole while a block is edited', () => {
   const MARKER = '[💬](#md-thread-c20260910143022a3f9c1)';
   const THREAD = '<!--\n@thread c20260910143022a3f9c1\n@status open\n\n[User | 2026-09-10T14:30:22+02:00]\nHi\n-->\n';
   const DOC = `Intro\n\nPara ${MARKER} end\n\n${THREAD}`;
+  const SAME = `Intro\n\nPara ${MARKER} end\n\n${THREAD}`;
 
   async function editMarkerBlock() {
     const ctx = setup(DOC);
     await openDoc(ctx.user);
     await ctx.user.click(screen.getByText(/^Para/));
-    expect(editor().value).toBe(`Para ${MARKER} end`);
-    const start = editor().value.indexOf('[');
+    expect(activeSource()).toBe('Para 💬 end');
+    const start = DOC.indexOf('[');
     return { ...ctx, start, end: start + MARKER.length };
   }
-  const caretAt = (n: number, m = n) => editor().setSelectionRange(n, m);
+  const fileNow = async (user: ReturnType<typeof userEvent.setup>, saveDocument: { mock: { calls: any[][] } }) => {
+    await user.keyboard('{Control>}s{/Control}');
+    const text: string = saveDocument.mock.calls[saveDocument.mock.calls.length - 1]?.[0].text;
+    return text.slice(7, text.indexOf('\n\n<!--'));
+  };
+  const saved = async (user: ReturnType<typeof userEvent.setup>, saveDocument: { mock: { calls: any[][] } }) => {
+    await user.keyboard('{Escape}{Control>}s{/Control}');
+    return saveDocument.mock.calls[saveDocument.mock.calls.length - 1]?.[0].text;
+  };
 
   test('Backspace at the end of the marker leaves it intact', async () => {
-    const { user, end } = await editMarkerBlock();
-    caretAt(end);
+    const { user, end, saveDocument } = await editMarkerBlock();
+    await selectSource(end);
     await user.keyboard('{Backspace}');
-    expect(editor().value).toBe(`Para ${MARKER} end`);
+    expect(await fileNow(user, saveDocument)).toBe(`Para ${MARKER} end`);
   });
 
   test('Delete at the start of the marker leaves it intact', async () => {
-    const { user, start } = await editMarkerBlock();
-    caretAt(start);
+    const { user, start, saveDocument } = await editMarkerBlock();
+    await selectSource(start);
     await user.keyboard('{Delete}');
-    expect(editor().value).toBe(`Para ${MARKER} end`);
+    expect(await fileNow(user, saveDocument)).toBe(`Para ${MARKER} end`);
   });
 
-  test('Delete and Backspace inside the marker leave it intact', async () => {
-    const { user, start } = await editMarkerBlock();
-    caretAt(start + 2);
+  test('Delete and Backspace with the caret in the marker leave it intact', async () => {
+    const { user, saveDocument } = await editMarkerBlock();
+    const glyph = document.querySelector('.gonq-marker .gonq-at')!;
+    await selectBetween([glyph as Element, 1], [glyph as Element, 1]);
     await user.keyboard('{Delete}');
-    caretAt(start + 10);
-    await user.keyboard('{Backspace}');
-    expect(editor().value).toBe(`Para ${MARKER} end`);
+    expect(await fileNow(user, saveDocument)).toBe(`Para ${MARKER} end`);
   });
 
-  test('typing inside the marker lands after it', async () => {
-    const { user, start, end } = await editMarkerBlock();
-    caretAt(start + 12);
+  test('typing with the caret on either side of the marker lands beside it, never inside', async () => {
+    const { user, start, end, saveDocument } = await editMarkerBlock();
+    await selectSource(end);
     await user.keyboard('Z');
-    expect(editor().value).toBe(`Para ${MARKER}Z end`);
-    expect(editor().selectionStart).toBe(end + 1);
+    expect(await fileNow(user, saveDocument)).toBe(`Para ${MARKER}Z end`);
+    await selectSource(start);
+    await user.keyboard('Y');
+    expect(await fileNow(user, saveDocument)).toBe(`Para Y${MARKER}Z end`);
   });
 
   test('a selection spanning part of the marker deletes only the text outside it', async () => {
-    const { user, start } = await editMarkerBlock();
-    caretAt(2, start + 5);
+    const { user, saveDocument } = await editMarkerBlock();
+    // The caret can only sit beside a marker, so a selection ending in its glyph ends before it.
+    await selectBetween([screen.getByText(/^Para/), 2], [document.querySelector('.gonq-marker .gonq-at')!, 1]);
     await user.keyboard('{Delete}');
-    expect(editor().value).toBe(`Pa${MARKER} end`);
+    expect(await fileNow(user, saveDocument)).toBe(`Pa${MARKER} end`);
   });
 
   test('a selection covering the whole marker may remove it, whole', async () => {
-    const { user, start, end } = await editMarkerBlock();
-    caretAt(start - 1, end + 1);
+    const { user, start, end, saveDocument } = await editMarkerBlock();
+    await selectSource(start - 1, end + 1);
     await user.keyboard('{Delete}');
-    expect(editor().value).toBe('Paraend');
+    expect(await fileNow(user, saveDocument)).toBe('Paraend');
   });
 
   test('editing text next to the marker saves byte-exactly with the thread block intact', async () => {
     const { user, saveDocument, end } = await editMarkerBlock();
-    caretAt(end + 4);
+    await selectSource(end + 4);
     await user.keyboard('!');
-    await user.keyboard('{Escape}{Control>}s{/Control}');
-    expect(saveDocument).toHaveBeenCalledWith(
-      expect.objectContaining({ text: `Intro\n\nPara ${MARKER} end!\n\n${THREAD}` }),
-    );
+    expect(await saved(user, saveDocument)).toBe(SAME.replace(' end', ' end!'));
+    expect(DOC).toContain(THREAD);
   });
+
+  test('clicking the marker opens its thread and does not start an edit', async () => {
+    const ctx = setup(DOC);
+    await openDoc(ctx.user);
+    await ctx.user.click(document.querySelector('.gonq-marker')!);
+    expect(view()).not.toHaveAttribute('contenteditable');
+    expect(activeBlocks()).toHaveLength(0);
+  });
+});
+
+test('clicking a link follows it and does not start an edit', async () => {
+  const { user } = setup('a [link](https://example.com) here\n');
+  await openDoc(user);
+  await user.click(screen.getByRole('link', { name: 'link' }));
+  expect(view()).not.toHaveAttribute('contenteditable');
+  expect(activeBlocks()).toHaveLength(0);
+  expect(screen.getByRole('link', { name: 'link' })).toHaveAttribute('href', 'https://example.com');
 });
 
 test('editing a middle block changes none of the other bytes', async () => {
   const { user, saveDocument } = setup();
   await openDoc(user);
-  await user.click(screen.getByText(/trailing spaces here/));
-  expect(editor().value).toBe('trailing spaces here  \nnext line');
-  await user.type(editor(), ' X');
+  await user.click(screen.getByText(/next line/));
+  expect(activeSource()).toBe('trailing spaces here  \nnext line');
+  await caretIn(screen.getByText(/next line/));
+  await user.keyboard(' X');
   await user.keyboard('{Escape}{Control>}s{/Control}');
   const expected = ORIGINAL.replace('next line', 'next line X');
   expect(expected).not.toBe(ORIGINAL);
@@ -228,12 +339,176 @@ test('editing a middle block changes none of the other bytes', async () => {
   expect(expected.startsWith('*  odd bullet\n*  second\n\nSetext Title\n===\n\ntrailing spaces here  \nnext line X\n\n+ plus list\n\nlast paragraph')).toBe(true);
 });
 
+describe('markers in the active block', () => {
+  const DOC = '# Title\n\nsome **bold** and `code`\n\n- item one\n- item two\n\n> quoted\n';
+
+  test('with the option on only the block holding the caret shows its syntax, and it follows the caret', async () => {
+    const { user } = setup(DOC);
+    await openDoc(user);
+    expect(shownMarkers()).toEqual([]);
+    await user.click(screen.getByText(/^some/));
+    await caretIn(screen.getByText(/^some/));
+    expect(activeBlocks()).toHaveLength(1);
+    expect(shownMarkers().join('')).toBe('****``');
+    await caretIn(screen.getByRole('heading'), 2);
+    expect(activeBlocks().map((b) => b.tagName)).toEqual(['H1']);
+    expect(shownMarkers()).toEqual(['# ']);
+    // Keyboard: arrow to the end of the heading, then down into the next block.
+    await user.keyboard('{Escape}');
+    expect(shownMarkers()).toEqual([]);
+  });
+
+  test('markers show for every list item and quote line of the block, and nothing else', async () => {
+    const { user } = setup(DOC);
+    await openDoc(user);
+    await user.click(screen.getByText('item two'));
+    expect(activeBlocks().map((b) => b.tagName)).toEqual(['UL']);
+    expect(shownMarkers().join('|')).toBe('- |\n|- ');
+    await caretIn(screen.getByText('quoted'));
+    expect(activeBlocks().map((b) => b.tagName)).toEqual(['BLOCKQUOTE']);
+    expect(shownMarkers()).toEqual(['> ']);
+  });
+
+  test('a selection across several blocks shows markers on every block it touches', async () => {
+    const { user } = setup(DOC);
+    await openDoc(user);
+    await user.click(screen.getByRole('heading'));
+    await selectBetween([screen.getByRole('heading'), 2], [screen.getByText('item one'), 3]);
+    expect(activeBlocks().map((b) => b.tagName)).toEqual(['H1', 'P', 'UL']);
+    expect(shownMarkers()).toContain('# ');
+    expect(shownMarkers()).toContain('**');
+    expect(shownMarkers()).toContain('- ');
+    // The quote after the selection does not.
+    expect(document.querySelector('blockquote[data-active]')).toBeNull();
+    // Shrinking the selection back into one block drops the markers of the others.
+    await caretIn(screen.getByText('item one'), 2);
+    expect(activeBlocks().map((b) => b.tagName)).toEqual(['UL']);
+  });
+
+  test('Tab moves the caret to the next block and its markers follow', async () => {
+    const { user } = setup(DOC);
+    await openDoc(user);
+    await user.click(screen.getByRole('heading'));
+    expect(activeBlocks().map((b) => b.tagName)).toEqual(['H1']);
+    await user.tab();
+    await settle();
+    expect(activeBlocks().map((b) => b.tagName)).toEqual(['P']);
+  });
+
+  test('leaving the document ends editing and hides the markers', async () => {
+    const { user } = setup(DOC);
+    await openDoc(user);
+    await user.click(screen.getByRole('heading'));
+    expect(shownMarkers()).toEqual(['# ']);
+    await user.click(screen.getByTestId('append-area'));
+    expect(activeBlocks()).toHaveLength(0);
+    expect(shownMarkers()).toEqual([]);
+  });
+
+  test('with the option off the syntax is never shown, in any block', async () => {
+    const { user } = setup(DOC);
+    await openDoc(user);
+    await user.click(screen.getByRole('menuitem', { name: 'View' }));
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ }));
+    expect(view()).toHaveAttribute('data-markers', 'off');
+    await user.click(screen.getByRole('heading'));
+    await caretIn(screen.getByText(/^some/));
+    expect(activeBlocks()).toHaveLength(1);
+    expect(shownMarkers()).toEqual([]);
+  });
+
+  test('markers do not change the text that is saved, and typing next to them keeps the formatting', async () => {
+    const { user, saveDocument } = setup(DOC);
+    await openDoc(user);
+    await user.click(screen.getByText('bold'));
+    await caretIn(screen.getByText('bold'));
+    await user.keyboard('er');
+    await user.keyboard('{Escape}{Control>}s{/Control}');
+    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: DOC.replace('**bold**', '**bolder**') }));
+    expect(screen.getByText('bolder').tagName).toBe('STRONG');
+  });
+
+  test('Backspace skips hidden syntax; at the start of a block it removes the block syntax', async () => {
+    const { user, saveDocument } = setup(DOC);
+    await openDoc(user);
+    await user.click(screen.getByRole('menuitem', { name: 'View' }));
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ }));
+    await user.click(screen.getByText('bold'));
+    await caretIn(screen.getByText('bold'), 0);
+    await user.keyboard('{Backspace}');
+    expect(activeSource()).toBe('some**bold** and `code`');
+    await caretIn(screen.getByRole('heading'), 0);
+    await user.keyboard('{Backspace}');
+    await user.keyboard('{Escape}{Control>}s{/Control}');
+    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: DOC.replace('# Title', 'Title').replace('some **bold**', 'some**bold**') }));
+  });
+});
+
+describe('splitting and joining blocks while typing', () => {
+  test('two Enters inside a paragraph split it into two blocks and keep the caret', async () => {
+    const { user, saveDocument } = setup('onetwo\n\nlast\n');
+    await openDoc(user);
+    await user.click(screen.getByText('onetwo'));
+    await caretIn(screen.getByText('onetwo'), 3);
+    await user.keyboard('{Enter}{Enter}X');
+    expect(view().querySelectorAll('p')).toHaveLength(3);
+    expect(activeBlocks()).toHaveLength(1);
+    expect(activeSource()).toBe('Xtwo');
+    await user.keyboard('{Escape}{Control>}s{/Control}');
+    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: 'one\n\nXtwo\n\nlast\n' }));
+  });
+
+  test('Backspace at the start of a paragraph joins it to the one before', async () => {
+    const { user, saveDocument } = setup('one\n\ntwo\n');
+    await openDoc(user);
+    await user.click(screen.getByText('two'));
+    await caretIn(screen.getByText('two'), 0);
+    await user.keyboard('{Backspace}');
+    await user.keyboard('{Escape}{Control>}s{/Control}');
+    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: 'onetwo\n' }));
+  });
+});
+
+describe('edge cases', () => {
+  test('an empty document can be started from the append area', async () => {
+    const { user, saveDocument } = setup('');
+    await openDoc(user);
+    expect(activeBlocks()).toHaveLength(0);
+    await user.click(screen.getByTestId('append-area'));
+    await user.type(editor(), 'Hi');
+    await user.keyboard('{Escape}{Control>}s{/Control}');
+    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: 'Hi\n' }));
+  });
+
+  test('a block holding only thread markers can be entered and left unchanged', async () => {
+    const id = 'c20260910143022a3f9c1';
+    const thread = `<!--\n@thread ${id}\n@status open\n\n[User | 2026-09-10T14:30:22+02:00]\nHi\n-->\n`;
+    const text = `[💬](#md-thread-${id})\n\n${thread}`;
+    const { user, saveDocument } = setup(text);
+    await openDoc(user);
+    await user.click(view().querySelector('p')!);
+    expect(activeSource()).toBe('💬');
+    await user.keyboard('{Escape}{Control>}s{/Control}');
+    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text }));
+  });
+
+  test('a click on a table opens its Markdown field as before', async () => {
+    const { user } = setup('| a | b |\n| - | - |\n| 1 | 2 |\n\nafter\n');
+    await openDoc(user);
+    await user.click(screen.getByRole('cell', { name: '1' }));
+    expect(editor().value).toBe('| a | b |\n| - | - |\n| 1 | 2 |');
+    expect(view()).not.toHaveAttribute('contenteditable');
+    await user.keyboard('{Escape}');
+    noField();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+});
+
 describe('Edit menu and shortcuts', () => {
   async function edited() {
     const ctx = setup();
     await openDoc(ctx.user);
-    await ctx.user.click(screen.getByText('last paragraph'));
-    await ctx.user.type(editor(), '!');
+    await typeIn(ctx.user, () => screen.getByText('last paragraph'), '!');
     await ctx.user.keyboard('{Escape}');
     expect(screen.getByText('last paragraph!')).toBeInTheDocument();
     return ctx;
@@ -265,8 +540,7 @@ describe('closing the window with unsaved changes', () => {
     const ctx = setup();
     closeGuard.destroyed = 0;
     await openDoc(ctx.user);
-    await ctx.user.click(screen.getByText('last paragraph'));
-    await ctx.user.type(editor(), '!');
+    await typeIn(ctx.user, () => screen.getByText('last paragraph'), '!');
     await ctx.user.keyboard('{Escape}');
     let result: Promise<boolean> = Promise.resolve(false);
     act(() => {
@@ -305,11 +579,12 @@ test('toolbar formats the selection in the open block, and undo reverts it', asy
   const bold = screen.getByRole('button', { name: 'Bold' });
   expect(bold).toBeDisabled();
   await user.click(screen.getByText('plain words'));
-  editor().setSelectionRange(6, 11);
+  expect(bold).toBeEnabled();
+  await selectSource(6, 11);
   await user.click(bold);
-  expect(editor().value).toBe('plain **words**');
+  expect(activeSource()).toBe('plain **words**');
   await user.click(screen.getByRole('button', { name: 'Bullet list' }));
-  expect(editor().value).toBe('- plain **words**');
+  expect(activeSource()).toBe('- plain **words**');
   await user.keyboard('{Escape}');
   expect(screen.getByText('words').tagName).toBe('STRONG');
   await user.click(screen.getByRole('button', { name: 'Undo' }));
@@ -326,10 +601,22 @@ test('clicking a task checkbox flips only its marker and can be undone', async (
   await user.click(screen.getAllByRole('checkbox')[1]);
   await user.click(screen.getAllByRole('checkbox')[2]);
   expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  expect(view()).not.toHaveAttribute('contenteditable');
   await menu(user, 'File', /^Save(?! As)/);
   expect(saveDocument).toHaveBeenCalledWith({ name: 'a.md', path: '/d/a.md', text: '- [x] one\n- [ ] two\n\n1.  [x] odd\n' });
   await user.click(screen.getByRole('button', { name: 'Undo' }));
   expect((screen.getAllByRole('checkbox')[2] as HTMLInputElement).checked).toBe(false);
+});
+
+test('a task item is edited in place with its checkbox still working', async () => {
+  const { user, saveDocument } = setup('- [ ] one\n- [x] two\n');
+  await openDoc(user);
+  await user.click(screen.getByText('one'));
+  expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+  expect(shownMarkers().join('')).toBe('- [ ] \n- [x] ');
+  await user.click(screen.getAllByRole('checkbox')[0]);
+  await user.keyboard('{Escape}{Control>}s{/Control}');
+  expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: '- [x] one\n- [x] two\n' }));
 });
 
 describe('toolbar actions', () => {
@@ -340,10 +627,13 @@ describe('toolbar actions', () => {
   async function openBlock(text: string, from: number, to: number) {
     const { user, saveDocument } = setup(text);
     await openDoc(user);
-    await user.click(screen.getByTestId('markdown-view').firstElementChild!);
-    editor().setSelectionRange(from, to);
+    await user.click(view().firstElementChild!);
+    await selectSource(from, to);
     return { user, saveDocument };
   }
+  const reopen = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(view().firstElementChild!);
+  };
 
   const ACTIONS: [string, string, string][] = [
     ['Bold', 'plain **words**', 'plain words'],
@@ -358,26 +648,26 @@ describe('toolbar actions', () => {
   test.each(ACTIONS)('%s applies and undo/redo round-trips it', async (name, applied, original) => {
     const { user } = await openBlock('plain words', 6, 11);
     await press(user, name);
-    expect(editor().value).toBe(applied);
+    expect(activeSource()).toBe(applied);
     await user.keyboard('{Escape}');
     await undo(user);
     expect(screen.getByRole('button', { name: 'Redo' })).toBeEnabled();
-    await user.click(screen.getByTestId('markdown-view').firstElementChild!);
-    expect(editor().value).toBe(original);
+    await reopen(user);
+    expect(activeSource()).toBe(original);
     await user.keyboard('{Escape}');
     await redo(user);
-    await user.click(screen.getByTestId('markdown-view').firstElementChild!);
-    expect(editor().value).toBe(applied);
+    await reopen(user);
+    expect(activeSource()).toBe(applied);
   });
 
   test('Underline toggles off and renders underlined', async () => {
     const { user } = await openBlock('plain words', 6, 11);
     await press(user, 'Underline');
-    expect(editor().value).toBe('plain <ins>words</ins>');
-    editor().setSelectionRange(11, 16);
+    expect(activeSource()).toBe('plain <ins>words</ins>');
+    await selectSource(11, 16);
     await press(user, 'Underline');
-    expect(editor().value).toBe('plain words');
-    editor().setSelectionRange(6, 11);
+    expect(activeSource()).toBe('plain words');
+    await selectSource(6, 11);
     await press(user, 'Underline');
     await user.keyboard('{Escape}');
     const ins = screen.getByText('words');
@@ -390,10 +680,11 @@ describe('toolbar actions', () => {
     const { user } = await openBlock('plain words', 6, 11);
     await press(user, 'Insert link');
     expect(prompt).toHaveBeenCalled();
-    expect(editor().value).toBe('plain [words](https://example.com)');
+    expect(activeSource()).toBe('plain [words](https://example.com)');
+    await user.keyboard('{Escape}');
     await undo(user);
     await user.click(screen.getByText('plain words'));
-    expect(editor().value).toBe('plain words');
+    expect(activeSource()).toBe('plain words');
     prompt.mockRestore();
   });
 
@@ -401,7 +692,7 @@ describe('toolbar actions', () => {
     const prompt = vi.spyOn(window, 'prompt').mockReturnValue(null);
     const { user } = await openBlock('plain words', 6, 11);
     await press(user, 'Insert link');
-    expect(editor().value).toBe('plain words');
+    expect(activeSource()).toBe('plain words');
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
     expect(screen.queryByText(/unsaved|●/)).not.toBeInTheDocument();
     prompt.mockRestore();
@@ -410,16 +701,15 @@ describe('toolbar actions', () => {
   test('no selection inserts empty markup with the caret inside', async () => {
     const { user } = await openBlock('ab', 1, 1);
     await press(user, 'Underline');
-    expect(editor().value).toBe('a<ins></ins>b');
-    expect(editor().selectionStart).toBe(6);
+    expect(activeSource()).toBe('a<ins></ins>b');
     await user.keyboard('X');
-    expect(editor().value).toBe('a<ins>X</ins>b');
+    expect(activeSource()).toBe('a<ins>X</ins>b');
   });
 
   test('formatting skips code', async () => {
     const { user } = await openBlock('```\ncode\n```', 5, 9);
     await press(user, 'Bold');
-    expect(editor().value).toBe('```\ncode\n```');
+    expect(activeSource()).toBe('```\ncode\n```');
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
   });
 });

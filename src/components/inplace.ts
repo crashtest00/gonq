@@ -1,0 +1,343 @@
+/**
+ * Editing a block where it is rendered. The block being edited ("active") is
+ * rendered with every character of its source in a span that says where in the
+ * file it comes from, so a caret in the rendered text is an exact offset in the
+ * file, and back. Three kinds of span:
+ * - `gonq-tx`: text shown as it is written in the source
+ * - `gonq-mk`: Markdown syntax (`**`, `# `, `> `, fences...), hidden unless markers are shown
+ * - `gonq-at`: text shown differently from how it is written (a thread marker glyph,
+ *   an entity); the caret can sit before or after it, never inside it
+ * Nothing here changes the document text; the spans only exist in the rendered tree.
+ */
+
+type HNode = {
+  type: string;
+  value?: string;
+  tagName?: string;
+  properties?: Record<string, unknown>;
+  children?: HNode[];
+  position?: { start: { offset?: number }; end: { offset?: number } };
+};
+
+export interface Range1 {
+  from: number;
+  to: number;
+}
+
+const BLOCK_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'pre', 'blockquote', 'table', 'hr', 'div']);
+const CONTAINER_TAGS = new Set(['ul', 'ol', 'blockquote']);
+const VOID_TAGS = new Set(['img', 'br', 'input', 'hr']);
+
+/** Top-level blocks that are edited in place; the rest (tables, rules) keep the Markdown field. */
+export const IN_PLACE_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'pre', 'blockquote'] as const;
+
+const span = (cls: string, s: number, text: string, extra: Record<string, unknown> = {}): HNode => ({
+  type: 'element',
+  tagName: 'span',
+  properties: { className: [cls], dataS: s, ...extra },
+  children: [{ type: 'text', value: text }],
+});
+
+const start = (n: HNode) => n.position?.start.offset;
+const end = (n: HNode) => n.position?.end.offset;
+
+/**
+ * Splits the source `slice` of a node into the characters that are `value` (what
+ * is rendered) and the characters that are syntax. Null when `value` is not a
+ * subsequence of the slice (an entity, say): the caller then keeps it whole.
+ */
+export function alignText(value: string, slice: string): { kind: 'tx' | 'mk'; from: number; to: number }[] | null {
+  const out: { kind: 'tx' | 'mk'; from: number; to: number }[] = [];
+  const push = (kind: 'tx' | 'mk', i: number) => {
+    const last = out[out.length - 1];
+    if (last && last.kind === kind && last.to === i) last.to = i + 1;
+    else out.push({ kind, from: i, to: i + 1 });
+  };
+  let j = 0;
+  for (let i = 0; i < slice.length; i++) {
+    if (j < value.length && slice[i] === value[j]) {
+      push('tx', i);
+      j++;
+    } else push('mk', i);
+  }
+  return j === value.length ? out : null;
+}
+
+/** Spans for a text-bearing node whose source is source[s, e) and whose rendered text is `value`. */
+function textPieces(value: string, s: number, e: number, source: string): HNode[] {
+  const slice = source.slice(s, e);
+  const parts = alignText(value, slice);
+  if (parts === null) return [span('gonq-at', s, value, { dataLen: e - s })];
+  return parts.map((p) => span(p.kind === 'tx' ? 'gonq-tx' : 'gonq-mk', s + p.from, slice.slice(p.from, p.to)));
+}
+
+const textOf = (n: HNode): string => (n.type === 'text' ? (n.value ?? '') : (n.children ?? []).map(textOf).join(''));
+
+/** Where a fenced code block's opening fence line ends and its closing fence line starts, if it has them. */
+function fenceParts(slice: string): { open: number; close: number } | null {
+  const open = /^ {0,3}(`{3,}|~{3,})[^\n]*(?:\n|$)/.exec(slice);
+  if (!open) return null;
+  const fence = /(`{3,}|~{3,})/.exec(open[0])![1];
+  let close = slice.length;
+  const m = /(^|\n) {0,3}(`{3,}|~{3,})[ \t]*\r?$/.exec(slice.slice(open[0].length));
+  if (m && m[2][0] === fence[0] && m[2].length >= fence.length) close = open[0].length + m.index + m[1].length;
+  return { open: open[0].length, close };
+}
+
+function codeBlockPieces(code: HNode, s: number, e: number, source: string): HNode[] {
+  const value = textOf(code);
+  const slice = source.slice(s, e);
+  const fence = fenceParts(slice);
+  const out: HNode[] = [];
+  let bodyFrom = 0;
+  let bodyTo = slice.length;
+  if (fence) {
+    out.push(span('gonq-mk', s, slice.slice(0, fence.open)));
+    bodyFrom = fence.open;
+    bodyTo = fence.close;
+  }
+  const body = slice.slice(bodyFrom, bodyTo);
+  const parts = alignText(value.replace(/\n$/, ''), body);
+  if (parts === null) out.push(span('gonq-at', s + bodyFrom, value, { dataLen: bodyTo - bodyFrom }));
+  else {
+    for (const p of parts) out.push(span(p.kind === 'tx' ? 'gonq-tx' : 'gonq-mk', s + bodyFrom + p.from, body.slice(p.from, p.to)));
+  }
+  if (fence && bodyTo < slice.length) out.push(span('gonq-mk', s + bodyTo, slice.slice(bodyTo)));
+  return out;
+}
+
+const isThreadLink = (n: HNode) => n.tagName === 'a' && typeof n.properties?.href === 'string' && /^#md-thread-/.test(n.properties.href as string);
+
+const positioned = (c: HNode) => start(c) !== undefined;
+
+/** The innermost element at the start of `el` that can hold inline text (a list item's paragraph, say). */
+function firstHost(el: HNode): HNode {
+  const first = (el.children ?? []).find(positioned);
+  if ((CONTAINER_TAGS.has(el.tagName ?? '') || el.tagName === 'li') && first?.tagName && BLOCK_TAGS.has(first.tagName)) return firstHost(first);
+  return el;
+}
+
+/** The same at the end of `el`. */
+function lastHost(el: HNode): HNode {
+  const last = [...(el.children ?? [])].reverse().find(positioned);
+  if ((CONTAINER_TAGS.has(el.tagName ?? '') || el.tagName === 'li') && last?.tagName && BLOCK_TAGS.has(last.tagName)) return lastHost(last);
+  return el;
+}
+
+/** Fills `el` so that every character of its source range is in some span. */
+function decorate(el: HNode, source: string): void {
+  const s = start(el);
+  const e = end(el);
+  if (s === undefined || e === undefined) return;
+  const kids = el.children ?? [];
+
+  if (isThreadLink(el)) {
+    el.children = [span('gonq-at', s, textOf(el), { dataLen: e - s })];
+    return;
+  }
+  if (el.tagName === 'pre') {
+    const code = kids.find((c) => c.tagName === 'code');
+    if (code) code.children = codeBlockPieces(code, s, e, source);
+    return;
+  }
+  // A leaf that only holds text (an inline code span) is aligned as a whole.
+  if (kids.length > 0 && kids.every((c) => c.type === 'text' && c.position === undefined)) {
+    el.children = textPieces(textOf(el), s, e, source);
+    return;
+  }
+
+  const out: HNode[] = [];
+  let pos = s;
+  const gap = (from: number, to: number): HNode[] => (to > from ? [span('gonq-mk', from, source.slice(from, to))] : []);
+  for (const child of kids) {
+    const cs = start(child);
+    const ce = end(child);
+    if (cs === undefined || ce === undefined || cs < pos) {
+      out.push(child);
+      continue;
+    }
+    const before = gap(pos, cs);
+    // Syntax at the very start goes ahead of generated nodes such as a task checkbox.
+    const block = child.type === 'element' && child.tagName !== undefined && BLOCK_TAGS.has(child.tagName);
+    if (!block) {
+      if (pos === s) out.unshift(...before);
+      else out.push(...before);
+    }
+    if (child.type === 'text') {
+      out.push(...textPieces(child.value ?? '', cs, ce, source));
+    } else if (child.type === 'element' && child.tagName && VOID_TAGS.has(child.tagName) && !BLOCK_TAGS.has(child.tagName)) {
+      out.push(span('gonq-mk', cs, source.slice(cs, ce)), child);
+    } else if (child.type === 'element') {
+      decorate(child, source);
+      if (child.tagName && BLOCK_TAGS.has(child.tagName)) {
+        // Syntax cannot sit between blocks: what precedes a block goes inside it, at its start.
+        if (before.length > 0) {
+          const host = firstHost(child);
+          host.children = [...before, ...(host.children ?? [])];
+        }
+        out.push(child);
+      } else out.push(child);
+    } else {
+      out.push(child);
+      continue;
+    }
+    pos = ce;
+  }
+  el.children = out;
+  const tail = gap(pos, e);
+  if (tail.length > 0) {
+    const host = lastHost(el);
+    if (host !== el) host.children = [...(host.children ?? []), ...tail];
+    else out.push(...tail);
+  }
+}
+
+/**
+ * Rehype plugin: gives the blocks in `ranges` (source ranges, shifted by `base`
+ * when only part of the document is rendered) their source-carrying spans.
+ */
+export function rehypeSourceSpans(options: { source: string; ranges: Range1[]; base?: number }) {
+  const { source, ranges, base = 0 } = options;
+  return (tree: HNode) => {
+    if (ranges.length === 0) return;
+    const blanks = ranges.filter((r) => r.from === r.to);
+    for (const block of tree.children ?? []) {
+      const s = start(block);
+      const e = end(block);
+      if (block.type !== 'element' || s === undefined || e === undefined) continue;
+      if (!ranges.some((r) => r.from === base + s && r.to === base + e)) continue;
+      // Positions are relative to the rendered piece; the slices come from the same piece.
+      decorate(block, source);
+    }
+    // A caret on a line of its own between blocks (after Enter at the end of a paragraph) sits in an empty paragraph.
+    const kids = tree.children ?? (tree.children = []);
+    for (const { from } of blanks) {
+      const at = from - base;
+      const next = kids.findIndex((c) => c.type === 'element' && (start(c) ?? -1) > at);
+      const empty: HNode = {
+        type: 'element',
+        tagName: 'p',
+        properties: { dataFrom: from, dataTo: from, dataActive: '', dataVirtual: '' },
+        children: [span('gonq-at', at + base, '\u200b', { dataLen: 0 })],
+      };
+      kids.splice(next < 0 ? kids.length : next, 0, empty);
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Rendered tree <-> file offsets
+
+const PIECE = '[data-s]';
+
+export interface Piece {
+  el: HTMLElement;
+  s: number;
+  /** Characters of source it stands for. */
+  len: number;
+  kind: 'tx' | 'mk' | 'at';
+}
+
+function pieceOfEl(el: HTMLElement): Piece {
+  const kind = el.classList.contains('gonq-mk') ? 'mk' : el.classList.contains('gonq-at') ? 'at' : 'tx';
+  const len = kind === 'at' ? Number(el.dataset.len) : (el.textContent ?? '').length;
+  return { el, s: Number(el.dataset.s), len, kind };
+}
+
+/** Every source-carrying span under `root`, in document order. */
+export function piecesIn(root: Element): Piece[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(PIECE)).map(pieceOfEl);
+}
+
+const pieceAround = (node: Node): HTMLElement | null => {
+  const el = node instanceof Element ? node : node.parentElement;
+  return el?.closest<HTMLElement>(PIECE) ?? null;
+};
+
+/** Whether a piece is on screen: syntax pieces only when markers are shown. */
+export const isVisible = (p: Piece, showMarkers: boolean) => p.kind !== 'mk' || showMarkers;
+
+/**
+ * The file offset of a point in the rendered tree, or null when it is not in a
+ * block that carries source spans. A point inside a glyph that stands for more
+ * source than it shows snaps to the nearer end.
+ */
+export function pointToOffset(root: Element, node: Node, offset: number): number | null {
+  if (!root.contains(node)) return null;
+  const holder = pieceAround(node);
+  if (holder) {
+    const p = pieceOfEl(holder);
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (p.kind !== 'at') return p.s + Math.min(offset, p.len);
+      return offset * 2 <= (node.textContent ?? '').length ? p.s : p.s + p.len;
+    }
+    return offset === 0 ? p.s : p.s + p.len;
+  }
+  // Between pieces: just after the last piece of the block that lies before the point.
+  const block = (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>('[data-active]');
+  if (!block) return null;
+  const boundary = root.ownerDocument.createRange();
+  try {
+    boundary.setStart(node, offset);
+  } catch {
+    return null;
+  }
+  boundary.collapse(true);
+  let at = Number(block.dataset.from);
+  for (const p of piecesIn(block)) {
+    if (boundary.comparePoint(p.el, p.el.childNodes.length) <= 0) at = p.s + p.len;
+  }
+  return at;
+}
+
+/** The point in the rendered tree for a file offset, preferring text that is on screen. */
+export function offsetToPoint(root: Element, offset: number, showMarkers: boolean): [Node, number] | null {
+  const pieces = piecesIn(root);
+  const covering = pieces.filter((p) => p.s <= offset && offset <= p.s + p.len);
+  const pick = covering.find((p) => isVisible(p, showMarkers) && p.len > 0) ?? covering[0];
+  if (!pick) return null;
+  const text = pick.el.firstChild;
+  if (!text) return [pick.el, 0];
+  if (pick.kind === 'at') return [text, offset <= pick.s ? 0 : (text.textContent ?? '').length];
+  return [text, offset - pick.s];
+}
+
+/** How many characters of text on screen come before a point inside `block` (syntax pieces do not count). */
+export function visibleIndex(block: Element, node: Node, offset: number): number {
+  const range = block.ownerDocument.createRange();
+  range.setStart(block, 0);
+  try {
+    range.setEnd(node, offset);
+  } catch {
+    return 0;
+  }
+  let n = 0;
+  const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  for (let t = walker.nextNode() as Text | null; t; t = walker.nextNode() as Text | null) {
+    if (t.parentElement?.closest('.gonq-mk')) continue;
+    if (range.comparePoint(t, 0) > 0) break;
+    n += range.comparePoint(t, t.length) <= 0 ? t.length : offset;
+  }
+  return n;
+}
+
+/** Inverse of `visibleIndex`, in a block whose spans are in place; returns a file offset. */
+export function visibleIndexToOffset(block: Element, index: number): number | null {
+  const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  let left = index;
+  let last: number | null = null;
+  for (let t = walker.nextNode() as Text | null; t; t = walker.nextNode() as Text | null) {
+    const holder = t.parentElement?.closest<HTMLElement>(PIECE);
+    if (t.parentElement?.closest('.gonq-mk')) continue;
+    if (!holder) {
+      // Text the source has no characters for (the space after a checkbox).
+      left -= Math.min(left, t.length);
+      continue;
+    }
+    const p = pieceOfEl(holder);
+    if (left <= t.length) return p.kind === 'at' ? (left * 2 <= t.length ? p.s : p.s + p.len) : p.s + left;
+    left -= t.length;
+    last = p.s + p.len;
+  }
+  return last ?? (block instanceof HTMLElement ? Number(block.dataset.from) : null);
+}

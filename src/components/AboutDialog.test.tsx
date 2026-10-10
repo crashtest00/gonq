@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
+import { caretIn } from '../testing/inplace';
 import App from '../App';
 import pkg from '../../package.json';
 import tauriConf from '../../src-tauri/tauri.conf.json';
@@ -134,8 +135,9 @@ test('closing keeps an edit made before opening, and focus returns to the Help m
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
   await user.click(await screen.findByText('Hello world'));
-  await user.type(await screen.findByRole('textbox'), '!!');
-  // Opening the menu moves focus out of the field, which commits the edit.
+  await caretIn(await screen.findByText('Hello world'));
+  await user.keyboard('!!');
+  // Opening the menu moves focus out of the document, which ends the edit.
   await openAbout(user);
   await user.keyboard('{Escape}');
   expect(screen.queryByRole('dialog')).toBeNull();

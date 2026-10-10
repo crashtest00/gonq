@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
+import { caretIn } from '../testing/inplace';
 import App from './../App';
 import { isCommentableAt } from './newThread';
 import { parseCommentThreads } from '../comment-threads';
@@ -228,6 +229,9 @@ test('a body containing --> and a bare --> line round-trips', async () => {
 describe('Add comment at the cursor', () => {
   async function addAtCaret(user: ReturnType<typeof userEvent.setup>, target: string) {
     await user.click(screen.getByText(target));
+    // tables still open the Markdown field on click, so there is no rendered text to put a caret in
+    const rendered = screen.queryByText(target);
+    if (rendered) await caretIn(rendered);
     await user.click(screen.getByRole('button', { name: 'Comments' }));
   }
 

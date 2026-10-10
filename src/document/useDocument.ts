@@ -203,6 +203,14 @@ export function useDocument() {
     setHistory((h) => edit(h, splice(h.text, from, to, insert)));
   }, []);
 
+  /**
+   * Replaces text[from, to) as typing: edits sharing `key` in quick succession are one undo step.
+   * The block-editing region is not involved; the caller tracks where the caret goes.
+   */
+  const spliceText = useCallback((from: number, to: number, insert: string, key: string) => {
+    setHistory((h) => edit(h, splice(h.text, from, to, insert), key));
+  }, []);
+
   /** Replaces the whole text with a document built by the comment-threads library, as one undo step. */
   const replaceText = useCallback(
     (next: string) => {
@@ -258,11 +266,12 @@ export function useDocument() {
       changeEdit,
       closeEdit,
       replaceRange,
+      spliceText,
       replaceText,
       undo: doUndo,
       redo: doRedo,
       saved: rename,
     }),
-    [meta, state, active, history, region, open, openUntitled, close, activate, findByPath, setRaw, setScrollTop, peek, peekTabs, dirtyIds, startEdit, startAppend, changeEdit, closeEdit, replaceRange, replaceText, doUndo, doRedo, rename],
+    [meta, state, active, history, region, open, openUntitled, close, activate, findByPath, setRaw, setScrollTop, peek, peekTabs, dirtyIds, startEdit, startAppend, changeEdit, closeEdit, replaceRange, spliceText, replaceText, doUndo, doRedo, rename],
   );
 }
