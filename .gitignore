@@ -44,3 +44,7 @@ artifacts/
 
 # Windows download metadata
 *:Zone.Identifier
+
+# Playwright
+test-results/
+playwright-report/
