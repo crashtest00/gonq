@@ -212,7 +212,6 @@ export function MarkdownView({
   onOpenThread,
   editing,
   plain = false,
-  showMarkers = true,
 }: {
   doc: OpenedDocument;
   files: FileAccess;
@@ -221,8 +220,6 @@ export function MarkdownView({
   editing?: BlockEditing;
   /** Documentation, not a document with threads: examples of thread blocks inside it are shown, not hidden. */
   plain?: boolean;
-  /** Show the Markdown syntax of the block(s) holding the caret (View > Show markers in active block). */
-  showMarkers?: boolean;
 }) {
   const source = useMemo(() => (plain ? doc.text.replace(/^﻿/, ' ') : maskThreadBlocks(doc.text)), [doc.text, plain]);
   const markers = useMemo(() => parseCommentMarkers(source), [source]);
@@ -247,8 +244,8 @@ export function MarkdownView({
   const expectedRef = useRef<string[]>([]);
   if (expectedRef.current.length === 0) latestRef.current = doc.text;
   const pointerRef = useRef(false);
-  const live = useRef({ editing, showMarkers });
-  live.current = { editing, showMarkers };
+  const live = useRef({ editing });
+  live.current = { editing };
 
   // Top-level blocks are keyboard-reachable: Enter on a focused block edits it.
   useEffect(() => {
@@ -412,11 +409,11 @@ export function MarkdownView({
   const resolve = (place: Place): [Node, number] | null => {
     const article = articleRef.current;
     if (!article) return null;
-    if ('off' in place) return offsetToPoint(article, place.off, live.current.showMarkers);
+    if ('off' in place) return offsetToPoint(article, place.off);
     const block = topBlocks().find((b) => Number(b.dataset.from) === place.block);
     if (!block?.hasAttribute('data-active')) return null;
     const off = visibleIndexToOffset(block, place.base);
-    return off === null ? null : offsetToPoint(article, off, live.current.showMarkers);
+    return off === null ? null : offsetToPoint(article, off);
   };
 
   /** The editable blocks a selection range touches; a range that merely ends at the start of a block does not touch it. */
@@ -576,8 +573,7 @@ export function MarkdownView({
     const article = articleRef.current;
     if (!article || !block) return undefined;
     const text = latestRef.current;
-    const shown = live.current.showMarkers;
-    const pieces = piecesIn(article).filter((p) => p.len > 0 && isVisible(p, shown) && blockOf(p.el) === block);
+    const pieces = piecesIn(article).filter((p) => p.len > 0 && isVisible(p) && blockOf(p.el) === block);
     const piece = dir < 0 ? pieces.filter((p) => p.s < at).pop() : pieces.find((p) => p.s + p.len > at);
     if (!piece) return undefined;
     // A thread marker is only ever removed by a selection that covers it.
@@ -625,11 +621,6 @@ export function MarkdownView({
     const text = latestRef.current;
     const blocks = topBlocks();
     const i = blocks.indexOf(block);
-    if (dir < 0) {
-      // Hidden syntax at the start of the block goes first (a heading becomes a paragraph), then the block joins the one before.
-      const lead = piecesIn(block).filter((p) => p.kind === 'mk' && p.s + p.len <= at);
-      if (!live.current.showMarkers && lead.length > 0) return [lead[0].s, at];
-    }
     const [first, second] = dir < 0 ? [blocks[i - 1], block] : [block, blocks[i + 1]];
     if (!first || !second) return null;
     const joinable = (b: HTMLElement) => editable(b) && b.tagName !== 'PRE' && b.tagName !== 'TABLE';
@@ -857,7 +848,7 @@ export function MarkdownView({
         if (target) {
           e.preventDefault();
           const piece = piecesIn(target as HTMLElement).find((p) => p.kind !== 'mk');
-          const point = piece ? offsetToPoint(articleRef.current!, piece.s, live.current.showMarkers) : null;
+          const point = piece ? offsetToPoint(articleRef.current!, piece.s) : null;
           if (point) window.getSelection()?.collapse(point[0], point[1]);
           return;
         }
@@ -898,7 +889,6 @@ export function MarkdownView({
       ref={articleRef}
       className="gonq-doc"
       data-testid="markdown-view"
-      data-markers={showMarkers ? 'on' : 'off'}
       {...(mode !== null ? { contentEditable: true, suppressContentEditableWarning: true, tabIndex: -1 } : {})}
       onClick={onClick}
       onKeyDown={onKeyDown}

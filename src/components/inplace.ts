@@ -355,8 +355,8 @@ const pieceAround = (node: Node): HTMLElement | null => {
   return el?.closest<HTMLElement>(PIECE) ?? null;
 };
 
-/** Whether a piece is on screen: syntax pieces only when markers are shown. */
-export const isVisible = (p: Piece, showMarkers: boolean) => p.kind !== 'mk' || (showMarkers && !p.el.closest('table'));
+/** Whether a piece is on screen: syntax pieces only outside tables. */
+export const isVisible = (p: Piece) => p.kind !== 'mk' || !p.el.closest('table');
 
 /**
  * The file offset of a point in the rendered tree, or null when it is not in a
@@ -392,10 +392,10 @@ export function pointToOffset(root: Element, node: Node, offset: number): number
 }
 
 /** The point in the rendered tree for a file offset, preferring text that is on screen. */
-export function offsetToPoint(root: Element, offset: number, showMarkers: boolean): [Node, number] | null {
+export function offsetToPoint(root: Element, offset: number): [Node, number] | null {
   const pieces = piecesIn(root);
   const covering = pieces.filter((p) => p.s <= offset && offset <= p.s + p.len);
-  const pick = covering.find((p) => isVisible(p, showMarkers) && p.len > 0) ?? covering[0];
+  const pick = covering.find((p) => isVisible(p) && p.len > 0) ?? covering[0];
   if (!pick) return null;
   const text = pick.el.firstChild;
   if (!text) return [pick.el, 0];

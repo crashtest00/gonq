@@ -22,10 +22,9 @@ export const activeSource = () =>
 
 /**
  * Syntax text on screen: what document.css shows (jsdom does not apply it) is the syntax of the active
- * blocks, and only while the Show markers option is on.
+ * blocks.
  */
 export function shownMarkers(): string[] {
-  if (view().dataset.markers !== 'on') return [];
   return Array.from(view().querySelectorAll<HTMLElement>('[data-active] .gonq-mk')).filter((el) => !el.closest('table')).map((el) => el.textContent ?? '');
 }
 
@@ -70,8 +69,8 @@ export async function selectBetween(a: [Element, number], b: [Element, number]) 
 
 /** Selects file offsets [from, to] inside the blocks that are already active. */
 export async function selectSource(from: number, to = from) {
-  const a = offsetToPoint(view(), from, true);
-  const b = offsetToPoint(view(), to, true);
+  const a = offsetToPoint(view(), from);
+  const b = offsetToPoint(view(), to);
   if (!a || !b) throw new Error(`offset ${from}..${to} is not in an active block`);
   act(() => window.getSelection()!.setBaseAndExtent(a[0], a[1], b[0], b[1]));
   await settle();
