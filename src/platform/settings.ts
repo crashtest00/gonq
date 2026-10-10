@@ -40,3 +40,21 @@ export async function setAuthorName(name: string): Promise<string> {
   localStorage.setItem(AUTHOR_KEY, trimmed);
   return trimmed;
 }
+
+export const SHOW_MARKERS_KEY = 'gonq.showMarkersInActiveBlock';
+
+/** Whether the block being edited shows its thread markers as source. On unless turned off; on when unreadable. */
+export async function getShowMarkers(): Promise<boolean> {
+  try {
+    return isTauri() ? (await invoke<boolean>('get_show_markers')) !== false : localStorage.getItem(SHOW_MARKERS_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+/** Saves the option and returns the value now in effect. Rejects with the error on failure. */
+export async function setShowMarkers(show: boolean): Promise<boolean> {
+  if (isTauri()) return await invoke<boolean>('set_show_markers', { show });
+  localStorage.setItem(SHOW_MARKERS_KEY, String(show));
+  return show;
+}

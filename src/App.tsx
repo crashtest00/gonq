@@ -3,7 +3,7 @@ import { MenuBar } from './components/MenuBar';
 import { AgentSkillDialog } from './components/AgentSkillDialog';
 import { AboutDialog } from './components/AboutDialog';
 import { PreferencesDialog } from './components/PreferencesDialog';
-import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
+import { DEFAULT_AUTHOR, getAuthorName, getShowMarkers, setAuthorName, setShowMarkers } from './platform/settings';
 import { TabStrip } from './components/TabStrip';
 import { EditToolbar } from './components/EditToolbar';
 import { OutlineSidebar } from './components/OutlineSidebar';
@@ -48,6 +48,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
   const activeId = session.activeId;
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
+  const [showMarkers, setShowMarkersState] = useState(true);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -59,6 +60,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   useEffect(() => {
     let live = true;
     getAuthorName().then((n) => live && setAuthor(n));
+    getShowMarkers().then((v) => live && setShowMarkersState(v));
     listRecents().then((list) => live && setRecents(list), () => {});
     return () => {
       live = false;
@@ -411,6 +413,11 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onUndo={session.undo}
         onRedo={session.redo}
         onPreferences={openPrefs}
+        showMarkers={showMarkers}
+        onShowMarkers={(show) => {
+          setShowMarkersState(show);
+          setShowMarkers(show).catch(() => {});
+        }}
         onAgentSkill={() => setSkillOpen(true)}
         onAbout={() => setAboutOpen(true)}
       />
@@ -453,6 +460,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                     files={files}
                     threads={threads}
                     onOpenThread={openThread}
+                    showMarkers={showMarkers}
                     editing={{
                       region,
                       onStart: session.startEdit,

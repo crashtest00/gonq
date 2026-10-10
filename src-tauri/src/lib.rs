@@ -56,6 +56,20 @@ fn set_author_name<R: Runtime>(app: AppHandle<R>, name: String) -> Result<String
     settings::set_author_name(&settings_file(&app)?, &name)
 }
 
+/// Whether thread markers are shown as source in the block being edited (default true).
+#[tauri::command]
+fn get_show_markers<R: Runtime>(app: AppHandle<R>) -> bool {
+    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    settings_file(&app).map(|f| settings::get_show_markers(&f)).unwrap_or(true)
+}
+
+/// Saves the show-markers option and returns what is stored.
+#[tauri::command]
+fn set_show_markers<R: Runtime>(app: AppHandle<R>, show: bool) -> Result<bool, String> {
+    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    settings::set_show_markers(&settings_file(&app)?, show)
+}
+
 /// Read-only listing of one folder. Only folders already in the fs scope (the folder of an
 /// opened document, or one chosen with Open Folder, and their subfolders) can be listed.
 #[tauri::command]
@@ -122,7 +136,9 @@ pub fn run() {
             recent_documents_remove,
             allow_recent_document,
             get_author_name,
-            set_author_name
+            set_author_name,
+            get_show_markers,
+            set_show_markers
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

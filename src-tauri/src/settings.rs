@@ -8,6 +8,8 @@ pub const DEFAULT_AUTHOR_NAME: &str = "User";
 struct Settings {
     #[serde(default)]
     author_name: Option<String>,
+    #[serde(default)]
+    show_markers_in_active_block: Option<bool>,
 }
 
 /// A missing or corrupt file is the default settings, never an error.
@@ -54,6 +56,19 @@ pub fn set_author_name(file: &Path, name: &str) -> Result<String, String> {
     settings.author_name = Some(name.to_string());
     store(file, &settings)?;
     Ok(name.to_string())
+}
+
+/// Whether thread markers are shown as source in the block being edited; true when unset or unreadable.
+pub fn get_show_markers(file: &Path) -> bool {
+    load(file).show_markers_in_active_block.unwrap_or(true)
+}
+
+/// Saves the option and returns what is stored. Other settings are kept.
+pub fn set_show_markers(file: &Path, show: bool) -> Result<bool, String> {
+    let mut settings = load(file);
+    settings.show_markers_in_active_block = Some(show);
+    store(file, &settings)?;
+    Ok(show)
 }
 
 #[cfg(test)]
@@ -130,5 +145,17 @@ mod tests {
             assert_eq!(set_author_name(&f, name).unwrap(), name);
             assert_eq!(get_author_name(&f), name);
         }
+    }
+
+    #[test]
+    fn show_markers_defaults_true_and_round_trips_beside_author() {
+        let f = file("markers");
+        assert!(get_show_markers(&f));
+        set_author_name(&f, "Ann").unwrap();
+        assert_eq!(set_show_markers(&f, false), Ok(false));
+        assert!(!get_show_markers(&f));
+        assert_eq!(get_author_name(&f), "Ann");
+        assert_eq!(set_show_markers(&f, true), Ok(true));
+        assert!(get_show_markers(&f));
     }
 }

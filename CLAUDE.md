@@ -10,8 +10,8 @@ Tauri 2 desktop app (Rust) with a React 18 + TypeScript + Vite 5 frontend. Node 
 - src/agent-skill/ — the bundled SKILL.md for AI agents (imported ?raw; shown by Help > Agent skill…, keep in step with src/comment-threads/README.md); fixtures/ holds a .md hand-edited per SKILL.md (tested)
 - src/document/   — document state: the open tabs (each with its own undo/redo history, dirty tracking, scroll, raw mode) and the one block open for editing (edits splice source text; nothing is re-serialised)
 - src/platform/   — native/web file-access boundary (Tauri dialog+fs open/save, window-close guard; browser fallback); keep native calls here
-- src/platform/ also wraps folder listing/Open Folder (folders.ts) and recent documents (recents.ts, settings.ts author name; localStorage on web); external.ts holds REPO_URL and opens links in the default browser (opener plugin)
-- src-tauri/      — Rust crate (folder.rs listing, recents.rs recent.json in app data dir, settings.rs settings.json (author name) in app config dir; commands in lib.rs), tauri.conf.json, capabilities, icons
+- src/platform/ also wraps folder listing/Open Folder (folders.ts) and recent documents (recents.ts, settings.ts author name + View > Show markers in active block; localStorage on web); external.ts holds REPO_URL and opens links in the default browser (opener plugin)
+- src-tauri/      — Rust crate (folder.rs listing, recents.rs recent.json in app data dir, settings.rs settings.json (author name, show-markers option) in app config dir; commands in lib.rs), tauri.conf.json, capabilities, icons
 - .github/workflows/ — build-desktop.yml (workflow_dispatch with `sha`, dispatched by Jenkins only) and release-desktop.yml (`v*` tag push, tagged by Jenkins only); never add other triggers or run/tag by hand
 - dist/           — web build output (gitignored); served by nginx in the Dockerfile for beta
 
