@@ -1,5 +1,37 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-.env
+dist-ssr/
+*.tsbuildinfo
 src-tauri/target/
 src-tauri/gen/
+
+# Test output
+coverage/
+
+# Environment (keep the committed example)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.suo
+*.sln
+*.sw?
