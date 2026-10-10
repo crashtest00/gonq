@@ -51,7 +51,9 @@ export function EditToolbar({
 }) {
   return (
     <>
-      <div role="toolbar" aria-label="Editing" className="flex h-[42px] shrink-0 items-center gap-1 overflow-x-auto px-3">
+      <div role="toolbar" aria-label="Editing" className="flex h-[42px] shrink-0 items-center overflow-x-auto px-3">
+        {/* Auto margins centre the group when it fits and collapse to zero when it overflows, so it scrolls from the left edge. */}
+        <div className="mx-auto flex shrink-0 items-center gap-1">
         <button type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo} className={button}>
           <Undo2 size={16} aria-hidden />
         </button>
@@ -75,6 +77,7 @@ export function EditToolbar({
             </button>
           </span>
         ))}
+        </div>
       </div>
       <div className="h-px shrink-0 bg-border" />
     </>
