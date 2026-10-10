@@ -6,7 +6,7 @@ Tauri 2 desktop app (Rust) with a React 18 + TypeScript + Vite 5 frontend. Node 
 ## Key Directories
 - src/            — React frontend (components, tests alongside as *.test.tsx)
 - src/comment-threads/ — Markdown comment-threads library (barrel in index.ts; editor/ is unbuilt, excluded from tsc, not exported)
-- src/components/ — app shell + Markdown view (ConnectDialog.tsx: File > Connect to Server, desktop only, registered as the platform setConnectHandler); ui/ holds shadcn/ui primitives (Tailwind, themed by CSS vars in src/styles/tokens.css)
+- src/components/ — app shell + Markdown view (ConnectDialog.tsx: File > Connect to Server, shown on every build (errors in the banner on web), registered as the platform setConnectHandler); ui/ holds shadcn/ui primitives (Tailwind, themed by CSS vars in src/styles/tokens.css)
 - src/agent-skill/ — the bundled SKILL.md for AI agents (imported ?raw; shown by Help > Agent skill…, keep in step with src/comment-threads/README.md); fixtures/ holds a .md hand-edited per SKILL.md (tested)
 - src/document/   — document state: the open tabs (each with its own undo/redo history, dirty tracking, scroll, raw mode) and the one block open for editing (edits splice source text; nothing is re-serialised)
 - src/testing/    — test helpers for in-place editing (caret placement, active-block queries); components/inplace.ts maps rendered carets to source offsets
