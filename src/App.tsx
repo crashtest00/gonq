@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MenuBar } from './components/MenuBar';
 import { AgentSkillDialog } from './components/AgentSkillDialog';
+import { AboutDialog } from './components/AboutDialog';
 import { PreferencesDialog } from './components/PreferencesDialog';
 import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
 import { TabStrip } from './components/TabStrip';
@@ -49,6 +50,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
@@ -410,6 +412,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onRedo={session.redo}
         onPreferences={openPrefs}
         onAgentSkill={() => setSkillOpen(true)}
+        onAbout={() => setAboutOpen(true)}
       />
       <TabStrip tabs={session.tabs} activeId={activeId} onSelect={session.activate} onClose={(id) => void closeTab(id)} onNew={newFile} outlineOpen={outlineOpen} onToggleOutline={() => {
           setOutlineOpen((o) => !o);
@@ -534,6 +537,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         />
       )}
       {skillOpen && <AgentSkillDialog files={files} onClose={() => setSkillOpen(false)} />}
+      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
       {asking !== null && <UnsavedChangesDialog name={asking.name} onChoose={asking.resolve} />}
     </div>
   );
