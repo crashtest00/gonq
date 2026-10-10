@@ -267,7 +267,7 @@ fn read_at(f: &std::fs::File, buf: &mut [u8], offset: u64) -> std::io::Result<us
 }
 
 #[cfg(unix)]
-fn write_all_at(f: &std::fs::File, mut data: &[u8], mut offset: u64) -> std::io::Result<()> {
+fn write_all_at(f: &std::fs::File, data: &[u8], offset: u64) -> std::io::Result<()> {
     std::os::unix::fs::FileExt::write_all_at(f, data, offset)
 }
 
