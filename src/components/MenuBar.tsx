@@ -13,6 +13,7 @@ export interface MenuActions {
   onRedo: () => void;
   onPreferences?: () => void;
   onAgentSkill?: () => void;
+  onAbout?: () => void;
 }
 
 export function MenuBar({
@@ -29,6 +30,7 @@ export function MenuBar({
   onRedo,
   onPreferences,
   onAgentSkill,
+  onAbout,
 }: MenuActions & { hasDocument: boolean; canUndo: boolean; canRedo: boolean }) {
   return (
     <>
@@ -81,10 +83,11 @@ export function MenuBar({
           </MenubarMenu>
         ))}
         <MenubarMenu>
-          <MenubarTrigger disabled={!onAgentSkill}>Help</MenubarTrigger>
-          {onAgentSkill && (
+          <MenubarTrigger data-help-menu disabled={!onAgentSkill && !onAbout}>Help</MenubarTrigger>
+          {(onAgentSkill || onAbout) && (
             <MenubarContent>
-              <MenubarItem onSelect={onAgentSkill}>Agent skill…</MenubarItem>
+              {onAgentSkill && <MenubarItem onSelect={onAgentSkill}>Agent skill…</MenubarItem>}
+              {onAbout && <MenubarItem onSelect={onAbout}>About Gonq</MenubarItem>}
             </MenubarContent>
           )}
         </MenubarMenu>

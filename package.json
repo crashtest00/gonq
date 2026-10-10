@@ -12,11 +12,13 @@
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.24",
+    "@radix-ui/react-dialog": "^1.2.0",
     "@radix-ui/react-menubar": "^1.1.25",
     "@radix-ui/react-slot": "^1.4.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.8.1",
     "@tauri-apps/plugin-fs": "^2.6.0",
+    "@tauri-apps/plugin-opener": "^2.7.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.53.0",
