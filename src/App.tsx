@@ -460,7 +460,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                     files={files}
                     threads={threads}
                     onOpenThread={openThread}
-                    showMarkers={showMarkers}
                     editing={{
                       region,
                       onStart: session.startEdit,

@@ -58,7 +58,7 @@ pub fn set_author_name(file: &Path, name: &str) -> Result<String, String> {
     Ok(name.to_string())
 }
 
-/// Whether thread markers are shown as source in the block being edited; true when unset or unreadable.
+/// Whether the Markdown syntax markers of the block being edited are shown; true when unset or unreadable.
 pub fn get_show_markers(file: &Path) -> bool {
     load(file).show_markers_in_active_block.unwrap_or(true)
 }
@@ -156,6 +156,16 @@ mod tests {
         assert!(!get_show_markers(&f));
         assert_eq!(get_author_name(&f), "Ann");
         assert_eq!(set_show_markers(&f, true), Ok(true));
+        assert!(get_show_markers(&f));
+    }
+
+    #[test]
+    fn corrupt_or_mistyped_show_markers_is_true() {
+        let f = file("markers-corrupt");
+        fs::create_dir_all(f.parent().unwrap()).unwrap();
+        fs::write(&f, "{not json").unwrap();
+        assert!(get_show_markers(&f));
+        fs::write(&f, r#"{"show_markers_in_active_block":"garbage"}"#).unwrap();
         assert!(get_show_markers(&f));
     }
 }

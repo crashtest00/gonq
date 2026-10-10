@@ -10,7 +10,6 @@ import {
 import type { FileAccess, OpenedDocument } from '../platform/files';
 import { detectEol, fromEditable, toEditable } from '../document/splice';
 import { keepMarkersWhole } from './atomicMarkers';
-import { editHidden, hideMarkers, shownToSource } from './hiddenMarkers';
 import { remarkIns } from './remarkIns';
 import { MarkdownImage } from './MarkdownImage';
 import { threadKey, type ThreadItem } from './threads';
@@ -194,7 +193,6 @@ export function MarkdownView({
   onOpenThread,
   editing,
   plain = false,
-  showMarkers = true,
 }: {
   doc: OpenedDocument;
   files: FileAccess;
@@ -203,8 +201,6 @@ export function MarkdownView({
   editing?: BlockEditing;
   /** Documentation, not a document with threads: examples of thread blocks inside it are shown, not hidden. */
   plain?: boolean;
-  /** False: the block being edited shows each thread marker as its glyph, not its source. */
-  showMarkers?: boolean;
 }) {
   const source = useMemo(() => (plain ? doc.text.replace(/^\uFEFF/, ' ') : maskThreadBlocks(doc.text)), [doc.text, plain]);
   const markers = useMemo(() => parseCommentMarkers(source), [source]);
@@ -354,8 +350,6 @@ export function MarkdownView({
   };
 
   const eol = detectEol(doc.text);
-  const blockText = region === null ? '' : toEditable(doc.text.slice(region.from, region.to));
-  const shown = showMarkers ? blockText : hideMarkers(blockText);
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <article ref={articleRef} className="gonq-doc" data-testid="markdown-view" onClick={onClick} onKeyDown={onKeyDown}>
@@ -375,10 +369,10 @@ export function MarkdownView({
             {source.slice(0, region.from)}
           </ReactMarkdown>
           <BlockEditor
-            value={shown}
-            onChange={(v) => editing?.onChange(fromEditable(showMarkers ? v : editHidden(blockText, v), eol))}
+            value={toEditable(doc.text.slice(region.from, region.to))}
+            onChange={(v) => editing?.onChange(fromEditable(v, eol))}
             onCaret={(i) =>
-              editing?.onCaret?.(region.from + fromEditable(blockText.slice(0, showMarkers ? i : shownToSource(blockText, i)), eol).length)
+              editing?.onCaret?.(region.from + fromEditable(toEditable(doc.text.slice(region.from, region.to)).slice(0, i), eol).length)
             }
             onClose={() => editing?.onClose()}
           />

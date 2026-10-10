@@ -2,66 +2,64 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import App from './../App';
-import type { FileAccess } from '../platform/files';
 import { SHOW_MARKERS_KEY } from '../platform/settings';
 
 vi.setConfig({ testTimeout: 30000 });
 
-const A = 'c20260910143022a3f9c1';
-const MARKER = `[💬](#md-thread-${A})`;
-const DOC = `Para one ${MARKER} here.\n\n<!--\n@thread ${A}\n@status open\n\n[User | 2026-09-10T14:30:22+02:00]\nFirst?\n-->\n`;
+beforeEach(() => {
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
 
-beforeEach(() => localStorage.clear());
-
-async function openDoc() {
-  const saved: string[] = [];
-  const files: FileAccess = {
-    pickDocument: async () => ({ name: 'a.md', path: '/d/a.md', text: DOC }),
-    loadImage: async () => null,
-    saveDocument: async (d) => {
-      saved.push(d.text);
-      return { name: d.name, path: d.path };
-    },
-    saveDocumentAs: async (d) => ({ name: d.name, path: null }),
-  };
+async function openView() {
   const user = userEvent.setup();
-  render(<App files={files} />);
-  await user.click(screen.getByRole('menuitem', { name: 'File' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
-  await screen.findByTestId('markdown-view');
-  return { user, saved };
+  render(<App />);
+  await user.click(screen.getByRole('menuitem', { name: 'View' }));
+  return { user, item: await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ }) };
 }
 
-const editor = () => screen.getByLabelText('Markdown source of this block') as HTMLTextAreaElement;
-
-test('markers show as source in the edited block by default', async () => {
-  const { user } = await openDoc();
-  await user.click(screen.getByText(/Para one/));
-  expect(editor().value).toBe(`Para one ${MARKER} here.`);
+test('is checked by default', async () => {
+  const { item } = await openView();
+  expect(item).toBeChecked();
 });
 
-test('turning the option off hides marker source, keeps the marker on edit, and persists', async () => {
-  const { user } = await openDoc();
-  await user.click(screen.getByRole('menuitem', { name: 'View' }));
-  const item = await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ });
-  expect(item).toBeChecked();
+test('choosing it toggles the check mark and persists', async () => {
+  const { user, item } = await openView();
   await user.click(item);
   expect(localStorage.getItem(SHOW_MARKERS_KEY)).toBe('false');
-
-  await user.click(screen.getByText(/Para one/));
-  expect(editor().value).toBe('Para one 💬 here.');
-  await user.type(editor(), '!');
-  expect(editor().value).toBe('Para one 💬 here.!');
-  expect(screen.getByLabelText('Markdown source of this block')).toBeTruthy();
-  await user.keyboard('{Escape}');
-  await user.click(screen.getByText(/Para one/));
   await user.click(screen.getByRole('menuitem', { name: 'View' }));
-  expect(await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ })).not.toBeChecked();
+  const off = await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ });
+  expect(off).not.toBeChecked();
+  await user.click(off);
+  expect(localStorage.getItem(SHOW_MARKERS_KEY)).toBe('true');
 });
 
-test('a saved "off" is restored on start', async () => {
+test('a stored "off" is restored on start', async () => {
   localStorage.setItem(SHOW_MARKERS_KEY, 'false');
-  const { user } = await openDoc();
-  await user.click(screen.getByText(/Para one/));
-  expect(editor().value).toBe('Para one 💬 here.');
+  const { item } = await openView();
+  expect(item).not.toBeChecked();
+});
+
+test('a corrupt stored value falls back to on', async () => {
+  localStorage.setItem(SHOW_MARKERS_KEY, 'garbage');
+  const { item } = await openView();
+  expect(item).toBeChecked();
+});
+
+test('an unreadable store falls back to on and does not throw', async () => {
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new Error('denied');
+  });
+  const { item } = await openView();
+  expect(item).toBeChecked();
+});
+
+test('Insert and Format menus stay empty', async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  for (const name of ['Insert', 'Format']) {
+    await user.click(screen.getByRole('menuitem', { name }));
+    expect(screen.queryByRole('menuitemcheckbox')).toBeNull();
+    await user.keyboard('{Escape}');
+  }
 });
