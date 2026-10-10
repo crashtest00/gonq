@@ -435,10 +435,12 @@ async fn force_overwrites_a_changed_file() {
 async fn without_posix_rename_the_file_is_written_in_place_and_the_user_is_warned_once() {
     let r = setup_with(|s| s.no_posix_rename = true).await;
     r.put("a.md", "old");
+    #[cfg(unix)]
     let ino = std::fs::metadata(r.at("a.md")).unwrap().ino();
     let (s1, in_place, warn) = saved(r.save("a.md", "first", r.stat_on_disk("a.md"), false).await);
     assert!(in_place && warn);
     assert_eq!(std::fs::read_to_string(r.at("a.md")).unwrap(), "first");
+    #[cfg(unix)]
     assert_eq!(std::fs::metadata(r.at("a.md")).unwrap().ino(), ino, "same file, truncated and written");
     let (_, in_place, warn) = saved(r.save("a.md", "second", s1, false).await);
     assert!(in_place && !warn, "the warning is once per host");
