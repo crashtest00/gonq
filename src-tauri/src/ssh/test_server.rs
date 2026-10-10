@@ -1,6 +1,6 @@
 //! An in-process SSH server with SFTP for tests: a random port, host key, accepted client keys
 //! and password chosen per test, no real `sshd` and no Docker. Its SFTP handler (`Sftp`) serves the
-//! real file system under `root`.
+//! real file system, presented under virtual POSIX paths (`/home/a.md`) so Windows hosts behave like Linux.
 
 use russh::keys::ssh_key::{Algorithm, PrivateKey, PublicKey};
 use russh::server::{Auth, Handler, Msg, Server, Session};
@@ -19,8 +19,11 @@ pub struct Policy {
     pub allowed_keys: Vec<PublicKey>,
     /// The password the server accepts, if it offers password login at all.
     pub password: Option<String>,
-    /// What `realpath(".")` answers, and the folder SFTP paths are served from.
+    /// The server's home folder (a real path): `realpath(".")` answers it, relative SFTP paths resolve against it.
     pub root: PathBuf,
+    /// The real folder served as the virtual POSIX `/`, whatever the host OS: clients only ever see
+    /// `/`-separated paths below it. `root`'s parent when `None`.
+    pub mount: Option<PathBuf>,
     /// Failed attempts after which the server hangs up (`MaxAuthTries`); the library default when `None`.
     pub max_auth_attempts: Option<usize>,
     /// Never answer the first authentication request, as a server stalling after key exchange.
@@ -192,9 +195,11 @@ impl Conn {
     }
 }
 
-/// SFTP over the real file system: absolute paths are served as they are, relative ones from `root`.
+/// SFTP over the real file system. The client sees virtual POSIX paths: `/` is `mount`, and relative
+/// paths resolve against `root` (the home folder).
 struct Sftp {
     root: PathBuf,
+    mount: PathBuf,
     posix_rename: bool,
     fsync: bool,
     kill_on_write: Option<usize>,
@@ -213,8 +218,12 @@ enum Open {
 
 impl Sftp {
     fn new(srv: &Srv) -> Sftp {
+        let root = srv.policy.root.canonicalize().unwrap_or_else(|_| srv.policy.root.clone());
+        let mount = srv.policy.mount.clone().or_else(|| srv.policy.root.parent().map(|p| p.to_path_buf())).unwrap_or_else(|| root.clone());
+        let mount = mount.canonicalize().unwrap_or(mount);
         Sftp {
-            root: srv.policy.root.clone(),
+            root,
+            mount,
             posix_rename: !srv.policy.no_posix_rename,
             fsync: !srv.policy.no_fsync,
             kill_on_write: srv.policy.kill_on_write,
@@ -227,12 +236,24 @@ impl Sftp {
         }
     }
 
+    /// The real path behind a virtual one.
     fn path(&self, p: &str) -> PathBuf {
-        let p = std::path::Path::new(p);
-        if p.is_absolute() {
-            p.to_path_buf()
-        } else {
-            self.root.join(p)
+        let (mut real, rest) = match p.strip_prefix('/') {
+            Some(rest) => (self.mount.clone(), rest),
+            None => (self.root.clone(), p),
+        };
+        real.extend(rest.split('/').filter(|s| !s.is_empty() && *s != "."));
+        real
+    }
+
+    /// The virtual path of a real one (as `/`-separated text, outside the mount as it is).
+    fn virt(&self, real: &std::path::Path) -> String {
+        match real.strip_prefix(&self.mount) {
+            Ok(rel) => {
+                let parts: Vec<_> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
+                format!("/{}", parts.join("/"))
+            }
+            Err(_) => real.to_string_lossy().replace('\\', "/"),
         }
     }
 
@@ -321,13 +342,13 @@ impl russh_sftp::server::Handler for Sftp {
 
     async fn realpath(&mut self, id: u32, path: String) -> Result<Name, Self::Error> {
         let answer = if path == "." {
-            self.root.to_string_lossy().replace('\\', "/")
+            self.virt(&self.root)
         } else {
             let full = self.path(&path);
             // Like OpenSSH: a path that exists is resolved (symlinks, `..`); one that does not is only cleaned.
             match std::fs::canonicalize(&full) {
-                Ok(real) => real.to_string_lossy().replace('\\', "/"),
-                Err(_) if full.parent().is_some_and(|p| p.exists()) => full.to_string_lossy().into_owned(),
+                Ok(real) => self.virt(&real),
+                Err(_) if full.parent().is_some_and(|p| p.exists()) => self.virt(&full),
                 Err(e) => return Err(code(e)),
             }
         };
@@ -472,7 +493,7 @@ impl russh_sftp::server::Handler for Sftp {
 
     async fn readlink(&mut self, id: u32, path: String) -> Result<Name, Self::Error> {
         let target = std::fs::read_link(self.path(&path)).map_err(code)?;
-        Ok(Name { id, files: vec![File::dummy(target.to_string_lossy().into_owned())] })
+        Ok(Name { id, files: vec![File::dummy(self.virt(&target))] })
     }
 
     async fn extended(&mut self, id: u32, request: String, data: Vec<u8>) -> Result<Packet, Self::Error> {

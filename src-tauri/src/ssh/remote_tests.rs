@@ -1,7 +1,7 @@
 //! Remote file commands against the in-process SFTP server (real files in a temp folder).
 
 use super::fs::{self, Remote, RemoteError, RemoteStat, WriteOutcome};
-use super::tests::{fixture, is_connected, none, write_key, Fixture, Setup};
+use super::tests::{fixture, virt, is_connected, none, write_key, Fixture, Setup};
 use super::test_server::{new_key, Policy, TestServer};
 use super::uri::RemotePath;
 #[cfg(unix)]
@@ -19,7 +19,7 @@ struct R {
 
 impl R {
     fn uri(&self, path: impl AsRef<Path>) -> String {
-        RemotePath { key: self.f.key(), path: path.as_ref().to_string_lossy().into_owned() }.to_string()
+        RemotePath { key: self.f.key(), path: virt(self.f.dir.path(), path.as_ref()) }.to_string()
     }
     fn at(&self, rel: &str) -> PathBuf {
         self.home.join(rel)
@@ -664,7 +664,7 @@ async fn a_session_that_needs_the_user_says_auth_required() {
     let f = fixture(Setup { password: Some("pw"), trusted: true, ..Default::default() }).await;
     let home = f.dir.path().join("home");
     let remote = Remote::default();
-    let file = RemotePath { key: f.key(), path: home.join("a.md").to_string_lossy().into_owned() };
+    let file = RemotePath { key: f.key(), path: virt(f.dir.path(), &home.join("a.md")) };
     super::allow_recent(&remote, &file.to_string()).unwrap();
     let out = fs::read(&f.pool, &remote, &file.to_string()).await;
     assert_eq!(out, Err(RemoteError::AuthRequired(f.key().authority())));
@@ -679,7 +679,7 @@ async fn a_changed_host_key_says_host_key_changed() {
     std::fs::write(f.ssh_dir().join("known_hosts"), "").unwrap();
     super::known_hosts::append(&f.ssh_dir().join("known_hosts"), "127.0.0.1", f.server.port, new_key().public_key()).unwrap();
     let remote = Remote::default();
-    let file = RemotePath { key: f.key(), path: f.dir.path().join("home/a.md").to_string_lossy().into_owned() };
+    let file = RemotePath { key: f.key(), path: virt(f.dir.path(), &f.dir.path().join("home/a.md")) };
     super::allow_recent(&remote, &file.to_string()).unwrap();
     let out = fs::read(&f.pool, &remote, &file.to_string()).await;
     assert!(matches!(out, Err(RemoteError::HostKeyChanged(_))), "{out:?}");

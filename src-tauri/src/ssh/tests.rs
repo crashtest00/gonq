@@ -66,6 +66,14 @@ fn answers(trust: Option<&str>, passphrase: Option<&str>, password: Option<&str>
     }
 }
 
+/// The virtual POSIX path the test server shows for a real one under the fixture folder (`/home/a.md`).
+pub(super) fn virt(dir: &std::path::Path, real: &std::path::Path) -> String {
+    let canonical = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+    let rel = real.strip_prefix(&canonical).or_else(|_| real.strip_prefix(dir)).unwrap_or(real);
+    let parts: Vec<_> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
+    format!("/{}", parts.join("/"))
+}
+
 pub(super) fn none() -> Answers {
     Answers::default()
 }
@@ -78,6 +86,7 @@ pub(super) async fn fixture(setup: Setup) -> Fixture {
         allowed_keys: setup.allowed,
         password: setup.password.map(String::from),
         root: dir.path().join("home"),
+        mount: None,
         max_auth_attempts: setup.max_auth_attempts,
         stall_auth: setup.stall_auth,
         no_posix_rename: setup.no_posix_rename,
