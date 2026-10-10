@@ -9,7 +9,6 @@ vi.setConfig({ testTimeout: 30000 });
 
 const files: FileAccess = {
   pickDocument: async () => ({ name: 'a.md', path: '/d/a.md', text: 'Some paragraph here.\n' }),
-  loadImage: async () => null,
   saveDocument: async (d) => ({ name: d.name, path: d.path }),
   saveDocumentAs: async (d) => ({ name: d.name, path: null }),
 };
@@ -95,7 +94,7 @@ test('renaming keeps existing messages byte-for-byte', async () => {
   render(<App files={f} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
-  await screen.findByTestId('markdown-view');
+  await screen.findByTestId('editor');
   const d = await openPrefsFromMenu(user);
   await user.clear(within(d).getByLabelText('Author name'));
   await user.type(within(d).getByLabelText('Author name'), 'Bo{Enter}');
@@ -126,7 +125,7 @@ test('a reply is written under the saved author name, and a changed name applies
   render(<App files={f} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
-  await screen.findByTestId('markdown-view');
+  await screen.findByTestId('editor');
   await user.click(screen.getByRole('button', { name: 'Comments' }));
   await user.click(await screen.findByRole('button', { name: /First\?/ }));
   await user.type(screen.getByRole('textbox', { name: 'Reply' }), 'One');

@@ -584,7 +584,6 @@ describe('reconnect (a save or expand that needs a login)', () => {
 describe('in the app', () => {
   const files: FileAccess = {
     pickDocument: async () => null,
-    loadImage: async () => null,
     saveDocument: async (d) => ({ name: d.name, path: d.path }),
     saveDocumentAs: async (d) => ({ name: d.name, path: '/x/copy.md' }),
   };

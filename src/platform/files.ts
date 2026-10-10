@@ -65,8 +65,6 @@ export interface FileAccess {
   saveDocumentAs(doc: { name: string; text: string }, taken?: PathTaken): Promise<SavedDocument | null>;
   /** Reads a known file (desktop only; absent in the browser). Rejects when it cannot be opened. */
   openPath?(path: string): Promise<OpenedDocument>;
-  /** Resolves a displayable URL for an image, or null when it cannot be loaded. */
-  loadImage(doc: OpenedDocument, src: string): Promise<string | null>;
 }
 
 export function decodeUtf8(bytes: Uint8Array, name: string): string {
@@ -78,40 +76,9 @@ export function decodeUtf8(bytes: Uint8Array, name: string): string {
   }
 }
 
-const REMOTE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
-
-export function isRemoteSource(src: string): boolean {
-  return REMOTE.test(src);
-}
-
 function basename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
-
-/** Joins a document-relative reference onto the document's folder, lexically. */
-export function resolveRelativePath(docPath: string, src: string): string {
-  const sep = docPath.includes('\\') && !docPath.includes('/') ? '\\' : '/';
-  const clean = decodeURIComponent(src.split(/[?#]/)[0]);
-  const parts = docPath.split(/[\\/]/);
-  parts.pop();
-  for (const seg of clean.split(/[\\/]/)) {
-    if (seg === '' || seg === '.') continue;
-    if (seg === '..') parts.pop();
-    else parts.push(seg);
-  }
-  return parts.join(sep);
-}
-
-const MIME: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  svg: 'image/svg+xml',
-  bmp: 'image/bmp',
-  avif: 'image/avif',
-};
 
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -186,19 +153,6 @@ const tauriFiles: FileAccess = {
     if (taken?.(path)) throw new PathTakenError(path);
     return tauriWrite(path, doc.text);
   },
-
-  async loadImage(doc, src) {
-    if (isRemoteSource(src)) return src;
-    // Relative images next to a remote document are v2.
-    if (doc.path === null || isSshPath(doc.path)) return null;
-    try {
-      const bytes = await readFile(resolveRelativePath(doc.path, src));
-      const ext = src.split(/[?#]/)[0].split('.').pop()?.toLowerCase() ?? '';
-      return URL.createObjectURL(new Blob([bytes], { type: MIME[ext] ?? 'application/octet-stream' }));
-    } catch {
-      return null;
-    }
-  },
 };
 
 const webFiles: FileAccess = {
@@ -235,10 +189,6 @@ const webFiles: FileAccess = {
     link.click();
     URL.revokeObjectURL(url);
     return { name, path: null };
-  },
-
-  async loadImage(_doc, src) {
-    return isRemoteSource(src) ? src : null;
   },
 };
 

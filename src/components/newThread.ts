@@ -1,5 +1,4 @@
 import { fencedCodeRanges, parseCommentMarkers } from '../comment-threads';
-import { pointToOffset } from './inplace';
 
 /** Where a new thread goes: a selection (its text becomes the anchor) or a bare cursor. */
 export type ThreadTarget = { from: number; to: number } | number;
@@ -55,94 +54,19 @@ export function isCommentableAt(text: string, offset: number): boolean {
   return true;
 }
 
-/** Source ranges of one rendered text node, as `[from, to, exact]` (exact: the rendered text is the source text). */
-export type Segment = [from: number, to: number, exact: 0 | 1];
-
-const TEXT_BLOCKS = 'p, li, h1, h2, h3, h4, h5, h6, pre, td, th';
-
-function elementOf(node: Node | null): Element | null {
-  return node instanceof Element ? node : (node?.parentElement ?? null);
-}
-
-/** The nearest paragraph or list item around a node, or null for anything else (headings, code, tables). */
-function textBlockOf(node: Node | null): HTMLElement | null {
-  const el = elementOf(node)?.closest(TEXT_BLOCKS);
-  return el instanceof HTMLElement && (el.tagName === 'P' || el.tagName === 'LI') && el.dataset.segs !== undefined ? el : null;
-}
-
-function offsetIn(seg: Segment, at: number, length: number, side: 'start' | 'end'): number {
-  if (seg[2] === 1) return seg[0] + at;
-  // Rendered text that is not the source text (escapes, code) cannot be cut part-way: widen to the whole node.
-  if (at <= 0) return seg[0];
-  if (at >= length) return seg[1];
-  return side === 'start' ? seg[0] : seg[1];
-}
+const LIST_ITEM_START = /^\s*([-*+]|\d+[.)])\s/;
 
 /**
- * The file range a browser selection covers, or null when it is not a valid
- * place for a thread: empty, spanning blocks, outside a paragraph or task item,
- * or touching a thread marker. `text` is the file text the view was rendered from.
+ * The range a selection may anchor a thread to, or null: it must be non-blank, inside one
+ * paragraph or list/task item (no blank line, no second item, nothing but commentable text at
+ * either end), and not touch a thread marker.
  */
-export function selectionToRange(root: Element, selection: Selection | null, text: string): { from: number; to: number } | null {
-  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
-  const range = selection.getRangeAt(0);
-  if (!root.contains(range.commonAncestorContainer)) return null;
-
-  if (elementOf(range.startContainer)?.closest('[data-active]')) return activeSelectionToRange(root, range, text);
-  const block = textBlockOf(range.startContainer);
-  if (block === null) return null;
-  let working = range;
-  if (!block.contains(range.endContainer)) {
-    // Triple-click ends at the start of the next block: only an empty tail may be dropped.
-    const tail = range.cloneRange();
-    tail.setStartAfter(block);
-    if (tail.toString().trim() !== '') return null;
-    working = range.cloneRange();
-    working.setEnd(block, block.childNodes.length);
-  } else if (textBlockOf(range.endContainer) !== block) {
-    return null;
-  }
-
-  for (const marker of Array.from(block.querySelectorAll('.gonq-marker'))) {
-    if (working.intersectsNode(marker)) return null;
-  }
-
-  const segs: Segment[] = JSON.parse(block.dataset.segs ?? '[]');
-  const nodes: Text[] = [];
-  const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n as Text);
-  if (nodes.length !== segs.length) return null;
-
-  const first = nodes.findIndex((n) => working.comparePoint(n, n.length) >= 0);
-  let last = -1;
-  nodes.forEach((n, i) => {
-    if (working.comparePoint(n, 0) <= 0) last = i;
-  });
-  if (first < 0 || last < first) return null;
-  const startAt = nodes[first] === working.startContainer ? working.startOffset : 0;
-  const endAt = nodes[last] === working.endContainer ? working.endOffset : nodes[last].length;
-
-  const from = offsetIn(segs[first], startAt, nodes[first].length, 'start');
-  const to = offsetIn(segs[last], endAt, nodes[last].length, 'end');
-  if (to <= from) return null;
+export function selectionRange(text: string, from: number, to: number): { from: number; to: number } | null {
+  if (to <= from || to > text.length) return null;
   const slice = text.slice(from, to);
-  if (slice.trim() === '' || parseCommentMarkers(slice).size > 0) return null;
-  return { from, to };
-}
-
-/** The same for a block being edited in place, where every rendered character knows its file offset. */
-function activeSelectionToRange(root: Element, range: Range, text: string): { from: number; to: number } | null {
-  const block = elementOf(range.startContainer)?.closest('p, li');
-  if (!block || !block.contains(range.endContainer) || elementOf(range.endContainer)?.closest('p, li') !== block) return null;
-  for (const marker of Array.from(block.querySelectorAll('.gonq-marker'))) {
-    if (range.intersectsNode(marker)) return null;
-  }
-  const a = pointToOffset(root, range.startContainer, range.startOffset);
-  const b = pointToOffset(root, range.endContainer, range.endOffset);
-  if (a === null || b === null || a === b) return null;
-  const from = Math.min(a, b);
-  const to = Math.max(a, b);
-  const slice = text.slice(from, to);
-  if (slice.trim() === '' || parseCommentMarkers(slice).size > 0) return null;
+  if (slice.trim() === '' || /\n[ \t]*\r?\n/.test(slice) || parseCommentMarkers(slice).size > 0) return null;
+  if (slice.split('\n').slice(1).some((l) => LIST_ITEM_START.test(l))) return null;
+  for (const m of [...parseCommentMarkers(text).values()].flat()) if (from < m.to && to > m.from) return null;
+  if (!isCommentableAt(text, from) || !isCommentableAt(text, to)) return null;
   return { from, to };
 }

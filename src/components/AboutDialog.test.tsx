@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { caretIn } from '../testing/inplace';
+import { caretAt, type as typeText } from '../testing/editor';
 import App from '../App';
 import pkg from '../../package.json';
 import tauriConf from '../../src-tauri/tauri.conf.json';
@@ -23,7 +23,6 @@ vi.setConfig({ testTimeout: 30000 });
 
 const files: FileAccess = {
   pickDocument: async () => null,
-  loadImage: async () => null,
   saveDocument: async (d) => ({ name: d.name, path: d.path }),
   saveDocumentAs: async (d) => ({ name: d.name, path: null }),
 };
@@ -146,13 +145,12 @@ test('closing keeps an edit made before opening, and focus returns to the Help m
   render(<App files={{ ...files, pickDocument: async () => doc }} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
-  await user.click(await screen.findByText('Hello world'));
-  await caretIn(await screen.findByText('Hello world'));
-  await user.keyboard('!!');
-  // Opening the menu moves focus out of the document, which ends the edit.
+  await screen.findByText('Hello world');
+  caretAt('Hello world');
+  typeText('!!');
   await openAbout(user);
   await user.keyboard('{Escape}');
   expect(screen.queryByRole('dialog')).toBeNull();
-  expect(screen.getByTestId('markdown-view')).toHaveTextContent('Hello world!!');
+  expect(screen.getByTestId('editor')).toHaveTextContent('Hello world!!');
   expect(screen.getByRole('menuitem', { name: 'Help' })).toHaveFocus();
 });

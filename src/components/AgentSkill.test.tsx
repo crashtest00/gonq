@@ -12,7 +12,6 @@ vi.setConfig({ testTimeout: 30000 });
 
 const files = (over: Partial<FileAccess> = {}): FileAccess => ({
   pickDocument: async () => null,
-  loadImage: async () => null,
   saveDocument: async (d) => ({ name: d.name, path: d.path }),
   saveDocumentAs: async (d) => ({ name: d.name, path: null }),
   ...over,
@@ -37,20 +36,19 @@ test('Help > Agent skill… shows the skill; Escape closes it', async () => {
   expect(screen.queryByRole('dialog', { name: 'Agent skill' })).toBeNull();
 });
 
-test('the dialog renders formatted Markdown without the front matter', async () => {
+test('the dialog shows the skill in the live-preview editor, without the front matter', async () => {
   const user = userEvent.setup();
   render(<App files={files()} />);
   const d = await openSkill(user);
-  expect(within(d).getByRole('heading', { level: 1, name: 'Gonq comment threads' })).toBeInTheDocument();
-  expect(within(d).getByRole('heading', { level: 2, name: 'Format' })).toBeInTheDocument();
-  expect(within(d).getByRole('heading', { level: 2, name: 'What you must not do' })).toBeInTheDocument();
-  expect(within(d).getAllByRole('listitem').length).toBeGreaterThan(10);
-  expect(d.querySelector('pre')).not.toBeNull();
-  expect(d.querySelector('hr')).toBeNull();
-  expect(d.textContent).not.toContain('name: gonq-comment-threads');
-  expect(d.textContent).not.toContain('---');
+  const preview = within(d).getByTestId('markdown-preview');
+  expect(preview.querySelector('.cm-heading-1')?.textContent).toBe('Gonq comment threads');
+  expect(preview.querySelectorAll('.cm-heading-2').length).toBeGreaterThan(0);
+  expect(preview.querySelectorAll('.cm-codeblock').length).toBeGreaterThan(0);
+  expect(preview.textContent).not.toContain('name: gonq-comment-threads');
+  // Read-only: it cannot be typed into.
+  expect(preview.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false');
   // The example thread block is shown, not hidden as a real thread would be.
-  expect(d.textContent).toContain('@thread c20260910143022a3f9c1d7e2b4');
+  expect(preview.textContent).toContain('@thread c20260910143022a3f9c1d7e2b4');
   expect(AGENT_SKILL_BODY.startsWith('# Gonq comment threads')).toBe(true);
 });
 
@@ -146,9 +144,9 @@ test('a file edited strictly by following SKILL.md parses and renders in Gonq', 
   render(<App files={files({ pickDocument: async () => doc })} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
-  await screen.findByTestId('markdown-view');
-  expect(screen.getAllByRole('button', { name: '💬' })).toHaveLength(2);
-  expect(screen.getAllByRole('button', { name: '✅' })).toHaveLength(1);
+  await screen.findByTestId('editor');
+  // The markers and thread blocks are Markdown source in the editor.
+  expect(screen.getByTestId('editor').textContent).toContain('[💬](#md-thread-c20260910143022a3f9c1d7e2b4)');
   await user.click(screen.getByRole('button', { name: 'Comments' }));
   const rows = within(screen.getByRole('list')).getAllByRole('listitem');
   expect(rows).toHaveLength(3);
@@ -156,9 +154,9 @@ test('a file edited strictly by following SKILL.md parses and renders in Gonq', 
   expect(rows[0]).toHaveTextContent('holds through Q3');
   expect(rows[2]).toHaveTextContent('Resolved');
   await user.click(within(rows[0]).getByRole('button'));
-  const authors = screen.getAllByText(/^(User|plan-checker:4821)$/).map((e) => e.textContent);
-  expect(authors).toEqual(['User', 'plan-checker:4821']);
-  expect(screen.getByText('Q2 actuals, extrapolated. Citation added.')).toBeInTheDocument();
+  const side = within(screen.getByRole('complementary', { name: 'Comments' }));
+  expect(side.getAllByText(/^(User|plan-checker:4821)$/).map((e) => e.textContent)).toEqual(['User', 'plan-checker:4821']);
+  expect(side.getByText('Q2 actuals, extrapolated. Citation added.')).toBeInTheDocument();
 });
 
 test('Save as… hands SKILL.md to the file boundary, and reports a failure', async () => {

@@ -15,10 +15,10 @@ import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteH
 import { ConnectDialog } from './components/ConnectDialog';
 import { assertConnectAvailable } from './platform/connect';
 import { listThreads } from './components/threads';
-import { isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
-import { appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
+import { isCommentableAt, selectionRange, type ThreadTarget } from './components/newThread';
+import { parseCommentMarkers, appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
 import { RawSwitch } from './components/RawSwitch';
-import { MarkdownView } from './components/MarkdownView';
+import { MarkdownEditor, type EditorHandle, type EditorSelection } from './editor/MarkdownEditor';
 import { useDocument } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
@@ -41,7 +41,7 @@ interface ConnectRequest {
 
 export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const session = useDocument();
-  const { meta, text, dirty, region } = session;
+  const { meta, text } = session;
   const rawAll = session.raw;
   const [error, setError] = useState<string | null>(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -53,10 +53,9 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [recents, setRecents] = useState<RecentDocument[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
-  const [selection, setSelection] = useState<{ from: number; to: number; text: string; x: number; y: number } | null>(null);
-  const [caret, setCaret] = useState<{ offset: number; text: string } | null>(null);
-  const [inPlace, setInPlace] = useState(false);
-  const [reveal, setReveal] = useState<string | null>(null);
+  const [selection, setSelection] = useState<EditorSelection | null>(null);
+  const [caret, setCaret] = useState<number | null>(null);
+  const editor = useRef<EditorHandle>(null);
   const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
   const [conflict, setConflict] = useState<{ name: string; deleted: boolean; resolve: (c: ConflictChoice) => void } | null>(null);
   // A remote save slower than a second says where it is going; an in-place save says it was not atomic.
@@ -69,10 +68,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [aboutOpen, setAboutOpen] = useState(false);
   // The Connect dialog: from File > Connect to Server, from a login a save or expand needs, or from an error row.
   const [connecting, setConnecting] = useState<ConnectRequest | null>(null);
-  const mainRef = useRef<HTMLElement>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
-  const doc = useMemo(() => (meta === null ? null : { name: meta.name, path: meta.path, text }), [meta, text]);
 
   useEffect(() => {
     let live = true;
@@ -95,7 +92,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     if (path !== null) addRecent(path).then(setRecents, () => {});
   }, []);
 
-  // Switching tabs: the comments sidebar goes back to All threads, and the canvas gets its scroll back.
+  // Switching tabs: the comments sidebar goes back to All threads.
   useEffect(() => {
     setSelectedKey(null);
     setDraft(null);
@@ -103,16 +100,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     setCaret(null);
     setError(null);
   }, [activeId]);
-  useLayoutEffect(() => {
-    if (mainRef.current) mainRef.current.scrollTop = session.activeTab?.scrollTop ?? 0;
-    // Only a switch restores scroll; ordinary edits keep the canvas where it is.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId]);
 
   const textRef = useRef(text);
   textRef.current = text;
-  const liveSelection = selection !== null && selection.text === text ? selection : null;
-  const liveCaret = caret !== null && caret.text === text ? caret.offset : null;
+  const liveSelection = useMemo(() => {
+    const range = selection === null ? null : selectionRange(text, selection.from, selection.to);
+    return selection !== null && range !== null ? { ...range, x: selection.x, y: selection.y } : null;
+  }, [selection, text]);
+  const liveCaret = caret !== null && caret <= text.length ? caret : null;
   const canAddAtCursor = liveCaret !== null && isCommentableAt(text, liveCaret);
 
   const startDraft = useCallback(
@@ -141,21 +136,21 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         const { thread } = opened;
         // The note for agents goes just ahead of the new block, once per file.
         const next = withAgentGuidance(opened.doc, thread.from);
-        session.replaceText(next);
+        editor.current?.setText(next);
         const created = listThreads(next).find((t) => t.thread.id === thread.id);
         setError(null);
         setDraft(null);
         setSelection(null);
-        window.getSelection()?.removeAllRanges();
+        editor.current?.collapse();
         if (created) {
           setSelectedKey(created.key);
-          setReveal(created.key);
+          revealThread(next, created.thread.id, created.ordinal);
         }
       } catch (e) {
         failed(e);
       }
     },
-    [draft, text, authorName, session.replaceText],
+    [draft, text, authorName, editor],
   );
 
   const reply = useCallback(
@@ -163,13 +158,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined || body.trim() === '') return;
       try {
-        session.replaceText(appendToThread(text, { id: item.thread.id, ordinal: item.ordinal }, authorName, body.trim()));
+        editor.current?.setText(appendToThread(text, { id: item.thread.id, ordinal: item.ordinal }, authorName, body.trim()));
         setError(null);
       } catch (e) {
         failed(e);
       }
     },
-    [threads, text, authorName, session.replaceText],
+    [threads, text, authorName, editor],
   );
 
   const setStatus = useCallback(
@@ -177,13 +172,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined) return;
       try {
-        session.replaceText(setThreadStatus(text, { id: item.thread.id, ordinal: item.ordinal }, status));
+        editor.current?.setText(setThreadStatus(text, { id: item.thread.id, ordinal: item.ordinal }, status));
         setError(null);
       } catch (e) {
         failed(e);
       }
     },
-    [threads, text, session.replaceText],
+    [threads, text, editor],
   );
 
   const edit = useCallback(
@@ -191,13 +186,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined || body.trim() === '') return;
       try {
-        session.replaceText(editThreadMessage(text, { id: item.thread.id, ordinal: item.ordinal }, body.trim()));
+        editor.current?.setText(editThreadMessage(text, { id: item.thread.id, ordinal: item.ordinal }, body.trim()));
         setError(null);
       } catch (e) {
         failed(e);
       }
     },
-    [threads, text, session.replaceText],
+    [threads, text, editor],
   );
 
   const remove = useCallback(
@@ -205,24 +200,21 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined) return;
       try {
-        session.replaceText(deleteThread(text, { id: item.thread.id, ordinal: item.ordinal }));
+        editor.current?.setText(deleteThread(text, { id: item.thread.id, ordinal: item.ordinal }));
         setError(null);
         setSelectedKey(null);
       } catch (e) {
         failed(e);
       }
     },
-    [threads, text, session.replaceText],
+    [threads, text, editor],
   );
 
-  // Once the new marker is rendered, bring it into view.
-  useEffect(() => {
-    if (reveal === null) return;
-    const main = mainRef.current;
-    const marker = main?.querySelector<HTMLElement>(`[data-thread-key="${CSS.escape(reveal)}"]`);
-    if (main && marker) main.scrollTop += marker.getBoundingClientRect().top - main.getBoundingClientRect().top - 40;
-    setReveal(null);
-  }, [reveal, text]);
+  /** Brings the marker of a thread into view; a thread with no marker has nothing to scroll to. */
+  const revealThread = useCallback((doc: string, id: string, ordinal: number) => {
+    const marker = parseCommentMarkers(doc).get(id)?.[ordinal];
+    if (marker) editor.current?.reveal(marker.from);
+  }, []);
 
   const toggleComments = useCallback(() => {
     // Each reopen starts at the All threads list.
@@ -231,36 +223,17 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     setCommentsOpen((open) => !open);
   }, []);
 
-  // A selection inside one paragraph or task item offers a comment button next to it.
-  useEffect(() => {
-    const onChange = () => {
-      const article = mainRef.current?.querySelector('[data-testid="markdown-view"]');
-      const sel = window.getSelection();
-      const range = article && sel ? selectionToRange(article, sel, textRef.current) : null;
-      if (!range || !sel) return setSelection(null);
-      const box = sel.getRangeAt(0).getBoundingClientRect?.() ?? { right: 0, top: 0 };
-      setSelection({ ...range, text: textRef.current, x: box.right + 4, y: Math.max(0, box.top - 30) });
-    };
-    document.addEventListener('selectionchange', onChange);
-    return () => document.removeEventListener('selectionchange', onChange);
-  }, []);
+  const openThread = useCallback(
+    (key: string) => {
+      setSelectedKey(key);
+      setCommentsOpen(true);
+      const item = listThreads(textRef.current).find((t) => t.key === key);
+      if (item) revealThread(textRef.current, item.thread.id, item.ordinal);
+    },
+    [revealThread],
+  );
 
-  const openThread = useCallback((key: string) => {
-    setSelectedKey(key);
-    setCommentsOpen(true);
-    // A thread with no marker in the view has nothing to scroll to.
-    const main = mainRef.current;
-    const marker = main?.querySelector<HTMLElement>(`[data-thread-key="${CSS.escape(key)}"]`);
-    if (main && marker) {
-      main.scrollTop += marker.getBoundingClientRect().top - main.getBoundingClientRect().top - 40;
-    }
-  }, []);
-
-  const jumpToHeading = useCallback((from: number) => {
-    const main = mainRef.current;
-    const heading = main?.querySelector<HTMLElement>(`:is(h1,h2,h3,h4,h5,h6)[data-from="${from}"]`);
-    if (main && heading) main.scrollTop += heading.getBoundingClientRect().top - main.getBoundingClientRect().top - 20;
-  }, []);
+  const jumpToHeading = useCallback((from: number) => editor.current?.reveal(from, true), []);
 
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
@@ -485,16 +458,18 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
 
   // Keyboard shortcuts read the latest handlers through a ref, so the listener is added once.
   const openPrefs = useCallback(() => setPrefsOpen(true), []);
-  const actions = useRef({ newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo, openPrefs, openConnect });
-  actions.current = { newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo, openPrefs, openConnect };
+  const undo = useCallback(() => editor.current?.undo(), []);
+  const redo = useCallback(() => editor.current?.redo(), []);
+  const actions = useRef({ newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect });
+  actions.current = { newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
       const a = actions.current;
       const key = e.key.toLowerCase();
       const target = e.target as HTMLElement | null;
-      // Undo in any other text field is that field's own.
-      const foreignField = target?.closest('input, textarea') && !target.closest('[data-block-editor]');
+      // Undo in the editor is CodeMirror's own, as it is in any other text field.
+      const foreignField = target?.closest('input, textarea, .cm-editor');
       let run: (() => unknown) | null = null;
       if (e.key === ',' && !e.shiftKey) run = a.openPrefs;
       else if (key === 'k' && e.shiftKey) run = () => a.openConnect();
@@ -534,8 +509,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onConnect={() => void openConnect()}
         onSave={() => void save()}
         onSaveAs={() => void saveAs()}
-        onUndo={session.undo}
-        onRedo={session.redo}
+        onUndo={undo}
+        onRedo={redo}
         onPreferences={openPrefs}
         onAgentSkill={() => setSkillOpen(true)}
         onAbout={() => setAboutOpen(true)}
@@ -562,11 +537,9 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {doc !== null && (
-            <EditToolbar editing={region !== null || inPlace} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={session.undo} onRedo={session.redo} />
-          )}
-          <main ref={mainRef} onScroll={(e) => session.setScrollTop(e.currentTarget.scrollTop)} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-            <div className="mx-auto box-border w-full max-w-[760px] px-10 pb-16 pt-5">
+          {meta !== null && <EditToolbar canUndo={session.canUndo} canRedo={session.canRedo} onUndo={undo} onRedo={redo} onFormat={(f, url) => editor.current?.format(f, url)} />}
+          {(error !== null || savingTo !== null || notice !== null || meta === null) && (
+            <div className="mx-auto box-border w-full max-w-[760px] shrink-0 px-10 pt-5">
               {error !== null && (
                 <div role="alert" className="mb-5 rounded-control border border-destructive px-3 py-2 text-[13px] text-destructive">
                   {error}
@@ -579,53 +552,26 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                   <button type="button" aria-label="Dismiss notice" onClick={() => setNotice(null)} className="cursor-pointer border-0 bg-transparent p-0 text-inherit">×</button>
                 </div>
               )}
-              {doc !== null ? (
-                <>
-                  <MarkdownView
-                    key={activeId}
-                    doc={doc}
-                    files={files}
-                    threads={threads}
-                    onOpenThread={openThread}
-                    editing={{
-                      region,
-                      onStart: session.startEdit,
-                      spliceText: session.spliceText,
-                      onActive: setInPlace,
-                      onChange: session.changeEdit,
-                      onCaret: (offset) =>
-                        setCaret((c) => (c !== null && c.offset === offset && c.text === text ? c : { offset, text })),
-                      onClose: session.closeEdit,
-                      onToggleTask: session.replaceRange,
-                      rawAll,
-                    }}
-                  />
-                  {region === null && !rawAll && (
-                    <div
-                      data-testid="append-area"
-                      className="min-h-24 cursor-text text-[13px] text-muted-foreground"
-                      onClick={session.startAppend}
-                    >
-                      {text === '' && 'Click here to start writing.'}
-                    </div>
-                  )}
-                </>
-              ) : (
-                error === null && (
-                  <p className="text-[13px] text-muted-foreground">Use File &gt; Open to open a Markdown file, or File &gt; New to start one.</p>
-                )
+              {meta === null && error === null && (
+                <p className="text-[13px] text-muted-foreground">Use File &gt; Open to open a Markdown file, or File &gt; New to start one.</p>
               )}
             </div>
-          </main>
-          {doc !== null && (
-            <RawSwitch
+          )}
+          {meta !== null && activeId !== null && (
+            <MarkdownEditor
+              ref={editor}
+              tabId={activeId}
+              text={text}
               raw={rawAll}
-              onChange={(raw) => {
-                session.closeEdit();
-                session.setRaw(raw);
+              tabIds={session.tabIds}
+              onChange={session.edited}
+              onSelection={(sel, head) => {
+                setSelection(sel);
+                setCaret(head);
               }}
             />
           )}
+          {meta !== null && <RawSwitch raw={rawAll} onChange={session.setRaw} />}
         </div>
         {commentsOpen && (
           <CommentsSidebar
@@ -639,10 +585,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             draft={draft === null ? null : { anchor: draft.anchor }}
             canAdd={meta !== null && (liveSelection !== null || canAddAtCursor)}
             onAdd={addComment}
-            onCancelDraft={() => {
-              setDraft(null);
-              window.getSelection()?.removeAllRanges();
-            }}
+            onCancelDraft={() => setDraft(null)}
             onSubmitDraft={submitDraft}
             onReply={reply}
             onSetStatus={setStatus}

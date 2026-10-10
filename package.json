@@ -12,6 +12,14 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.14",
+    "@lezer/common": "^1.5.3",
+    "@lezer/highlight": "^1.2.5",
+    "@lezer/markdown": "^1.8.0",
     "@radix-ui/react-alert-dialog": "^1.1.24",
     "@radix-ui/react-dialog": "^1.2.0",
     "@radix-ui/react-menubar": "^1.1.25",
@@ -25,11 +33,7 @@
     "lucide-react": "^1.53.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
-    "remark-parse": "^11.0.0",
-    "tailwind-merge": "^3.7.0",
-    "unified": "^11.0.5"
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",

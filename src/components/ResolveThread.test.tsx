@@ -33,7 +33,6 @@ async function openDoc(text: string) {
   const saved: string[] = [];
   const files: FileAccess = {
     pickDocument: async () => ({ name: 'a.md', path: '/d/a.md', text }),
-    loadImage: async () => null,
     saveDocument: async (d) => {
       saved.push(d.text);
       return { name: d.name, path: d.path };
@@ -44,7 +43,7 @@ async function openDoc(text: string) {
   render(<App files={files} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
-  await screen.findByTestId('markdown-view');
+  await screen.findByTestId('editor');
   return { user, saved };
 }
 
@@ -64,7 +63,7 @@ async function save(user: ReturnType<typeof userEvent.setup>, saved: string[]) {
 describe('resolve and reopen', () => {
   test('Resolve swaps the badge, button and marker glyph; Reopen reverts', async () => {
     const { user, saved } = await setup();
-    const view = screen.getByTestId('markdown-view');
+    const view = screen.getByTestId('editor');
     expect(view.textContent).toContain('💬');
     await user.click(screen.getByRole('button', { name: 'Resolve' }));
     expect(screen.getByText('Resolved')).toBeInTheDocument();
@@ -85,7 +84,7 @@ describe('resolve and reopen', () => {
 
   test('the list badge, thread-view badge and canvas glyph change together', async () => {
     const { user } = await setup();
-    const view = screen.getByTestId('markdown-view');
+    const view = screen.getByTestId('editor');
     await user.click(screen.getByRole('button', { name: 'Resolve' }));
     expect(screen.getByText('Resolved')).toBeInTheDocument();
     expect(view.textContent).toContain('✅');
@@ -134,13 +133,13 @@ describe('resolve and reopen', () => {
     const resolved = await save(user, saved);
     await undo();
     expect(await save(user, saved)).toBe(DOC);
-    expect(screen.getByTestId('markdown-view').textContent).toContain('💬');
+    expect(screen.getByTestId('editor').textContent).toContain('💬');
 
     await user.click(screen.getByRole('button', { name: 'Resolve' }));
     await user.click(screen.getByRole('button', { name: 'Reopen' }));
     await undo();
     expect(await save(user, saved)).toBe(resolved);
-    expect(screen.getByTestId('markdown-view').textContent).toContain('✅');
+    expect(screen.getByTestId('editor').textContent).toContain('✅');
     expect(screen.getByText('Resolved')).toBeInTheDocument();
   });
 });
@@ -171,7 +170,7 @@ describe('resolve edge cases', () => {
     expect(screen.getByRole('alert').textContent).toMatch(/Ambiguous thread reference/);
     expect(screen.getByText('Open')).toBeInTheDocument();
     expect(screen.queryByLabelText('unsaved changes')).toBeNull();
-    expect(screen.getByTestId('markdown-view').textContent).toContain('💬');
+    expect(screen.getByTestId('editor').textContent).toContain('💬');
     expect(await save(user, saved)).toBe(DOC);
   });
 
@@ -188,7 +187,7 @@ describe('resolve edge cases', () => {
   test('E3: ✅ on an open thread is shown as written; Resolve and Reopen normalise it', async () => {
     const doc = `Para [✅](#md-thread-${A}) here.\n\n${blk(A, 'open', 'First?')}\n`;
     const { user, saved } = await openDoc(doc);
-    expect(screen.getByTestId('markdown-view').textContent).toContain('✅');
+    expect(screen.getByTestId('editor').textContent).toContain('✅');
     await user.click(screen.getByRole('button', { name: 'Comments' }));
     await user.click(await screen.findByRole('button', { name: /First\?/ }));
     expect(screen.getByText('Open')).toBeInTheDocument();
@@ -196,6 +195,6 @@ describe('resolve edge cases', () => {
     expect(await save(user, saved)).toBe(doc.replace('@status open', '@status resolved'));
     await user.click(screen.getByRole('button', { name: 'Reopen' }));
     expect(await save(user, saved)).toBe(doc.replace('✅', '💬'));
-    expect(screen.getByTestId('markdown-view').textContent).toContain('💬');
+    expect(screen.getByTestId('editor').textContent).toContain('💬');
   });
 });

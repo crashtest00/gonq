@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import App from './App';
 import { NotUtf8Error, type FileAccess, type OpenedDocument } from './platform/files';
 
-function fakeFiles(pick: () => Promise<OpenedDocument | null>, image: string | null = null): FileAccess {
-  return { pickDocument: pick, loadImage: async () => image, saveDocument: async (d) => ({ name: d.name, path: d.path }), saveDocumentAs: async (d) => ({ name: d.name, path: null }) };
+function fakeFiles(pick: () => Promise<OpenedDocument | null>): FileAccess {
+  return { pickDocument: pick, saveDocument: async (d) => ({ name: d.name, path: d.path }), saveDocumentAs: async (d) => ({ name: d.name, path: null }) };
 }
 
 async function openMenuItem() {
@@ -29,7 +29,8 @@ test('File > Open renders the file and names the tab', async () => {
   const doc: OpenedDocument = { name: 'notes.md', path: '/tmp/notes.md', text: '# Title\n\nHello **world**.\n' };
   render(<App files={fakeFiles(async () => doc)} />);
   await openMenuItem();
-  expect(await screen.findByRole('heading', { level: 1, name: 'Title' })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByTestId('editor')).toHaveTextContent('Title'));
+  expect(screen.getByTestId('editor')).toHaveTextContent('Hello world.');
   expect(screen.getByRole('tab')).toHaveTextContent('notes.md');
 });
 
@@ -58,7 +59,7 @@ test('an empty document renders without error', async () => {
   render(<App files={fakeFiles(async () => doc)} />);
   await openMenuItem();
   await waitFor(() => expect(screen.getByRole('tab')).toHaveTextContent('empty.md'));
-  expect(screen.getByTestId('markdown-view')).toBeEmptyDOMElement();
+  expect(screen.getByTestId('editor')).toHaveTextContent('Click here to start writing.');
   expect(within(document.body).queryByRole('alert')).not.toBeInTheDocument();
 });
 

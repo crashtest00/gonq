@@ -1,5 +1,5 @@
 import { Bold, Italic, Link, List, ListChecks, ListOrdered, Redo2, Strikethrough, Table, Underline, Undo2, type LucideIcon } from 'lucide-react';
-import { applyFormat, type Format } from './formatting';
+import type { Format } from './formatting';
 
 const button =
   'flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-control border-0 bg-transparent p-0 text-foreground hover:bg-surface disabled:pointer-events-none disabled:text-muted-foreground disabled:opacity-50';
@@ -16,45 +16,24 @@ const FORMATS: { format: Format; label: string; icon: LucideIcon; effect?: strin
   { format: 'table', label: 'Insert table', icon: Table },
 ];
 
-/** Applies a format to the text being edited: in place in the document, or in the Markdown field that has focus. */
-function formatActiveField(format: Format) {
-  const el = document.activeElement;
-  const article = document.querySelector<HTMLElement>('[data-testid="markdown-view"][contenteditable="true"]');
-  const field = el instanceof HTMLTextAreaElement && el.hasAttribute('data-block-editor') ? el : null;
-  if (!field && !article) return;
-  let url = '';
-  if (format === 'link') {
-    // Ask for the address; cancelling (or an empty answer) changes nothing.
-    const answer = window.prompt('Link URL', 'https://')?.trim();
-    if (!answer || !(field ?? article)!.isConnected) return;
-    url = answer;
-  }
-  if (!field) {
-    article!.dispatchEvent(new CustomEvent('gonq-format', { detail: { format, url } }));
-    return;
-  }
-  const el2 = field;
-  const next = applyFormat(format, el2.value, el2.selectionStart, el2.selectionEnd, url);
-  if (next.value !== el2.value) {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(el2, next.value);
-    el2.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-  el2.setSelectionRange(next.start, next.end);
+/** The link address to write; cancelling (or an empty answer) changes nothing. */
+function askUrl(): string | null {
+  return window.prompt('Link URL', 'https://')?.trim() || null;
 }
 
 export function EditToolbar({
-  editing,
   canUndo,
   canRedo,
   onUndo,
   onRedo,
+  onFormat,
 }: {
-  /** A block is open for editing, so formats have a field to act on. */
-  editing: boolean;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  /** Applies a format to the editor's selection. */
+  onFormat: (format: Format, url?: string) => void;
 }) {
   return (
     <>
@@ -74,10 +53,13 @@ export function EditToolbar({
               type="button"
               aria-label={label}
               title={label}
-              disabled={!editing}
-              // Keep focus (and the selection) in the field being formatted.
+              // Keep focus (and the selection) in the editor.
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatActiveField(format)}
+              onClick={() => {
+                if (format !== 'link') return onFormat(format);
+                const url = askUrl();
+                if (url !== null) onFormat(format, url);
+              }}
               className={`${button} ${effect ?? ''}`}
             >
               <Icon size={16} aria-hidden />

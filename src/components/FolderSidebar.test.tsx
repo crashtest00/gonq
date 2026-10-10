@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
-import { caretIn } from '../testing/inplace';
+import { caretAt, type as typeText } from '../testing/editor';
 import App from '../App';
 import { FolderSidebar, ROW_CHUNK, relativeTime } from './FolderSidebar';
 import type { FileAccess, OpenedDocument } from '../platform/files';
@@ -89,7 +89,6 @@ const doc: OpenedDocument = { name: 'n.md', path: '/n.md', text: '# T\n' };
 const files: FileAccess = {
   pickDocument: async () => doc,
   openPath: async (path) => ({ name: 'r.md', path, text: '# Recent doc\n' }),
-  loadImage: async () => null,
   saveDocument: async (d) => ({ name: d.name, path: d.path }),
   saveDocumentAs: async (d) => ({ name: d.name, path: null }),
 };
@@ -107,21 +106,20 @@ test('App: toggle swaps with the outline; opening a file records it and recents 
 
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /Open…/ }));
-  await screen.findByTestId('markdown-view');
+  await screen.findByTestId('editor');
   await waitFor(() => expect(JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')[0].path).toBe('/n.md'));
 
   await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
   await user.click(await within(screen.getByRole('complementary', { name: 'Folder navigator' })).findByText('r.md'));
-  expect(await screen.findByText('Recent doc')).toBeInTheDocument();
+  expect((await screen.findAllByText(/Recent doc/)).length).toBeGreaterThan(0);
 });
 
 const side = () => within(screen.getByRole('complementary', { name: 'Folder navigator' }));
-const editorBox = () => screen.getByRole('textbox', { name: /Markdown source/ });
 
 async function openFileMenu(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /Open…/ }));
-  await screen.findByTestId('markdown-view');
+  await screen.findByTestId('editor');
 }
 
 test('renders folders before files, in the order listed', async () => {
@@ -236,10 +234,8 @@ describe('opening from the folder pane uses tabs', () => {
     render(<App files={f} />);
     await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
     await openFileMenu(user);
-    await user.click(screen.getByText('last paragraph'));
-    await caretIn(screen.getByText('last paragraph'));
-    await user.keyboard('!');
-    await user.keyboard('{Escape}');
+    caretAt('last paragraph');
+    typeText('!');
     await user.click(click === 'folder' ? await side().findByText('other.md') : side().getByText('rec.md'));
     return { user };
   }
