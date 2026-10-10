@@ -10,7 +10,7 @@ import {
 import type { FileAccess, OpenedDocument } from '../platform/files';
 import { detectEol, fromEditable, splice, toEditable } from '../document/splice';
 import { applyFormat, type Format } from './formatting';
-import { IN_PLACE_TAGS, isVisible, offsetToPoint, piecesIn, pointToOffset, rehypeSourceSpans, visibleIndex, visibleIndexToOffset } from './inplace';
+import { IN_PLACE_TAGS, isVisible, offsetToPoint, piecesIn, pointToOffset, rehypeSourceSpans, snapCrlf, visibleIndex, visibleIndexToOffset } from './inplace';
 import { keepMarkersWhole } from './atomicMarkers';
 import { remarkIns } from './remarkIns';
 import { MarkdownImage } from './MarkdownImage';
@@ -232,6 +232,9 @@ export function MarkdownView({
 
   // In-place editing: `mode` is null until the user clicks into the text; then it holds the blocks the caret touches.
   const [mode, setMode] = useState<{ ranges: BlockRange[] } | null>(null);
+  // Where the selection was when an IME composition began; `rev` redraws the document from the source once it ends.
+  const composing = useRef<{ lo: number; hi: number } | null>(null);
+  const [rev, setRev] = useState(0);
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const canEdit = editing !== undefined && editing.spliceText !== undefined && !rawAll && region === null;
@@ -449,7 +452,7 @@ export function MarkdownView({
 
   /** Follows the caret: the blocks it touches show their markers, the others do not. */
   const sync = () => {
-    if (modeRef.current === null || pendingRef.current !== null) return;
+    if (modeRef.current === null || pendingRef.current !== null || composing.current !== null) return;
     const places = selectionPlaces();
     if (!places) return;
     const wanted = places.blocks.map(rangeOf);
@@ -465,6 +468,7 @@ export function MarkdownView({
   syncRef.current = sync;
 
   const exit = () => {
+    composing.current = null;
     pendingRef.current = null;
     selRef.current = null;
     setMode(null);
@@ -505,7 +509,7 @@ export function MarkdownView({
       selRef.current = { anchor: offs[0], focus: offs[1] };
       live.current.editing?.onCaret?.(offs[1]);
     }
-  }, [mode, doc.text]);
+  }, [mode, doc.text, rev]);
 
   // Text changed by anything but typing here (undo, a comment, a task box, another tab): the caret's place is gone.
   useLayoutEffect(() => {
@@ -567,64 +571,187 @@ export function MarkdownView({
     setMode({ ranges: mapped });
   };
 
-  /** Range of the one visible character before (or after) `at`, or the gap to the neighbouring block at a block's edge. */
-  const stepRange = (at: number, dir: -1 | 1): [number, number] | null => {
+  /** Range of the one visible character before (or after) `at` inside `block`, or undefined when the block has none that way (null: it has one that must stay). */
+  const charStep = (block: HTMLElement | null, at: number, dir: -1 | 1): [number, number] | null | undefined => {
     const article = articleRef.current;
-    const sel = window.getSelection();
-    if (!article || !sel?.focusNode) return null;
+    if (!article || !block) return undefined;
     const text = latestRef.current;
-    const block = blockOf(sel.focusNode);
     const shown = live.current.showMarkers;
     const pieces = piecesIn(article).filter((p) => p.len > 0 && isVisible(p, shown) && blockOf(p.el) === block);
     const piece = dir < 0 ? pieces.filter((p) => p.s < at).pop() : pieces.find((p) => p.s + p.len > at);
-    if (piece) {
-      // A thread marker is only ever removed by a selection that covers it.
-      if (piece.el.closest('.gonq-marker')) return null;
-      if (piece.kind === 'at') return [piece.s, piece.s + piece.len];
-      if (dir < 0) {
-        const end = Math.min(at, piece.s + piece.len);
-        const width = /[\uDC00-\uDFFF]/.test(text[end - 1] ?? '') ? 2 : 1;
-        return [end - width, end];
-      }
-      const begin = Math.max(at, piece.s);
-      const width = /[\uD800-\uDBFF]/.test(text[begin] ?? '') ? 2 : 1;
-      return [begin, begin + width];
+    if (!piece) return undefined;
+    // A thread marker is only ever removed by a selection that covers it.
+    if (piece.el.closest('.gonq-marker')) return null;
+    if (piece.kind === 'at') return [piece.s, piece.s + piece.len];
+    if (dir < 0) {
+      const end = Math.min(at, piece.s + piece.len);
+      const width = text.slice(end - 2, end) === '\r\n' ? 2 : /[\uDC00-\uDFFF]/.test(text[end - 1] ?? '') ? 2 : 1;
+      return [end - width, end];
     }
+    let begin = Math.max(at, piece.s);
+    // The \r of a \r\n is syntax on screen; the break is still one unit.
+    if (text[begin] === '\n' && text[begin - 1] === '\r' && begin - 1 >= at) begin -= 1;
+    const width = text.slice(begin, begin + 2) === '\r\n' ? 2 : /[\uD800-\uDBFF]/.test(text[begin] ?? '') ? 2 : 1;
+    return [begin, begin + width];
+  };
+
+  const blockAtCaret = () => {
+    const sel = window.getSelection();
+    return sel?.focusNode ? blockOf(sel.focusNode) : null;
+  };
+
+  /**
+   * What Backspace (Delete) removes from `at`: one visible character, or at a block's edge the blank-line
+   * separator that joins it to its neighbour. Source that is not whitespace (a link reference definition,
+   * a comment, a thread block) is never part of that, and code, tables and HTML are never joined to text.
+   */
+  const stepRange = (at: number, dir: -1 | 1): [number, number] | null => {
+    const block = blockAtCaret();
+    const one = charStep(block, at, dir);
+    if (one !== undefined) return one;
     if (!block) return null;
+    const text = latestRef.current;
     const blocks = topBlocks();
     const i = blocks.indexOf(block);
     if (dir < 0) {
       // Hidden syntax at the start of the block goes first (a heading becomes a paragraph), then the block joins the one before.
       const lead = piecesIn(block).filter((p) => p.kind === 'mk' && p.s + p.len <= at);
-      if (!shown && lead.length > 0) return [lead[0].s, at];
-      return i > 0 ? [Number(blocks[i - 1].dataset.to), Number(block.dataset.from)] : null;
+      if (!live.current.showMarkers && lead.length > 0) return [lead[0].s, at];
     }
-    return i < blocks.length - 1 ? [Number(block.dataset.to), Number(blocks[i + 1].dataset.from)] : null;
+    const [first, second] = dir < 0 ? [blocks[i - 1], block] : [block, blocks[i + 1]];
+    if (!first || !second) return null;
+    const joinable = (b: HTMLElement) => editable(b) && b.tagName !== 'PRE';
+    if (!joinable(first) || !joinable(second)) return null;
+    const gap: [number, number] = [Number(first.dataset.to), Number(second.dataset.from)];
+    return /\S/.test(text.slice(gap[0], gap[1])) ? null : gap;
+  };
+
+  /** The text Enter inserts at `at`: a new paragraph, or a new list item that carries on the marker. */
+  const paragraphBreak = (at: number, eol: string): string | null => {
+    const text = latestRef.current;
+    const block = topBlocks().find((b) => Number(b.dataset.from) <= at && at <= Number(b.dataset.to) && !b.hasAttribute('data-virtual'));
+    const tag = block?.tagName.toLowerCase();
+    if (tag === 'pre') return eol;
+    const lineStart = text.lastIndexOf('\n', at - 1) + 1;
+    const line = text.slice(lineStart, at);
+    const quote = /^(?:[ \t]{0,3}>[ \t]?)*/.exec(line)![0];
+    if (tag === 'ul' || tag === 'ol') {
+      const m = /^([ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+)(\[[ xX]\][ \t]+)?/.exec(text.slice(lineStart + quote.length, at + 400).split('\n')[0]);
+      if (m) {
+        if (at < lineStart + quote.length + m[1].length) return null;
+        return eol + quote + m[1] + (m[2] ? '[ ] ' : '');
+      }
+      // A continuation line of an item: a new paragraph of the same item.
+      const indent = /^[ \t]*/.exec(line.slice(quote.length))![0];
+      return eol + eol + quote + indent;
+    }
+    if (quote) return eol + quote.trimEnd() + eol + quote;
+    return eol + eol;
+  };
+
+  /** The range a word / line delete takes, one visible character at a time so hidden syntax in between is spared. */
+  const bigStep = (at: number, dir: -1 | 1, unit: 'word' | 'line'): { from: number; to: number; insert: string } | null => {
+    const block = blockAtCaret();
+    const text = latestRef.current;
+    const word = /[\p{L}\p{N}_]/u;
+    const removed: [number, number][] = [];
+    let cur = at;
+    let cls: 'space' | 'word' | 'punct' | null = null;
+    for (;;) {
+      const r = charStep(block, cur, dir);
+      if (!r) break;
+      const ch = text.slice(r[0], r[1]);
+      if (unit === 'line') {
+        if (/^\r?\n$/.test(ch)) break;
+      } else {
+        const c = /^\s+$/.test(ch) ? 'space' : word.test(ch) ? 'word' : 'punct';
+        if (cls === null) {
+          if (c !== 'space') cls = c;
+        } else if (c !== cls) break;
+      }
+      removed.push(r);
+      cur = dir < 0 ? r[0] : r[1];
+    }
+    if (removed.length === 0) return null;
+    const lo = Math.min(...removed.map((r) => r[0]));
+    const hi = Math.max(...removed.map((r) => r[1]));
+    let insert = '';
+    for (let k = lo; k < hi; ) {
+      const hit = removed.find((r) => r[0] === k);
+      if (hit) k = hit[1];
+      else insert += text[k++];
+    }
+    return { from: lo, to: hi, insert };
   };
 
   const handleBeforeInput = (e: InputEvent) => {
     if (modeRef.current === null) return;
     if ((e.target as Element | null)?.closest?.('[data-block-editor]')) return;
     const type = e.inputType;
-    // The browser owns text being composed (IME); it cannot be cancelled.
+    // The browser owns text being composed (IME); the composed text is written to the file when the composition ends.
     if (/Composition/.test(type)) return;
     e.preventDefault();
-    const sel = currentOffsets();
-    if (!sel) return;
+    const current = currentOffsets();
+    if (!current) return;
     const text = latestRef.current;
     const eol = detectEol(text);
-    const [lo, hi] = sel;
+    let [lo, hi] = snapCrlf(text, current[0], current[1]);
     const typed = () => e.data ?? e.dataTransfer?.getData('text/plain') ?? '';
-    const put = (s: string) => apply(lo, hi, fromEditable(toEditable(s), eol));
+    const put = (s: string) => {
+      if (s !== '') apply(lo, hi, fromEditable(toEditable(s), eol));
+    };
     const remove = (dir: -1 | 1) => {
       const r = lo === hi ? stepRange(lo, dir) : [lo, hi];
       if (r) apply(r[0], r[1], '');
     };
-    if (type === 'insertText' || type === 'insertReplacementText' || type === 'insertFromPaste' || type === 'insertFromDrop') put(typed());
-    else if (type === 'insertParagraph' || type === 'insertLineBreak') put('\n');
+    const removeMore = (dir: -1 | 1, unit: 'word' | 'line') => {
+      if (lo !== hi) return remove(dir);
+      const big = bigStep(lo, dir, unit);
+      if (!big) return remove(dir);
+      apply(big.from, big.to, big.insert, [dir < 0 ? big.from + big.insert.length : lo, dir < 0 ? big.from + big.insert.length : lo]);
+    };
+    if (type === 'insertReplacementText') {
+      // Spellcheck and autocorrect name the text to replace; the caret is not it.
+      const target = e.getTargetRanges?.()[0];
+      const article = articleRef.current;
+      if (target && article) {
+        const a = pointToOffset(article, target.startContainer, target.startOffset);
+        const b = pointToOffset(article, target.endContainer, target.endOffset);
+        if (a !== null && b !== null) [lo, hi] = snapCrlf(text, Math.min(a, b), Math.max(a, b));
+      }
+      put(typed());
+    } else if (type === 'insertText' || type === 'insertFromPaste' || type === 'insertFromDrop') put(typed());
+    else if (type === 'insertParagraph') {
+      if (blockAtCaret()?.hasAttribute('data-virtual')) return;
+      const lead = paragraphBreak(lo, eol);
+      if (lead !== null) apply(lo, hi, lead);
+    } else if (type === 'insertLineBreak') apply(lo, hi, eol);
+    else if (type === 'deleteWordBackward') removeMore(-1, 'word');
+    else if (type === 'deleteWordForward') removeMore(1, 'word');
+    else if (type === 'deleteSoftLineBackward' || type === 'deleteHardLineBackward') removeMore(-1, 'line');
+    else if (type === 'deleteSoftLineForward' || type === 'deleteHardLineForward') removeMore(1, 'line');
     else if (/^delete.*Backward$/.test(type)) remove(-1);
     else if (/^delete.*Forward$/.test(type)) remove(1);
-    else if (type === 'deleteByCut' || type === 'deleteContent' || type === 'deleteByDrag') remove(-1);
+    else if (type === 'deleteByCut' || type === 'deleteByDrag') {
+      if (lo < hi) remove(-1);
+    } else if (type === 'deleteContent') remove(-1);
+  };
+
+  const onCompositionStart = () => {
+    const sel = currentOffsets();
+    if (modeRef.current !== null && sel) composing.current = { lo: sel[0], hi: sel[1] };
+  };
+  /** The browser put the composed text in the DOM only; write it to the file and draw the block again from the source. */
+  const onCompositionEnd = (e: CompositionEvent) => {
+    const at = composing.current;
+    composing.current = null;
+    if (!at || modeRef.current === null) return;
+    const eol = detectEol(latestRef.current);
+    const data = e.data ?? '';
+    const caret = data === '' ? [at.lo, at.hi] : [at.lo + fromEditable(toEditable(data), eol).length];
+    pendingRef.current = { anchor: { off: caret[0] }, focus: { off: caret[caret.length - 1] } };
+    if (data !== '') apply(at.lo, at.hi, fromEditable(toEditable(data), eol));
+    setRev((n) => n + 1);
   };
 
   const handleFormat = (e: Event) => {
@@ -649,18 +776,28 @@ export function MarkdownView({
     if (!article) return;
     const onInput = (e: Event) => handleBeforeInputRef.current(e as InputEvent);
     const onFormat = (e: Event) => handleFormatRef.current(e);
+    const onCompStart = () => compStartRef.current();
+    const onCompEnd = (e: Event) => compEndRef.current(e as CompositionEvent);
     const onSelection = () => syncRef.current();
     article.addEventListener('beforeinput', onInput);
     article.addEventListener('gonq-format', onFormat);
+    article.addEventListener('compositionstart', onCompStart);
+    article.addEventListener('compositionend', onCompEnd);
     document.addEventListener('selectionchange', onSelection);
     return () => {
       article.removeEventListener('beforeinput', onInput);
       article.removeEventListener('gonq-format', onFormat);
+      article.removeEventListener('compositionstart', onCompStart);
+      article.removeEventListener('compositionend', onCompEnd);
       document.removeEventListener('selectionchange', onSelection);
     };
   }, []);
   const handleBeforeInputRef = useRef(handleBeforeInput);
   handleBeforeInputRef.current = handleBeforeInput;
+  const compStartRef = useRef(onCompositionStart);
+  compStartRef.current = onCompositionStart;
+  const compEndRef = useRef(onCompositionEnd);
+  compEndRef.current = onCompositionEnd;
   const handleFormatRef = useRef(handleFormat);
   handleFormatRef.current = handleFormat;
 
@@ -681,7 +818,7 @@ export function MarkdownView({
     else sync();
   };
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && mode !== null) {
+    if (e.key === 'Escape' && mode !== null && !e.nativeEvent.isComposing && composing.current === null) {
       e.preventDefault();
       exit();
       (e.currentTarget.ownerDocument.activeElement as HTMLElement | null)?.blur?.();
@@ -745,12 +882,12 @@ export function MarkdownView({
           </ReactMarkdown>
         </RawContext.Provider>
       ) : region === null ? (
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={rehype} components={before} skipHtml>
+        <ReactMarkdown key={rev} remarkPlugins={REMARK_PLUGINS} rehypePlugins={rehype} components={before} skipHtml>
           {source}
         </ReactMarkdown>
       ) : (
         <>
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={before} skipHtml>
+          <ReactMarkdown key={rev} remarkPlugins={REMARK_PLUGINS} components={before} skipHtml>
             {source.slice(0, region.from)}
           </ReactMarkdown>
           <BlockEditor
@@ -761,7 +898,7 @@ export function MarkdownView({
             }
             onClose={() => editing?.onClose()}
           />
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={after} skipHtml>
+          <ReactMarkdown key={rev} remarkPlugins={REMARK_PLUGINS} components={after} skipHtml>
             {source.slice(region.to)}
           </ReactMarkdown>
         </>
