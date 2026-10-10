@@ -7,6 +7,7 @@ import pkg from '../../package.json';
 import tauriConf from '../../src-tauri/tauri.conf.json';
 import capability from '../../src-tauri/capabilities/default.json';
 import { APP_VERSION } from './AboutDialog';
+import logoSvg from '../assets/gonq-logo-OUTLINE.svg?raw';
 import { REPO_URL } from '../platform/external';
 import type { FileAccess } from '../platform/files';
 
@@ -59,13 +60,24 @@ test('About Gonq is available with no document open and shows logo, name and lin
   const user = userEvent.setup();
   render(<App files={files} />);
   const d = await openAbout(user);
-  expect(within(d).getByRole('img', { name: 'Gonq logo' })).toHaveAttribute('src', expect.stringContaining('gonq-logo-FULL.svg'));
+  expect(within(d).getByRole('img', { name: 'Gonq logo' })).toHaveAttribute('src', expect.stringContaining('gonq-logo-OUTLINE.svg'));
   expect(within(d).getByRole('heading', { name: 'Gonq' })).toBeInTheDocument();
   const link = within(d).getByRole('link', { name: REPO_URL });
   expect(REPO_URL).toBe('https://github.com/crashtest00/gonq');
   expect(link).toHaveAttribute('href', REPO_URL);
   expect(link).toHaveAttribute('target', '_blank');
   expect(link).toHaveAttribute('rel', expect.stringContaining('noreferrer'));
+});
+
+test('the logo the dialog uses has its GONQ wordmark as paths, not visible live text', () => {
+  const svg = new DOMParser().parseFromString(logoSvg, 'image/svg+xml');
+  const viewBoxWidth = Number(svg.documentElement.getAttribute('viewBox')?.split(/\s+/)[2]);
+  // The outlined file keeps a few leftover <text> elements parked outside the viewBox; none may be visible.
+  const visible = [...svg.getElementsByTagName('text')].filter(
+    (t) => (t.textContent ?? '').trim() !== '' && Number(t.getAttribute('x')) < viewBoxWidth,
+  );
+  expect(visible).toEqual([]);
+  expect(svg.querySelectorAll('g[aria-label="GONQ"] > path').length).toBe(4);
 });
 
 test('in the browser the link is a plain link and the opener is not used', async () => {

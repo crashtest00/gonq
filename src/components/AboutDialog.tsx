@@ -1,5 +1,5 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import logo from '../assets/gonq-logo-FULL.svg';
+import logo from '../assets/gonq-logo-OUTLINE.svg';
 import { REPO_URL, openExternal, opensExternallyNatively } from '../platform/external';
 
 export const APP_VERSION: string = __APP_VERSION__;
