@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useState } from 'react';
-import { ChevronRight, File, Folder, X } from 'lucide-react';
+import { ChevronRight, File, Folder, Loader2, X } from 'lucide-react';
 import { ListDirectoryError, listDirectory, type FolderEntry } from '../platform/folders';
 import type { RecentDocument } from '../platform/recents';
-import { isSshPath, remoteAccount } from '../platform/remote';
+import { isSshPath, remoteAccount, remoteFileName } from '../platform/remote';
 
 export function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
@@ -16,6 +16,12 @@ export function relativeTime(then: number, now: number = Date.now()): string {
   if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
   if (s < 7 * 86400) return `${Math.floor(s / 86400)} d ago`;
   return new Date(then).toLocaleDateString();
+}
+
+/** The last segment of a remote folder; "/" for the root. */
+function remoteFolderName(uri: string): string {
+  const name = remoteFileName(uri);
+  return name === uri ? '/' : name;
 }
 
 function SectionHeader({ label, open, onToggle }: { label: string; open: boolean; onToggle: () => void }) {
@@ -35,6 +41,9 @@ function SectionHeader({ label, open, onToggle }: { label: string; open: boolean
 /** Rows rendered per chunk; larger folders reveal the rest on request so they stay responsive. */
 export const ROW_CHUNK = 200;
 
+/** A remote folder shows its spinner only after this long. */
+export const SPINNER_DELAY_MS = 150;
+
 const Row = memo(function Row({
   entry,
   depth,
@@ -42,6 +51,7 @@ const Row = memo(function Row({
   currentPath,
   onToggle,
   onOpenFile,
+  onLogin,
 }: {
   entry: FolderEntry;
   depth: number;
@@ -49,6 +59,7 @@ const Row = memo(function Row({
   currentPath: string | null;
   onToggle: (path: string) => void;
   onOpenFile: (path: string) => void;
+  onLogin?: (path: string) => void;
 }) {
   const pad = { paddingLeft: depth * 14 };
   const current = entry.path === currentPath;
@@ -67,7 +78,7 @@ const Row = memo(function Row({
             <Folder size={12} aria-hidden className="shrink-0 fill-current" />
             <span className="truncate">{entry.name}</span>
           </button>
-          {expanded && <Tree path={entry.path} depth={depth + 1} currentPath={currentPath} onOpenFile={onOpenFile} />}
+          {expanded && <Tree path={entry.path} depth={depth + 1} currentPath={currentPath} onOpenFile={onOpenFile} onLogin={onLogin} />}
         </>
       ) : (
         <button
@@ -88,13 +99,15 @@ const Row = memo(function Row({
   );
 });
 
-function Tree({ path, depth, currentPath, onOpenFile }: { path: string; depth: number; currentPath: string | null; onOpenFile: (path: string) => void }) {
+function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string; depth: number; currentPath: string | null; onOpenFile: (path: string) => void; onLogin?: (path: string) => void }) {
   const [entries, setEntries] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [shown, setShown] = useState(ROW_CHUNK);
   const [errorKind, setErrorKind] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // A remote listing shows its spinner only once it has taken longer than 150 ms.
+  const [slow, setSlow] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -114,6 +127,13 @@ function Tree({ path, depth, currentPath, onOpenFile }: { path: string; depth: n
       live = false;
     };
   }, [path, attempt]);
+
+  useEffect(() => {
+    setSlow(false);
+    if (entries !== null || error !== null || !isSshPath(path)) return;
+    const timer = setTimeout(() => setSlow(true), SPINNER_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [path, attempt, entries, error]);
 
   const toggle = useCallback((p: string) => {
     setExpanded((prev) => {
@@ -136,9 +156,27 @@ function Tree({ path, depth, currentPath, onOpenFile }: { path: string; depth: n
             </button>
           </>
         )}
+        {errorKind === 'auth_required' && onLogin && (
+          <>
+            {' '}
+            <button type="button" onClick={() => onLogin(path)} className="cursor-pointer border-0 bg-transparent p-0 text-[12.5px] text-destructive underline">
+              Log in
+            </button>
+          </>
+        )}
       </p>
     );
-  if (entries === null) return <p style={pad} className="m-0 py-1 text-[12.5px] text-muted-foreground">Loading…</p>;
+  if (entries === null) {
+    if (isSshPath(path)) {
+      return slow ? (
+        <p role="status" style={pad} className="m-0 flex items-center gap-1.5 py-1 text-[12.5px] text-muted-foreground">
+          <Loader2 size={12} aria-hidden className="animate-spin" />
+          Loading…
+        </p>
+      ) : null;
+    }
+    return <p style={pad} className="m-0 py-1 text-[12.5px] text-muted-foreground">Loading…</p>;
+  }
   if (entries.length === 0) return <p style={pad} className="m-0 py-1 text-[12.5px] text-muted-foreground">{depth === 0 ? 'No Markdown files.' : 'Empty.'}</p>;
 
   const remaining = entries.length - shown;
@@ -153,6 +191,7 @@ function Tree({ path, depth, currentPath, onOpenFile }: { path: string; depth: n
           currentPath={currentPath}
           onToggle={toggle}
           onOpenFile={onOpenFile}
+          onLogin={onLogin}
         />
       ))}
       {remaining > 0 && (
@@ -178,6 +217,7 @@ export function FolderSidebar({
   currentPath,
   onOpenFolder,
   onOpenFile,
+  onLogin,
   onOpenRecent,
   onRemoveRecent,
 }: {
@@ -187,6 +227,8 @@ export function FolderSidebar({
   currentPath: string | null;
   onOpenFolder: () => void;
   onOpenFile: (path: string) => void;
+  /** Reopens the Connect dialog for a remote folder whose login ran out; no Log in button without it. */
+  onLogin?: (path: string) => void;
   onOpenRecent: (path: string) => void;
   onRemoveRecent: (path: string) => void;
 }) {
@@ -201,8 +243,11 @@ export function FolderSidebar({
           {projectOpen &&
             (folder !== null ? (
               <>
-                <div title={folder} className="mb-1 truncate text-[12.5px] font-semibold text-foreground">{basename(folder)}</div>
-                <Tree key={folder} path={folder} depth={0} currentPath={currentPath} onOpenFile={onOpenFile} />
+                <div title={folder} className="mb-1 min-w-0">
+                  <div className="truncate text-[12.5px] font-semibold text-foreground">{isSshPath(folder) ? remoteFolderName(folder) : basename(folder)}</div>
+                  {isSshPath(folder) && <div className="truncate text-[11px] text-muted-foreground">{remoteAccount(folder)}</div>}
+                </div>
+                <Tree key={folder} path={folder} depth={0} currentPath={currentPath} onOpenFile={onOpenFile} onLogin={onLogin} />
               </>
             ) : (
               <>

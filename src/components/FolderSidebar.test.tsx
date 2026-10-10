@@ -269,3 +269,48 @@ describe('opening from the folder pane uses tabs', () => {
     expect(screen.getByText('Other doc text')).toBeInTheDocument();
   });
 });
+
+describe('remote root', () => {
+  const root = 'ssh://me@nas/home/me/docs';
+
+  test('the header shows the folder name with user@host beneath it', async () => {
+    listDirectory.mockResolvedValue([]);
+    render(<FolderSidebar {...props} folder={root} />);
+    expect(screen.getByText('docs')).toBeInTheDocument();
+    expect(screen.getByText('me@nas')).toBeInTheDocument();
+  });
+
+  test('a slow remote listing shows a spinner only after 150 ms', async () => {
+    let finish: (rows: unknown[]) => void = () => {};
+    listDirectory.mockReturnValue(new Promise((r) => (finish = r)));
+    render(<FolderSidebar {...props} folder={root} />);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(await screen.findByRole('status', {}, { timeout: 1000 })).toHaveTextContent('Loading…');
+    finish([{ name: 'a.md', path: `${root}/a.md`, isDir: false }]);
+    expect(await screen.findByRole('button', { name: 'a.md' })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  test('a fast remote listing never shows the spinner', async () => {
+    listDirectory.mockResolvedValue([{ name: 'a.md', path: `${root}/a.md`, isDir: false }]);
+    render(<FolderSidebar {...props} folder={root} />);
+    await screen.findByRole('button', { name: 'a.md' });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  test('an auth_required error row offers Log in, which reports the failing folder', async () => {
+    const { ListDirectoryError } = await import('../platform/folders');
+    listDirectory.mockRejectedValue(new ListDirectoryError('auth_required', "Couldn't list docs on nas: you need to log in again."));
+    const onLogin = vi.fn();
+    render(<FolderSidebar {...props} folder={root} onLogin={onLogin} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Log in' }));
+    expect(onLogin).toHaveBeenCalledWith(root);
+  });
+
+  test('a local folder shows no account line', () => {
+    listDirectory.mockResolvedValue([]);
+    render(<FolderSidebar {...props} folder="/proj" />);
+    expect(screen.getByText('proj')).toBeInTheDocument();
+    expect(screen.queryByText(/@/)).not.toBeInTheDocument();
+  });
+});

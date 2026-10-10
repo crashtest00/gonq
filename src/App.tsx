@@ -11,7 +11,9 @@ import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
 import { ConflictDialog, type ConflictChoice } from './components/ConflictDialog';
-import { RemoteConflictError, RemoteFileError, isSshPath, remoteHost } from './platform/remote';
+import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
+import { ConnectDialog } from './components/ConnectDialog';
+import { connectSupported } from './platform/connect';
 import { listThreads } from './components/threads';
 import { isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
 import { appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
@@ -59,6 +61,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  // The Connect dialog: from File > Connect to Server, from a login a save or expand needs, or from an error row.
+  const [connecting, setConnecting] = useState<{ host?: string; reconnect: boolean; resolve?: (connected: boolean) => void } | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
@@ -409,10 +413,52 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     }
   }, []);
 
+  /** Whether an open tab or the navigator root still uses the session for this host (user@host, or a bare host). */
+  const hostInUse = useCallback(
+    (name: string) => {
+      const want = name.toLowerCase().replace(/^ssh:\/\//, '');
+      const same = (path: string) => {
+        if (!isSshPath(path)) return false;
+        const account = remoteAccount(path).toLowerCase();
+        return account === want || account.endsWith(`@${want}`);
+      };
+      return session.peekTabs().some((t) => t.path !== null && same(t.path)) || (folder !== null && same(folder));
+    },
+    [session.peekTabs, folder],
+  );
+  const openConnect = useCallback((host?: string) => {
+    if (connectSupported()) setConnecting((c) => c ?? { host, reconnect: false });
+  }, []);
+  // A save or a folder expand that needs a login waits on the Connect dialog, then runs again.
+  const connectChain = useRef<Promise<unknown>>(Promise.resolve());
+  const connectPending = useRef(new Map<string, Promise<boolean>>());
+  useEffect(() => {
+    if (!connectSupported()) return;
+    return setConnectHandler((path) => {
+      const key = remoteAccount(path).toLowerCase();
+      const existing = connectPending.current.get(key);
+      if (existing !== undefined) return existing;
+      const asked = connectChain.current.then(
+        () => new Promise<boolean>((resolve) => setConnecting({ host: remoteAccount(path), reconnect: true, resolve })),
+      );
+      connectChain.current = asked;
+      connectPending.current.set(key, asked);
+      void asked.finally(() => connectPending.current.delete(key));
+      return asked;
+    });
+  }, []);
+  const openedRemoteFolder = useCallback((uri: string) => {
+    folderChosen.current = true;
+    setFolder(uri);
+    setError(null);
+    setOutlineOpen(false);
+    setFolderOpen(true);
+  }, []);
+
   // Keyboard shortcuts read the latest handlers through a ref, so the listener is added once.
   const openPrefs = useCallback(() => setPrefsOpen(true), []);
-  const actions = useRef({ newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo, openPrefs });
-  actions.current = { newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo, openPrefs };
+  const actions = useRef({ newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo, openPrefs, openConnect });
+  actions.current = { newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo, openPrefs, openConnect };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -423,6 +469,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const foreignField = target?.closest('input, textarea') && !target.closest('[data-block-editor]');
       let run: (() => unknown) | null = null;
       if (e.key === ',' && !e.shiftKey) run = a.openPrefs;
+      else if (key === 'k' && e.shiftKey && connectSupported()) run = () => a.openConnect();
       else if (key === 'o') run = a.openFile;
       else if (key === 'n') run = a.newFile;
       else if (key === 's') run = e.shiftKey ? a.saveAs : a.save;
@@ -456,6 +503,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onCloseTab={activeId === null ? undefined : () => void closeTab(activeId)}
         onOpen={() => void openFile()}
         onOpenFolder={foldersSupported() ? () => void openFolder() : undefined}
+        onConnect={connectSupported() ? () => openConnect() : undefined}
         onSave={() => void save()}
         onSaveAs={() => void saveAs()}
         onUndo={session.undo}
@@ -486,6 +534,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             currentPath={meta?.path ?? null}
             onOpenFolder={() => void openFolder()}
             onOpenFile={openFromFolder}
+            onLogin={connectSupported() ? (path) => openConnect(remoteAccount(path)) : undefined}
             onOpenRecent={(path) => void openKnownPath(path, true)}
             onRemoveRecent={(path) => void removeRecent(path).then(setRecents, () => {})}
           />
@@ -604,6 +653,18 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       )}
       {skillOpen && <AgentSkillDialog files={files} onClose={() => setSkillOpen(false)} />}
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+      {connecting !== null && (
+        <ConnectDialog
+          host={connecting.host}
+          reconnect={connecting.reconnect}
+          inUse={hostInUse}
+          onOpened={openedRemoteFolder}
+          onClose={(connected) => {
+            connecting.resolve?.(connected);
+            setConnecting(null);
+          }}
+        />
+      )}
       {conflict !== null && <ConflictDialog name={conflict.name} deleted={conflict.deleted} onChoose={conflict.resolve} />}
       {asking !== null && <UnsavedChangesDialog name={asking.name} onChoose={asking.resolve} />}
     </div>
