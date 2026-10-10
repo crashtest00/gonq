@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import App from './../App';
@@ -36,7 +36,6 @@ async function openDoc(text: string) {
   const saved: string[] = [];
   const files: FileAccess = {
     pickDocument: async () => ({ name: 'a.md', path: '/d/a.md', text }),
-    loadImage: async () => null,
     saveDocument: async (d) => {
       saved.push(d.text);
       return { name: d.name, path: d.path };
@@ -47,7 +46,7 @@ async function openDoc(text: string) {
   render(<App files={files} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
-  await screen.findByTestId('markdown-view');
+  await screen.findByTestId('editor');
   return { user, saved };
 }
 
@@ -57,6 +56,8 @@ async function setup() {
   await env.user.click(await screen.findByRole('button', { name: /First\?/ }));
   return env;
 }
+
+const inSidebar = () => within(screen.getByRole('complementary', { name: 'Comments' }));
 
 async function save(user: ReturnType<typeof userEvent.setup>, saved: string[]) {
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
@@ -74,7 +75,7 @@ describe('edit and delete', () => {
     await user.type(box, 'Reworded');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.queryByRole('textbox', { name: 'Edit comment' })).toBeNull();
-    expect(screen.getByText('Reworded')).toBeInTheDocument();
+    expect(inSidebar().getByText('Reworded')).toBeInTheDocument();
     const [first, second] = parseCommentThreads(await save(user, saved))[0].messages;
     expect(first.body).toBe('Reworded');
     expect(first.author).toBe('User');
@@ -100,7 +101,7 @@ describe('edit and delete', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect(screen.getByText('Answer.')).toBeInTheDocument();
+    expect(inSidebar().getByText('Answer.')).toBeInTheDocument();
     expect(await save(user, saved)).toBe(DOC);
   });
 
@@ -109,7 +110,7 @@ describe('edit and delete', () => {
     await user.click(screen.getByRole('button', { name: 'Delete thread' }));
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     expect(await screen.findByText('No comments yet.')).toBeInTheDocument();
-    expect(screen.getByTestId('markdown-view').textContent).not.toContain('💬');
+    expect(screen.getByTestId('editor').textContent).not.toContain('💬');
     const text = await save(user, saved);
     expect(parseCommentThreads(text)).toHaveLength(0);
     expect(text).not.toContain('md-thread');
@@ -172,7 +173,7 @@ describe('edit', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await undo(user);
     expect(await save(user, saved)).toBe(DOC);
-    expect(screen.getByText('First?')).toBeInTheDocument();
+    expect(inSidebar().getByText('First?')).toBeInTheDocument();
   });
 
   test('text containing --> round-trips', async () => {
@@ -256,7 +257,7 @@ describe('delete', () => {
     await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await undo(user);
     expect(await save(user, saved)).toBe(TWO);
-    expect(screen.getByTestId('markdown-view').textContent?.match(/💬/g)).toHaveLength(2);
+    expect(screen.getByTestId('editor').textContent?.match(/💬/g)).toHaveLength(2);
   });
 
   test('a thread with no marker is deleted by block', async () => {

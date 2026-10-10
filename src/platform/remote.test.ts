@@ -116,13 +116,6 @@ describe('saveDocument', () => {
   });
 });
 
-describe('loadImage', () => {
-  it('is null for relative images in remote documents', async () => {
-    expect(await files.loadImage({ name: 'a.md', path: URI, text: '' }, 'img/a.png')).toBeNull();
-    expect(readFile).not.toHaveBeenCalled();
-  });
-});
-
 describe('every RemoteError kind has a sentence naming host and file', () => {
   const kinds: RemoteErrorKind[] = [
     'unreachable',

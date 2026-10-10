@@ -1,7 +1,7 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { caretIn } from '../testing/inplace';
+import { at, caretAt, docText, editorView, select as selectRange, selectText } from '../testing/editor';
 import App from './../App';
 import { isCommentableAt } from './newThread';
 import { parseCommentThreads } from '../comment-threads';
@@ -16,7 +16,6 @@ function setup(text: string) {
   const doc: OpenedDocument = { name: 'a.md', path: '/d/a.md', text };
   const files: FileAccess = {
     pickDocument: async () => ({ ...doc, text: (saved.length ? saved[saved.length - 1] : text) }),
-    loadImage: async () => null,
     saveDocument: async (d) => {
       saved.push(d.text);
       return { name: d.name, path: d.path };
@@ -29,7 +28,7 @@ function setup(text: string) {
 async function openFile(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
-  await screen.findByTestId('markdown-view');
+  await screen.findByTestId('editor');
 }
 
 async function openDoc(text: string) {
@@ -40,23 +39,7 @@ async function openDoc(text: string) {
   return { user, ...env };
 }
 
-/** Selects `needle` inside the element whose own text contains it. */
-function select(container: HTMLElement, needle: string, end?: { node: Node; offset: number }) {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    const i = (n.textContent ?? '').indexOf(needle);
-    if (i >= 0) {
-      act(() => {
-        window.getSelection()!.setBaseAndExtent(n, i, end?.node ?? n, end?.offset ?? i + needle.length);
-        document.dispatchEvent(new Event('selectionchange'));
-      });
-      return n;
-    }
-  }
-  throw new Error(`no text ${needle}`);
-}
-
-const view = () => screen.getByTestId('markdown-view');
+const view = () => screen.getByTestId('editor');
 const selButton = () => screen.queryByRole('button', { name: 'Comment on selection' });
 const addButton = () => screen.getByRole('button', { name: 'Add comment' });
 
@@ -83,7 +66,7 @@ const DOC = [
 test('selection inside one paragraph shows the button; clicking opens the draft with the quoted anchor', async () => {
   const { user } = await openDoc(DOC);
   expect(selButton()).toBeNull();
-  select(view(), 'holds through Q3');
+  selectText('holds through Q3');
   await user.click(selButton()!);
   const side = screen.getByRole('complementary', { name: 'Comments' });
   expect(within(side).getByText('New comment')).toBeInTheDocument();
@@ -95,7 +78,7 @@ test('selection inside one paragraph shows the button; clicking opens the draft 
 
 test('selection inside a task item shows the button', async () => {
   await openDoc(DOC);
-  select(view(), 'first task');
+  selectText('first task');
   expect(selButton()).not.toBeNull();
 });
 
@@ -105,46 +88,40 @@ test.each([
   ['a table cell', 'cell one'],
 ])('no button for a selection inside %s', async (_n, needle) => {
   await openDoc(DOC);
-  select(view(), needle);
+  selectText(needle);
   expect(selButton()).toBeNull();
 });
 
 test('no button for an empty selection or one spanning blocks', async () => {
   await openDoc(DOC);
-  const n = select(view(), 'The estimate');
-  act(() => {
-    window.getSelection()!.setBaseAndExtent(n, 3, n, 3);
-    document.dispatchEvent(new Event('selectionchange'));
-  });
+  selectRange(at('The estimate') + 3);
   expect(selButton()).toBeNull();
-  const second = [...view().querySelectorAll('p')].find((p) => p.textContent === 'Second paragraph.')!;
-  select(view(), 'holds', { node: second.firstChild!, offset: 6 });
+  selectRange(at('holds'), at('Second paragraph.') + 6);
   expect(selButton()).toBeNull();
 });
 
 test('no button for a selection containing a marker', async () => {
   await openDoc(`Before [💬](#md-thread-c20260910143022a3f9c1) after.\n\n<!--\n@thread c20260910143022a3f9c1\n@status open\n\n[User | 2026-09-10T14:30:22+02:00]\nhi\n-->\n`);
-  const marker = screen.getByRole('button', { name: '💬' });
-  select(view(), 'Before', { node: marker.nextSibling!, offset: 3 });
+  selectRange(0, at('after') - 1);
   expect(selButton()).toBeNull();
-  select(view(), 'after');
+  selectText('after');
   expect(selButton()).not.toBeNull();
 });
 
 test('submitting a selection thread writes marker and block, opens the thread and clears the selection', async () => {
   const { user, saved } = await openDoc(DOC);
-  select(view(), 'holds through Q3');
+  selectText('holds through Q3');
   await user.click(selButton()!);
-  const box = screen.getByRole('textbox');
+  const box = screen.getByRole('textbox', { name: 'Comment' });
   await user.type(box, 'Where does this come from?');
   await user.click(screen.getByRole('button', { name: 'Submit' }));
 
-  expect(window.getSelection()!.isCollapsed).toBe(true);
+  expect(editorView().state.selection.main.empty).toBe(true);
   expect(selButton()).toBeNull();
   const side = screen.getByRole('complementary', { name: 'Comments' });
   expect(within(side).getByRole('button', { name: 'Close thread' })).toBeInTheDocument();
   expect(within(side).getByText('Where does this come from?')).toBeInTheDocument();
-  expect(within(view()).getByRole('button', { name: '💬' })).toBeInTheDocument();
+  expect(docText()).toMatch(/\[💬\]\(#md-thread-/);
 
   // Unsaved until saved.
   expect(screen.getByLabelText('unsaved changes')).toBeInTheDocument();
@@ -163,29 +140,29 @@ test('submitting a selection thread writes marker and block, opens the thread an
 
 test('blank or whitespace-only submit does nothing; cancel discards', async () => {
   const { user } = await openDoc(DOC);
-  select(view(), 'holds');
+  selectText('holds');
   await user.click(selButton()!);
-  await user.type(screen.getByRole('textbox'), '   \n ');
+  await user.type(screen.getByRole('textbox', { name: 'Comment' }), '   \n ');
   await user.click(screen.getByRole('button', { name: 'Submit' }));
   expect(screen.getByText('New comment')).toBeInTheDocument();
-  expect(within(view()).queryByRole('button', { name: '💬' })).toBeNull();
+  expect(docText()).not.toContain('💬');
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(screen.queryByText('New comment')).toBeNull();
   expect(screen.getByRole('heading', { name: 'Comments' })).toBeInTheDocument();
-  expect(within(view()).queryByRole('button', { name: '💬' })).toBeNull();
+  expect(docText()).not.toContain('💬');
   expect(screen.queryByLabelText('unsaved changes')).toBeNull();
 });
 
 test('undo removes marker and block in one step', async () => {
   const { user, saved } = await openDoc('Hello brave world.\n');
-  select(view(), 'brave');
+  selectText('brave');
   await user.click(selButton()!);
-  await user.type(screen.getByRole('textbox'), 'note');
+  await user.type(screen.getByRole('textbox', { name: 'Comment' }), 'note');
   await user.click(screen.getByRole('button', { name: 'Submit' }));
-  expect(within(view()).getByRole('button', { name: '💬' })).toBeInTheDocument();
+  expect(docText()).toContain('💬');
   await user.click(screen.getByRole('menuitem', { name: 'Edit' }));
   await user.click(await screen.findByRole('menuitem', { name: /Undo/ }));
-  expect(within(view()).queryByRole('button', { name: '💬' })).toBeNull();
+  expect(docText()).not.toContain('💬');
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Save(?! As)/ }));
   expect(saved[saved.length - 1]).toBe('Hello brave world.\n');
@@ -193,9 +170,9 @@ test('undo removes marker and block in one step', async () => {
 
 test('saved thread reopens as the same thread', async () => {
   const { user, files, saved } = await openDoc('Hello brave world.\n');
-  select(view(), 'brave');
+  selectText('brave');
   await user.click(selButton()!);
-  await user.type(screen.getByRole('textbox'), 'multi{enter}line');
+  await user.type(screen.getByRole('textbox', { name: 'Comment' }), 'multi{enter}line');
   await user.click(screen.getByRole('button', { name: 'Submit' }));
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Save(?! As)/ }));
@@ -209,16 +186,16 @@ test('saved thread reopens as the same thread', async () => {
   const row = within(screen.getByRole('list')).getByRole('button');
   expect(row).toHaveTextContent('brave');
   expect(row).toHaveTextContent('multi line');
-  await user2.click(within(view()).getByRole('button', { name: '💬' }));
-  expect(screen.getByText(/multi\s*line/).textContent).toBe('multi\nline');
+  await user2.click(row);
+  expect(within(screen.getByRole('complementary', { name: 'Comments' })).getByText(/multi\s*line/).textContent).toBe('multi\nline');
 });
 
 test('a body containing --> and a bare --> line round-trips', async () => {
   const { user, saved } = await openDoc('Some text here.\n');
-  select(view(), 'text');
+  selectText('text');
   await user.click(selButton()!);
   const body = 'a --> b\n-->\nend';
-  fireEvent.change(screen.getByRole('textbox'), { target: { value: body } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), { target: { value: body } });
   await user.click(screen.getByRole('button', { name: 'Submit' }));
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Save(?! As)/ }));
@@ -228,10 +205,7 @@ test('a body containing --> and a bare --> line round-trips', async () => {
 
 describe('Add comment at the cursor', () => {
   async function addAtCaret(user: ReturnType<typeof userEvent.setup>, target: string) {
-    await user.click(screen.getByText(target));
-    // tables still open the Markdown field on click, so there is no rendered text to put a caret in
-    const rendered = screen.queryByText(target);
-    if (rendered) await caretIn(rendered);
+    caretAt(target);
     await user.click(screen.getByRole('button', { name: 'Comments' }));
   }
 
@@ -257,7 +231,7 @@ describe('Add comment at the cursor', () => {
     await user.click(addButton());
     expect(screen.getByText('New comment')).toBeInTheDocument();
     expect(screen.queryByText(/^On:/)).toBeNull();
-    await user.type(screen.getByRole('textbox'), 'general remark');
+    await user.type(screen.getByRole('textbox', { name: 'Comment' }), 'general remark');
     await user.click(screen.getByRole('button', { name: 'Submit' }));
     await user.click(screen.getByRole('menuitem', { name: 'File' }));
     await user.click(await screen.findByRole('menuitem', { name: /^Save(?! As)/ }));
@@ -275,15 +249,11 @@ describe('Add comment at the cursor', () => {
 });
 
 describe('marker placement', () => {
-  async function create(text: string, needle: string, endOffsetFromNeedleEnd = 0) {
+  async function create(text: string, needle: string) {
     const { user, saved } = await openDoc(text);
-    const n = select(view(), needle);
-    if (endOffsetFromNeedleEnd !== 0) {
-      const start = (n.textContent ?? '').indexOf(needle);
-      select(view(), needle, { node: n, offset: start + needle.length + endOffsetFromNeedleEnd });
-    }
+    selectText(needle);
     await user.click(selButton()!);
-    await user.type(screen.getByRole('textbox'), 'c');
+    await user.type(screen.getByRole('textbox', { name: 'Comment' }), 'c');
     await user.click(screen.getByRole('button', { name: 'Submit' }));
     await user.click(screen.getByRole('menuitem', { name: 'File' }));
     await user.click(await screen.findByRole('menuitem', { name: /^Save(?! As)/ }));
@@ -322,9 +292,9 @@ describe('marker placement', () => {
     try {
       const { user, saved } = await openDoc('Hello world today.\n');
       for (const word of ['Hello', 'today']) {
-        select(view(), word);
+        selectText(word);
         await user.click(selButton()!);
-        await user.type(screen.getByRole('textbox'), 'x');
+        await user.type(screen.getByRole('textbox', { name: 'Comment' }), 'x');
         await user.click(screen.getByRole('button', { name: 'Submit' }));
       }
       await user.click(screen.getByRole('menuitem', { name: 'File' }));

@@ -1,7 +1,7 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { caretIn } from '../testing/inplace';
+import { caretAt, docText, editorView, select, type as typeText } from '../testing/editor';
 import App from '../App';
 import { PathTakenError, type FileAccess, type OpenedDocument } from '../platform/files';
 import { tabLabels } from './TabStrip';
@@ -28,7 +28,6 @@ function setup(queue: OpenedDocument[]) {
   });
   const files: FileAccess = {
     pickDocument: async () => picks.shift() ?? null,
-    loadImage: async () => null,
     saveDocument,
     saveDocumentAs,
   };
@@ -44,11 +43,10 @@ async function openFile(user: U) {
 }
 const tabs = () => screen.getAllByRole('tab');
 const tab = (name: RegExp) => screen.getByRole('tab', { name });
-async function type(user: U, para: string, extra: string) {
-  await user.click(screen.getByText(para));
-  await caretIn(screen.getByText(para));
-  await user.keyboard(extra);
-  await user.keyboard('{Escape}');
+/** Types `extra` at the end of the line `para` in the shown document. */
+function edit(para: string, extra: string) {
+  caretAt(para);
+  typeText(extra);
 }
 
 test('several documents open at once, one tab each; switching swaps the content', async () => {
@@ -68,7 +66,7 @@ test('undo history, unsaved indicator and raw mode are kept per document', async
   const { user } = setup([A, B]);
   await openFile(user);
   await screen.findByText('first doc');
-  await type(user, 'first doc', '!');
+  edit('first doc', '!');
   await user.click(screen.getByRole('switch'));
   await openFile(user);
   await screen.findByText('second doc');
@@ -84,18 +82,20 @@ test('undo history, unsaved indicator and raw mode are kept per document', async
   expect(within(tab(/a\.md/)).queryByLabelText('unsaved changes')).not.toBeInTheDocument();
 });
 
-test('scroll position is restored when switching back', async () => {
+test('caret and undo history are kept per document', async () => {
   const { user } = setup([A, B]);
   await openFile(user);
   await screen.findByText('first doc');
-  const main = screen.getByRole('main');
-  main.scrollTop = 120;
-  main.dispatchEvent(new Event('scroll'));
+  edit('first doc', '!');
+  select(3);
   await openFile(user);
   await screen.findByText('second doc');
-  expect(main.scrollTop).toBe(0);
+  expect(editorView().state.selection.main.head).toBe(0);
   await user.click(tab(/a\.md/));
-  expect(main.scrollTop).toBe(120);
+  expect(docText()).toBe('# Alpha\n\nfirst doc!');
+  expect(editorView().state.selection.main.head).toBe(3);
+  await user.click(screen.getByRole('button', { name: 'Undo' }));
+  expect(docText()).toBe('# Alpha\n\nfirst doc');
 });
 
 test('opening an already-open file switches to its tab instead of opening another', async () => {
@@ -134,13 +134,14 @@ test('outline and comments sidebars follow the active tab; comments reset to All
   expect(within(outline).queryByText('Sub')).not.toBeInTheDocument();
   expect(within(outline).getByText('Gamma')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Comments' }));
-  await user.click(await screen.findByText('Hi there'));
+  const comments = () => within(screen.getByRole('complementary', { name: 'Comments' }));
+  await user.click(await comments().findByText('Hi there'));
   expect(screen.queryByText('No comments yet.')).not.toBeInTheDocument();
   await user.click(tab(/b\.md/));
   expect(await screen.findByText('No comments yet.')).toBeInTheDocument();
   await user.click(tab(/c\.md/));
   // Back on the thread-bearing tab the sidebar shows the list, not the previously open thread.
-  expect(await screen.findByText('Hi there')).toBeInTheDocument();
+  expect(await comments().findByText('Hi there')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Reply/ })).not.toBeInTheDocument();
 });
 
@@ -149,7 +150,7 @@ describe('closing a tab', () => {
     const ctx = setup([A, B]);
     await openFile(ctx.user);
     await screen.findByText('first doc');
-    await type(ctx.user, 'first doc', '!');
+    edit('first doc', '!');
     await openFile(ctx.user);
     await screen.findByText('second doc');
     await ctx.user.click(screen.getByRole('button', { name: 'Close a.md' }));
@@ -211,9 +212,7 @@ describe('closing a tab', () => {
   test('a dirty untitled tab still asks; Cancel keeps it', async () => {
     const { user } = setup([]);
     await user.click(screen.getByRole('button', { name: 'New tab' }));
-    await user.click(screen.getByTestId('append-area'));
-    await user.type(screen.getByRole('textbox', { name: /Markdown source/ }), 'hello');
-    await user.keyboard('{Escape}');
+    typeText('hello');
     await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -246,10 +245,10 @@ test('closing the window asks for every unsaved tab in turn; Cancel aborts', asy
   const { user, saveDocument } = setup([A, B]);
   await openFile(user);
   await screen.findByText('first doc');
-  await type(user, 'first doc', '!');
+  edit('first doc', '!');
   await openFile(user);
   await screen.findByText('second doc');
-  await type(user, 'second doc', '?');
+  edit('second doc', '?');
   let result: Promise<boolean> = Promise.resolve(false);
   act(() => {
     result = closeGuard.confirm!();

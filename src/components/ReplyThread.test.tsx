@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
+import { selectText } from '../testing/editor';
 import App from './../App';
 import { AGENT_GUIDANCE, AGENT_GUIDANCE_TITLE, parseCommentThreads } from '../comment-threads';
 import type { FileAccess } from '../platform/files';
@@ -18,7 +19,6 @@ async function openDoc(text: string) {
   const saved: string[] = [];
   const files: FileAccess = {
     pickDocument: async () => ({ name: 'a.md', path: '/d/a.md', text }),
-    loadImage: async () => null,
     saveDocument: async (d) => {
       saved.push(d.text);
       return { name: d.name, path: d.path };
@@ -29,7 +29,7 @@ async function openDoc(text: string) {
   render(<App files={files} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
-  await screen.findByTestId('markdown-view');
+  await screen.findByTestId('editor');
   return { user, saved };
 }
 
@@ -110,14 +110,7 @@ describe('agent guidance', () => {
   async function createThread(text: string) {
     const env = await openDoc(text);
     await env.user.click(screen.getByRole('button', { name: 'Comments' }));
-    const p = screen.getByText(/Hello/);
-    const range = document.createRange();
-    range.setStart(p.firstChild!, 0);
-    range.setEnd(p.firstChild!, 5);
-    const sel = window.getSelection()!;
-    sel.removeAllRanges();
-    sel.addRange(range);
-    document.dispatchEvent(new Event('selectionchange'));
+    selectText('Hello');
     await env.user.click(await screen.findByRole('button', { name: 'Comment on selection' }));
     await env.user.type(screen.getByRole('textbox', { name: 'Comment' }), 'Note');
     await env.user.click(screen.getByRole('button', { name: 'Submit' }));
@@ -133,7 +126,8 @@ describe('agent guidance', () => {
     expect(AGENT_GUIDANCE).not.toMatch(/^\s*@thread/m);
     expect(parseCommentThreads(AGENT_GUIDANCE)).toHaveLength(0);
     expect(AGENT_GUIDANCE).not.toMatch(/-->(?!$)/);
-    expect(screen.getByTestId('markdown-view').textContent).not.toContain('guidance for AI agents');
+    // The note is an HTML comment: the editor shows it as source, the sidebar never lists it.
+    expect(parseCommentThreads(text)).toHaveLength(1);
   });
 
   test('not duplicated when already present', async () => {

@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { caretIn } from '../testing/inplace';
+import { caretAt, type as typeText } from '../testing/editor';
 import App from '../App';
 import { FolderSidebar } from './FolderSidebar';
 import { RemoteConflictError, RemoteFileError, type RemoteStat } from '../platform/remote';
@@ -16,7 +16,6 @@ function setup(docs: OpenedDocument[], saveDocument: FileAccess['saveDocument'])
   const queue = [...docs];
   const files: FileAccess = {
     pickDocument: async () => queue.shift() ?? null,
-    loadImage: async () => null,
     saveDocument,
     saveDocumentAs: async (d) => ({ name: d.name, path: '/x/copy.md' }),
   };
@@ -29,10 +28,8 @@ async function openFile(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
 }
 async function typeAndSave(user: ReturnType<typeof userEvent.setup>, para: string) {
-  await user.click(screen.getByText(para));
-  await caretIn(screen.getByText(para));
-  await user.keyboard('!');
-  await user.keyboard('{Escape}');
+  caretAt(para);
+  typeText('!');
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Save(?!\s*As)/ }));
 }
@@ -115,10 +112,8 @@ test('recent files show user@host only for remote ones, and a lost folder offers
 });
 
 async function editBody(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByText('body'));
-  await caretIn(screen.getByText('body'));
-  await user.keyboard('!');
-  await user.keyboard('{Escape}');
+  caretAt('body');
+  typeText('!');
 }
 
 test('Ctrl+S while the conflict dialog is open joins the pending save; closing then completes', async () => {
