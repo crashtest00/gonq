@@ -4,6 +4,7 @@ use super::fs::{self, Remote, RemoteError, RemoteStat, WriteOutcome};
 use super::tests::{fixture, is_connected, none, write_key, Fixture, Setup};
 use super::test_server::{new_key, Policy, TestServer};
 use super::uri::RemotePath;
+#[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
@@ -31,7 +32,8 @@ impl R {
     }
     fn stat_on_disk(&self, rel: &str) -> RemoteStat {
         let m = std::fs::metadata(self.at(rel)).unwrap();
-        RemoteStat { mtime: m.mtime() as u32, size: m.len() }
+        let mtime = m.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as u32;
+        RemoteStat { mtime, size: m.len() }
     }
     async fn read(&self, rel: &str) -> Result<(RemoteStat, Vec<u8>), RemoteError> {
         fs::read(&self.f.pool, &self.remote, &self.uri(self.at(rel))).await
@@ -104,6 +106,7 @@ async fn the_listing_has_the_local_filter_and_order() {
     assert!(sub.is_empty());
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn a_linked_folder_is_a_folder_and_a_broken_link_is_skipped() {
     let r = setup().await;
@@ -115,6 +118,7 @@ async fn a_linked_folder_is_a_folder_and_a_broken_link_is_skipped() {
     assert_eq!(got, [("link", true), ("real", true)]);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn listing_errors_are_typed() {
     let r = setup().await;
@@ -205,6 +209,7 @@ async fn read_a_large_file_in_full() {
     assert_eq!(r.read("big.md").await.unwrap().1, big.as_bytes());
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn read_errors_are_typed() {
     let r = setup().await;
@@ -217,6 +222,7 @@ async fn read_errors_are_typed() {
     std::fs::set_permissions(r.at("secret.md"), std::fs::Permissions::from_mode(0o644)).unwrap();
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn read_follows_a_link_that_stays_inside_the_folder() {
     let r = setup().await;
@@ -271,6 +277,7 @@ async fn paths_outside_the_folder_are_refused_including_dot_dot() {
     assert_eq!(std::fs::read_to_string(&outside).unwrap(), "private");
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn a_link_that_leads_out_of_the_folder_is_refused() {
     let r = setup().await;
@@ -285,6 +292,7 @@ async fn a_link_that_leads_out_of_the_folder_is_refused() {
     assert_eq!(std::fs::read_to_string(&outside).unwrap(), "private");
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn a_folder_reached_through_a_link_is_usable() {
     let r = setup().await;
@@ -346,6 +354,7 @@ async fn exists_answers_for_granted_and_recorded_paths_only() {
 
 // ---- saving ------------------------------------------------------------------------------------
 
+#[cfg(unix)]
 #[tokio::test]
 async fn save_replaces_the_file_atomically_and_returns_the_new_stat() {
     let r = setup().await;
@@ -445,6 +454,7 @@ async fn without_fsync_the_atomic_save_still_works() {
     assert_eq!(std::fs::read_to_string(r.at("a.md")).unwrap(), "new");
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn a_folder_that_is_not_writable_falls_back_to_writing_in_place() {
     let r = setup().await;
@@ -458,6 +468,7 @@ async fn a_folder_that_is_not_writable_falls_back_to_writing_in_place() {
     assert_eq!(std::fs::read_to_string(r.at("ro/a.md")).unwrap(), "new");
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn a_read_only_file_is_a_permission_error_and_stays_as_it_was() {
     let r = setup().await;
@@ -471,14 +482,92 @@ async fn a_read_only_file_is_a_permission_error_and_stays_as_it_was() {
 }
 
 #[tokio::test]
-async fn a_leftover_temporary_file_goes_on_the_next_successful_save() {
+async fn old_leftover_temporary_files_in_the_folder_go_on_the_next_successful_save() {
     let r = setup().await;
     r.put("a.md", "old");
     r.put(".a.md.gonq-deadbeef.tmp", "half");
     r.put(".b.md.gonq-00000001.tmp", "another file's");
+    r.put(".c.md.gonq-00000002.tmp", "another save in flight");
     r.put("keep.tmp", "not ours");
+    bump_mtime(&r.at(".a.md.gonq-deadbeef.tmp"), 0);
+    let hour_ago = SystemTime::now() - Duration::from_secs(3600);
+    for name in [".a.md.gonq-deadbeef.tmp", ".b.md.gonq-00000001.tmp"] {
+        let f = std::fs::OpenOptions::new().write(true).open(r.at(name)).unwrap();
+        f.set_modified(hour_ago).unwrap();
+    }
     saved(r.save("a.md", "new", r.stat_on_disk("a.md"), false).await);
-    assert_eq!(r.names_in(""), [".b.md.gonq-00000001.tmp", "a.md", "keep.tmp"]);
+    assert_eq!(r.names_in(""), [".c.md.gonq-00000002.tmp", "a.md", "keep.tmp"]);
+}
+
+#[tokio::test]
+async fn a_taken_temporary_name_is_retried_once_with_a_fresh_one() {
+    let r = setup_with(|s| s.exclude_collisions = 1).await;
+    r.put("a.md", "old");
+    let (_, in_place, _) = saved(r.save("a.md", "new", r.stat_on_disk("a.md"), false).await);
+    assert!(!in_place);
+    assert_eq!(std::fs::read_to_string(r.at("a.md")).unwrap(), "new");
+
+    let r = setup_with(|s| s.exclude_collisions = 2).await;
+    r.put("a.md", "old");
+    let out = r.save("a.md", "new", r.stat_on_disk("a.md"), false).await;
+    assert!(matches!(out, Err(RemoteError::Io(_))), "{out:?}");
+    assert_eq!(r.names_in(""), ["a.md"]);
+    assert_eq!(std::fs::read_to_string(r.at("a.md")).unwrap(), "old");
+}
+
+#[tokio::test]
+async fn a_link_lost_after_the_rename_is_not_retried_into_a_false_conflict() {
+    let r = setup_with(|s| s.kill_after_rename = true).await;
+    r.put("a.md", "old");
+    let out = r.save("a.md", "new", r.stat_on_disk("a.md"), false).await;
+    assert!(matches!(out, Err(RemoteError::Disconnected(_))), "{out:?}");
+    assert_eq!(std::fs::read_to_string(r.at("a.md")).unwrap(), "new");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_read_only_file_in_a_writable_folder_is_not_replaced() {
+    let r = setup().await;
+    r.put("a.md", "old");
+    std::fs::set_permissions(r.at("a.md"), std::fs::Permissions::from_mode(0o444)).unwrap();
+    let out = r.save("a.md", "new", r.stat_on_disk("a.md"), false).await;
+    assert!(matches!(out, Err(RemoteError::PermissionDenied(_))), "{out:?}");
+    let forced = r.save("a.md", "new", r.stat_on_disk("a.md"), true).await;
+    assert!(matches!(forced, Err(RemoteError::PermissionDenied(_))), "{forced:?}");
+    let m = std::fs::metadata(r.at("a.md")).unwrap();
+    assert_eq!(m.mode() & 0o7777, 0o444);
+    assert_eq!(std::fs::read_to_string(r.at("a.md")).unwrap(), "old");
+    assert_eq!(r.names_in(""), ["a.md"]);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_recreated_file_gets_the_servers_default_mode() {
+    let r = setup().await;
+    std::fs::write(r.at("probe"), "").unwrap();
+    let default_mode = std::fs::metadata(r.at("probe")).unwrap().mode() & 0o7777;
+    let (_, _, _) = saved(r.save("new.md", "hello", RemoteStat { mtime: 0, size: 0 }, true).await);
+    assert_eq!(std::fs::metadata(r.at("new.md")).unwrap().mode() & 0o7777, default_mode);
+}
+
+#[tokio::test]
+async fn only_non_markdown_files_cannot_be_read_even_when_recorded_as_recent() {
+    let r = setup().await;
+    r.put("id_ed25519", "PRIVATE KEY");
+    let fresh = Remote::default();
+    super::allow_recent(&fresh, &r.uri(r.at("id_ed25519"))).unwrap();
+    let out = fs::read(&r.f.pool, &fresh, &r.uri(r.at("id_ed25519"))).await;
+    assert!(matches!(out, Err(RemoteError::NotAllowed(_))), "{out:?}");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_markdown_link_to_another_kind_of_file_is_not_read() {
+    let r = setup().await;
+    r.put("real.conf", "secret");
+    std::os::unix::fs::symlink(r.at("real.conf"), r.at("sneaky.md")).unwrap();
+    let out = r.read("sneaky.md").await;
+    assert!(matches!(out, Err(RemoteError::NotAllowed(_))), "{out:?}");
 }
 
 #[tokio::test]
@@ -499,6 +588,7 @@ async fn only_markdown_files_can_be_written() {
     saved(r.save("upper.MARKDOWN", "b", r.stat_on_disk("upper.MARKDOWN"), false).await);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn a_save_through_a_link_inside_the_folder_replaces_the_target_and_keeps_the_link() {
     let r = setup().await;

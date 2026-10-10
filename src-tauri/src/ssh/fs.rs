@@ -50,6 +50,7 @@ pub enum RemoteError {
     Disconnected(String),
     NotFound(String),
     PermissionDenied(String),
+    /// A folder was expected and the path is something else (not part of the original contract).
     NotAFolder(String),
     /// Outside the folders the user opened, or not a Markdown file where one is required.
     NotAllowed(String),
@@ -335,6 +336,11 @@ pub async fn read(pool: &Pool, remote: &Remote, uri: &str) -> Result<(RemoteStat
     run(pool, &p.key, |conn| async move {
         let p = sem!(allowed(&conn, remote, &p, uri));
         let real = sem!(resolved(&conn, remote, &p, uri).await?);
+        // Gonq opens Markdown only: a recorded recent cannot be used to read other files, and a
+        // link cannot lead to one.
+        if !is_markdown(base_name(&real)) {
+            return Ok(Err(not_allowed(&format!("{uri}: only Markdown files can be read"))));
+        }
         let mut file = conn.sftp().open(real).await?;
         let meta = file.metadata().await?;
         if meta.is_dir() {
@@ -393,7 +399,12 @@ pub async fn write(
         return Err(not_allowed(&format!("{uri}: only Markdown files can be written")));
     }
     precheck(remote, &p, uri)?;
+    // Set once the rename (or the in-place write) may have reached the server: a lost link after
+    // that point cannot be retried, since the retry would see our own change as a conflict.
+    let committed = AtomicBool::new(false);
+    let committed = &committed;
     run(pool, &p.key, |conn| async move {
+        committed.store(false, Ordering::SeqCst);
         let p = sem!(allowed(&conn, remote, &p, uri));
         let sftp = conn.sftp();
         // A link is followed, so the target is replaced and the link stays a link.
@@ -423,15 +434,27 @@ pub async fn write(
                 Some(_) => {}
             }
         }
-        let mode = current.as_ref().and_then(|m| m.permissions).map_or(0o644, |m| m & 0o7777);
-        let atomic = sem!(save_atomically(&conn, &target, text.as_bytes(), mode, uri).await?);
+        let mode = current.as_ref().and_then(|m| m.permissions).map(|m| m & 0o7777);
+        // A read-only file is not silently replaced by a writable copy.
+        if mode.is_some_and(|m| m & 0o200 == 0) {
+            return Ok(Err(RemoteError::PermissionDenied(uri.to_string())));
+        }
+        let atomic = sem!(save_atomically(&conn, &target, text.as_bytes(), mode, uri, committed).await?);
         let in_place = !atomic;
         if in_place {
-            sem!(save_in_place(&conn, &target, text.as_bytes(), mode, uri).await?);
+            committed.store(true, Ordering::SeqCst);
+            match save_in_place(&conn, &target, text.as_bytes(), mode, uri).await {
+                Ok(done) => sem!(done),
+                Err(e) => return Ok(Err(sftp_error(&e, uri))),
+            }
         }
-        let after = sftp.metadata(target.clone()).await?;
+        let after = match sftp.metadata(target.clone()).await {
+            Ok(m) => m,
+            Err(e) if committed.load(Ordering::SeqCst) => return Ok(Err(sftp_error(&e, uri))),
+            Err(e) => return Err(e),
+        };
         if !in_place {
-            remove_stale_temps(&conn, &target).await;
+            remove_stale_temps(&conn, &target, after.mtime.unwrap_or(0)).await;
         }
         let warn = in_place && remote.first_in_place(&p.key);
         Ok(Ok(WriteOutcome::Saved { stat: RemoteStat::of(&after), in_place, warn }))
@@ -451,17 +474,22 @@ fn temp_prefix(name: &str) -> String {
 
 /// Writes to a temporary file beside `target` and renames it into place. `Ok(false)` means this
 /// server or folder cannot do that and nothing was written, so the caller writes in place.
-async fn save_atomically(conn: &Conn, target: &str, bytes: &[u8], mode: u32, uri: &str) -> Op<bool> {
+async fn save_atomically(conn: &Conn, target: &str, bytes: &[u8], mode: Option<u32>, uri: &str, committed: &AtomicBool) -> Op<bool> {
     let Some(ext) = conn.ext().filter(|e| e.offers(POSIX_RENAME)) else { return Ok(Ok(false)) };
     let sftp = conn.sftp();
-    let temp = format!("{}{:08x}.tmp", join(folder_of(target), &temp_prefix(base_name(target))), random_suffix());
-    let attrs = FileAttributes { permissions: Some(mode), ..FileAttributes::empty() };
-    let opened = sftp.open_with_flags_and_attributes(temp.clone(), OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::EXCLUDE, attrs).await;
-    let mut file = match opened {
-        Ok(f) => f,
-        // The folder is not writable (the file may be): no temporary file can be made there.
-        Err(SftpError::Status(s)) if s.status_code == StatusCode::PermissionDenied => return Ok(Ok(false)),
-        Err(e) => return Err(e),
+    let attrs = FileAttributes { permissions: mode, ..FileAttributes::empty() };
+    let mut tries = 0;
+    let (temp, mut file) = loop {
+        let temp = format!("{}{:08x}.tmp", join(folder_of(target), &temp_prefix(base_name(target))), random_suffix());
+        let flags = OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::EXCLUDE;
+        match sftp.open_with_flags_and_attributes(temp.clone(), flags, attrs.clone()).await {
+            Ok(f) => break (temp, f),
+            // The folder is not writable (the file may be): no temporary file can be made there.
+            Err(SftpError::Status(s)) if s.status_code == StatusCode::PermissionDenied => return Ok(Ok(false)),
+            // The name is taken (EXCLUDE failed): try once more with a fresh one.
+            Err(SftpError::Status(s)) if tries == 0 && s.status_code != StatusCode::NoSuchFile => tries += 1,
+            Err(e) => return Err(e),
+        }
     };
     let written: Op<()> = async {
         file_try!(conn, uri, file.write_all(bytes).await);
@@ -469,8 +497,13 @@ async fn save_atomically(conn: &Conn, target: &str, bytes: &[u8], mode: u32, uri
         file.sync_all().await?;
         file_try!(conn, uri, file.close().await);
         // The server's umask may have trimmed the bits asked for at creation.
-        let _ = sftp.set_metadata(temp.clone(), FileAttributes { permissions: Some(mode), ..FileAttributes::empty() }).await;
-        posix_rename(&ext.raw, &temp, target).await?;
+        if mode.is_some() {
+            let _ = sftp.set_metadata(temp.clone(), attrs.clone()).await;
+        }
+        committed.store(true, Ordering::SeqCst);
+        if let Err(e) = posix_rename(&ext.raw, &temp, target).await {
+            return Ok(Err(sftp_error(&e, uri)));
+        }
         Ok(Ok(()))
     }
     .await;
@@ -504,8 +537,8 @@ async fn posix_rename(raw: &russh_sftp::client::RawSftpSession, from: &str, to: 
 }
 
 /// Truncate and write. Not atomic: the caller says so to the user.
-async fn save_in_place(conn: &Conn, target: &str, bytes: &[u8], mode: u32, uri: &str) -> Op<()> {
-    let attrs = FileAttributes { permissions: Some(mode), ..FileAttributes::empty() };
+async fn save_in_place(conn: &Conn, target: &str, bytes: &[u8], mode: Option<u32>, uri: &str) -> Op<()> {
+    let attrs = FileAttributes { permissions: mode, ..FileAttributes::empty() };
     let mut file = conn
         .sftp()
         .open_with_flags_and_attributes(target.to_string(), OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE, attrs)
@@ -516,14 +549,19 @@ async fn save_in_place(conn: &Conn, target: &str, bytes: &[u8], mode: u32, uri: 
     Ok(Ok(()))
 }
 
-/// Temporary files an earlier failed save left beside `target`. Best effort.
-async fn remove_stale_temps(conn: &Conn, target: &str) {
-    let prefix = temp_prefix(base_name(target));
-    let Ok(entries) = conn.sftp().read_dir(folder_of(target).to_string()).await else { return };
+/// Temporary files earlier failed saves left in the folder of `target`: any `.*.gonq-*.tmp` more
+/// than ten minutes older than the file just saved (`now`, the server's own clock), so a save in
+/// flight from another window is left alone. Best effort.
+async fn remove_stale_temps(conn: &Conn, target: &str, now: u32) {
+    const STALE_SECS: u32 = 10 * 60;
+    let folder = folder_of(target);
+    let Ok(entries) = conn.sftp().read_dir(folder.to_string()).await else { return };
     for entry in entries {
         let name = entry.file_name();
-        if name.starts_with(&prefix) && name.ends_with(".tmp") {
-            let _ = conn.sftp().remove_file(join(folder_of(target), &name)).await;
+        let is_temp = name.starts_with('.') && name.contains(".gonq-") && name.ends_with(".tmp");
+        let old = entry.metadata().mtime.is_some_and(|m| m.saturating_add(STALE_SECS) < now);
+        if is_temp && old {
+            let _ = conn.sftp().remove_file(join(folder, &name)).await;
         }
     }
 }

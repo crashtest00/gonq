@@ -53,6 +53,8 @@ pub(super) struct Setup {
     pub(super) no_posix_rename: bool,
     pub(super) no_fsync: bool,
     pub(super) kill_on_write: Option<usize>,
+    pub(super) exclude_collisions: usize,
+    pub(super) kill_after_rename: bool,
 }
 
 fn answers(trust: Option<&str>, passphrase: Option<&str>, password: Option<&str>) -> Answers {
@@ -81,6 +83,8 @@ pub(super) async fn fixture(setup: Setup) -> Fixture {
         no_posix_rename: setup.no_posix_rename,
         no_fsync: setup.no_fsync,
         kill_on_write: setup.kill_on_write,
+        exclude_collisions: setup.exclude_collisions,
+        kill_after_rename: setup.kill_after_rename,
     };
     std::fs::create_dir_all(dir.path().join("home")).unwrap();
     let server = TestServer::start(new_key(), policy).await;

@@ -31,6 +31,10 @@ pub struct Policy {
     pub no_fsync: bool,
     /// Drop every session when the Nth SFTP write arrives (counted over the server's life), unanswered.
     pub kill_on_write: Option<usize>,
+    /// Fail this many `EXCLUDE` opens per session as a taken name, whatever the real file system says.
+    pub exclude_collisions: usize,
+    /// Perform a `posix-rename` and then drop every session before answering it.
+    pub kill_after_rename: bool,
 }
 
 pub struct TestServer {
@@ -194,6 +198,8 @@ struct Sftp {
     posix_rename: bool,
     fsync: bool,
     kill_on_write: Option<usize>,
+    collisions: AtomicUsize,
+    kill_after_rename: bool,
     writes: Arc<AtomicUsize>,
     kill: Arc<tokio::sync::Notify>,
     next_handle: u32,
@@ -212,6 +218,8 @@ impl Sftp {
             posix_rename: !srv.policy.no_posix_rename,
             fsync: !srv.policy.no_fsync,
             kill_on_write: srv.policy.kill_on_write,
+            collisions: AtomicUsize::new(srv.policy.exclude_collisions),
+            kill_after_rename: srv.policy.kill_after_rename,
             writes: srv.writes.clone(),
             kill: srv.kill.clone(),
             next_handle: 0,
@@ -246,6 +254,31 @@ fn code(e: std::io::Error) -> StatusCode {
         std::io::ErrorKind::PermissionDenied => StatusCode::PermissionDenied,
         _ => StatusCode::Failure,
     }
+}
+
+#[cfg(unix)]
+fn read_at(f: &std::fs::File, buf: &mut [u8], offset: u64) -> std::io::Result<usize> {
+    std::os::unix::fs::FileExt::read_at(f, buf, offset)
+}
+
+#[cfg(not(unix))]
+fn read_at(f: &std::fs::File, buf: &mut [u8], offset: u64) -> std::io::Result<usize> {
+    std::os::windows::fs::FileExt::seek_read(f, buf, offset)
+}
+
+#[cfg(unix)]
+fn write_all_at(f: &std::fs::File, mut data: &[u8], mut offset: u64) -> std::io::Result<()> {
+    std::os::unix::fs::FileExt::write_all_at(f, data, offset)
+}
+
+#[cfg(not(unix))]
+fn write_all_at(f: &std::fs::File, mut data: &[u8], mut offset: u64) -> std::io::Result<()> {
+    while !data.is_empty() {
+        let n = std::os::windows::fs::FileExt::seek_write(f, data, offset)?;
+        data = &data[n..];
+        offset += n as u64;
+    }
+    Ok(())
 }
 
 fn attrs_of(m: &std::fs::Metadata) -> FileAttributes {
@@ -319,20 +352,26 @@ impl russh_sftp::server::Handler for Sftp {
     }
 
     async fn setstat(&mut self, id: u32, path: String, attrs: FileAttributes) -> Result<Status, Self::Error> {
+        #[cfg(unix)]
         if let Some(mode) = attrs.permissions {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(self.path(&path), std::fs::Permissions::from_mode(mode & 0o7777)).map_err(code)?;
         }
+        #[cfg(not(unix))]
+        let _ = (&path, &attrs);
         Ok(ok(id))
     }
 
     async fn fsetstat(&mut self, id: u32, handle: String, attrs: FileAttributes) -> Result<Status, Self::Error> {
         match self.handles.get(&handle) {
             Some(Open::File(f)) => {
+                #[cfg(unix)]
                 if let Some(mode) = attrs.permissions {
                     use std::os::unix::fs::PermissionsExt;
                     f.set_permissions(std::fs::Permissions::from_mode(mode & 0o7777)).map_err(code)?;
                 }
+                #[cfg(not(unix))]
+                let _ = (f, &attrs);
                 Ok(ok(id))
             }
             _ => Err(StatusCode::Failure),
@@ -340,7 +379,10 @@ impl russh_sftp::server::Handler for Sftp {
     }
 
     async fn open(&mut self, id: u32, filename: String, pflags: OpenFlags, attrs: FileAttributes) -> Result<Handle, Self::Error> {
-        use std::os::unix::fs::OpenOptionsExt;
+        if pflags.contains(OpenFlags::EXCLUDE) && self.collisions.load(Ordering::SeqCst) > 0 {
+            self.collisions.fetch_sub(1, Ordering::SeqCst);
+            return Err(StatusCode::Failure);
+        }
         let mut o = std::fs::OpenOptions::new();
         o.read(pflags.contains(OpenFlags::READ));
         o.write(pflags.contains(OpenFlags::WRITE));
@@ -351,18 +393,21 @@ impl russh_sftp::server::Handler for Sftp {
         } else {
             o.create(pflags.contains(OpenFlags::CREATE));
         }
+        #[cfg(unix)]
         if let Some(mode) = attrs.permissions {
+            use std::os::unix::fs::OpenOptionsExt;
             o.mode(mode & 0o7777);
         }
+        #[cfg(not(unix))]
+        let _ = &attrs;
         let file = o.open(self.path(&filename)).map_err(code)?;
         Ok(Handle { id, handle: self.new_handle(Open::File(file)) })
     }
 
     async fn read(&mut self, id: u32, handle: String, offset: u64, len: u32) -> Result<Data, Self::Error> {
-        use std::os::unix::fs::FileExt;
         let Some(Open::File(f)) = self.handles.get(&handle) else { return Err(StatusCode::Failure) };
         let mut buf = vec![0u8; len as usize];
-        let n = f.read_at(&mut buf, offset).map_err(code)?;
+        let n = read_at(f, &mut buf, offset).map_err(code)?;
         if n == 0 {
             return Err(StatusCode::Eof);
         }
@@ -371,14 +416,13 @@ impl russh_sftp::server::Handler for Sftp {
     }
 
     async fn write(&mut self, id: u32, handle: String, offset: u64, data: Vec<u8>) -> Result<Status, Self::Error> {
-        use std::os::unix::fs::FileExt;
         let seen = self.writes.fetch_add(1, Ordering::SeqCst) + 1;
         if self.kill_on_write == Some(seen) {
             self.kill.notify_one();
             std::future::pending::<()>().await;
         }
         let Some(Open::File(f)) = self.handles.get(&handle) else { return Err(StatusCode::Failure) };
-        f.write_all_at(&data, offset).map_err(code)?;
+        write_all_at(f, &data, offset).map_err(code)?;
         Ok(ok(id))
     }
 
@@ -436,6 +480,10 @@ impl russh_sftp::server::Handler for Sftp {
             "posix-rename@openssh.com" if self.posix_rename => {
                 let paths = strings(&data);
                 std::fs::rename(self.path(&paths[0]), self.path(&paths[1])).map_err(code)?;
+                if self.kill_after_rename {
+                    self.kill.notify_one();
+                    std::future::pending::<()>().await;
+                }
                 Ok(Packet::Status(ok(id)))
             }
             "fsync@openssh.com" if self.fsync => Ok(Packet::Status(ok(id))),
