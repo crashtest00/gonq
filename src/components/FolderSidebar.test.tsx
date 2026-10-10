@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 const noop = () => {};
-const props = { supported: true, folder: null, recents: [], currentPath: null, onOpenFolder: noop, onOpenFile: noop, onOpenRecent: noop, onRemoveRecent: noop };
+const props = { folder: null, recents: [], currentPath: null, onOpenFolder: noop, onOpenFile: noop, onOpenRecent: noop, onRemoveRecent: noop };
 
 test('relativeTime buckets', () => {
   const now = 1_000_000_000;
@@ -42,11 +42,6 @@ test('empty state offers Open Folder and shows no recents', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Open Folder…' }));
   expect(onOpenFolder).toHaveBeenCalled();
   expect(screen.getByText('No recent documents.')).toBeInTheDocument();
-});
-
-test('web explains that folders need the desktop app', () => {
-  render(<FolderSidebar {...props} supported={false} />);
-  expect(screen.getByText(/desktop app/)).toBeInTheDocument();
 });
 
 test('lists the folder lazily and opens a file', async () => {

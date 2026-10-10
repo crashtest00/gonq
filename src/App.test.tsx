@@ -10,7 +10,7 @@ function fakeFiles(pick: () => Promise<OpenedDocument | null>, image: string | n
 async function openMenuItem() {
   const user = userEvent.setup();
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
 }
 
 test('shows the menu bar, the folder toggle (closed) and no editing controls', () => {
@@ -60,4 +60,38 @@ test('an empty document renders without error', async () => {
   await waitFor(() => expect(screen.getByRole('tab')).toHaveTextContent('empty.md'));
   expect(screen.getByTestId('markdown-view')).toBeEmptyDOMElement();
   expect(within(document.body).queryByRole('alert')).not.toBeInTheDocument();
+});
+
+describe('without the desktop runtime (web build)', () => {
+  const DESKTOP_FILE_MENU = ['New', 'Open…', 'Open Folder…', 'Connect to Server…', 'Save', 'Save As…', 'Close Tab'];
+
+  test('File menu lists every desktop item in order, Open Folder… and Connect to Server… enabled', async () => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => null)} />);
+    await user.click(screen.getByRole('menuitem', { name: 'File' }));
+    const items = await screen.findAllByRole('menuitem');
+    const names = items.map((i) => (i.textContent ?? '').replace(/Ctrl\+.*$/, ''));
+    expect(names.filter((n) => DESKTOP_FILE_MENU.includes(n))).toEqual(DESKTOP_FILE_MENU);
+    expect(screen.getByRole('menuitem', { name: /Open Folder/ })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: /Connect to Server/ })).toBeEnabled();
+  });
+
+  test('File > Open Folder… shows the error banner and the app stays usable', async () => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => null)} />);
+    await user.click(screen.getByRole('menuitem', { name: 'File' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Open Folder/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Opening a folder needs the desktop app.');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    expect(screen.getByRole('tab')).toBeInTheDocument();
+  });
+
+  test('the sidebar Open Folder… button shows the same error', async () => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => null)} />);
+    await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
+    await user.click(await screen.findByRole('button', { name: 'Open Folder…' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Opening a folder needs the desktop app.');
+  });
 });

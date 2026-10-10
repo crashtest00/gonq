@@ -44,7 +44,7 @@ async function menu(user: ReturnType<typeof userEvent.setup>, bar: string, item:
 }
 
 async function openDoc(user: ReturnType<typeof userEvent.setup>) {
-  await menu(user, 'File', /Open/);
+  await menu(user, 'File', /^Open…/);
   await screen.findByTestId('markdown-view');
 }
 

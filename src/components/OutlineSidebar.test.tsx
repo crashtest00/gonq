@@ -22,7 +22,7 @@ async function open(d: OpenedDocument = doc) {
   const user = userEvent.setup();
   render(<App files={{ ...files, pickDocument: async () => d }} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
   await screen.findByTestId('markdown-view');
   return user;
 }

@@ -32,17 +32,12 @@ export class ListDirectoryError extends Error {
   }
 }
 
-/** True when folders can be opened and listed (the desktop app only). */
-export function foldersSupported(): boolean {
-  return isTauri();
-}
-
 /**
- * Native folder picker. Resolves the chosen path, or null on cancel or when unsupported (web).
- * The chosen folder and its subfolders become listable.
+ * Native folder picker. Resolves the chosen path, or null on cancel; rejects on the web, where folders
+ * cannot be opened. The chosen folder and its subfolders become listable.
  */
 export async function pickFolder(): Promise<string | null> {
-  if (!isTauri()) return null;
+  if (!isTauri()) throw new Error('Opening a folder needs the desktop app.');
   const path = await open({ directory: true, multiple: false, recursive: true });
   return path ?? null;
 }

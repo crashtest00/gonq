@@ -736,19 +736,26 @@ describe('in the app', () => {
     expect(await settled).toBeInstanceOf(RemoteFileError);
   });
 
-  test('without the desktop runtime the item, the shortcut and the dialog are all absent', async () => {
+  test('without the desktop runtime the item is present and the item and shortcut show an error, not a dialog', async () => {
     delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
     const user = userEvent.setup();
     render(<App files={files} />);
     await openFileMenu(user);
-    expect(await screen.findByRole('menuitem', { name: /Open…/ })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /Connect to Server/ })).not.toBeInTheDocument();
-    await user.keyboard('{Escape}');
-    act(() => {
-      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'K', shiftKey: true, ctrlKey: true, bubbles: true }));
-      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'K', shiftKey: true, metaKey: true, bubbles: true }));
-    });
+    const item = await screen.findByRole('menuitem', { name: /Connect to Server/ });
+    expect(item).toBeEnabled();
+    await user.click(item);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Connecting to a server needs the desktop app.');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    for (const mod of [{ ctrlKey: true }, { metaKey: true }]) {
+      // A new tab clears the banner.
+      await user.click(screen.getByRole('button', { name: 'New tab' }));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      act(() => {
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'K', shiftKey: true, bubbles: true, ...mod }));
+      });
+      expect(await screen.findByRole('alert')).toHaveTextContent('Connecting to a server needs the desktop app.');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    }
     expect(invoke).not.toHaveBeenCalled();
   });
 });

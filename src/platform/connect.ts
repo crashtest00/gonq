@@ -21,9 +21,12 @@ export interface ConnectAnswers {
   skip_passphrase?: string[];
 }
 
-/** Whether the Connect flow exists: the desktop app only. */
-export function connectSupported(): boolean {
-  return isTauri();
+/** Shown in the error banner when Connect to Server is chosen on the web. */
+export const CONNECT_UNAVAILABLE = 'Connecting to a server needs the desktop app.';
+
+/** Throws on the web, where there is no Connect flow; the caller shows the message. */
+export function assertConnectAvailable(): void {
+  if (!isTauri()) throw new Error(CONNECT_UNAVAILABLE);
 }
 
 /** `Host` names from ~/.ssh/config (wildcards left out); empty on the web or when there is no file. */
@@ -38,7 +41,7 @@ export async function listHosts(): Promise<string[]> {
 
 /** Connects, or resolves the one thing still needed. A failure of the command itself is an unreachable result. */
 export async function connectHost(target: string, answers: ConnectAnswers = {}): Promise<ConnectResult> {
-  if (!isTauri()) return { kind: 'unreachable', reason: 'Connecting to a server is available in the desktop app.' };
+  if (!isTauri()) return { kind: 'unreachable', reason: CONNECT_UNAVAILABLE };
   try {
     return await invoke<ConnectResult>('ssh_connect', { target, answers });
   } catch (e) {

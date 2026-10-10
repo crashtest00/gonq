@@ -94,7 +94,7 @@ test('renaming keeps existing messages byte-for-byte', async () => {
   const user = userEvent.setup();
   render(<App files={f} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
   await screen.findByTestId('markdown-view');
   const d = await openPrefsFromMenu(user);
   await user.clear(within(d).getByLabelText('Author name'));
@@ -125,7 +125,7 @@ test('a reply is written under the saved author name, and a changed name applies
   const user = userEvent.setup();
   render(<App files={f} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
   await screen.findByTestId('markdown-view');
   await user.click(screen.getByRole('button', { name: 'Comments' }));
   await user.click(await screen.findByRole('button', { name: /First\?/ }));
