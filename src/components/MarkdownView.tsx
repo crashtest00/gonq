@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react';
+import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -8,7 +8,9 @@ import {
   parseCommentThreads,
 } from '../comment-threads';
 import type { FileAccess, OpenedDocument } from '../platform/files';
-import { detectEol, fromEditable, toEditable } from '../document/splice';
+import { detectEol, fromEditable, splice, toEditable } from '../document/splice';
+import { applyFormat, type Format } from './formatting';
+import { IN_PLACE_TAGS, isVisible, offsetToPoint, piecesIn, pointToOffset, rehypeSourceSpans, visibleIndex, visibleIndexToOffset } from './inplace';
 import { keepMarkersWhole } from './atomicMarkers';
 import { remarkIns } from './remarkIns';
 import { MarkdownImage } from './MarkdownImage';
@@ -49,6 +51,10 @@ export interface BlockEditing {
   onClose: () => void;
   /** The caret moved in the field editing the block at `from`: its offset in the file. */
   onCaret?: (offset: number) => void;
+  /** Typing in a block that is edited in place: replaces text[from, to); edits sharing `key` in quick succession are one undo step. */
+  spliceText?: (from: number, to: number, insert: string, key: string) => void;
+  /** Whether a block is being edited in place (true from the first click into the text until focus leaves). */
+  onActive?: (active: boolean) => void;
   /** Rewrites text[from, to) in the file; a task checkbox uses it to flip its own `[ ]`. */
   onToggleTask?: (from: number, to: number, insert: string) => void;
   /**
@@ -186,6 +192,19 @@ function RawBlock({ node }: { node?: any }) {
 // Defined once, so React keeps a field (and its focus) mounted while its text changes.
 const RAW_COMPONENTS = Object.fromEntries(BLOCK_TAGS.map((tag) => [tag, RawBlock])) as Components;
 
+
+/** Blocks that are edited where they are rendered; the others (tables, rules) still open the Markdown field. */
+const IN_PLACE = new Set<string>(IN_PLACE_TAGS);
+
+const hastText = (n: any): string => (n.type === 'text' ? String(n.value) : (n.children ?? []).map(hastText).join(''));
+
+/** A place in the rendered document: an exact file offset, or a count of shown characters into a block not yet source-aware. */
+type Place = { off: number } | { block: number; base: number };
+const END = Number.MAX_SAFE_INTEGER;
+
+const sameRanges = (a: BlockRange[], b: BlockRange[]) => a.length === b.length && a.every((r, i) => r.from === b[i].from && r.to === b[i].to);
+const NO_RANGES: BlockRange[] = [];
+
 export function MarkdownView({
   doc,
   files,
@@ -193,6 +212,7 @@ export function MarkdownView({
   onOpenThread,
   editing,
   plain = false,
+  showMarkers = true,
 }: {
   doc: OpenedDocument;
   files: FileAccess;
@@ -201,12 +221,31 @@ export function MarkdownView({
   editing?: BlockEditing;
   /** Documentation, not a document with threads: examples of thread blocks inside it are shown, not hidden. */
   plain?: boolean;
+  /** Show the Markdown syntax of the block(s) holding the caret (View > Show markers in active block). */
+  showMarkers?: boolean;
 }) {
-  const source = useMemo(() => (plain ? doc.text.replace(/^\uFEFF/, ' ') : maskThreadBlocks(doc.text)), [doc.text, plain]);
+  const source = useMemo(() => (plain ? doc.text.replace(/^﻿/, ' ') : maskThreadBlocks(doc.text)), [doc.text, plain]);
   const markers = useMemo(() => parseCommentMarkers(source), [source]);
   const articleRef = useRef<HTMLElement>(null);
   const rawAll = editing?.rawAll === true;
   const region = rawAll ? null : (editing?.region ?? null);
+
+  // In-place editing: `mode` is null until the user clicks into the text; then it holds the blocks the caret touches.
+  const [mode, setMode] = useState<{ ranges: BlockRange[] } | null>(null);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const canEdit = editing !== undefined && editing.spliceText !== undefined && !rawAll && region === null;
+  const ranges = mode?.ranges ?? NO_RANGES;
+  /** Where the caret/selection goes once the next render has put the active blocks' source spans in place. */
+  const pendingRef = useRef<{ anchor: Place; focus: Place } | null>(null);
+  const selRef = useRef<{ anchor: number; focus: number } | null>(null);
+  // The text as edits already made will leave it, before React has rendered them.
+  const latestRef = useRef(doc.text);
+  const expectedRef = useRef<string[]>([]);
+  if (expectedRef.current.length === 0) latestRef.current = doc.text;
+  const pointerRef = useRef(false);
+  const live = useRef({ editing, showMarkers });
+  live.current = { editing, showMarkers };
 
   // Top-level blocks are keyboard-reachable: Enter on a focused block edits it.
   useEffect(() => {
@@ -222,12 +261,18 @@ export function MarkdownView({
       // Each block carries its source range so a click can be traced back to the file text.
       blocks[tag] = ({ node, children, ...props }: any) => {
         const pos = node?.position;
-        const range =
-          pos?.start.offset === undefined || pos.end.offset === undefined
-            ? {}
-            : { 'data-from': base + pos.start.offset, 'data-to': base + pos.end.offset };
-        const segs = tag === 'p' && node ? { 'data-segs': JSON.stringify(textSegments(node, source, base)) } : {};
-        return createElement(tag, { ...props, ...range, ...segs }, children);
+        const known = pos?.start.offset !== undefined && pos.end.offset !== undefined;
+        const from = known ? base + pos.start.offset : -1;
+        const to = known ? base + pos.end.offset : -1;
+        const range = known ? { 'data-from': from, 'data-to': to } : {};
+        const active = known && ranges.some((r) => r.from === from && r.to === to);
+        const segs = tag === 'p' && node && !active ? { 'data-segs': JSON.stringify(textSegments(node, source, base)) } : {};
+        const state = {
+          ...(active ? { 'data-active': '' } : {}),
+          // Inside an editable document, tables and rules are not text to type into.
+          ...(mode !== null && !IN_PLACE.has(tag) ? { contentEditable: false, suppressContentEditableWarning: true } : {}),
+        };
+        return createElement(tag, { ...props, ...range, ...segs, ...state }, children);
       };
     }
     return {
@@ -235,7 +280,7 @@ export function MarkdownView({
       a({ node, href, children, ...props }) {
         const threadId = href === undefined ? undefined : parseCommentMarkerFragment(href);
         if (threadId !== undefined) {
-          const resolved = String(children) === RESOLVED_COMMENT_LABEL;
+          const resolved = (node ? hastText(node) : String(children)) === RESOLVED_COMMENT_LABEL;
           const className = `gonq-marker ${resolved ? 'gonq-marker-resolved' : 'gonq-marker-open'}`;
           // Pair with its block by ordinal among same-id markers, as the library does.
           const offset = node?.position?.start.offset;
@@ -273,11 +318,13 @@ export function MarkdownView({
       },
       li({ node, children, ...props }: any) {
         const start = node?.position?.start.offset;
+        const end = node?.position?.end.offset;
+        const inActive = start !== undefined && end !== undefined && ranges.some((r) => base + start >= r.from && base + end <= r.to);
         return (
           <li
             {...props}
             {...(start === undefined ? {} : { 'data-item-from': base + start })}
-            {...(node ? { 'data-segs': JSON.stringify(textSegments(node, source, base)) } : {})}
+            {...(node && !inActive ? { 'data-segs': JSON.stringify(textSegments(node, source, base)) } : {})}
           >
             {children}
           </li>
@@ -303,21 +350,26 @@ export function MarkdownView({
   const before = useMemo(
     () => componentsFor(0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc, files, markers, threads, onOpenThread, source],
+    [doc, files, markers, threads, onOpenThread, source, ranges, mode !== null],
   );
   const afterBase = region?.to ?? 0;
   const after = useMemo(
     () => componentsFor(afterBase),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc, files, markers, threads, onOpenThread, afterBase, source],
+    [doc, files, markers, threads, onOpenThread, afterBase, source, ranges, mode !== null],
   );
+  const rehype = useMemo(() => [[rehypeSourceSpans, { source, ranges }]] as any, [source, ranges]);
 
   /** The block (a direct child of the article) a DOM node sits in, if it is a source block. */
   const blockOf = (node: EventTarget | null): HTMLElement | null => {
-    let el = node instanceof Element ? node : null;
+    let el = node instanceof Element ? node : node instanceof Node ? node.parentElement : null;
     while (el && el.parentElement !== articleRef.current) el = el.parentElement;
     return el instanceof HTMLElement && el.hasAttribute('data-from') ? el : null;
   };
+  const topBlocks = (): HTMLElement[] =>
+    Array.from(articleRef.current?.children ?? []).filter((el): el is HTMLElement => el instanceof HTMLElement && el.hasAttribute('data-from'));
+  const rangeOf = (b: HTMLElement): BlockRange => ({ from: Number(b.dataset.from), to: Number(b.dataset.to) });
+  const editable = (b: HTMLElement) => IN_PLACE.has(b.tagName.toLowerCase());
   const startEdit = (block: HTMLElement) =>
     editing?.onStart({ from: Number(block.dataset.from), to: Number(block.dataset.to) });
 
@@ -331,28 +383,361 @@ export function MarkdownView({
     editing.onToggleTask(at, at + 1, m[1] === ' ' ? 'x' : ' ');
   };
 
+  // ---- in-place editing -------------------------------------------------
+
+  /** Where a point of the browser's selection is, in terms that survive the block being re-rendered with source spans. */
+  const describe = (node: Node, offset: number): Place | null => {
+    const article = articleRef.current;
+    if (!article) return null;
+    if (node === article) {
+      const blocks = topBlocks();
+      const next = Array.from(article.childNodes)
+        .slice(offset)
+        .find((c): c is HTMLElement => c instanceof HTMLElement && c.hasAttribute('data-from'));
+      const block = next ?? blocks[blocks.length - 1];
+      return block && editable(block) ? { block: Number(block.dataset.from), base: next ? 0 : END } : null;
+    }
+    const block = blockOf(node);
+    if (!block || !editable(block)) return null;
+    if (block.hasAttribute('data-active')) {
+      const off = pointToOffset(article, node, offset);
+      if (off !== null) return { off };
+    }
+    return { block: Number(block.dataset.from), base: visibleIndex(block, node, offset) };
+  };
+
+  const resolve = (place: Place): [Node, number] | null => {
+    const article = articleRef.current;
+    if (!article) return null;
+    if ('off' in place) return offsetToPoint(article, place.off, live.current.showMarkers);
+    const block = topBlocks().find((b) => Number(b.dataset.from) === place.block);
+    if (!block?.hasAttribute('data-active')) return null;
+    const off = visibleIndexToOffset(block, place.base);
+    return off === null ? null : offsetToPoint(article, off, live.current.showMarkers);
+  };
+
+  /** The editable blocks a selection range touches; a range that merely ends at the start of a block does not touch it. */
+  const touched = (range: Range): HTMLElement[] => {
+    const blocks = topBlocks().filter((b) => range.intersectsNode(b));
+    const last = blocks[blocks.length - 1];
+    if (!range.collapsed && blocks.length > 1 && last.contains(range.endContainer) && visibleIndex(last, range.endContainer, range.endOffset) === 0) blocks.pop();
+    return blocks.filter(editable);
+  };
+
+  const selectionPlaces = (): { anchor: Place; focus: Place; blocks: HTMLElement[] } | null => {
+    const article = articleRef.current;
+    const sel = window.getSelection();
+    if (!article || !sel || sel.rangeCount === 0 || !sel.anchorNode || !sel.focusNode) return null;
+    if (!article.contains(sel.anchorNode) || !article.contains(sel.focusNode)) return null;
+    const anchor = describe(sel.anchorNode, sel.anchorOffset);
+    const focus = describe(sel.focusNode, sel.focusOffset);
+    return anchor && focus ? { anchor, focus, blocks: touched(sel.getRangeAt(0)) } : null;
+  };
+
+  /** Starts editing in place (or moves it): the blocks the selection touches become source-aware and get the caret. */
+  const begin = (clicked?: HTMLElement, atEnd = true) => {
+    let places = selectionPlaces();
+    if (places && clicked && !places.blocks.includes(clicked)) places = null;
+    if (!places && clicked && editable(clicked)) {
+      const place = { block: Number(clicked.dataset.from), base: atEnd ? END : 0 };
+      places = { anchor: place, focus: place, blocks: [clicked] };
+    }
+    if (!places) return;
+    pendingRef.current = { anchor: places.anchor, focus: places.focus };
+    setMode({ ranges: places.blocks.map(rangeOf) });
+  };
+
+  /** Follows the caret: the blocks it touches show their markers, the others do not. */
+  const sync = () => {
+    if (modeRef.current === null || pendingRef.current !== null) return;
+    const places = selectionPlaces();
+    if (!places) return;
+    const wanted = places.blocks.map(rangeOf);
+    if (sameRanges(wanted, modeRef.current.ranges) && 'off' in places.anchor && 'off' in places.focus) {
+      selRef.current = { anchor: places.anchor.off, focus: places.focus.off };
+      live.current.editing?.onCaret?.(places.focus.off);
+      return;
+    }
+    pendingRef.current = { anchor: places.anchor, focus: places.focus };
+    setMode({ ranges: wanted });
+  };
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
+
+  const exit = () => {
+    pendingRef.current = null;
+    selRef.current = null;
+    setMode(null);
+  };
+
+  // After a render: put the caret where it belongs now that the active blocks carry source spans.
+  useLayoutEffect(() => {
+    const article = articleRef.current;
+    const pending = pendingRef.current;
+    if (!article || !pending || mode === null) return;
+    if ('off' in pending.anchor && 'off' in pending.focus) {
+      // An edit may have split a block in two or joined two: the active blocks follow the caret.
+      const lo = Math.min(pending.anchor.off, pending.focus.off);
+      const hi = Math.max(pending.anchor.off, pending.focus.off);
+      const wanted = topBlocks()
+        .filter(editable)
+        .filter((b) => !b.hasAttribute('data-virtual'))
+        .filter((b) => (lo === hi ? Number(b.dataset.from) <= lo && lo <= Number(b.dataset.to) : Number(b.dataset.from) < hi && Number(b.dataset.to) > lo))
+        .map(rangeOf);
+      // Between blocks (a new line after Enter at the end of one): the caret gets an empty paragraph of its own.
+      if (wanted.length === 0 && lo === hi) wanted.push({ from: lo, to: lo });
+      if (!sameRanges(wanted, mode.ranges)) {
+        setMode({ ranges: wanted });
+        return;
+      }
+    }
+    const a = resolve(pending.anchor);
+    const f = resolve(pending.focus);
+    if (!a || !f) {
+      pendingRef.current = null;
+      return;
+    }
+    pendingRef.current = null;
+    if (!article.contains(article.ownerDocument.activeElement)) article.focus({ preventScroll: true });
+    window.getSelection()?.setBaseAndExtent(a[0], a[1], f[0], f[1]);
+    const offs = [pending.anchor, pending.focus].map((p) => ('off' in p ? p.off : pointToOffset(article, ...(resolve(p) as [Node, number]))));
+    if (offs[0] !== null && offs[1] !== null) {
+      selRef.current = { anchor: offs[0], focus: offs[1] };
+      live.current.editing?.onCaret?.(offs[1]);
+    }
+  }, [mode, doc.text]);
+
+  // Text changed by anything but typing here (undo, a comment, a task box, another tab): the caret's place is gone.
+  useLayoutEffect(() => {
+    const queue = expectedRef.current;
+    const i = queue.lastIndexOf(doc.text);
+    if (i >= 0) expectedRef.current = queue.slice(i + 1);
+    else if (modeRef.current !== null) exit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.text]);
+  useEffect(() => {
+    if (!canEdit && mode !== null) exit();
+  }, [canEdit, mode]);
+  const isEditing = mode !== null;
+  useEffect(() => {
+    editing?.onActive?.(isEditing);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
+
+  /** The selection in file offsets, read from the document as it is now. */
+  const currentOffsets = (): [number, number] | null => {
+    const article = articleRef.current;
+    const sel = window.getSelection();
+    if (!article || !sel || !sel.anchorNode || !sel.focusNode) return null;
+    const a = pointToOffset(article, sel.anchorNode, sel.anchorOffset);
+    const f = pointToOffset(article, sel.focusNode, sel.focusOffset);
+    return a === null || f === null ? null : [Math.min(a, f), Math.max(a, f)];
+  };
+
+  /** Writes an edit into the file and moves the caret to `after` (default: just past the inserted text). */
+  const apply = (from: number, to: number, insert: string, after?: [number, number]) => {
+    const prev = latestRef.current;
+    let next = splice(prev, from, to, insert);
+    let caret = from + insert.length;
+    if (!after) {
+      // A thread marker is one atomic unit: edits that would split it are repaired.
+      const repaired = keepMarkersWhole(prev, next);
+      if (repaired) {
+        next = repaired.value;
+        caret = repaired.caret;
+      }
+    }
+    if (next === prev) return;
+    let p = 0;
+    const max = Math.min(prev.length, next.length);
+    while (p < max && prev[p] === next[p]) p++;
+    let s = 0;
+    while (s < max - p && prev[prev.length - 1 - s] === next[next.length - 1 - s]) s++;
+    const key = `inplace-${modeRef.current?.ranges[0]?.from ?? 0}`;
+    live.current.editing?.spliceText?.(p, prev.length - s, next.slice(p, next.length - s), key);
+    latestRef.current = next;
+    expectedRef.current.push(next);
+    const delta = next.length - prev.length;
+    const removedTo = prev.length - s;
+    const mapped = (modeRef.current?.ranges ?? []).map((r) =>
+      r.to < p ? r : r.from > removedTo ? { from: r.from + delta, to: r.to + delta } : { from: Math.min(r.from, p), to: Math.max(r.to, removedTo) + delta },
+    );
+    const [c1, c2] = after ?? [caret, caret];
+    pendingRef.current = { anchor: { off: c1 }, focus: { off: c2 } };
+    setMode({ ranges: mapped });
+  };
+
+  /** Range of the one visible character before (or after) `at`, or the gap to the neighbouring block at a block's edge. */
+  const stepRange = (at: number, dir: -1 | 1): [number, number] | null => {
+    const article = articleRef.current;
+    const sel = window.getSelection();
+    if (!article || !sel?.focusNode) return null;
+    const text = latestRef.current;
+    const block = blockOf(sel.focusNode);
+    const shown = live.current.showMarkers;
+    const pieces = piecesIn(article).filter((p) => p.len > 0 && isVisible(p, shown) && blockOf(p.el) === block);
+    const piece = dir < 0 ? pieces.filter((p) => p.s < at).pop() : pieces.find((p) => p.s + p.len > at);
+    if (piece) {
+      // A thread marker is only ever removed by a selection that covers it.
+      if (piece.el.closest('.gonq-marker')) return null;
+      if (piece.kind === 'at') return [piece.s, piece.s + piece.len];
+      if (dir < 0) {
+        const end = Math.min(at, piece.s + piece.len);
+        const width = /[\uDC00-\uDFFF]/.test(text[end - 1] ?? '') ? 2 : 1;
+        return [end - width, end];
+      }
+      const begin = Math.max(at, piece.s);
+      const width = /[\uD800-\uDBFF]/.test(text[begin] ?? '') ? 2 : 1;
+      return [begin, begin + width];
+    }
+    if (!block) return null;
+    const blocks = topBlocks();
+    const i = blocks.indexOf(block);
+    if (dir < 0) {
+      // Hidden syntax at the start of the block goes first (a heading becomes a paragraph), then the block joins the one before.
+      const lead = piecesIn(block).filter((p) => p.kind === 'mk' && p.s + p.len <= at);
+      if (!shown && lead.length > 0) return [lead[0].s, at];
+      return i > 0 ? [Number(blocks[i - 1].dataset.to), Number(block.dataset.from)] : null;
+    }
+    return i < blocks.length - 1 ? [Number(block.dataset.to), Number(blocks[i + 1].dataset.from)] : null;
+  };
+
+  const handleBeforeInput = (e: InputEvent) => {
+    if (modeRef.current === null) return;
+    if ((e.target as Element | null)?.closest?.('[data-block-editor]')) return;
+    const type = e.inputType;
+    // The browser owns text being composed (IME); it cannot be cancelled.
+    if (/Composition/.test(type)) return;
+    e.preventDefault();
+    const sel = currentOffsets();
+    if (!sel) return;
+    const text = latestRef.current;
+    const eol = detectEol(text);
+    const [lo, hi] = sel;
+    const typed = () => e.data ?? e.dataTransfer?.getData('text/plain') ?? '';
+    const put = (s: string) => apply(lo, hi, fromEditable(toEditable(s), eol));
+    const remove = (dir: -1 | 1) => {
+      const r = lo === hi ? stepRange(lo, dir) : [lo, hi];
+      if (r) apply(r[0], r[1], '');
+    };
+    if (type === 'insertText' || type === 'insertReplacementText' || type === 'insertFromPaste' || type === 'insertFromDrop') put(typed());
+    else if (type === 'insertParagraph' || type === 'insertLineBreak') put('\n');
+    else if (/^delete.*Backward$/.test(type)) remove(-1);
+    else if (/^delete.*Forward$/.test(type)) remove(1);
+    else if (type === 'deleteByCut' || type === 'deleteContent' || type === 'deleteByDrag') remove(-1);
+  };
+
+  const handleFormat = (e: Event) => {
+    const m = modeRef.current;
+    const sel = currentOffsets() ?? (selRef.current && [Math.min(selRef.current.anchor, selRef.current.focus), Math.max(selRef.current.anchor, selRef.current.focus)]);
+    if (!m || m.ranges.length === 0 || !sel) return;
+    const { format, url } = (e as CustomEvent<{ format: Format; url?: string }>).detail;
+    const text = latestRef.current;
+    const eol = detectEol(text);
+    const from = Math.min(...m.ranges.map((r) => r.from));
+    const to = Math.max(...m.ranges.map((r) => r.to));
+    const rel = (n: number) => toEditable(text.slice(from, Math.min(Math.max(n, from), to))).length;
+    const value = toEditable(text.slice(from, to));
+    const next = applyFormat(format, value, rel(sel[0]), rel(sel[1]), url ?? '');
+    if (next.value === value) return;
+    const abs = (n: number) => from + fromEditable(next.value.slice(0, n), eol).length;
+    apply(from, to, fromEditable(next.value, eol), [abs(next.start), abs(next.end)]);
+  };
+
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article) return;
+    const onInput = (e: Event) => handleBeforeInputRef.current(e as InputEvent);
+    const onFormat = (e: Event) => handleFormatRef.current(e);
+    const onSelection = () => syncRef.current();
+    article.addEventListener('beforeinput', onInput);
+    article.addEventListener('gonq-format', onFormat);
+    document.addEventListener('selectionchange', onSelection);
+    return () => {
+      article.removeEventListener('beforeinput', onInput);
+      article.removeEventListener('gonq-format', onFormat);
+      document.removeEventListener('selectionchange', onSelection);
+    };
+  }, []);
+  const handleBeforeInputRef = useRef(handleBeforeInput);
+  handleBeforeInputRef.current = handleBeforeInput;
+  const handleFormatRef = useRef(handleFormat);
+  handleFormatRef.current = handleFormat;
+
   const onClick = (e: MouseEvent) => {
     if (!editing || rawAll) return;
     const target = e.target as Element;
-    // Markers and links keep their own behaviour; a drag-selection is not an edit.
-    if (target.closest('[data-thread-key], a, input')) return;
-    if (!window.getSelection()?.isCollapsed) return;
+    if (target.closest('[data-block-editor]')) return;
+    // Markers and links keep their own behaviour; neither starts an edit.
+    if (target.closest('[data-thread-key], input')) return;
+    const link = target.closest('a');
+    if (link) {
+      if (mode !== null && (e.ctrlKey || e.metaKey)) window.open(link.href, '_blank', 'noopener,noreferrer');
+      return;
+    }
     const block = blockOf(target);
-    if (block) startEdit(block);
+    if (block && !editable(block)) return startEdit(block);
+    if (mode === null) begin(block ?? undefined);
+    else sync();
   };
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key !== 'Enter' || e.target !== e.currentTarget.ownerDocument.activeElement) return;
+    if (e.key === 'Escape' && mode !== null) {
+      e.preventDefault();
+      exit();
+      (e.currentTarget.ownerDocument.activeElement as HTMLElement | null)?.blur?.();
+      return;
+    }
+    if (e.key === 'Tab' && mode !== null) {
+      // Tab moves the caret to the start of the next (previous) block.
+      const sel = window.getSelection();
+      const here = sel?.focusNode ? blockOf(sel.focusNode) : null;
+      const blocks = topBlocks().filter((b) => !b.hasAttribute('data-virtual'));
+      const next = here ? blocks[blocks.indexOf(here) + (e.shiftKey ? -1 : 1)] : undefined;
+      if (next) {
+        e.preventDefault();
+        next.focus();
+      }
+      return;
+    }
+    if (e.key !== 'Enter' || mode !== null || e.target !== e.currentTarget.ownerDocument.activeElement) return;
     const block = blockOf(e.target);
     if (editing && !rawAll && block && block === e.target) {
       e.preventDefault();
-      startEdit(block);
+      if (editable(block)) begin(block);
+      else startEdit(block);
     }
+  };
+  // While editing, tabbing onto a block puts the caret at its start.
+  const onFocus = (e: FocusEvent) => {
+    if (modeRef.current === null || !canEdit || pointerRef.current || e.target !== blockOf(e.target)) return;
+    const block = e.target as HTMLElement;
+    if (!editable(block)) return;
+    const place = { block: Number(block.dataset.from), base: 0 };
+    pendingRef.current = { anchor: place, focus: place };
+    setMode({ ranges: [rangeOf(block)] });
+  };
+  const onBlur = (e: FocusEvent) => {
+    if (modeRef.current !== null && !e.currentTarget.contains(e.relatedTarget as Node | null)) exit();
   };
 
   const eol = detectEol(doc.text);
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-    <article ref={articleRef} className="gonq-doc" data-testid="markdown-view" onClick={onClick} onKeyDown={onKeyDown}>
+    <article
+      ref={articleRef}
+      className="gonq-doc"
+      data-testid="markdown-view"
+      data-markers={showMarkers ? 'on' : 'off'}
+      {...(mode !== null ? { contentEditable: true, suppressContentEditableWarning: true, tabIndex: -1 } : {})}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onMouseDown={() => {
+        pointerRef.current = true;
+        setTimeout(() => (pointerRef.current = false), 0);
+      }}
+    >
       {rawAll ? (
         <RawContext.Provider value={{ text: doc.text, editing }}>
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={RAW_COMPONENTS} skipHtml>
@@ -360,7 +745,7 @@ export function MarkdownView({
           </ReactMarkdown>
         </RawContext.Provider>
       ) : region === null ? (
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={before} skipHtml>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={rehype} components={before} skipHtml>
           {source}
         </ReactMarkdown>
       ) : (

@@ -16,23 +16,30 @@ const FORMATS: { format: Format; label: string; icon: LucideIcon; effect?: strin
   { format: 'table', label: 'Insert table', icon: Table },
 ];
 
-/** Applies a format to the Markdown field that has focus, through the same input path as typing. */
+/** Applies a format to the text being edited: in place in the document, or in the Markdown field that has focus. */
 function formatActiveField(format: Format) {
   const el = document.activeElement;
-  if (!(el instanceof HTMLTextAreaElement) || !el.hasAttribute('data-block-editor')) return;
+  const article = document.querySelector<HTMLElement>('[data-testid="markdown-view"][contenteditable="true"]');
+  const field = el instanceof HTMLTextAreaElement && el.hasAttribute('data-block-editor') ? el : null;
+  if (!field && !article) return;
   let url = '';
   if (format === 'link') {
     // Ask for the address; cancelling (or an empty answer) changes nothing.
     const answer = window.prompt('Link URL', 'https://')?.trim();
-    if (!answer || !el.isConnected) return;
+    if (!answer || !(field ?? article)!.isConnected) return;
     url = answer;
   }
-  const next = applyFormat(format, el.value, el.selectionStart, el.selectionEnd, url);
-  if (next.value !== el.value) {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(el, next.value);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+  if (!field) {
+    article!.dispatchEvent(new CustomEvent('gonq-format', { detail: { format, url } }));
+    return;
   }
-  el.setSelectionRange(next.start, next.end);
+  const el2 = field;
+  const next = applyFormat(format, el2.value, el2.selectionStart, el2.selectionEnd, url);
+  if (next.value !== el2.value) {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(el2, next.value);
+    el2.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  el2.setSelectionRange(next.start, next.end);
 }
 
 export function EditToolbar({

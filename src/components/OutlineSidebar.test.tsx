@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
+import { activeBlocks, selectSource } from '../testing/inplace';
 import App from '../App';
 import type { FileAccess, OpenedDocument } from '../platform/files';
 
@@ -93,11 +94,13 @@ test('renaming, adding and removing a heading updates the outline live', async (
   await user.click(screen.getByRole('button', { name: 'Document outline' }));
   const edit = async (target: string, value: string) => {
     await user.click(await screen.findByText(target, { selector: 'main *' }));
-    const editor = (await screen.findByRole('textbox', { name: /Markdown source/ })) as HTMLTextAreaElement;
-    await user.clear(editor);
-    await user.type(editor, value);
+    await waitFor(() => expect(activeBlocks()).toHaveLength(1));
+    const block = activeBlocks()[0];
+    // Replace the whole block, as the text field used to be cleared and retyped.
+    await selectSource(Number(block.dataset.from), Number(block.dataset.to));
+    await user.paste(value);
     await user.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: /Markdown source/ })).not.toBeInTheDocument());
+    await waitFor(() => expect(activeBlocks()).toHaveLength(0));
   };
   await edit('Part A', '## Renamed');
   await texts(['Title', 'Renamed', 'Part B']);

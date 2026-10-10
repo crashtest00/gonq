@@ -1,4 +1,5 @@
 import { fencedCodeRanges, parseCommentMarkers } from '../comment-threads';
+import { pointToOffset } from './inplace';
 
 /** Where a new thread goes: a selection (its text becomes the anchor) or a bare cursor. */
 export type ThreadTarget = { from: number; to: number } | number;
@@ -87,6 +88,7 @@ export function selectionToRange(root: Element, selection: Selection | null, tex
   const range = selection.getRangeAt(0);
   if (!root.contains(range.commonAncestorContainer)) return null;
 
+  if (elementOf(range.startContainer)?.closest('[data-active]')) return activeSelectionToRange(root, range, text);
   const block = textBlockOf(range.startContainer);
   if (block === null) return null;
   let working = range;
@@ -123,6 +125,23 @@ export function selectionToRange(root: Element, selection: Selection | null, tex
   const from = offsetIn(segs[first], startAt, nodes[first].length, 'start');
   const to = offsetIn(segs[last], endAt, nodes[last].length, 'end');
   if (to <= from) return null;
+  const slice = text.slice(from, to);
+  if (slice.trim() === '' || parseCommentMarkers(slice).size > 0) return null;
+  return { from, to };
+}
+
+/** The same for a block being edited in place, where every rendered character knows its file offset. */
+function activeSelectionToRange(root: Element, range: Range, text: string): { from: number; to: number } | null {
+  const block = elementOf(range.startContainer)?.closest('p, li');
+  if (!block || !block.contains(range.endContainer) || elementOf(range.endContainer)?.closest('p, li') !== block) return null;
+  for (const marker of Array.from(block.querySelectorAll('.gonq-marker'))) {
+    if (range.intersectsNode(marker)) return null;
+  }
+  const a = pointToOffset(root, range.startContainer, range.startOffset);
+  const b = pointToOffset(root, range.endContainer, range.endOffset);
+  if (a === null || b === null || a === b) return null;
+  const from = Math.min(a, b);
+  const to = Math.max(a, b);
   const slice = text.slice(from, to);
   if (slice.trim() === '' || parseCommentMarkers(slice).size > 0) return null;
   return { from, to };

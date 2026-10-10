@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
+import { activeBlocks, activeSource } from '../testing/inplace';
 import App from '../App';
 import type { FileAccess, OpenedDocument } from '../platform/files';
 
@@ -56,12 +57,27 @@ const BLOCKS: [string, () => HTMLElement | Promise<HTMLElement>, string][] = [
   ['image', () => screen.findByTestId('figure-placeholder'), '![alt text](pic.png)'],
 ];
 
-test.each(BLOCKS)('clicking a %s shows its Markdown source; leaving returns to formatted', async (_n, find, source) => {
+// Tables are the one block still edited in a Markdown field; the rest stay formatted when clicked.
+const IN_PLACE = BLOCKS.filter((b) => b[0] !== 'table');
+
+test.each(IN_PLACE)('clicking a %s keeps it formatted, with its source in place; leaving returns to rest', async (_n, find, source) => {
   const { user } = setup();
   await openDoc(user);
   await user.click(await find());
+  await waitFor(() => expect(activeBlocks()).toHaveLength(1));
+  expect(editors()).toHaveLength(0);
+  expect(activeSource().replace(/\r/g, '')).toBe(source.replace(`[💬](#md-thread-${ID})`, '💬'));
+  await user.keyboard('{Escape}');
+  expect(activeBlocks()).toHaveLength(0);
+  expect(editors()).toHaveLength(0);
+});
+
+test('clicking a table shows its Markdown source in a field; leaving returns to formatted', async () => {
+  const { user } = setup();
+  await openDoc(user);
+  await user.click(screen.getByRole('cell', { name: '1' }));
   await waitFor(() => expect(editors()).toHaveLength(1));
-  expect(editors()[0].value).toBe(source);
+  expect(editors()[0].value).toBe('| a | b |\n|---|---|\n| 1 | 2 |');
   await user.keyboard('{Escape}');
   expect(editors()).toHaveLength(0);
 });
@@ -71,10 +87,12 @@ test('the footer switch forces every block raw, overriding per-block state, and 
   await openDoc(user);
   expect(sw()).toHaveAttribute('aria-checked', 'false');
   await user.click(screen.getByText('quoted text'));
-  expect(editors()).toHaveLength(1);
+  expect(activeBlocks()).toHaveLength(1);
 
   await user.click(sw());
   expect(sw()).toHaveAttribute('aria-checked', 'true');
+  // Editing in place ends; every block is a field.
+  expect(activeBlocks()).toHaveLength(0);
   expect(editors().map((e) => e.value)).toEqual(BLOCKS.map((b) => b[2]));
   // Clicking a raw block does not flip it back while the switch is on.
   await user.click(editors()[0]);

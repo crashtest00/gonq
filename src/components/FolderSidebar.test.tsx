@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
+import { caretIn } from '../testing/inplace';
 import App from '../App';
 import { FolderSidebar, ROW_CHUNK, relativeTime } from './FolderSidebar';
 import type { FileAccess, OpenedDocument } from '../platform/files';
@@ -241,7 +242,8 @@ describe('opening from the folder pane uses tabs', () => {
     await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
     await openFileMenu(user);
     await user.click(screen.getByText('last paragraph'));
-    await user.type(editorBox(), '!');
+    await caretIn(screen.getByText('last paragraph'));
+    await user.keyboard('!');
     await user.keyboard('{Escape}');
     await user.click(click === 'folder' ? await side().findByText('other.md') : side().getByText('rec.md'));
     return { user };

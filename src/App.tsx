@@ -44,6 +44,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
   const [selection, setSelection] = useState<{ from: number; to: number; text: string; x: number; y: number } | null>(null);
   const [caret, setCaret] = useState<{ offset: number; text: string } | null>(null);
+  const [inPlace, setInPlace] = useState(false);
   const [reveal, setReveal] = useState<string | null>(null);
   const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
   const activeId = session.activeId;
@@ -444,7 +445,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {doc !== null && (
-            <EditToolbar editing={region !== null} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={session.undo} onRedo={session.redo} />
+            <EditToolbar editing={region !== null || inPlace} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={session.undo} onRedo={session.redo} />
           )}
           <main ref={mainRef} onScroll={(e) => session.setScrollTop(e.currentTarget.scrollTop)} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             <div className="mx-auto box-border w-full max-w-[760px] px-10 pb-16 pt-5">
@@ -456,6 +457,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
               {doc !== null ? (
                 <>
                   <MarkdownView
+                    key={activeId}
+                    showMarkers={showMarkers}
                     doc={doc}
                     files={files}
                     threads={threads}
@@ -463,6 +466,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                     editing={{
                       region,
                       onStart: session.startEdit,
+                      spliceText: session.spliceText,
+                      onActive: setInPlace,
                       onChange: session.changeEdit,
                       onCaret: (offset) =>
                         setCaret((c) => (c !== null && c.offset === offset && c.text === text ? c : { offset, text })),

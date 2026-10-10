@@ -70,3 +70,8 @@
   text-align: center; margin: 8px 0 24px;
 }
 .gonq-doc ins { text-decoration: underline; }
+
+/* Editing in place: every character of an active block's source is in a span; syntax is hidden until markers are shown. */
+.gonq-doc .gonq-mk { display: none; }
+.gonq-doc[data-markers='on'] [data-active] .gonq-mk { display: inline; color: var(--muted-foreground); }
+.gonq-doc[contenteditable='true'] { outline: none; }
