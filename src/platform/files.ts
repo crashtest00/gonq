@@ -137,7 +137,8 @@ async function openRemote(path: string): Promise<OpenedDocument> {
 
 /** Throws RemoteConflictError when the server's copy changed and `force` is not set. */
 async function saveRemote(path: string, text: string, expected: RemoteStat | undefined, force: boolean): Promise<SavedDocument> {
-  const saved = await remoteWrite(path, text, expected ?? { mtime: 0, size: 0 }, force);
+  if (expected === undefined) throw new Error(`No server version is known for ${path}; it cannot be saved safely.`);
+  const saved = await remoteWrite(path, text, expected, force);
   return {
     name: remoteFileName(path),
     path,

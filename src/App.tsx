@@ -77,6 +77,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const docPath = meta?.path ?? null;
   useEffect(() => {
     if (docPath === null || folderChosen.current) return;
+    // A remote document's parent is not on the allow-list; the remote root comes from the Connect flow.
+    if (isSshPath(docPath)) return;
     const parent = parentDir(docPath);
     if (parent !== null) setFolder(parent);
   }, [docPath]);
@@ -254,7 +256,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
   /** Writes tab `id`; true when it is on disk, false when cancelled or failed. */
-  const write = useCallback(
+  const doWrite = useCallback(
     async (id: number, as: boolean): Promise<boolean> => {
       const tab = session.peek(id);
       if (tab === null) return true;
@@ -274,6 +276,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             saved = await files.saveDocument(doc);
           } catch (e) {
             if (!(e instanceof RemoteConflictError)) throw e;
+            if (slow !== null) clearTimeout(slow);
+            setSavingTo(null);
             const choice = await new Promise<ConflictChoice>((resolve) => setConflict({ name: e.name_, deleted: e.deleted, resolve }));
             setConflict(null);
             // Cancel leaves the tab unsaved, text intact.
@@ -302,6 +306,21 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       }
     },
     [files, session.peek, session.peekTabs, session.saved, remember],
+  );
+  // One save per tab at a time: a request made while one is pending joins it (no parallel write, no second dialog).
+  const pendingSaves = useRef(new Map<number, Promise<boolean>>());
+  const write = useCallback(
+    (id: number, as: boolean): Promise<boolean> => {
+      const pending = pendingSaves.current.get(id);
+      if (pending !== undefined && !as) return pending;
+      const run = (pending ?? Promise.resolve(true)).then(() => doWrite(id, as));
+      const tracked = run.finally(() => {
+        if (pendingSaves.current.get(id) === tracked) pendingSaves.current.delete(id);
+      });
+      pendingSaves.current.set(id, tracked);
+      return tracked;
+    },
+    [doWrite],
   );
   const save = useCallback(() => (activeId === null ? Promise.resolve(true) : write(activeId, false)), [write, activeId]);
   const saveAs = useCallback(() => (activeId === null ? Promise.resolve(true) : write(activeId, true)), [write, activeId]);

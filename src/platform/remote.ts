@@ -96,7 +96,7 @@ export function remoteErrorMessage(kind: RemoteErrorKind, op: RemoteOp, path: st
   let reason: string;
   switch (kind) {
     case 'unreachable':
-      return op === 'save' ? `${head}: can't reach the server.${tail}` : `Couldn't reach ${host}. ${op === 'open' ? `${file} was not opened.` : ''}`.trim();
+      return op === 'save' ? `${head}: can't reach the server.${tail}` : `Couldn't reach ${host}. ${file} was not ${op === 'open' ? 'opened' : 'listed'}.`;
     case 'auth_required':
       reason = 'you need to log in again';
       break;

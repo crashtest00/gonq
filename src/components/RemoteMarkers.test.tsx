@@ -114,3 +114,49 @@ test('recent files show user@host only for remote ones, and a lost folder offers
   expect(items[0]).toHaveTextContent('notes.mdme@nas');
   expect(items[1]).not.toHaveTextContent('@');
 });
+
+async function editBody(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByText('body'));
+  await caretIn(screen.getByText('body'));
+  await user.keyboard('!');
+  await user.keyboard('{Escape}');
+}
+
+test('Ctrl+S while the conflict dialog is open joins the pending save; closing then completes', async () => {
+  const save = vi.fn(async (d: { name: string; path: string | null }, _t?: unknown, o?: { force?: boolean }) => {
+    if (!o?.force) throw new RemoteConflictError('notes.md', false);
+    return { name: d.name, path: d.path, remote: { mtime: 9, size: 9 } };
+  });
+  const user = setup([REMOTE], save);
+  await openFile(user);
+  await screen.findByText('body');
+  await editBody(user);
+  await user.click(screen.getByRole('button', { name: /close notes\.md/i }));
+  await user.click(await screen.findByRole('button', { name: 'Save' }));
+  await screen.findByText('notes.md changed on the server since you opened it.');
+  await user.keyboard('{Control>}s{/Control}');
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(screen.getAllByText('notes.md changed on the server since you opened it.')).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: 'Overwrite' }));
+  await waitFor(() => expect(screen.queryByRole('tab', { name: /notes\.md/ })).not.toBeInTheDocument());
+  expect(save).toHaveBeenCalledTimes(2);
+});
+
+test('a double Ctrl+S runs one write, so no false conflict', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const save = vi.fn(async (d: { name: string; path: string | null; remote?: RemoteStat }) => {
+    await gate;
+    if (d.remote?.mtime !== 1) throw new RemoteConflictError('notes.md', false);
+    return { name: d.name, path: d.path, remote: { mtime: 9, size: 9 } };
+  });
+  const user = setup([REMOTE], save);
+  await openFile(user);
+  await screen.findByText('body');
+  await editBody(user);
+  await user.keyboard('{Control>}s{/Control}{Control>}s{/Control}');
+  release();
+  await waitFor(() => expect(screen.queryByLabelText('unsaved changes')).not.toBeInTheDocument());
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
