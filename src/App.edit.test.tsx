@@ -1,5 +1,6 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { activeBlocks, activeSource, caretIn, selectBetween, selectSource, settle, shownMarkers, view } from './testing/inplace';
+import { alignText } from './components/inplace';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import type { FileAccess, OpenedDocument } from './platform/files';
@@ -114,12 +115,12 @@ test('line endings of a CRLF file are kept', async () => {
   expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: 'first\r\n\r\nsecond\r\nline!\r\n' }));
 });
 
-test('Enter in a CRLF file inserts a CRLF, and a pasted LF becomes CRLF', async () => {
+test('Shift+Enter in a CRLF file inserts a CRLF, and a pasted LF becomes CRLF', async () => {
   const { user, saveDocument } = setup('first\r\n\r\nsecond\r\n');
   await openDoc(user);
   await user.click(screen.getByText('second'));
   await caretIn(screen.getByText('second'));
-  await user.keyboard('{Enter}x');
+  await user.keyboard('{Shift>}{Enter}{/Shift}x');
   await user.paste('a\nb');
   await user.keyboard('{Escape}{Control>}s{/Control}');
   expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: 'first\r\n\r\nsecond\r\nxa\r\nb\r\n' }));
@@ -445,12 +446,12 @@ describe('markers in the active block', () => {
 });
 
 describe('splitting and joining blocks while typing', () => {
-  test('two Enters inside a paragraph split it into two blocks and keep the caret', async () => {
+  test('Enter inside a paragraph splits it into two blocks and keep the caret', async () => {
     const { user, saveDocument } = setup('onetwo\n\nlast\n');
     await openDoc(user);
     await user.click(screen.getByText('onetwo'));
     await caretIn(screen.getByText('onetwo'), 3);
-    await user.keyboard('{Enter}{Enter}X');
+    await user.keyboard('{Enter}X');
     expect(view().querySelectorAll('p')).toHaveLength(3);
     expect(activeBlocks()).toHaveLength(1);
     expect(activeSource()).toBe('Xtwo');
@@ -711,5 +712,315 @@ describe('toolbar actions', () => {
     await press(user, 'Bold');
     expect(activeSource()).toBe('```\ncode\n```');
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+  });
+});
+
+
+describe('rework of editing in place', () => {
+  const save = async (user: ReturnType<typeof userEvent.setup>, saveDocument: { mock: { calls: any[][] } }) => {
+    await user.keyboard('{Escape}{Control>}s{/Control}');
+    return saveDocument.mock.calls[saveDocument.mock.calls.length - 1]?.[0].text as string;
+  };
+  const beforeInput = (type: string, init: Record<string, unknown> = {}, ranges?: unknown[]) => {
+    const ev = new InputEvent('beforeinput', { inputType: type, bubbles: true, cancelable: true, ...init });
+    if (ranges) Object.defineProperty(ev, 'getTargetRanges', { value: () => ranges });
+    act(() => {
+      view().dispatchEvent(ev);
+    });
+  };
+
+  describe('IME and dead keys', () => {
+    test('composed text is written to the file when the composition ends', async () => {
+      const { user, saveDocument } = setup('one\n\nabc\n');
+      await openDoc(user);
+      await user.click(screen.getByText('abc'));
+      await caretIn(screen.getByText('abc'), 1);
+      fireEvent.compositionStart(view());
+      // The browser puts the composing text in the DOM only.
+      const node = screen.getByText('abc').firstChild as Text;
+      act(() => {
+        node.data = 'aüc'.slice(0, 2) + node.data.slice(1);
+      });
+      fireEvent.compositionEnd(view(), { data: 'ü' });
+      await settle();
+      expect(activeSource()).toBe('aübc');
+      // the spans still map to the right offsets
+      await user.keyboard('X');
+      expect(await save(user, saveDocument)).toBe('one\n\naüXbc\n');
+    });
+
+    test('a cancelled composition leaves the file alone', async () => {
+      const { user, saveDocument } = setup('abc\n');
+      await openDoc(user);
+      await user.click(screen.getByText('abc'));
+      await caretIn(screen.getByText('abc'), 1);
+      fireEvent.compositionStart(view());
+      fireEvent.compositionEnd(view(), { data: '' });
+      await settle();
+      await user.keyboard('X');
+      expect(await save(user, saveDocument)).toBe('aXbc\n');
+    });
+
+    test('Escape during a composition does not end editing', async () => {
+      const { user } = setup('abc\n');
+      await openDoc(user);
+      await user.click(screen.getByText('abc'));
+      fireEvent.compositionStart(view());
+      fireEvent.keyDown(view(), { key: 'Escape', isComposing: true });
+      expect(view()).toHaveAttribute('contenteditable');
+    });
+  });
+
+  describe('joining blocks', () => {
+    const DEF = '[r]: http://example.com/\n';
+    test('Backspace never deletes a link reference definition between two paragraphs', async () => {
+      const text = `one\n\n${DEF}\ntwo\n`;
+      const { user, saveDocument } = setup(text);
+      await openDoc(user);
+      await user.click(screen.getByText('two'));
+      await caretIn(screen.getByText('two'), 0);
+      await user.keyboard('{Backspace}');
+      expect(await save(user, saveDocument)).toBe(text);
+    });
+
+    test('Delete at the end of a paragraph never deletes an HTML comment after it', async () => {
+      const text = 'one\n\n<!-- keep me -->\n\ntwo\n';
+      const { user, saveDocument } = setup(text);
+      await openDoc(user);
+      await user.click(screen.getByText('one'));
+      await caretIn(screen.getByText('one'));
+      await user.keyboard('{Delete}');
+      expect(await save(user, saveDocument)).toBe(text);
+    });
+
+    test('a paragraph is not joined onto a fenced code block, nor code onto a paragraph', async () => {
+      const text = '```\ncode\n```\n\npara\n\n```\nmore\n```\n';
+      const { user, saveDocument } = setup(text);
+      await openDoc(user);
+      await user.click(screen.getByText('para'));
+      await caretIn(screen.getByText('para'), 0);
+      await user.keyboard('{Backspace}');
+      await caretIn(screen.getByText('para'));
+      await user.keyboard('{Delete}');
+      expect(await save(user, saveDocument)).toBe(text);
+    });
+
+    test('plain paragraphs still join, taking only the blank line between them', async () => {
+      const { user, saveDocument } = setup('one\n\n\n\ntwo\n');
+      await openDoc(user);
+      await user.click(screen.getByText('two'));
+      await caretIn(screen.getByText('two'), 0);
+      await user.keyboard('{Backspace}');
+      expect(await save(user, saveDocument)).toBe('onetwo\n');
+    });
+  });
+
+  describe('CRLF', () => {
+    const TEXT = 'first\r\n\r\nsecond\r\nline\r\n';
+    const AT = 'first\r\n\r\nsecond'.length;
+    test('Backspace after a line break removes the whole \\r\\n', async () => {
+      const { user, saveDocument } = setup(TEXT);
+      await openDoc(user);
+      await user.click(screen.getByText(/second/));
+      await selectSource(AT + 2);
+      await user.keyboard('{Backspace}');
+      expect(await save(user, saveDocument)).toBe('first\r\n\r\nsecondline\r\n');
+    });
+
+    test('Delete before a line break removes the whole \\r\\n', async () => {
+      const { user, saveDocument } = setup(TEXT);
+      await openDoc(user);
+      await user.click(screen.getByText(/second/));
+      await selectSource(AT);
+      await user.keyboard('{Delete}');
+      expect(await save(user, saveDocument)).toBe('first\r\n\r\nsecondline\r\n');
+    });
+
+    test('a caret between \\r and \\n is moved out of the break before typing', async () => {
+      const { user, saveDocument } = setup(TEXT);
+      await openDoc(user);
+      await user.click(screen.getByText(/second/));
+      await selectSource(AT + 1);
+      await user.keyboard('X');
+      expect(await save(user, saveDocument)).toBe('first\r\n\r\nsecond\r\nXline\r\n');
+    });
+  });
+
+  describe('entities and escapes', () => {
+    test('typing after a rendered & goes after the whole entity', async () => {
+      const { user, saveDocument } = setup('a &amp; b\n');
+      await openDoc(user);
+      await user.click(screen.getByText(/a & b/));
+      await caretIn(view().querySelector('[data-active]')!, 3);
+      await user.keyboard('X');
+      expect(await save(user, saveDocument)).toBe('a &amp;X b\n');
+    });
+
+    test('Backspace after a numeric entity removes all of it', async () => {
+      const { user, saveDocument } = setup('a &#38; b\n');
+      await openDoc(user);
+      await user.click(screen.getByText(/a & b/));
+      await caretIn(view().querySelector('[data-active]')!, 3);
+      await user.keyboard('{Backspace}');
+      expect(await save(user, saveDocument)).toBe('a  b\n');
+    });
+
+    test('an escaped character is one unit', async () => {
+      const { user, saveDocument } = setup('x \\* y and \\\\ z\n');
+      await openDoc(user);
+      await user.click(screen.getByText(/x \* y/));
+      await caretIn(view().querySelector('[data-active]')!, 3);
+      await user.keyboard('A');
+      expect(await save(user, saveDocument)).toBe('x \\*A y and \\\\ z\n');
+    });
+
+    test('inline code with doubled backticks keeps its delimiters as syntax', async () => {
+      const { user, saveDocument } = setup('see `` `x` `` now\n');
+      await openDoc(user);
+      await user.click(screen.getByText('`x`'));
+      await caretIn(view().querySelector('code')!, 1);
+      await user.keyboard('Q');
+      expect(await save(user, saveDocument)).toBe('see `` `Qx` `` now\n');
+    });
+
+    test('alignText treats an entity as one unit', () => {
+      expect(alignText('a & b', 'a &amp; b', true)).toEqual([
+        { kind: 'tx', from: 0, to: 2 },
+        { kind: 'at', from: 2, to: 7, text: '&' },
+        { kind: 'tx', from: 7, to: 9 },
+      ]);
+    });
+  });
+
+  describe('Enter', () => {
+    test('at the end of a paragraph starts a new paragraph', async () => {
+      const { user, saveDocument } = setup('abc\n');
+      await openDoc(user);
+      await user.click(screen.getByText('abc'));
+      await caretIn(screen.getByText('abc'));
+      await user.keyboard('{Enter}x');
+      expect(view().querySelectorAll('p')).toHaveLength(2);
+      expect(await save(user, saveDocument)).toBe('abc\n\nx\n');
+    });
+
+    test('Shift+Enter keeps the soft break', async () => {
+      const { user, saveDocument } = setup('abc\n');
+      await openDoc(user);
+      await user.click(screen.getByText('abc'));
+      await caretIn(screen.getByText('abc'));
+      await user.keyboard('{Shift>}{Enter}{/Shift}x');
+      expect(await save(user, saveDocument)).toBe('abc\nx\n');
+    });
+
+    test('in a list item starts a new item with the same marker', async () => {
+      const { user, saveDocument } = setup('* a\n* b\n');
+      await openDoc(user);
+      await user.click(screen.getByText('b'));
+      await caretIn(screen.getByText('b'));
+      await user.keyboard('{Enter}c');
+      expect(view().querySelectorAll('li')).toHaveLength(3);
+      expect(await save(user, saveDocument)).toBe('* a\n* b\n* c\n');
+    });
+
+    test('in an ordered, nested or task item the new item matches', async () => {
+      const { user, saveDocument } = setup('1. a\n   - [x] b\n');
+      await openDoc(user);
+      await user.click(screen.getByText('b'));
+      await caretIn(screen.getByText('b'));
+      await user.keyboard('{Enter}c');
+      expect(await save(user, saveDocument)).toBe('1. a\n   - [x] b\n   - [ ] c\n');
+    });
+
+    test('in a quote keeps the quote', async () => {
+      const { user, saveDocument } = setup('> a\n');
+      await openDoc(user);
+      await user.click(screen.getByText('a'));
+      await caretIn(screen.getByText('a'));
+      await user.keyboard('{Enter}b');
+      expect(await save(user, saveDocument)).toBe('> a\n>\n> b\n');
+    });
+
+    test('in a code block adds a line', async () => {
+      const { user, saveDocument } = setup('```\nx\n```\n');
+      await openDoc(user);
+      await user.click(screen.getByText('x'));
+      await caretIn(screen.getByText('x'));
+      await user.keyboard('{Enter}y');
+      expect(await save(user, saveDocument)).toBe('```\nx\ny\n```\n');
+    });
+
+    test('in a CRLF file the paragraph break is CRLF', async () => {
+      const { user, saveDocument } = setup('abc\r\n');
+      await openDoc(user);
+      await user.click(screen.getByText('abc'));
+      await caretIn(screen.getByText('abc'));
+      await user.keyboard('{Enter}x');
+      expect(await save(user, saveDocument)).toBe('abc\r\n\r\nx\r\n');
+    });
+  });
+
+  describe('spellcheck, word and line deletes, empty paste', () => {
+    test('a replacement from spellcheck replaces the range it names, not the caret', async () => {
+      const { user, saveDocument } = setup('hello wrold\n');
+      await openDoc(user);
+      await user.click(screen.getByText(/hello/));
+      await caretIn(screen.getByText(/hello/), 0);
+      const node = screen.getByText(/hello/).firstChild as Text;
+      beforeInput('insertReplacementText', { data: 'world' }, [{ startContainer: node, startOffset: 6, endContainer: node, endOffset: 11 }]);
+      await settle();
+      expect(await save(user, saveDocument)).toBe('hello world\n');
+    });
+
+    test('deleteWordBackward removes the word, not one character', async () => {
+      const { user, saveDocument } = setup('one two three\n');
+      await openDoc(user);
+      await user.click(screen.getByText(/one/));
+      await caretIn(screen.getByText(/one/));
+      beforeInput('deleteWordBackward');
+      await settle();
+      expect(await save(user, saveDocument)).toBe('one two \n');
+    });
+
+    test('deleteWordForward removes the next word', async () => {
+      const { user, saveDocument } = setup('one two three\n');
+      await openDoc(user);
+      await user.click(screen.getByText(/one/));
+      await caretIn(screen.getByText(/one/), 4);
+      beforeInput('deleteWordForward');
+      await settle();
+      expect(await save(user, saveDocument)).toBe('one  three\n');
+    });
+
+    test('a word delete spares the hidden syntax inside the range', async () => {
+      const { user, saveDocument } = setup('foo**bar** x\n');
+      await openDoc(user);
+      await user.click(screen.getByRole('menuitem', { name: 'View' }));
+      await user.click(await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ }));
+      await user.click(screen.getByText('bar'));
+      await caretIn(screen.getByText('bar'));
+      beforeInput('deleteWordBackward');
+      await settle();
+      expect(await save(user, saveDocument)).toBe('**** x\n');
+    });
+
+    test('deleteSoftLineBackward removes to the start of the line', async () => {
+      const { user, saveDocument } = setup('one two\nthree four\n');
+      await openDoc(user);
+      await user.click(screen.getByText(/one/));
+      await caretIn(screen.getByText(/one/));
+      beforeInput('deleteSoftLineBackward');
+      await settle();
+      expect(await save(user, saveDocument)).toBe('one two\n\n');
+    });
+
+    test('pasting nothing leaves the selection alone', async () => {
+      const { user, saveDocument } = setup('hello\n');
+      await openDoc(user);
+      await user.click(screen.getByText('hello'));
+      await selectBetween([screen.getByText('hello'), 1], [screen.getByText('hello'), 3]);
+      beforeInput('insertFromPaste', { data: '' });
+      await settle();
+      expect(await save(user, saveDocument)).toBe('hello\n');
+    });
   });
 });

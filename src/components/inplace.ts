@@ -46,8 +46,33 @@ const end = (n: HNode) => n.position?.end.offset;
  * is rendered) and the characters that are syntax. Null when `value` is not a
  * subsequence of the slice (an entity, say): the caller then keeps it whole.
  */
-export function alignText(value: string, slice: string): { kind: 'tx' | 'mk'; from: number; to: number }[] | null {
-  const out: { kind: 'tx' | 'mk'; from: number; to: number }[] = [];
+export interface AlignedPart {
+  kind: 'tx' | 'mk' | 'at';
+  from: number;
+  to: number;
+  /** For `at`: the text it is shown as. */
+  text?: string;
+}
+
+const ENTITY = /&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{0,31});/y;
+const ESCAPE = /\\[!-/:-@[-`{-~]/y;
+
+let decoder: HTMLTextAreaElement | null = null;
+/** What a character reference stands for, or null when it is not one. */
+function decodeEntity(ref: string): string | null {
+  if (typeof document === 'undefined') return null;
+  decoder ??= document.createElement('textarea');
+  decoder.innerHTML = ref;
+  const out = decoder.value;
+  return out === ref ? null : out;
+}
+
+/**
+ * With `atomic`, entities (`&amp;`) and backslash escapes (`\*`) are single `at`
+ * units: the whole of the source is the text for the character(s) they render.
+ */
+export function alignText(value: string, slice: string, atomic = false): AlignedPart[] | null {
+  const out: AlignedPart[] = [];
   const push = (kind: 'tx' | 'mk', i: number) => {
     const last = out[out.length - 1];
     if (last && last.kind === kind && last.to === i) last.to = i + 1;
@@ -55,6 +80,18 @@ export function alignText(value: string, slice: string): { kind: 'tx' | 'mk'; fr
   };
   let j = 0;
   for (let i = 0; i < slice.length; i++) {
+    if (atomic && j < value.length && (slice[i] === '&' || slice[i] === '\\')) {
+      const re = slice[i] === '&' ? ENTITY : ESCAPE;
+      re.lastIndex = i;
+      const m = re.exec(slice);
+      const shown = m ? (slice[i] === '&' ? decodeEntity(m[0]) : m[0][1]) : null;
+      if (m && shown && value.startsWith(shown, j)) {
+        out.push({ kind: 'at', from: i, to: i + m[0].length, text: shown });
+        i += m[0].length - 1;
+        j += shown.length;
+        continue;
+      }
+    }
     if (j < value.length && slice[i] === value[j]) {
       push('tx', i);
       j++;
@@ -63,12 +100,36 @@ export function alignText(value: string, slice: string): { kind: 'tx' | 'mk'; fr
   return j === value.length ? out : null;
 }
 
+const partSpan = (p: AlignedPart, s: number, slice: string): HNode =>
+  p.kind === 'at'
+    ? span('gonq-at', s + p.from, p.text ?? '', { dataLen: p.to - p.from })
+    : span(p.kind === 'tx' ? 'gonq-tx' : 'gonq-mk', s + p.from, slice.slice(p.from, p.to));
+
 /** Spans for a text-bearing node whose source is source[s, e) and whose rendered text is `value`. */
-function textPieces(value: string, s: number, e: number, source: string): HNode[] {
+function textPieces(value: string, s: number, e: number, source: string, atomic = true): HNode[] {
   const slice = source.slice(s, e);
-  const parts = alignText(value, slice);
+  const parts = alignText(value, slice, atomic);
   if (parts === null) return [span('gonq-at', s, value, { dataLen: e - s })];
-  return parts.map((p) => span(p.kind === 'tx' ? 'gonq-tx' : 'gonq-mk', s + p.from, slice.slice(p.from, p.to)));
+  return parts.map((p) => partSpan(p, s, slice));
+}
+
+/** An inline code span: the backtick runs are syntax, and so is the space padding that is not shown. */
+function codeSpanPieces(value: string, s: number, e: number, source: string): HNode[] {
+  const slice = source.slice(s, e);
+  const m = /^(`+)([\s\S]*?)(`+)$/.exec(slice);
+  if (!m || m[1].length !== m[3].length) return textPieces(value, s, e, source, false);
+  const open = m[1].length;
+  const inner = m[2];
+  const lead = inner.length > value.length && /^\s/.test(inner) ? 1 : 0;
+  if (inner.slice(lead, inner.length - lead) !== value && inner.replace(/\r?\n/g, ' ').slice(lead, inner.length - lead) !== value) {
+    return textPieces(value, s, e, source, false);
+  }
+  const parts: AlignedPart[] = [
+    { kind: 'mk', from: 0, to: open + lead },
+    { kind: 'tx', from: open + lead, to: slice.length - open - lead },
+    { kind: 'mk', from: slice.length - open - lead, to: slice.length },
+  ];
+  return parts.filter((p) => p.to > p.from).map((p) => partSpan(p, s, slice));
 }
 
 const textOf = (n: HNode): string => (n.type === 'text' ? (n.value ?? '') : (n.children ?? []).map(textOf).join(''));
@@ -100,7 +161,7 @@ function codeBlockPieces(code: HNode, s: number, e: number, source: string): HNo
   const parts = alignText(value.replace(/\n$/, ''), body);
   if (parts === null) out.push(span('gonq-at', s + bodyFrom, value, { dataLen: bodyTo - bodyFrom }));
   else {
-    for (const p of parts) out.push(span(p.kind === 'tx' ? 'gonq-tx' : 'gonq-mk', s + bodyFrom + p.from, body.slice(p.from, p.to)));
+    for (const p of parts) out.push(partSpan(p, s + bodyFrom, body));
   }
   if (fence && bodyTo < slice.length) out.push(span('gonq-mk', s + bodyTo, slice.slice(bodyTo)));
   return out;
@@ -140,7 +201,12 @@ function decorate(el: HNode, source: string): void {
     if (code) code.children = codeBlockPieces(code, s, e, source);
     return;
   }
-  // A leaf that only holds text (an inline code span) is aligned as a whole.
+  // An inline code span is aligned as a whole, backtick runs and all.
+  if (el.tagName === 'code' && kids.length > 0 && kids.every((c) => c.type === 'text')) {
+    el.children = codeSpanPieces(textOf(el), s, e, source);
+    return;
+  }
+  // So is any other leaf that only holds text.
   if (kids.length > 0 && kids.every((c) => c.type === 'text' && c.position === undefined)) {
     el.children = textPieces(textOf(el), s, e, source);
     return;
@@ -206,6 +272,8 @@ export function rehypeSourceSpans(options: { source: string; ranges: Range1[]; b
       const e = end(block);
       if (block.type !== 'element' || s === undefined || e === undefined) continue;
       if (!ranges.some((r) => r.from === base + s && r.to === base + e)) continue;
+      // An edit can turn the block into one that is not edited in place (`****` is a rule); it is drawn plain.
+      if (!(IN_PLACE_TAGS as readonly string[]).includes(block.tagName ?? '')) continue;
       // Positions are relative to the rendered piece; the slices come from the same piece.
       decorate(block, source);
     }
@@ -340,4 +408,14 @@ export function visibleIndexToOffset(block: Element, index: number): number | nu
     last = p.s + p.len;
   }
   return last ?? (block instanceof HTMLElement ? Number(block.dataset.from) : null);
+}
+
+/**
+ * A line break written \r\n is one unit: an offset between the two moves out of it
+ * (a caret goes after the break; the start of a range goes before it, the end after it).
+ */
+export function snapCrlf(text: string, lo: number, hi: number): [number, number] {
+  const inside = (n: number) => text[n - 1] === '\r' && text[n] === '\n';
+  if (lo === hi) return inside(lo) ? [lo + 1, lo + 1] : [lo, hi];
+  return [inside(lo) ? lo - 1 : lo, inside(hi) ? hi + 1 : hi];
 }
