@@ -173,6 +173,8 @@ const positioned = (c: HNode) => start(c) !== undefined;
 
 /** The innermost element at the start of `el` that can hold inline text (a list item's paragraph, say). */
 function firstHost(el: HNode): HNode {
+  // Nothing but rows sits directly in a table: what precedes it (a list item's indent) goes in its first cell.
+  if (el.tagName === 'table') return cellsOf(el)[0] ?? el;
   const first = (el.children ?? []).find(positioned);
   if ((CONTAINER_TAGS.has(el.tagName ?? '') || el.tagName === 'li') && first?.tagName && BLOCK_TAGS.has(first.tagName)) return firstHost(first);
   return el;
@@ -180,6 +182,7 @@ function firstHost(el: HNode): HNode {
 
 /** The same at the end of `el`. */
 function lastHost(el: HNode): HNode {
+  if (el.tagName === 'table') return cellsOf(el).slice(-1)[0] ?? el;
   const last = [...(el.children ?? [])].reverse().find(positioned);
   if ((CONTAINER_TAGS.has(el.tagName ?? '') || el.tagName === 'li') && last?.tagName && BLOCK_TAGS.has(last.tagName)) return lastHost(last);
   return el;
