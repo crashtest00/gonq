@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { ChevronRight, File, Folder, X } from 'lucide-react';
 import { ListDirectoryError, listDirectory, type FolderEntry } from '../platform/folders';
 import type { RecentDocument } from '../platform/recents';
+import { isSshPath, remoteAccount } from '../platform/remote';
 
 export function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
@@ -92,20 +93,27 @@ function Tree({ path, depth, currentPath, onOpenFile }: { path: string; depth: n
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [shown, setShown] = useState(ROW_CHUNK);
+  const [errorKind, setErrorKind] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let live = true;
     setEntries(null);
+    setErrorKind(null);
     setError(null);
     setShown(ROW_CHUNK);
     listDirectory(path).then(
       (rows) => live && setEntries(rows),
-      (e) => live && setError(e instanceof ListDirectoryError || e instanceof Error ? e.message : String(e)),
+      (e) => {
+        if (!live) return;
+        setErrorKind(e instanceof ListDirectoryError ? e.kind : null);
+        setError(e instanceof ListDirectoryError || e instanceof Error ? e.message : String(e));
+      },
     );
     return () => {
       live = false;
     };
-  }, [path]);
+  }, [path, attempt]);
 
   const toggle = useCallback((p: string) => {
     setExpanded((prev) => {
@@ -116,7 +124,20 @@ function Tree({ path, depth, currentPath, onOpenFile }: { path: string; depth: n
   }, []);
 
   const pad = { paddingLeft: depth * 14 };
-  if (error !== null) return <p role="alert" style={pad} className="m-0 py-1 text-[12.5px] text-destructive">{error}</p>;
+  if (error !== null)
+    return (
+      <p role="alert" style={pad} className="m-0 py-1 text-[12.5px] text-destructive">
+        {error}
+        {errorKind === 'disconnected' && (
+          <>
+            {' '}
+            <button type="button" onClick={() => setAttempt((n) => n + 1)} className="cursor-pointer border-0 bg-transparent p-0 text-[12.5px] text-destructive underline">
+              Retry
+            </button>
+          </>
+        )}
+      </p>
+    );
   if (entries === null) return <p style={pad} className="m-0 py-1 text-[12.5px] text-muted-foreground">Loading…</p>;
   if (entries.length === 0) return <p style={pad} className="m-0 py-1 text-[12.5px] text-muted-foreground">{depth === 0 ? 'No Markdown files.' : 'Empty.'}</p>;
 
@@ -211,7 +232,10 @@ export function FolderSidebar({
                       title={r.path}
                       className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent py-1 text-left"
                     >
-                      <span className="block truncate text-[13px] text-foreground">{basename(r.path)}</span>
+                      <span className="block truncate text-[13px] text-foreground">
+                        {basename(r.path)}
+                        {isSshPath(r.path) && <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">{remoteAccount(r.path)}</span>}
+                      </span>
                       <span className="block text-[11px] text-muted-foreground">{relativeTime(r.openedAt)}</span>
                     </button>
                     <button
