@@ -72,13 +72,15 @@ test.each(IN_PLACE)('clicking a %s keeps it formatted, with its source in place;
   expect(editors()).toHaveLength(0);
 });
 
-test('clicking a table shows its Markdown source in a field; leaving returns to formatted', async () => {
+test('clicking a table edits it in place, never as pipe syntax; leaving returns to rest', async () => {
   const { user } = setup();
   await openDoc(user);
   await user.click(screen.getByRole('cell', { name: '1' }));
-  await waitFor(() => expect(editors()).toHaveLength(1));
-  expect(editors()[0].value).toBe('| a | b |\n|---|---|\n| 1 | 2 |');
+  await waitFor(() => expect(activeBlocks()).toHaveLength(1));
+  expect(editors()).toHaveLength(0);
+  expect(screen.getByRole('table')).toBeInTheDocument();
   await user.keyboard('{Escape}');
+  expect(activeBlocks()).toHaveLength(0);
   expect(editors()).toHaveLength(0);
 });
 

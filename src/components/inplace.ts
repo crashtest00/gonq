@@ -28,8 +28,8 @@ const BLOCK_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol',
 const CONTAINER_TAGS = new Set(['ul', 'ol', 'blockquote']);
 const VOID_TAGS = new Set(['img', 'br', 'input', 'hr']);
 
-/** Top-level blocks that are edited in place; the rest (tables, rules) keep the Markdown field. */
-export const IN_PLACE_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'pre', 'blockquote'] as const;
+/** Top-level blocks that are edited in place; a rule is not text to type into and keeps the Markdown field. */
+export const IN_PLACE_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'pre', 'blockquote', 'table'] as const;
 
 const span = (cls: string, s: number, text: string, extra: Record<string, unknown> = {}): HNode => ({
   type: 'element',
@@ -185,11 +185,41 @@ function lastHost(el: HNode): HNode {
   return el;
 }
 
+const cellsOf = (n: HNode): HNode[] =>
+  (n.children ?? []).flatMap((c) => (c.tagName === 'th' || c.tagName === 'td' ? [c] : c.type === 'element' ? cellsOf(c) : []));
+
+/**
+ * A table: its cells carry their text; every pipe, delimiter row and line break is syntax inside some cell
+ * (spans cannot sit between rows), and is never shown, whatever the markers option says.
+ */
+function decorateTable(table: HNode, source: string): void {
+  const s = start(table) ?? 0;
+  const e = end(table) ?? s;
+  const cells = cellsOf(table).filter((c) => start(c) !== undefined && end(c) !== undefined);
+  if (cells.length === 0) return;
+  const gap = (from: number, to: number): HNode[] => (to > from ? [span('gonq-mk', from, source.slice(from, to))] : []);
+  cells.forEach((cell, i) => {
+    const cs = start(cell)!;
+    const ce = end(cell)!;
+    const lead = i === 0 ? gap(s, cs) : [];
+    // Up to where the next cell starts (the line break and delimiter row between rows).
+    const reach = i + 1 < cells.length ? Math.max(start(cells[i + 1])!, ce) : Math.max(e, ce);
+    const trail = gap(ce, reach);
+    if ((cell.children ?? []).length === 0) {
+      // An empty cell still holds a caret, after its pipe and padding.
+      const at = cs + /^\|?[ \t]?/.exec(source.slice(cs, ce))![0].length;
+      cell.children = [...gap(cs, at), span('gonq-at', at, '\u200b', { dataLen: 0 }), ...gap(at, ce)];
+    } else decorate(cell, source);
+    cell.children = [...lead, ...(cell.children ?? []), ...trail];
+  });
+}
+
 /** Fills `el` so that every character of its source range is in some span. */
 function decorate(el: HNode, source: string): void {
   const s = start(el);
   const e = end(el);
   if (s === undefined || e === undefined) return;
+  if (el.tagName === 'table') return decorateTable(el, source);
   const kids = el.children ?? [];
 
   if (isThreadLink(el)) {
@@ -323,7 +353,7 @@ const pieceAround = (node: Node): HTMLElement | null => {
 };
 
 /** Whether a piece is on screen: syntax pieces only when markers are shown. */
-export const isVisible = (p: Piece, showMarkers: boolean) => p.kind !== 'mk' || showMarkers;
+export const isVisible = (p: Piece, showMarkers: boolean) => p.kind !== 'mk' || (showMarkers && !p.el.closest('table'));
 
 /**
  * The file offset of a point in the rendered tree, or null when it is not in a

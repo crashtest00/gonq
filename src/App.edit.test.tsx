@@ -493,15 +493,66 @@ describe('edge cases', () => {
     expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text }));
   });
 
-  test('a click on a table opens its Markdown field as before', async () => {
-    const { user } = setup('| a | b |\n| - | - |\n| 1 | 2 |\n\nafter\n');
-    await openDoc(user);
-    await user.click(screen.getByRole('cell', { name: '1' }));
-    expect(editor().value).toBe('| a | b |\n| - | - |\n| 1 | 2 |');
-    expect(view()).not.toHaveAttribute('contenteditable');
-    await user.keyboard('{Escape}');
-    noField();
-    expect(screen.getByRole('table')).toBeInTheDocument();
+  describe('tables', () => {
+    /** A cell by its text, whether or not the table is being edited (its syntax is in the cell then, unseen). */
+    const cell = (text: string) =>
+      Array.from(view().querySelectorAll('td, th')).find((c) => (c.textContent ?? '').replace(/[|\s]/g, '') === text) as HTMLElement;
+    const TABLE = '| a | b |\n| - | - |\n| 1 | 2 |\n\nafter\n';
+
+    test('a click on a table edits its cells in place, never as pipe syntax', async () => {
+      const { user } = setup(TABLE);
+      await openDoc(user);
+      await user.click(screen.getByRole('cell', { name: '1' }));
+      noField();
+      expect(view()).toHaveAttribute('contenteditable', 'true');
+      expect(screen.getByRole('table')).toBeInTheDocument();
+      // Every pipe and the delimiter row are syntax that is never on screen, markers option or not.
+      expect(shownMarkers()).toEqual([]);
+      expect(activeSource()).toBe('| a | b |\n| - | - |\n| 1 | 2 |');
+    });
+
+    test('typing in a cell changes only that cell of the file', async () => {
+      const { user, saveDocument } = setup(TABLE);
+      await openDoc(user);
+      await user.click(cell('1'));
+      await caretIn(cell('1'));
+      await user.keyboard('23');
+      await user.keyboard('{Escape}{Control>}s{/Control}');
+      expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: '| a | b |\n| - | - |\n| 123 | 2 |\n\nafter\n' }));
+      expect(cell('123')).toBeInTheDocument();
+    });
+
+    test('a pipe typed in a cell is cell text; Enter does not break the table', async () => {
+      const { user, saveDocument } = setup(TABLE);
+      await openDoc(user);
+      await user.click(cell('2'));
+      await caretIn(cell('2'));
+      await user.keyboard('|{Enter}x');
+      await user.keyboard('{Escape}{Control>}s{/Control}');
+      expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: '| a | b |\n| - | - |\n| 1 | 2\\|x |\n\nafter\n' }));
+      expect(screen.getAllByRole('cell')).toHaveLength(2);
+    });
+
+    test('Backspace at the start of a cell leaves the neighbouring cell alone', async () => {
+      const { user, saveDocument } = setup(TABLE);
+      await openDoc(user);
+      await user.click(cell('2'));
+      await caretIn(cell('2'), 0);
+      await user.keyboard('{Backspace}');
+      await user.keyboard('{Escape}{Control>}s{/Control}');
+      expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: TABLE }));
+    });
+
+    test('an empty cell can be typed into', async () => {
+      const { user, saveDocument } = setup('| a | b |\n| - | - |\n| 1 |  |\n');
+      await openDoc(user);
+      await user.click(screen.getAllByRole('cell')[1]);
+     
+      await caretIn(screen.getAllByRole('cell')[1]);
+      await user.keyboard('z');
+      await user.keyboard('{Escape}{Control>}s{/Control}');
+      expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: '| a | b |\n| - | - |\n| 1 | z |\n' }));
+    });
   });
 });
 
