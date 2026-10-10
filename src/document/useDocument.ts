@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { parseCommentThreads } from '../comment-threads';
 import type { OpenedDocument } from '../platform/files';
+import type { RemoteStat } from '../platform/remote';
 import { createHistory, edit, isDirty, markSaved, redo, undo, type History } from './history';
 import { detectEol, splice } from './splice';
 
@@ -8,6 +9,8 @@ export interface DocumentMeta {
   name: string;
   /** Absolute path on disk; null for a new document or one opened in the browser. */
   path: string | null;
+  /** ssh:// documents: the server's version at the last read or save, sent back as `expected` on save. */
+  remote?: RemoteStat;
 }
 
 /**
@@ -109,7 +112,7 @@ export function useDocument() {
       const existing = findByPath(doc.path);
       if (existing !== null) return activate(existing);
       const id = nextTabId.current++;
-      const tab: Tab = { id, meta: { name: doc.name, path: doc.path }, history: createHistory(doc.text), scrollTop: 0, raw: false };
+      const tab: Tab = { id, meta: { name: doc.name, path: doc.path, remote: doc.remote }, history: createHistory(doc.text), scrollTop: 0, raw: false };
       setState((s) => ({ tabs: [...s.tabs, tab], activeId: id }));
     },
     [setRegion, findByPath, activate],

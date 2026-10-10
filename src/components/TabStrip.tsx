@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { FolderTree, ListTree, MessageSquare, Plus, X } from 'lucide-react';
+import { FolderTree, ListTree, MessageSquare, Plus, Server, X } from 'lucide-react';
 import type { TabInfo } from '../document/useDocument';
+import { isSshPath } from '../platform/remote';
 
 function segments(path: string): string[] {
   return path.split(/[\\/]/).filter((s) => s !== '');
@@ -109,6 +110,7 @@ export function TabStrip({
                 }`}
                 style={{ clipPath: 'polygon(10px 0, calc(100% - 10px) 0, 100% 100%, 0 100%)' }}
               >
+                {isSshPath(tab.path) && <Server size={12} aria-label="Remote document" className="mr-1.5 shrink-0" />}
                 <span className="truncate">{labels[i]}</span>
                 {tab.dirty && <span aria-label="unsaved changes" title="Unsaved changes" className="ml-1.5 text-accent-foreground">●</span>}
                 <button

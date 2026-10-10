@@ -10,6 +10,8 @@ import { OutlineSidebar } from './components/OutlineSidebar';
 import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
+import { ConflictDialog, type ConflictChoice } from './components/ConflictDialog';
+import { RemoteConflictError, RemoteFileError, isSshPath, remoteHost } from './platform/remote';
 import { listThreads } from './components/threads';
 import { isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
 import { appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
@@ -47,6 +49,10 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [inPlace, setInPlace] = useState(false);
   const [reveal, setReveal] = useState<string | null>(null);
   const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
+  const [conflict, setConflict] = useState<{ name: string; deleted: boolean; resolve: (c: ConflictChoice) => void } | null>(null);
+  // A remote save slower than a second says where it is going; an in-place save says it was not atomic.
+  const [savingTo, setSavingTo] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const activeId = session.activeId;
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
   const [showMarkers, setShowMarkersState] = useState(true);
@@ -71,6 +77,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const docPath = meta?.path ?? null;
   useEffect(() => {
     if (docPath === null || folderChosen.current) return;
+    // A remote document's parent is not on the allow-list; the remote root comes from the Connect flow.
+    if (isSshPath(docPath)) return;
     const parent = parentDir(docPath);
     if (parent !== null) setFolder(parent);
   }, [docPath]);
@@ -248,7 +256,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
   /** Writes tab `id`; true when it is on disk, false when cancelled or failed. */
-  const write = useCallback(
+  const doWrite = useCallback(
     async (id: number, as: boolean): Promise<boolean> => {
       const tab = session.peek(id);
       if (tab === null) return true;
@@ -256,27 +264,63 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const snapshot = tab.text;
       // Save As may not land on a file another tab holds.
       const taken = (path: string) => session.peekTabs().some((t) => t.id !== id && t.path === path);
+      const remotePath = !as && tab.meta.path !== null && isSshPath(tab.meta.path) ? tab.meta.path : null;
+      const slow = remotePath === null ? null : setTimeout(() => setSavingTo(remoteHost(remotePath)), 1000);
       try {
-        const saved = as
-          ? await files.saveDocumentAs({ name: tab.meta.name, text: snapshot }, taken)
-          : tab.meta.path === null
-            ? await files.saveDocument({ name: tab.meta.name, path: null, text: snapshot }, taken)
-            : await files.saveDocument({ name: tab.meta.name, path: tab.meta.path, text: snapshot });
+        const doc = { name: tab.meta.name, path: tab.meta.path, text: snapshot, remote: tab.meta.remote };
+        let saved;
+        if (as) saved = await files.saveDocumentAs({ name: tab.meta.name, text: snapshot }, taken);
+        else if (tab.meta.path === null) saved = await files.saveDocument({ ...doc, path: null }, taken);
+        else {
+          try {
+            saved = await files.saveDocument(doc);
+          } catch (e) {
+            if (!(e instanceof RemoteConflictError)) throw e;
+            if (slow !== null) clearTimeout(slow);
+            setSavingTo(null);
+            const choice = await new Promise<ConflictChoice>((resolve) => setConflict({ name: e.name_, deleted: e.deleted, resolve }));
+            setConflict(null);
+            // Cancel leaves the tab unsaved, text intact.
+            if (choice === 'cancel') return false;
+            saved = await files.saveDocument(doc, undefined, { force: true });
+          }
+        }
         if (saved === null) return false;
         if (saved.path !== null && saved.path !== tab.meta.path && taken(saved.path)) {
           setError(`${saved.path} is already open in another tab, so it was not saved there. Choose another name.`);
           return false;
         }
         setError(null);
-        session.saved(id, saved, snapshot);
+        if (saved.inPlaceHost !== undefined) {
+          setNotice(`Saved in place on ${remoteHost(saved.inPlaceHost)} (not atomic): the server can't swap files safely, so a dropped connection could leave the file half written.`);
+        }
+        session.saved(id, { name: saved.name, path: saved.path, remote: saved.remote }, snapshot);
         if (saved.path !== tab.meta.path) remember(saved.path);
         return true;
       } catch (e) {
         failed(e);
         return false;
+      } finally {
+        if (slow !== null) clearTimeout(slow);
+        setSavingTo(null);
       }
     },
     [files, session.peek, session.peekTabs, session.saved, remember],
+  );
+  // One save per tab at a time: a request made while one is pending joins it (no parallel write, no second dialog).
+  const pendingSaves = useRef(new Map<number, Promise<boolean>>());
+  const write = useCallback(
+    (id: number, as: boolean): Promise<boolean> => {
+      const pending = pendingSaves.current.get(id);
+      if (pending !== undefined && !as) return pending;
+      const run = (pending ?? Promise.resolve(true)).then(() => doWrite(id, as));
+      const tracked = run.finally(() => {
+        if (pendingSaves.current.get(id) === tracked) pendingSaves.current.delete(id);
+      });
+      pendingSaves.current.set(id, tracked);
+      return tracked;
+    },
+    [doWrite],
   );
   const save = useCallback(() => (activeId === null ? Promise.resolve(true) : write(activeId, false)), [write, activeId]);
   const saveAs = useCallback(() => (activeId === null ? Promise.resolve(true) : write(activeId, true)), [write, activeId]);
@@ -330,7 +374,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       try {
         if (fromRecents) {
           await allowRecentDocument(path);
-          if (!(await pathExists(path))) {
+          // A remote file stays in the list when its host is unreachable; opening it reports why.
+          if (!isSshPath(path) && !(await pathExists(path))) {
             await removeRecent(path).then(setRecents, () => {});
             return setError(`${path} no longer exists, so it was removed from recent documents.`);
           }
@@ -340,6 +385,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         session.open(opened);
         remember(opened.path);
       } catch (e) {
+        // Only a file the server says is gone leaves the recent list.
+        if (fromRecents && e instanceof RemoteFileError && e.kind === 'not_found') await removeRecent(path).then(setRecents, () => {});
         failed(e);
       }
     },
@@ -454,6 +501,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                   {error}
                 </div>
               )}
+              {savingTo !== null && <div role="status" className="mb-5 text-[13px] text-muted-foreground">Saving to {savingTo}…</div>}
+              {notice !== null && (
+                <div role="status" className="mb-5 flex items-start justify-between gap-3 rounded-control border border-border px-3 py-2 text-[13px] text-muted-foreground">
+                  <span>{notice}</span>
+                  <button type="button" aria-label="Dismiss notice" onClick={() => setNotice(null)} className="cursor-pointer border-0 bg-transparent p-0 text-inherit">×</button>
+                </div>
+              )}
               {doc !== null ? (
                 <>
                   <MarkdownView
@@ -550,6 +604,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       )}
       {skillOpen && <AgentSkillDialog files={files} onClose={() => setSkillOpen(false)} />}
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+      {conflict !== null && <ConflictDialog name={conflict.name} deleted={conflict.deleted} onChoose={conflict.resolve} />}
       {asking !== null && <UnsavedChangesDialog name={asking.name} onChoose={asking.resolve} />}
     </div>
   );
