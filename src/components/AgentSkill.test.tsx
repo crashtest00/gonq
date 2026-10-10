@@ -145,7 +145,7 @@ test('a file edited strictly by following SKILL.md parses and renders in Gonq', 
   const doc = { name: 'plan.md', path: '/d/plan.md', text: fixture };
   render(<App files={files({ pickDocument: async () => doc })} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
   await screen.findByTestId('markdown-view');
   expect(screen.getAllByRole('button', { name: '💬' })).toHaveLength(2);
   expect(screen.getAllByRole('button', { name: '✅' })).toHaveLength(1);

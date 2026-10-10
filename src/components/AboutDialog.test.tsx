@@ -145,7 +145,7 @@ test('closing keeps an edit made before opening, and focus returns to the Help m
   const doc = { name: 'a.md', path: '/d/a.md', text: 'Hello world\n' };
   render(<App files={{ ...files, pickDocument: async () => doc }} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
   await user.click(await screen.findByText('Hello world'));
   await caretIn(await screen.findByText('Hello world'));
   await user.keyboard('!!');

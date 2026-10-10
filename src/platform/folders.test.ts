@@ -25,9 +25,9 @@ describe('pickFolder', () => {
     open.mockResolvedValue(null);
     expect(await pickFolder()).toBeNull();
   });
-  it('returns null on the web without opening anything', async () => {
+  it('rejects with the desktop-app message on the web, without opening a dialog', async () => {
     tauri = false;
-    expect(await pickFolder()).toBeNull();
+    await expect(pickFolder()).rejects.toThrow('Opening a folder needs the desktop app.');
     expect(open).not.toHaveBeenCalled();
   });
 });

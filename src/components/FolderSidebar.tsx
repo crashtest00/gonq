@@ -211,7 +211,6 @@ function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string;
 }
 
 export function FolderSidebar({
-  supported,
   folder,
   recents,
   currentPath,
@@ -221,7 +220,6 @@ export function FolderSidebar({
   onOpenRecent,
   onRemoveRecent,
 }: {
-  supported: boolean;
   folder: string | null;
   recents: RecentDocument[];
   currentPath: string | null;
@@ -252,13 +250,9 @@ export function FolderSidebar({
             ) : (
               <>
                 <p className="m-0 mb-1 text-[13px] text-muted-foreground">No folder open</p>
-                {supported ? (
-                  <button type="button" onClick={onOpenFolder} className="cursor-pointer rounded-control border border-solid border-border bg-transparent px-2 py-1 text-[13px] text-foreground hover:bg-surface">
-                    Open Folder…
-                  </button>
-                ) : (
-                  <p className="m-0 text-[13px] text-muted-foreground">Opening a folder is available in the desktop app.</p>
-                )}
+                <button type="button" onClick={onOpenFolder} className="cursor-pointer rounded-control border border-solid border-border bg-transparent px-2 py-1 text-[13px] text-foreground hover:bg-surface">
+                  Open Folder…
+                </button>
               </>
             ))}
         </section>

@@ -40,7 +40,7 @@ function setup(queue: OpenedDocument[]) {
 type U = ReturnType<typeof userEvent.setup>;
 async function openFile(user: U) {
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
 }
 const tabs = () => screen.getAllByRole('tab');
 const tab = (name: RegExp) => screen.getByRole('tab', { name });

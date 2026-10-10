@@ -26,7 +26,7 @@ function setup(docs: OpenedDocument[], saveDocument: FileAccess['saveDocument'])
 }
 async function openFile(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
 }
 async function typeAndSave(user: ReturnType<typeof userEvent.setup>, para: string) {
   await user.click(screen.getByText(para));
@@ -97,7 +97,6 @@ test('a dropped connection keeps the tab unsaved and names the host', async () =
 test('recent files show user@host only for remote ones, and a lost folder offers Retry', () => {
   render(
     <FolderSidebar
-      supported
       folder={null}
       recents={[
         { path: REMOTE.path!, openedAt: Date.now() },

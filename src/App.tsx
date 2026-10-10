@@ -13,7 +13,7 @@ import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedCh
 import { ConflictDialog, type ConflictChoice } from './components/ConflictDialog';
 import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
 import { ConnectDialog } from './components/ConnectDialog';
-import { connectSupported } from './platform/connect';
+import { assertConnectAvailable } from './platform/connect';
 import { listThreads } from './components/threads';
 import { isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
 import { appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
@@ -23,7 +23,7 @@ import { useDocument } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
 import { FolderSidebar } from './components/FolderSidebar';
-import { foldersSupported, pathExists, pickFolder } from './platform/folders';
+import { pathExists, pickFolder } from './platform/folders';
 import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from './platform/recents';
 
 function parentDir(path: string): string | null {
@@ -455,13 +455,18 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   }, []);
   /** File > Connect to Server; does nothing while a Connect dialog is already open. */
   const openConnect = useCallback((host?: string): Promise<boolean> => {
-    if (!connectSupported() || connectingNow.current !== null) return Promise.resolve(false);
+    try {
+      assertConnectAvailable();
+    } catch (e) {
+      failed(e);
+      return Promise.resolve(false);
+    }
+    if (connectingNow.current !== null) return Promise.resolve(false);
     return requestConnect(host, false);
   }, [requestConnect]);
   // A save or a folder expand that needs a login waits on the Connect dialog, then runs again.
   const connectPending = useRef(new Map<string, Promise<boolean>>());
   useEffect(() => {
-    if (!connectSupported()) return;
     return setConnectHandler((path) => {
       const key = remoteAccount(path).toLowerCase();
       const existing = connectPending.current.get(key);
@@ -494,7 +499,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const foreignField = target?.closest('input, textarea') && !target.closest('[data-block-editor]');
       let run: (() => unknown) | null = null;
       if (e.key === ',' && !e.shiftKey) run = a.openPrefs;
-      else if (key === 'k' && e.shiftKey && connectSupported()) run = () => a.openConnect();
+      else if (key === 'k' && e.shiftKey) run = () => a.openConnect();
       else if (key === 'o') run = a.openFile;
       else if (key === 'n') run = a.newFile;
       else if (key === 's') run = e.shiftKey ? a.saveAs : a.save;
@@ -527,8 +532,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onNew={newFile}
         onCloseTab={activeId === null ? undefined : () => void closeTab(activeId)}
         onOpen={() => void openFile()}
-        onOpenFolder={foldersSupported() ? () => void openFolder() : undefined}
-        onConnect={connectSupported() ? () => openConnect() : undefined}
+        onOpenFolder={() => void openFolder()}
+        onConnect={() => void openConnect()}
         onSave={() => void save()}
         onSaveAs={() => void saveAs()}
         onUndo={session.undo}
@@ -553,13 +558,12 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         {outlineOpen && <OutlineSidebar items={outline} onJump={jumpToHeading} />}
         {folderOpen && (
           <FolderSidebar
-            supported={foldersSupported()}
             folder={folder}
             recents={recents}
             currentPath={meta?.path ?? null}
             onOpenFolder={() => void openFolder()}
             onOpenFile={openFromFolder}
-            onLogin={connectSupported() ? (path) => openConnect(remoteAccount(path)) : undefined}
+            onLogin={(path) => openConnect(remoteAccount(path))}
             onOpenRecent={(path) => void openKnownPath(path, true)}
             onRemoveRecent={(path) => void removeRecent(path).then(setRecents, () => {})}
           />

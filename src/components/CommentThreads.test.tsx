@@ -31,7 +31,7 @@ async function openDoc(text: string) {
   const user = userEvent.setup();
   render(<App files={open(text)} />);
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Open/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
   await screen.findByTestId('markdown-view');
   return user;
 }
