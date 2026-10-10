@@ -5,7 +5,7 @@
 //! is reopened once per command, silently: only when the agent or an unencrypted key works,
 //! otherwise the caller gets the prompt the connection needs ([`ConnectResult`]).
 
-use super::auth::{self, Answers, ConnectResult, Env, Session, MAX_PASSWORD_ATTEMPTS};
+use super::auth::{self, Answers, ConnectResult, Env, Session};
 use super::config::SshConfigFile;
 use super::uri::{ConnKey, Target};
 use russh::Disconnect;
@@ -146,8 +146,8 @@ impl Pool {
             host: key.host.clone(),
             port: Some(key.port),
         });
-        let failures = self.password_failures(key);
-        match auth::connect(&self.inner.env, &target, &answers, failures).await {
+        let mut failures = self.password_failures(key);
+        match auth::connect(&self.inner.env, &target, &answers, &mut failures).await {
             Ok(session) => {
                 self.set_password_failures(key, 0);
                 let conn = Arc::new(Conn {
@@ -161,11 +161,9 @@ impl Pool {
                 result
             }
             Err(result) => {
-                let failures = match &result {
-                    ConnectResult::NeedsPassword { attempts_left } => MAX_PASSWORD_ATTEMPTS - attempts_left,
-                    _ => 0,
-                };
-                self.set_password_failures(key, failures);
+                // The count carries over while the user is still being asked; any other end starts over.
+                let carry = matches!(result, ConnectResult::NeedsPassword { .. } | ConnectResult::NeedsPassphrase { .. });
+                self.set_password_failures(key, if carry { failures } else { 0 });
                 result
             }
         }

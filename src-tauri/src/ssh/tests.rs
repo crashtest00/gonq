@@ -48,6 +48,8 @@ struct Setup {
     agent: Option<AgentSource>,
     trusted: bool,
     idle: Option<Duration>,
+    max_auth_attempts: Option<usize>,
+    stall_auth: bool,
 }
 
 fn answers(trust: Option<&str>, passphrase: Option<&str>, password: Option<&str>) -> Answers {
@@ -55,6 +57,7 @@ fn answers(trust: Option<&str>, passphrase: Option<&str>, password: Option<&str>
         trust_fingerprint: trust.map(String::from),
         passphrase: passphrase.map(|p| Zeroizing::new(p.to_string())),
         password: password.map(|p| Zeroizing::new(p.to_string())),
+        ..Default::default()
     }
 }
 
@@ -66,7 +69,13 @@ async fn fixture(setup: Setup) -> Fixture {
     let dir = tempfile::tempdir().unwrap();
     let ssh_dir = dir.path().join(".ssh");
     std::fs::create_dir_all(&ssh_dir).unwrap();
-    let policy = Policy { allowed_keys: setup.allowed, password: setup.password.map(String::from), root: dir.path().join("home") };
+    let policy = Policy {
+        allowed_keys: setup.allowed,
+        password: setup.password.map(String::from),
+        root: dir.path().join("home"),
+        max_auth_attempts: setup.max_auth_attempts,
+        stall_auth: setup.stall_auth,
+    };
     let server = TestServer::start(new_key(), policy).await;
     if setup.trusted {
         known_hosts::append(&ssh_dir.join("known_hosts"), "127.0.0.1", server.port, server.host_key.public_key()).unwrap();
@@ -77,6 +86,7 @@ async fn fixture(setup: Setup) -> Fixture {
         ssh_dir,
         agent: setup.agent.unwrap_or(AgentSource::None),
         connect_timeout: Duration::from_secs(10),
+        agent_timeout: Duration::from_secs(60),
         keepalive_interval: Duration::from_secs(30),
     };
     let pool = Pool::with_idle_timeout(env, setup.idle.unwrap_or(super::pool::IDLE_TIMEOUT));
@@ -213,6 +223,128 @@ async fn an_encrypted_key_asks_for_its_passphrase() {
     assert!(matches!(f.connect(none()).await, ConnectResult::NeedsPassphrase { .. }));
 }
 
+
+fn skipping(paths: &[&Path]) -> Answers {
+    Answers { skip_passphrase: paths.iter().map(|p| p.to_string_lossy().into_owned()).collect(), ..Default::default() }
+}
+
+#[tokio::test]
+async fn host_names_in_the_config_match_regardless_of_case() {
+    let client = new_key();
+    let f = fixture(Setup { allowed: vec![client.public_key().clone()], trusted: true, ..Default::default() }).await;
+    write_key(&f.ssh_dir().join("id_ed25519"), &client);
+    std::fs::write(
+        f.ssh_dir().join("config"),
+        format!("Host MyNas\n  HostName 127.0.0.1\n  Port {}\n  User me\n", f.server.port),
+    )
+    .unwrap();
+    let r = f.pool.connect("MyNas", none()).await;
+    assert!(is_connected(&r), "{r:?}");
+    assert_eq!(f.pool.open_keys().await, vec![ConnKey::new("me", "mynas", f.server.port)]);
+}
+
+#[tokio::test]
+async fn an_old_known_hosts_line_beside_the_current_one_is_not_a_changed_key() {
+    let client = new_key();
+    let f = fixture(Setup { allowed: vec![client.public_key().clone()], ..Default::default() }).await;
+    write_key(&f.ssh_dir().join("id_ed25519"), &client);
+    known_hosts::append(&f.known_hosts(), "127.0.0.1", f.server.port, new_key().public_key()).unwrap();
+    known_hosts::append(&f.known_hosts(), "127.0.0.1", f.server.port, f.server.host_key.public_key()).unwrap();
+    let r = f.connect(none()).await;
+    assert!(is_connected(&r), "{r:?}");
+}
+
+#[tokio::test]
+async fn a_locked_key_does_not_hide_an_unencrypted_one() {
+    let (locked, good) = (new_key(), new_key());
+    let f = fixture(Setup { allowed: vec![good.public_key().clone()], trusted: true, ..Default::default() }).await;
+    write_key(&f.ssh_dir().join("id_ed25519"), &locked.encrypt(&mut rand::rng(), "pw").unwrap());
+    write_key(&f.ssh_dir().join("id_rsa"), &good);
+    let r = f.connect(none()).await;
+    assert!(is_connected(&r), "{r:?}");
+}
+
+#[tokio::test]
+async fn a_locked_key_does_not_hide_the_password() {
+    let f = fixture(Setup { allowed: vec![new_key().public_key().clone()], password: Some("secret"), trusted: true, ..Default::default() }).await;
+    write_key(&f.ssh_dir().join("id_ed25519"), &new_key().encrypt(&mut rand::rng(), "pw").unwrap());
+    assert_eq!(f.connect(none()).await, ConnectResult::NeedsPassword { attempts_left: 3 });
+    assert_eq!(f.connect(answers(None, None, Some("bad"))).await, ConnectResult::NeedsPassword { attempts_left: 2 });
+    assert!(is_connected(&f.connect(answers(None, None, Some("secret"))).await));
+}
+
+#[tokio::test]
+async fn a_locked_key_that_is_the_only_option_asks_and_can_be_skipped() {
+    let client = new_key();
+    let f = fixture(Setup { allowed: vec![client.public_key().clone()], trusted: true, ..Default::default() }).await;
+    let path = f.ssh_dir().join("id_ed25519");
+    write_key(&path, &client.encrypt(&mut rand::rng(), "pw").unwrap());
+    assert_eq!(f.connect(none()).await, ConnectResult::NeedsPassphrase { key_path: path.to_string_lossy().into_owned() });
+    assert_eq!(f.connect(skipping(&[&path])).await, ConnectResult::AuthFailed { tried: vec![] });
+}
+
+#[tokio::test]
+async fn after_the_password_attempts_a_locked_key_is_asked_for_and_the_password_is_not_asked_again() {
+    let client = new_key();
+    let f = fixture(Setup { allowed: vec![client.public_key().clone()], password: Some("secret"), trusted: true, ..Default::default() }).await;
+    let path = f.ssh_dir().join("id_ed25519");
+    write_key(&path, &client.encrypt(&mut rand::rng(), "pw").unwrap());
+    let key_path = path.to_string_lossy().into_owned();
+    assert_eq!(f.connect(none()).await, ConnectResult::NeedsPassword { attempts_left: 3 });
+    assert_eq!(f.connect(answers(None, None, Some("bad"))).await, ConnectResult::NeedsPassword { attempts_left: 2 });
+    assert_eq!(f.connect(answers(None, None, Some("bad"))).await, ConnectResult::NeedsPassword { attempts_left: 1 });
+    assert_eq!(f.connect(answers(None, None, Some("bad"))).await, ConnectResult::NeedsPassphrase { key_path: key_path.clone() });
+    assert_eq!(f.server.password_tries.load(Ordering::SeqCst), 3);
+    // Skipping it ends the sign-in; the password is not asked again.
+    let r = f.connect(skipping(&[&path])).await;
+    assert_eq!(r, ConnectResult::AuthFailed { tried: vec!["password".into()] });
+    // A later Connect starts over.
+    assert_eq!(f.connect(answers(None, None, Some("bad"))).await, ConnectResult::NeedsPassword { attempts_left: 2 });
+}
+
+#[tokio::test]
+async fn the_right_passphrase_connects_after_the_password_attempts() {
+    let client = new_key();
+    let f = fixture(Setup { allowed: vec![client.public_key().clone()], password: Some("secret"), trusted: true, ..Default::default() }).await;
+    write_key(&f.ssh_dir().join("id_ed25519"), &client.encrypt(&mut rand::rng(), "pw").unwrap());
+    for left in [3u8, 2, 1] {
+        let given = if left == 3 { None } else { Some("bad") };
+        assert_eq!(f.connect(answers(None, None, given)).await, ConnectResult::NeedsPassword { attempts_left: left });
+    }
+    assert!(matches!(f.connect(answers(None, None, Some("bad"))).await, ConnectResult::NeedsPassphrase { .. }));
+    let r = f.connect(answers(None, Some("pw"), None)).await;
+    assert!(is_connected(&r), "{r:?}");
+}
+
+#[tokio::test]
+async fn a_server_that_hangs_up_during_sign_in_is_auth_failed_not_unreachable() {
+    let f = fixture(Setup {
+        allowed: vec![new_key().public_key().clone()],
+        trusted: true,
+        max_auth_attempts: Some(2),
+        ..Default::default()
+    })
+    .await;
+    for name in ["id_ed25519", "id_ecdsa", "id_rsa"] {
+        write_key(&f.ssh_dir().join(name), &new_key());
+    }
+    let r = f.connect(none()).await;
+    let ConnectResult::AuthFailed { tried } = &r else { panic!("{r:?}") };
+    assert!(!tried.is_empty(), "{tried:?}");
+}
+
+#[tokio::test]
+async fn a_server_that_stalls_after_key_exchange_is_unreachable_promptly() {
+    let mut f = fixture(Setup { trusted: true, stall_auth: true, ..Default::default() }).await;
+    let mut env = f.pool.env().clone();
+    env.connect_timeout = Duration::from_millis(400);
+    f.pool = Pool::new(env);
+    let started = std::time::Instant::now();
+    let r = tokio::time::timeout(Duration::from_secs(8), f.connect(none())).await.expect("connect hung");
+    assert!(matches!(r, ConnectResult::Unreachable { .. }), "{r:?}");
+    assert!(started.elapsed() < Duration::from_secs(5));
+}
+
 #[cfg(unix)]
 mod agent {
     use super::*;
@@ -232,6 +364,126 @@ mod agent {
             client.add_identity(&key, &[]).await.unwrap();
         }
         sock
+    }
+
+
+    /// An agent that holds its keys but never gets around to signing (a confirmation prompt, a
+    /// hardware key waiting for a touch).
+    #[derive(Clone)]
+    struct NeverSigns;
+
+    impl russh::keys::agent::server::Agent for NeverSigns {
+        async fn confirm_request(&self, msg: russh::keys::agent::server::MessageType) -> bool {
+            if matches!(msg, russh::keys::agent::server::MessageType::Sign) {
+                std::future::pending::<()>().await;
+            }
+            true
+        }
+    }
+
+    #[tokio::test]
+    async fn an_agent_that_never_signs_does_not_hang_the_connection() {
+        let client = new_key();
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("agent.sock");
+        let listener = tokio::net::UnixListener::bind(&sock).unwrap();
+        tokio::spawn(async move {
+            let _ = serve(UnixListenerStream::new(listener), NeverSigns).await;
+        });
+        AgentClient::connect_uds(&sock).await.unwrap().add_identity(&client, &[]).await.unwrap();
+
+        let mut f = fixture(Setup {
+            allowed: vec![client.public_key().clone()],
+            password: Some("secret"),
+            trusted: true,
+            agent: Some(AgentSource::Socket(sock)),
+            ..Default::default()
+        })
+        .await;
+        write_key(&f.ssh_dir().join("id_ed25519"), &client);
+        let mut env = f.pool.env().clone();
+        env.agent_timeout = Duration::from_millis(500);
+        f.pool = Pool::new(env);
+
+        // The key file is used on a fresh connection once the agent has been given up on...
+        let r = tokio::time::timeout(Duration::from_secs(8), f.connect(none())).await.expect("connect hung");
+        assert!(is_connected(&r), "{r:?}");
+        // ...and the host's slot is not left locked.
+        let again = tokio::time::timeout(Duration::from_secs(8), f.pool.acquire(&f.key())).await.expect("slot stuck");
+        assert!(again.is_ok());
+    }
+
+    #[tokio::test]
+    async fn an_agent_that_never_signs_still_lets_the_password_through() {
+        let client = new_key();
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("agent.sock");
+        let listener = tokio::net::UnixListener::bind(&sock).unwrap();
+        tokio::spawn(async move {
+            let _ = serve(UnixListenerStream::new(listener), NeverSigns).await;
+        });
+        AgentClient::connect_uds(&sock).await.unwrap().add_identity(&client, &[]).await.unwrap();
+        let mut f = fixture(Setup {
+            allowed: vec![client.public_key().clone()],
+            password: Some("secret"),
+            trusted: true,
+            agent: Some(AgentSource::Socket(sock)),
+            ..Default::default()
+        })
+        .await;
+        let mut env = f.pool.env().clone();
+        env.agent_timeout = Duration::from_millis(500);
+        f.pool = Pool::new(env);
+        let r = tokio::time::timeout(Duration::from_secs(8), f.connect(none())).await.expect("connect hung");
+        assert_eq!(r, ConnectResult::NeedsPassword { attempts_left: 3 });
+        let r = tokio::time::timeout(Duration::from_secs(8), f.connect(answers(None, None, Some("secret")))).await.expect("hung");
+        assert!(is_connected(&r), "{r:?}");
+    }
+
+    #[tokio::test]
+    async fn a_full_agent_does_not_use_up_the_servers_attempts() {
+        let client = new_key();
+        let dir = tempfile::tempdir().unwrap();
+        let junk: Vec<PrivateKey> = (0..8).map(|_| new_key()).collect();
+        let sock = start_agent(dir.path(), junk).await;
+        let f = fixture(Setup {
+            allowed: vec![client.public_key().clone()],
+            trusted: true,
+            agent: Some(AgentSource::Socket(sock)),
+            max_auth_attempts: Some(6),
+            ..Default::default()
+        })
+        .await;
+        write_key(&f.ssh_dir().join("id_ed25519"), &client);
+        let r = f.connect(none()).await;
+        assert!(is_connected(&r), "{r:?}");
+    }
+
+    #[tokio::test]
+    async fn the_agent_key_the_config_names_is_offered_first() {
+        let client = new_key();
+        let dir = tempfile::tempdir().unwrap();
+        let mut keys: Vec<PrivateKey> = (0..8).map(|_| new_key()).collect();
+        keys.push(client.clone());
+        let sock = start_agent(dir.path(), keys).await;
+        let f = fixture(Setup {
+            allowed: vec![client.public_key().clone()],
+            trusted: true,
+            agent: Some(AgentSource::Socket(sock)),
+            max_auth_attempts: Some(6),
+            ..Default::default()
+        })
+        .await;
+        // Only the public half is on disk (the private key lives in the agent).
+        let named = f.dir.path().join("work_key");
+        std::fs::write(named.with_extension("pub"), client.public_key().to_openssh().unwrap()).unwrap();
+        std::fs::write(
+            f.ssh_dir().join("config"),
+            format!("Host box\n  HostName 127.0.0.1\n  Port {}\n  User me\n  IdentityFile {}\n", f.server.port, named.with_extension("").display()),
+        )
+        .unwrap();
+        let r = f.pool.connect("box", none()).await;
+        assert!(is_connected(&r), "{r:?}");
     }
 
     #[tokio::test]
@@ -464,7 +716,7 @@ async fn a_lost_session_is_reopened_once_silently() {
 
     f.server.stop();
     tokio::time::sleep(Duration::from_millis(200)).await;
-    let policy = Policy { allowed_keys: vec![client.public_key().clone()], password: None, root: f.dir.path().join("home") };
+    let policy = Policy { allowed_keys: vec![client.public_key().clone()], password: None, root: f.dir.path().join("home"), ..Default::default() };
     let again = TestServer::start_on(f.server.port, f.server.host_key.clone(), policy).await;
 
     assert!(home_of(&f).await.unwrap().ends_with("home"));
@@ -480,7 +732,7 @@ async fn a_lost_session_that_needs_a_passphrase_asks_instead_of_guessing() {
 
     f.server.stop();
     tokio::time::sleep(Duration::from_millis(200)).await;
-    let policy = Policy { allowed_keys: vec![client.public_key().clone()], password: None, root: f.dir.path().join("home") };
+    let policy = Policy { allowed_keys: vec![client.public_key().clone()], password: None, root: f.dir.path().join("home"), ..Default::default() };
     let _again = TestServer::start_on(f.server.port, f.server.host_key.clone(), policy).await;
 
     let r = home_of(&f).await;

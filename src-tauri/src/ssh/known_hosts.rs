@@ -77,6 +77,9 @@ pub fn check(path: &Path, host: &str, port: u16, key: &PublicKey) -> HostKeyStat
     };
     let token = host_token(&host.to_lowercase(), port);
     let mut known = false;
+    // The first line of this key type that names the host but holds another key. OpenSSH accepts
+    // the key if any line matches, so this only counts when none does.
+    let mut mismatch: Option<HostKeyStatus> = None;
     for (i, line) in text.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') || line.starts_with('@') {
@@ -98,13 +101,13 @@ pub fn check(path: &Path, host: &str, port: u16, key: &PublicKey) -> HostKeyStat
         if recorded.key_data() == key.key_data() {
             known = true;
         } else {
-            return HostKeyStatus::Changed { line: i + 1, known_line: line.to_string() };
+            mismatch.get_or_insert(HostKeyStatus::Changed { line: i + 1, known_line: line.to_string() });
         }
     }
     if known {
         HostKeyStatus::Known
     } else {
-        HostKeyStatus::Unknown
+        mismatch.unwrap_or(HostKeyStatus::Unknown)
     }
 }
 
@@ -217,6 +220,21 @@ mod tests {
         let entry = line("nas", &old);
         let (_d, p) = file(&format!("# first\n{entry}\n"));
         assert_eq!(check(&p, "nas", 22, &new), HostKeyStatus::Changed { line: 2, known_line: entry });
+    }
+
+    #[test]
+    fn any_matching_line_makes_the_key_known() {
+        let (old, new) = (key(), key());
+        // An old line followed by the current one, and a wildcard line beside a specific one.
+        let (_d, p) = file(&format!("{}\n{}\n", line("nas", &old), line("nas", &new)));
+        assert_eq!(check(&p, "nas", 22, &new), HostKeyStatus::Known);
+        let (_d, p) = file(&format!("{}\n{}\n", line("*.lan", &old), line("nas.lan", &new)));
+        assert_eq!(check(&p, "nas.lan", 22, &new), HostKeyStatus::Known);
+        // Order does not matter, and with no match it is still Changed (first mismatching line).
+        let (_d, p) = file(&format!("{}\n{}\n", line("nas", &new), line("nas", &old)));
+        assert_eq!(check(&p, "nas", 22, &new), HostKeyStatus::Known);
+        let third = key();
+        assert!(matches!(check(&p, "nas", 22, &third), HostKeyStatus::Changed { line: 1, .. }));
     }
 
     #[test]
