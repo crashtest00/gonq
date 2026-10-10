@@ -133,7 +133,7 @@ describe('step 2: connect', () => {
     expect(calls('ssh_connect')[0].answers).toEqual({});
   });
 
-  test('shows a spinner while ssh_connect runs, and Cancel then disconnects', async () => {
+  test('shows a spinner while ssh_connect runs; Cancel leaves the unidentified session alone', async () => {
     let release: (v: unknown) => void = () => {};
     handlers.ssh_connect = () => new Promise((r) => (release = r));
     const { user, onClose } = renderDialog();
@@ -141,7 +141,8 @@ describe('step 2: connect', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Connecting to me@nas');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalledWith(false);
-    expect(calls('ssh_disconnect')).toEqual([{ host: 'me@nas' }]);
+    // The authority is unknown until connected, so nothing is disconnected on a guess.
+    expect(calls('ssh_disconnect')).toHaveLength(0);
     release(connected);
     await act(async () => {});
     // The late result does not reopen anything.
@@ -165,14 +166,14 @@ describe('step 2: connect', () => {
       expect(await screen.findByLabelText(/Folder on/)).toBeInTheDocument();
       expect(calls('ssh_connect')[1].answers).toEqual({ trust_fingerprint: 'SHA256:abc' });
     });
-    test('Cancel stops and disconnects', async () => {
+    test('Cancel stops; nothing is connected yet, so nothing is disconnected', async () => {
       const { user, onClose } = renderDialog();
       await connectTo(user);
       await screen.findByText('SHA256:abc');
       await user.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(onClose).toHaveBeenCalledWith(false);
       expect(calls('ssh_connect')).toHaveLength(1);
-      expect(calls('ssh_disconnect')).toEqual([{ host: 'me@nas' }]);
+      expect(calls('ssh_disconnect')).toHaveLength(0);
     });
   });
 
@@ -191,13 +192,13 @@ describe('step 2: connect', () => {
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
       expect(calls('ssh_connect')).toHaveLength(1);
     });
-    test('Cancel closes and disconnects', async () => {
+    test('Cancel closes without a disconnect', async () => {
       const { user, onClose } = renderDialog();
       await connectTo(user);
       await screen.findByRole('alert');
       await user.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(onClose).toHaveBeenCalledWith(false);
-      expect(calls('ssh_disconnect')).toHaveLength(1);
+      expect(calls('ssh_disconnect')).toHaveLength(0);
     });
   });
 
@@ -225,13 +226,13 @@ describe('step 2: connect', () => {
       expect(await screen.findByLabelText(/Folder on/)).toBeInTheDocument();
       expect(calls('ssh_connect')[1].answers).toEqual({ skip_passphrase: ['/home/me/.ssh/id_ed25519'] });
     });
-    test('Cancel stops and disconnects; the passphrase is never stored', async () => {
+    test('Cancel stops without a disconnect; the passphrase is never stored', async () => {
       const { user, onClose } = renderDialog();
       await connectTo(user);
       await user.type(await screen.findByLabelText(/Passphrase for/), 'secret-phrase');
       await user.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(onClose).toHaveBeenCalledWith(false);
-      expect(calls('ssh_disconnect')).toHaveLength(1);
+      expect(calls('ssh_disconnect')).toHaveLength(0);
       expect(JSON.stringify({ ...localStorage })).not.toContain('secret-phrase');
     });
   });
@@ -277,13 +278,13 @@ describe('step 2: connect', () => {
       expect(screen.getByText('ssh-agent')).toBeInTheDocument();
       expect(screen.getByText('password')).toBeInTheDocument();
     });
-    test('Cancel stops and disconnects', async () => {
+    test('Cancel stops without a disconnect', async () => {
       const { user, onClose } = renderDialog();
       await connectTo(user);
       await screen.findByLabelText(/Password for/);
       await user.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(onClose).toHaveBeenCalledWith(false);
-      expect(calls('ssh_disconnect')).toHaveLength(1);
+      expect(calls('ssh_disconnect')).toHaveLength(0);
     });
   });
 
@@ -297,11 +298,10 @@ describe('step 2: connect', () => {
   });
 
   test('Cancel does not disconnect a session an open tab still uses', async () => {
-    handlers.ssh_connect = () => ({ kind: 'needs_password', attempts_left: 3 });
     const inUse = vi.fn(() => true);
     const { user, onClose } = renderDialog({ inUse });
     await connectTo(user);
-    await screen.findByLabelText(/Password for/);
+    await screen.findByLabelText(/Folder on/);
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalledWith(false);
     expect(inUse).toHaveBeenCalledWith('me@nas');
@@ -326,6 +326,23 @@ describe('step 3: pick a folder', () => {
     expect(calls('remote_open_root')).toEqual([{ uri: 'ssh://me@nas/home/me/docs' }]);
     expect(onOpened).toHaveBeenCalledWith('ssh://me@nas/home/me/docs');
     expect(JSON.parse(localStorage.getItem(RECENT_FOLDERS_KEY)!)).toEqual(['ssh://me@nas/home/me/docs']);
+  });
+
+  test.each([
+    ['..', '..', '/home'],
+    ['a relative name', 'docs', '/home/me/docs'],
+    ['~/x', '~/docs', '/home/me/docs'],
+    ['~', '~', '/home/me'],
+  ])('a typed %s is resolved to an absolute path on the same host', async (_n, typed, expected) => {
+    const { user } = renderDialog();
+    await connectTo(user);
+    const path = await screen.findByDisplayValue('/home/me');
+    await user.clear(path);
+    await user.type(path, `${typed}{Enter}`);
+    await screen.findByDisplayValue(expected);
+    const uris = calls('remote_list_folders').map((c) => c.uri);
+    expect(uris[uris.length - 1]).toBe(`ssh://me@nas${expected}`);
+    expect(uris.every((u) => String(u).startsWith('ssh://me@nas/'))).toBe(true);
   });
 
   test('a single click does not enter a folder', async () => {
@@ -410,7 +427,7 @@ describe('step 3: pick a folder', () => {
     expect(calls('ssh_connect')).toHaveLength(2);
   });
 
-  test('Cancel closes and disconnects', async () => {
+  test('Cancel closes without a disconnect', async () => {
     const { user, onClose } = renderDialog();
     await connectTo(user);
     await screen.findByDisplayValue('/home/me');
@@ -484,6 +501,66 @@ describe('recent folders', () => {
       if (n === 'f') await user.click(screen.getByRole('button', { name: 'Open' }));
     }
     expect(JSON.parse(localStorage.getItem(RECENT_FOLDERS_KEY)!).length).toBeLessThanOrEqual(5);
+  });
+});
+
+describe('Cancel while the folder is opening', () => {
+  test('on the opening step a recent entry is not opened: no root, no recent, one close, session released', async () => {
+    localStorage.setItem(RECENT_FOLDERS_KEY, JSON.stringify(['ssh://me@nas/home/me/docs']));
+    let release: () => void = () => {};
+    handlers.remote_open_root = () => new Promise<void>((r) => (release = r));
+    const { user, onOpened, onClose } = renderDialog();
+    await user.click(await screen.findByRole('button', { name: /me@nas\s*\/home\/me\/docs/ }));
+    await screen.findByText('Opening the folder…');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(calls('ssh_disconnect')).toEqual([{ host: 'me@nas' }]);
+    release();
+    await act(async () => {});
+    expect(onOpened).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledWith(false);
+    expect(localStorage.getItem(RECENT_FOLDERS_KEY)).toBe(JSON.stringify(['ssh://me@nas/home/me/docs']));
+  });
+
+  test('a failure after Cancel does not bring the picker back', async () => {
+    localStorage.setItem(RECENT_FOLDERS_KEY, JSON.stringify(['ssh://me@nas/home/me/docs']));
+    let fail: (e: unknown) => void = () => {};
+    handlers.remote_open_root = () => new Promise<void>((_r, j) => (fail = j));
+    const { user, onClose } = renderDialog();
+    await user.click(await screen.findByRole('button', { name: /me@nas\s*\/home\/me\/docs/ }));
+    await screen.findByText('Opening the folder…');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    fail({ kind: 'disconnected', message: 'gone' });
+    await act(async () => {});
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test('in the picker, Cancel during Open does not open the folder', async () => {
+    let release: () => void = () => {};
+    handlers.remote_open_root = () => new Promise<void>((r) => (release = r));
+    const { user, onOpened, onClose } = renderDialog();
+    await connectTo(user);
+    await screen.findByDisplayValue('/home/me');
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(calls('remote_open_root')).toHaveLength(1));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(calls('ssh_disconnect')).toEqual([{ host: 'me@nas' }]);
+    release();
+    await act(async () => {});
+    expect(onOpened).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledWith(false);
+    expect(localStorage.getItem(RECENT_FOLDERS_KEY)).toBeNull();
+  });
+
+  test('Back after a failed connect, then another host, does not disconnect on a guess', async () => {
+    handlers.ssh_connect = () => ({ kind: 'unreachable', reason: 'timeout' });
+    const { user } = renderDialog();
+    await connectTo(user);
+    await user.click(await screen.findByRole('button', { name: 'Back' }));
+    await user.click(await screen.findByRole('button', { name: 'work' }));
+    expect(calls('ssh_connect').map((c) => c.target)).toEqual(['me@nas', 'work']);
+    expect(calls('ssh_disconnect')).toHaveLength(0);
   });
 });
 
@@ -581,6 +658,66 @@ describe('in the app', () => {
     expect(run).toHaveBeenCalledTimes(2);
     expect(calls('ssh_connect')[0].target).toBe('me@nas');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  test('two back-to-back logins on different hosts each get a fresh dialog', async () => {
+    handlers.ssh_connect = (a) =>
+      (a.answers as { password?: string }).password
+        ? { kind: 'connected', home: '/h', authority: String(a.target) }
+        : { kind: 'needs_password', attempts_left: 3 };
+    const user = userEvent.setup();
+    render(<App files={files} />);
+    let a: Promise<string> | undefined;
+    let b: Promise<string> | undefined;
+    const fail = (m: string) => async () => {
+      throw { kind: 'auth_required', message: m };
+    };
+    let tries = { a: 0, b: 0 };
+    act(() => {
+      a = withConnect('ssh://me@nas/n.md', 'save', async () => {
+        if (tries.a++ === 0) await fail('me@nas')();
+        return 'a';
+      });
+      b = withConnect('ssh://you@other/n.md', 'save', async () => {
+        if (tries.b++ === 0) await fail('you@other')();
+        return 'b';
+      });
+    });
+    await user.type(await screen.findByLabelText('Password for me@nas'), 'pw');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
+    await expect(a).resolves.toBe('a');
+    await user.type(await screen.findByLabelText('Password for you@other'), 'pw');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
+    await expect(b).resolves.toBe('b');
+    expect(calls('ssh_connect').map((c) => c.target)).toEqual(['me@nas', 'me@nas', 'you@other', 'you@other']);
+  });
+
+  test('a save that needs a login waits for a dialog the user opened instead of taking it over', async () => {
+    handlers.ssh_connect = (a) => (String(a.target) === 'me@nas' ? { kind: 'needs_host_key', key_type: 'ssh-ed25519', fingerprint: 'SHA256:abc' } : connected);
+    const user = userEvent.setup();
+    render(<App files={files} />);
+    act(() => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'K', shiftKey: true, ctrlKey: true, bubbles: true }));
+    });
+    await user.type(await screen.findByLabelText('Host'), 'me@nas');
+    await user.click(screen.getByRole('button', { name: 'Connect' }));
+    await screen.findByText(/SHA256:abc/);
+    let tries = 0;
+    let saved: Promise<string> | undefined;
+    act(() => {
+      saved = withConnect('ssh://you@other/n.md', 'save', async () => {
+        if (tries++ === 0) throw { kind: 'auth_required', message: 'you@other' };
+        return 'saved';
+      });
+    });
+    await act(async () => {});
+    // The user's dialog is untouched, and nothing was disconnected or started for the save.
+    expect(screen.getByText(/SHA256:abc/)).toBeInTheDocument();
+    expect(calls('ssh_connect')).toHaveLength(1);
+    expect(calls('ssh_disconnect')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await expect(saved).resolves.toBe('saved');
+    expect(calls('ssh_connect').map((c) => c.target)).toEqual(['me@nas', 'you@other']);
   });
 
   test('cancelling the login the save needed fails the save with its message', async () => {

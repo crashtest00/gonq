@@ -59,7 +59,7 @@ const Row = memo(function Row({
   currentPath: string | null;
   onToggle: (path: string) => void;
   onOpenFile: (path: string) => void;
-  onLogin?: (path: string) => void;
+  onLogin?: (path: string) => Promise<boolean> | void;
 }) {
   const pad = { paddingLeft: depth * 14 };
   const current = entry.path === currentPath;
@@ -99,7 +99,7 @@ const Row = memo(function Row({
   );
 });
 
-function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string; depth: number; currentPath: string | null; onOpenFile: (path: string) => void; onLogin?: (path: string) => void }) {
+function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string; depth: number; currentPath: string | null; onOpenFile: (path: string) => void; onLogin?: (path: string) => Promise<boolean> | void }) {
   const [entries, setEntries] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -159,7 +159,7 @@ function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string;
         {errorKind === 'auth_required' && onLogin && (
           <>
             {' '}
-            <button type="button" onClick={() => onLogin(path)} className="cursor-pointer border-0 bg-transparent p-0 text-[12.5px] text-destructive underline">
+            <button type="button" onClick={() => void Promise.resolve(onLogin(path)).then((ok) => ok === true && setAttempt((n) => n + 1))} className="cursor-pointer border-0 bg-transparent p-0 text-[12.5px] text-destructive underline">
               Log in
             </button>
           </>
@@ -228,7 +228,7 @@ export function FolderSidebar({
   onOpenFolder: () => void;
   onOpenFile: (path: string) => void;
   /** Reopens the Connect dialog for a remote folder whose login ran out; no Log in button without it. */
-  onLogin?: (path: string) => void;
+  onLogin?: (path: string) => Promise<boolean> | void;
   onOpenRecent: (path: string) => void;
   onRemoveRecent: (path: string) => void;
 }) {

@@ -307,6 +307,20 @@ describe('remote root', () => {
     expect(onLogin).toHaveBeenCalledWith(root);
   });
 
+  test('the row is listed again once the login succeeds, and not when it is cancelled', async () => {
+    const { ListDirectoryError } = await import('../platform/folders');
+    listDirectory.mockRejectedValueOnce(new ListDirectoryError('auth_required', 'log in again'));
+    listDirectory.mockResolvedValue([]);
+    const onLogin = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    render(<FolderSidebar {...props} folder={root} onLogin={onLogin} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Log in' }));
+    await waitFor(() => expect(onLogin).toHaveBeenCalledTimes(1));
+    expect(listDirectory).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await waitFor(() => expect(listDirectory).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+
   test('a local folder shows no account line', () => {
     listDirectory.mockResolvedValue([]);
     render(<FolderSidebar {...props} folder="/proj" />);
