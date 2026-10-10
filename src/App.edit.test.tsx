@@ -359,6 +359,15 @@ describe('markers in the active block', () => {
     expect(shownMarkers()).toEqual([]);
   });
 
+  test('a leftover gonq.showMarkersInActiveBlock value in localStorage is ignored', async () => {
+    localStorage.setItem('gonq.showMarkersInActiveBlock', 'false');
+    const { user } = setup(DOC);
+    await openDoc(user);
+    await user.click(screen.getByText(/^some/));
+    await caretIn(screen.getByText(/^some/));
+    expect(shownMarkers().join('')).toBe('****``');
+  });
+
   test('markers show for every list item and quote line of the block, and nothing else', async () => {
     const { user } = setup(DOC);
     await openDoc(user);
