@@ -2,7 +2,8 @@
 //!
 //! [`connect`] either returns a [`Session`] or the one thing it needs to go on ([`ConnectResult`]):
 //! the UI asks the user, then calls again with the answer in [`Answers`]. Order: host key check
-//! against `known_hosts`, then ssh-agent, then key files, then a password if the server offers it.
+//! against `known_hosts`, then ssh-agent, then key files that need no passphrase, then encrypted key
+//! files (skippable), then a password if the server offers it.
 //! Secrets are held in zeroising buffers and a decrypted key is dropped as soon as it has been
 //! offered; nothing caches it.
 
@@ -11,7 +12,7 @@ use super::known_hosts::{self, HostKeyStatus};
 use russh::client::{self, Handle};
 use russh::keys::agent::client::{AgentClient, AgentStream};
 use russh::keys::agent::AgentIdentity;
-use russh::keys::{load_secret_key, HashAlg, PrivateKeyWithHashAlg, PublicKeyOrCertificate};
+use russh::keys::{load_secret_key, HashAlg, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate};
 use russh::{MethodKind, MethodSet};
 use russh_sftp::client::SftpSession;
 use serde::{Deserialize, Serialize};
@@ -21,6 +22,14 @@ use std::time::Duration;
 use zeroize::Zeroizing;
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long the whole agent phase may take, all keys together (a confirmation prompt, a touch on
+/// a hardware key).
+pub const AGENT_TIMEOUT: Duration = Duration::from_secs(30);
+/// How long one `ssh_connect` call may take in all, not counting the time the user spends answering.
+pub const OVERALL_TIMEOUT: Duration = Duration::from_secs(60);
+/// Agent keys offered per connection, so a full agent cannot use up the server's `MaxAuthTries`
+/// before the key files and the password get their turn.
+const MAX_AGENT_KEYS: usize = 3;
 pub const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(30);
 pub const MAX_PASSWORD_ATTEMPTS: u8 = 3;
 const DEFAULT_KEY_NAMES: [&str; 3] = ["id_ed25519", "id_ecdsa", "id_rsa"];
@@ -34,7 +43,12 @@ pub struct Env {
     /// Where `id_ed25519`, `id_ecdsa` and `id_rsa` are looked for when the config names no `IdentityFile`.
     pub ssh_dir: PathBuf,
     pub agent: AgentSource,
+    /// Bounds the dial, key exchange, each server reply during sign-in and the SFTP channel open.
     pub connect_timeout: Duration,
+    /// Bounds the agent phase as a whole.
+    pub agent_timeout: Duration,
+    /// Bounds one call of [`connect`] from the dial to the open SFTP channel.
+    pub overall_timeout: Duration,
     pub keepalive_interval: Duration,
 }
 
@@ -57,6 +71,8 @@ impl Env {
             ssh_dir,
             agent: AgentSource::System,
             connect_timeout: CONNECT_TIMEOUT,
+            agent_timeout: AGENT_TIMEOUT,
+            overall_timeout: OVERALL_TIMEOUT,
             keepalive_interval: KEEPALIVE_INTERVAL,
         }
     }
@@ -70,6 +86,8 @@ pub struct Answers {
     pub trust_fingerprint: Option<String>,
     pub passphrase: Option<Zeroizing<String>>,
     pub password: Option<Zeroizing<String>>,
+    /// Encrypted key files the user chose not to unlock; they are left out so the flow moves on.
+    pub skip_passphrase: Vec<String>,
 }
 
 /// The result of `ssh_connect`: connected, or the one thing needed to go on.
@@ -136,14 +154,79 @@ fn unreachable(reason: impl ToString) -> ConnectResult {
     ConnectResult::Unreachable { reason: reason.to_string() }
 }
 
-/// Connects and authenticates. `password_failures` is how many wrong passwords the user has
-/// already given this host (the caller keeps that count between calls).
+/// Why a connection attempt stopped.
+enum Stop {
+    Result(ConnectResult),
+    /// An agent signature did not arrive in time. The session cannot be used any more (its task
+    /// is still waiting for that signature), so the attempt restarts without the agent.
+    AgentStalled,
+}
+
+impl From<ConnectResult> for Stop {
+    fn from(r: ConnectResult) -> Self {
+        Stop::Result(r)
+    }
+}
+
+/// Runs one step that waits on the server; a stall is `Unreachable`.
+async fn bounded<T>(env: &Env, step: impl std::future::Future<Output = T>) -> Result<T, ConnectResult> {
+    tokio::time::timeout(env.connect_timeout, step)
+        .await
+        .map_err(|_| unreachable(format!("the server stopped answering (no reply within {} s)", env.connect_timeout.as_secs())))
+}
+
+/// Whether the agent is used on this attempt.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AgentMode {
+    Use,
+    /// It stalled on the first attempt: leave it out, but say so in `tried`.
+    TimedOut,
+}
+
+/// What a run of `ssh_connect` calls has already settled for one host. It holds no secret; the
+/// caller keeps it between calls while the user is still being asked, and starts over after that.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Progress {
+    /// Wrong passwords given so far.
+    pub password_failures: u8,
+    /// Encrypted key files that were opened with a passphrase (accepted by the server or not);
+    /// they are not asked about again.
+    pub opened_keys: Vec<PathBuf>,
+}
+
+/// Connects and authenticates. `progress` is updated, and the caller keeps it between calls. The whole call
+/// is bounded by `overall_timeout`.
 pub async fn connect(
     env: &Env,
     target: &Resolved,
     answers: &Answers,
-    password_failures: u8,
+    progress: &mut Progress,
 ) -> Result<Session, ConnectResult> {
+    let attempt = async {
+        match connect_once(env, target, answers, progress, AgentMode::Use).await {
+            Ok(session) => Ok(session),
+            Err(Stop::Result(r)) => Err(r),
+            // Drop the stuck session and start again on a fresh one, leaving the agent out.
+            Err(Stop::AgentStalled) => match connect_once(env, target, answers, progress, AgentMode::TimedOut).await {
+                Ok(session) => Ok(session),
+                Err(Stop::Result(r)) => Err(r),
+                Err(Stop::AgentStalled) => Err(unreachable("ssh-agent did not answer")),
+            },
+        }
+    };
+    match tokio::time::timeout(env.overall_timeout, attempt).await {
+        Ok(result) => result,
+        Err(_) => Err(unreachable(format!("connecting took longer than {} s", env.overall_timeout.as_secs()))),
+    }
+}
+
+async fn connect_once(
+    env: &Env,
+    target: &Resolved,
+    answers: &Answers,
+    progress: &mut Progress,
+    agent: AgentMode,
+) -> Result<Session, Stop> {
     let verdict = Arc::new(Mutex::new(None));
     let handler = HostKeyHandler {
         known_hosts_path: env.known_hosts_path.clone(),
@@ -161,15 +244,15 @@ pub async fn connect(
     let addr = (target.hostname.clone(), target.port);
     let dialed = tokio::time::timeout(env.connect_timeout, client::connect(config, addr, handler)).await;
     let mut handle = match dialed {
-        Err(_) => return Err(unreachable(format!("no answer within {} s", env.connect_timeout.as_secs()))),
+        Err(_) => return Err(unreachable(format!("no answer within {} s", env.connect_timeout.as_secs())).into()),
         Ok(Err(e)) => {
             let said = verdict.lock().unwrap_or_else(|e| e.into_inner()).take();
-            return Err(said.unwrap_or_else(|| unreachable(e)));
+            return Err(said.unwrap_or_else(|| unreachable(e)).into());
         }
         Ok(Ok(handle)) => handle,
     };
 
-    authenticate(&mut handle, env, target, answers, password_failures).await?;
+    authenticate(&mut handle, env, target, answers, progress, agent).await?;
 
     let opened = async {
         let channel = handle.channel_open_session().await.map_err(|e| e.to_string())?;
@@ -180,45 +263,85 @@ pub async fn connect(
     };
     match tokio::time::timeout(env.connect_timeout, opened).await {
         Ok(Ok((sftp, home))) => Ok(Session { handle, sftp, home }),
-        Ok(Err(e)) => Err(unreachable(format!("the server did not open an SFTP channel: {e}"))),
-        Err(_) => Err(unreachable("the server did not open an SFTP channel in time")),
+        Ok(Err(e)) => Err(unreachable(format!("the server did not open an SFTP channel: {e}")).into()),
+        Err(_) => Err(unreachable("the server did not open an SFTP channel in time").into()),
     }
 }
 
+/// Order, like OpenSSH: agent keys, key files that open without a question, encrypted key files
+/// (a passphrase is asked for, one key at a time, and can be skipped), then the password if the
+/// server offers it. Every step that waits on the server is bounded.
 async fn authenticate(
     handle: &mut Handle<HostKeyHandler>,
     env: &Env,
     target: &Resolved,
     answers: &Answers,
-    password_failures: u8,
-) -> Result<(), ConnectResult> {
+    progress: &mut Progress,
+    agent: AgentMode,
+) -> Result<(), Stop> {
     let user = target.user.as_str();
     let mut tried: Vec<String> = Vec::new();
+    // A server that drops us once sign-in is under way (MaxAuthTries) is a failed sign-in.
+    let disconnected = |tried: &[String]| Stop::Result(ConnectResult::AuthFailed { tried: tried.to_vec() });
 
     // Asking for "none" is how the server tells us which methods it offers.
-    let offered = match handle.authenticate_none(user).await {
+    let offered = match bounded(env, handle.authenticate_none(user)).await? {
         Ok(client::AuthResult::Success) => return Ok(()),
         Ok(client::AuthResult::Failure { remaining_methods, .. }) => remaining_methods,
-        Err(e) => return Err(unreachable(e)),
+        Err(e) => return Err(unreachable(e).into()),
     };
 
+    if agent == AgentMode::TimedOut {
+        tried.push("ssh-agent (timed out)".into());
+    }
     if offers(&offered, MethodKind::PublicKey) {
-        let hash = rsa_hash(handle).await;
-        match try_agent(handle, env, user, hash).await {
-            AgentOutcome::Authenticated => return Ok(()),
-            AgentOutcome::Rejected => tried.push("ssh-agent".into()),
-            AgentOutcome::Unavailable => {}
+        let hash = rsa_hash(handle, env).await;
+        // The agent keys already offered; a key file holding the same key is not offered again.
+        let mut from_agent: Vec<PublicKey> = Vec::new();
+        if agent == AgentMode::Use {
+            match try_agent(handle, env, target, hash).await? {
+                AgentOutcome::Authenticated => return Ok(()),
+                AgentOutcome::Rejected(keys) => {
+                    tried.push("ssh-agent".into());
+                    from_agent = keys;
+                }
+                AgentOutcome::Unavailable => {}
+            }
+            if handle.is_closed() {
+                return Err(disconnected(&tried));
+            }
         }
-        if try_key_files(handle, env, target, answers, hash, &mut tried).await? {
+        let mut locked: Vec<PathBuf> = Vec::new();
+        if try_plain_keys(handle, env, target, hash, &from_agent, &mut tried, &mut locked).await? {
             return Ok(());
+        }
+        if handle.is_closed() {
+            return Err(disconnected(&tried));
+        }
+        // Keys opened on an earlier call were offered then; they still count as tried.
+        tried.extend(progress.opened_keys.iter().map(|p| format!("key {}", display_path(p))));
+        if try_locked_keys(handle, env, target, answers, hash, &locked, &mut progress.opened_keys, &mut tried).await? {
+            return Ok(());
+        }
+        if handle.is_closed() {
+            return Err(disconnected(&tried));
         }
     }
 
     // A server that offers only public keys is never asked for a password.
     if offers(&offered, MethodKind::Password) {
-        return try_password(handle, user, answers, password_failures, &mut tried).await;
+        if progress.password_failures >= MAX_PASSWORD_ATTEMPTS {
+            // The attempts were used up on an earlier call.
+            tried.push("password".into());
+        } else {
+            match try_password(handle, env, user, answers, &mut progress.password_failures, &mut tried).await? {
+                PasswordOutcome::Connected => return Ok(()),
+                PasswordOutcome::Ask { attempts_left } => return Err(ConnectResult::NeedsPassword { attempts_left }.into()),
+                PasswordOutcome::Exhausted => {}
+            }
+        }
     }
-    Err(ConnectResult::AuthFailed { tried })
+    Err(ConnectResult::AuthFailed { tried }.into())
 }
 
 fn offers(set: &MethodSet, kind: MethodKind) -> bool {
@@ -226,68 +349,100 @@ fn offers(set: &MethodSet, kind: MethodKind) -> bool {
 }
 
 /// The signature hash to use for RSA keys: the best one the server accepts.
-async fn rsa_hash(handle: &Handle<HostKeyHandler>) -> Option<HashAlg> {
-    match handle.best_supported_rsa_hash().await {
-        Ok(Some(hash)) => hash,
+async fn rsa_hash(handle: &Handle<HostKeyHandler>, env: &Env) -> Option<HashAlg> {
+    match bounded(env, handle.best_supported_rsa_hash()).await {
+        Ok(Ok(Some(hash))) => hash,
         _ => Some(HashAlg::Sha256),
     }
 }
 
 enum AgentOutcome {
     Authenticated,
-    /// The agent answered but none of its keys was accepted.
-    Rejected,
+    /// The agent answered but none of the keys offered (these) was accepted.
+    Rejected(Vec<PublicKey>),
     /// No agent to talk to (not running, no socket set, no keys): not worth mentioning.
     Unavailable,
 }
 
-async fn try_agent(handle: &mut Handle<HostKeyHandler>, env: &Env, user: &str, hash: Option<HashAlg>) -> AgentOutcome {
+/// The whole agent phase, all keys together, is bounded by `agent_timeout`. If that runs out the
+/// session is unusable (a signature was abandoned) and the caller starts over without the agent.
+async fn try_agent(
+    handle: &mut Handle<HostKeyHandler>,
+    env: &Env,
+    target: &Resolved,
+    hash: Option<HashAlg>,
+) -> Result<AgentOutcome, Stop> {
+    match tokio::time::timeout(env.agent_timeout, try_agent_inner(handle, env, target, hash)).await {
+        Ok(outcome) => outcome,
+        Err(_) => Err(Stop::AgentStalled),
+    }
+}
+
+async fn try_agent_inner(
+    handle: &mut Handle<HostKeyHandler>,
+    env: &Env,
+    target: &Resolved,
+    hash: Option<HashAlg>,
+) -> Result<AgentOutcome, Stop> {
+    let hints = identity_hints(env, target);
     let limit = env.connect_timeout;
-    let run = async {
-        match &env.agent {
-            AgentSource::None => AgentOutcome::Unavailable,
-            #[cfg(unix)]
-            AgentSource::Socket(path) => match AgentClient::connect_uds(path).await {
-                Ok(agent) => offer_agent_keys(handle, user, hash, agent).await,
-                Err(_) => AgentOutcome::Unavailable,
-            },
-            #[cfg(unix)]
-            AgentSource::System => match AgentClient::connect_env().await {
-                Ok(agent) => offer_agent_keys(handle, user, hash, agent).await,
-                Err(_) => AgentOutcome::Unavailable,
-            },
-            #[cfg(windows)]
-            AgentSource::System => {
-                const PIPE: &str = r"\\.\pipe\openssh-ssh-agent";
-                if let Ok(agent) = AgentClient::connect_named_pipe(PIPE).await {
-                    match offer_agent_keys(handle, user, hash, agent).await {
-                        AgentOutcome::Unavailable => {}
-                        done => return done,
-                    }
-                }
-                match AgentClient::connect_pageant().await {
-                    Ok(agent) => offer_agent_keys(handle, user, hash, agent).await,
-                    Err(_) => AgentOutcome::Unavailable,
+    // Only reaching the agent is bounded by `connect_timeout`; a signature is not a server wait.
+    match &env.agent {
+        AgentSource::None => Ok(AgentOutcome::Unavailable),
+        #[cfg(unix)]
+        AgentSource::Socket(path) => match tokio::time::timeout(limit, AgentClient::connect_uds(path)).await {
+            Ok(Ok(agent)) => offer_agent_keys(handle, env, &target.user, hash, &hints, agent).await,
+            _ => Ok(AgentOutcome::Unavailable),
+        },
+        #[cfg(unix)]
+        AgentSource::System => match tokio::time::timeout(limit, AgentClient::connect_env()).await {
+            Ok(Ok(agent)) => offer_agent_keys(handle, env, &target.user, hash, &hints, agent).await,
+            _ => Ok(AgentOutcome::Unavailable),
+        },
+        #[cfg(windows)]
+        AgentSource::System => {
+            const PIPE: &str = r"\\.\pipe\openssh-ssh-agent";
+            if let Ok(Ok(agent)) = tokio::time::timeout(limit, AgentClient::connect_named_pipe(PIPE)).await {
+                match offer_agent_keys(handle, env, &target.user, hash, &hints, agent).await? {
+                    AgentOutcome::Unavailable => {}
+                    done => return Ok(done),
                 }
             }
+            match tokio::time::timeout(limit, AgentClient::connect_pageant()).await {
+                Ok(Ok(agent)) => offer_agent_keys(handle, env, &target.user, hash, &hints, agent).await,
+                _ => Ok(AgentOutcome::Unavailable),
+            }
         }
-    };
-    tokio::time::timeout(limit, run).await.unwrap_or(AgentOutcome::Unavailable)
+    }
+}
+
+/// The public halves of the keys the config (or the defaults) points at, read from `<key>.pub`.
+fn identity_hints(env: &Env, target: &Resolved) -> Vec<PublicKey> {
+    named_keys(env, target)
+        .into_iter()
+        .filter_map(|p| {
+            let mut pub_path = p.into_os_string();
+            pub_path.push(".pub");
+            PublicKey::read_openssh_file(Path::new(&pub_path)).ok()
+        })
+        .collect()
 }
 
 async fn offer_agent_keys<S>(
     handle: &mut Handle<HostKeyHandler>,
+    env: &Env,
     user: &str,
     hash: Option<HashAlg>,
+    hints: &[PublicKey],
     mut agent: AgentClient<S>,
-) -> AgentOutcome
+) -> Result<AgentOutcome, Stop>
 where
     S: AgentStream + Unpin + Send + 'static,
 {
-    let Ok(identities) = agent.request_identities().await else {
-        return AgentOutcome::Unavailable;
+    let Ok(Ok(identities)) = tokio::time::timeout(env.connect_timeout, agent.request_identities()).await else {
+        return Ok(AgentOutcome::Unavailable);
     };
-    let keys: Vec<_> = identities
+    let mut keys: Vec<_> = identities
         .into_iter()
         .filter_map(|id| match id {
             AgentIdentity::PublicKey { key, .. } => Some(key),
@@ -295,76 +450,147 @@ where
         })
         .collect();
     if keys.is_empty() {
-        return AgentOutcome::Unavailable;
+        return Ok(AgentOutcome::Unavailable);
     }
+    // The keys the config names go first (stable, so the rest keep the agent's order).
+    keys.sort_by_key(|k| !hints.iter().any(|h| h.key_data() == k.key_data()));
+    keys.truncate(MAX_AGENT_KEYS);
+    let mut offered = Vec::new();
     for key in keys {
         let hash = if key.algorithm().is_rsa() { hash } else { None };
-        match handle.authenticate_publickey_with(user, key, hash, &mut agent).await {
-            Ok(result) if result.success() => return AgentOutcome::Authenticated,
+        // No timeout of its own: abandoning a signature would leave the session's task waiting
+        // for it. `try_agent` bounds the phase as a whole.
+        let signed = handle.authenticate_publickey_with(user, key.clone(), hash, &mut agent).await;
+        offered.push(key);
+        match signed {
+            Ok(result) if result.success() => return Ok(AgentOutcome::Authenticated),
             Ok(_) => {}
-            // The agent went away or refused to sign: treat it as not there.
-            Err(_) => return AgentOutcome::Unavailable,
+            // The agent went away or refused to sign (or the server hung up): move on.
+            Err(_) => {
+                return Ok(if handle.is_closed() { AgentOutcome::Rejected(offered) } else { AgentOutcome::Unavailable });
+            }
         }
     }
-    AgentOutcome::Rejected
+    Ok(AgentOutcome::Rejected(offered))
 }
 
-fn key_candidates(env: &Env, target: &Resolved) -> Vec<PathBuf> {
-    let named = if target.identity_files.is_empty() {
+/// The key files to look at, whether or not they exist.
+fn named_keys(env: &Env, target: &Resolved) -> Vec<PathBuf> {
+    if target.identity_files.is_empty() {
         DEFAULT_KEY_NAMES.iter().map(|n| env.ssh_dir.join(n)).collect()
     } else {
         target.identity_files.clone()
-    };
-    named.into_iter().filter(|p| p.is_file()).collect()
+    }
 }
 
-/// Ok(true) when a key file was accepted. Err is only ever `NeedsPassphrase`.
-async fn try_key_files(
+fn key_candidates(env: &Env, target: &Resolved) -> Vec<PathBuf> {
+    named_keys(env, target).into_iter().filter(|p| p.is_file()).collect()
+}
+
+fn same_key(a: &PublicKey, b: &PublicKey) -> bool {
+    a.key_data() == b.key_data()
+}
+
+/// The `<key>.pub` next to a key file, if there is one.
+fn public_half(path: &Path) -> Option<PublicKey> {
+    let mut pub_path = path.to_path_buf().into_os_string();
+    pub_path.push(".pub");
+    PublicKey::read_openssh_file(Path::new(&pub_path)).ok()
+}
+
+/// Offers one decrypted key; Ok(true) when the server accepted it.
+async fn offer_key(
+    handle: &mut Handle<HostKeyHandler>,
+    env: &Env,
+    target: &Resolved,
+    hash: Option<HashAlg>,
+    key: russh::keys::PrivateKey,
+    path: &Path,
+    tried: &mut Vec<String>,
+) -> Result<bool, Stop> {
+    tried.push(format!("key {}", display_path(path)));
+    let offered = PrivateKeyWithHashAlg::new(Arc::new(key), hash);
+    // `offered` (and the decrypted key in it) is moved into the request and dropped there.
+    match bounded(env, handle.authenticate_publickey(target.user.as_str(), offered)).await? {
+        Ok(result) => Ok(result.success()),
+        // The server hung up on us.
+        Err(_) => Err(ConnectResult::AuthFailed { tried: tried.clone() }.into()),
+    }
+}
+
+/// Ok(true) when a key file that needs no passphrase was accepted. Encrypted ones are added to
+/// `locked`. A key the agent already offered is not offered a second time.
+async fn try_plain_keys(
+    handle: &mut Handle<HostKeyHandler>,
+    env: &Env,
+    target: &Resolved,
+    hash: Option<HashAlg>,
+    from_agent: &[PublicKey],
+    tried: &mut Vec<String>,
+    locked: &mut Vec<PathBuf>,
+) -> Result<bool, Stop> {
+    for path in key_candidates(env, target) {
+        match load_key(&path, None) {
+            Ok(key) => {
+                if from_agent.iter().any(|a| same_key(a, key.public_key())) {
+                    continue;
+                }
+                if offer_key(handle, env, target, hash, key, &path, tried).await? {
+                    return Ok(true);
+                }
+            }
+            Err(KeyError::Encrypted) => {
+                if !public_half(&path).is_some_and(|p| from_agent.iter().any(|a| same_key(a, &p))) {
+                    locked.push(path);
+                }
+            }
+            // Unreadable or unsupported: leave it out.
+            Err(KeyError::Other) => {}
+        }
+    }
+    Ok(false)
+}
+
+/// Encrypted key files, after everything that needs no question. A key is done once it has been
+/// opened (the server may still have refused it) or skipped. With no passphrase given, the first
+/// key not done is asked for (`NeedsPassphrase`). A given passphrase is tried on each key not
+/// done; if some did not open, the first of those is asked for again. Ok(true) when a key was
+/// accepted; Ok(false) when every key is done.
+#[allow(clippy::too_many_arguments)]
+async fn try_locked_keys(
     handle: &mut Handle<HostKeyHandler>,
     env: &Env,
     target: &Resolved,
     answers: &Answers,
     hash: Option<HashAlg>,
+    locked: &[PathBuf],
+    opened_keys: &mut Vec<PathBuf>,
     tried: &mut Vec<String>,
-) -> Result<bool, ConnectResult> {
-    let passphrase = answers.passphrase.as_ref();
-    // Encrypted keys the supplied passphrase did not open, and whether it opened any.
-    let mut not_opened: Vec<PathBuf> = Vec::new();
-    let mut passphrase_worked = false;
-
-    for path in key_candidates(env, target) {
-        let key = match load_key(&path, None) {
-            Ok(key) => key,
-            Err(KeyError::Encrypted) => match &passphrase {
-                None => return Err(ConnectResult::NeedsPassphrase { key_path: display_path(&path) }),
-                Some(pass) => match load_key(&path, Some(pass.as_str())) {
-                    Ok(key) => {
-                        passphrase_worked = true;
-                        key
-                    }
-                    Err(_) => {
-                        not_opened.push(path);
-                        continue;
-                    }
-                },
-            },
-            // Unreadable or unsupported: leave it out.
-            Err(KeyError::Other) => continue,
-        };
-        tried.push(format!("key {}", display_path(&path)));
-        let offered = PrivateKeyWithHashAlg::new(Arc::new(key), hash);
-        // `offered` (and the decrypted key in it) is moved into the request and dropped there.
-        match handle.authenticate_publickey(target.user.as_str(), offered).await {
-            Ok(result) if result.success() => return Ok(true),
-            Ok(_) => {}
-            Err(e) => return Err(unreachable(e)),
+) -> Result<bool, Stop> {
+    let pending: Vec<PathBuf> = locked
+        .iter()
+        .filter(|p| !answers.skip_passphrase.iter().any(|s| Path::new(s) == p.as_path()) && !opened_keys.contains(p))
+        .cloned()
+        .collect();
+    let Some(first) = pending.first() else { return Ok(false) };
+    let Some(passphrase) = answers.passphrase.as_ref() else {
+        return Err(ConnectResult::NeedsPassphrase { key_path: display_path(first) }.into());
+    };
+    let mut not_opened: Vec<&PathBuf> = Vec::new();
+    for path in &pending {
+        match load_key(path, Some(passphrase.as_str())) {
+            Ok(key) => {
+                opened_keys.push(path.clone());
+                if offer_key(handle, env, target, hash, key, path, tried).await? {
+                    return Ok(true);
+                }
+            }
+            Err(_) => not_opened.push(path),
         }
     }
-    // A passphrase that opened nothing was wrong: ask again.
-    if !passphrase_worked {
-        if let Some(path) = not_opened.first() {
-            return Err(ConnectResult::NeedsPassphrase { key_path: display_path(path) });
-        }
+    // A passphrase that did not open a key was wrong for it: ask again.
+    if let Some(path) = not_opened.first() {
+        return Err(ConnectResult::NeedsPassphrase { key_path: display_path(path) }.into());
     }
     Ok(false)
 }
@@ -386,27 +612,36 @@ fn load_key(path: &Path, passphrase: Option<&str>) -> Result<russh::keys::Privat
     }
 }
 
+enum PasswordOutcome {
+    Connected,
+    /// No password yet, or the last one was wrong.
+    Ask { attempts_left: u8 },
+    /// The last attempt was wrong too.
+    Exhausted,
+}
+
 async fn try_password(
     handle: &mut Handle<HostKeyHandler>,
+    env: &Env,
     user: &str,
     answers: &Answers,
-    failures: u8,
+    failures: &mut u8,
     tried: &mut Vec<String>,
-) -> Result<(), ConnectResult> {
+) -> Result<PasswordOutcome, Stop> {
     let Some(password) = answers.password.as_ref() else {
-        return Err(ConnectResult::NeedsPassword { attempts_left: MAX_PASSWORD_ATTEMPTS.saturating_sub(failures) });
+        return Ok(PasswordOutcome::Ask { attempts_left: MAX_PASSWORD_ATTEMPTS.saturating_sub(*failures) });
     };
-    match handle.authenticate_password(user, password.as_str()).await {
-        Ok(result) if result.success() => Ok(()),
+    match bounded(env, handle.authenticate_password(user, password.as_str())).await? {
+        Ok(result) if result.success() => Ok(PasswordOutcome::Connected),
         Ok(_) => {
             tried.push("password".into());
-            let used = failures + 1;
-            if used >= MAX_PASSWORD_ATTEMPTS {
-                Err(ConnectResult::AuthFailed { tried: std::mem::take(tried) })
+            *failures += 1;
+            if *failures >= MAX_PASSWORD_ATTEMPTS {
+                Ok(PasswordOutcome::Exhausted)
             } else {
-                Err(ConnectResult::NeedsPassword { attempts_left: MAX_PASSWORD_ATTEMPTS - used })
+                Ok(PasswordOutcome::Ask { attempts_left: MAX_PASSWORD_ATTEMPTS - *failures })
             }
         }
-        Err(e) => Err(unreachable(e)),
+        Err(_) => Err(ConnectResult::AuthFailed { tried: tried.clone() }.into()),
     }
 }

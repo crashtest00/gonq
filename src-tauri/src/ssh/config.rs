@@ -10,7 +10,11 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default)]
 pub struct SshConfigFile {
+    /// As written: the source of the names `list_hosts` shows.
     config: Option<SshConfig>,
+    /// The same file with every `Host` pattern lower-cased, queried with a lower-cased name.
+    /// `ssh2-config` matches patterns case-sensitively; OpenSSH does not.
+    folded: Option<SshConfig>,
 }
 
 /// A target with the config file's settings applied.
@@ -39,8 +43,8 @@ impl SshConfigFile {
     pub fn parse(text: &str) -> Self {
         let text = strip_match_blocks(text);
         let rules = ParseRule::ALLOW_UNKNOWN_FIELDS | ParseRule::ALLOW_UNSUPPORTED_FIELDS;
-        let config = SshConfig::default().parse(&mut Cursor::new(text), rules).ok();
-        SshConfigFile { config }
+        let parse = |t: String| SshConfig::default().parse(&mut Cursor::new(t), rules).ok();
+        SshConfigFile { folded: parse(fold_host_lines(&text)), config: parse(text) }
     }
 
     /// Every `Host` name that is not a pattern (no `*`, `?` or leading `!`), in file order, once each.
@@ -64,7 +68,7 @@ impl SshConfigFile {
     }
 
     pub fn resolve(&self, target: &Target) -> Resolved {
-        let params = self.config.as_ref().map(|c| c.query(&target.host));
+        let params = self.folded.as_ref().map(|c| c.query(target.host.to_lowercase()));
         let from_cfg = |f: fn(&ssh2_config::HostParams) -> Option<String>| params.as_ref().and_then(f);
         let user = target
             .user
@@ -99,6 +103,25 @@ fn strip_match_blocks(text: &str) -> String {
             out.push_str(line);
             out.push('\n');
         }
+    }
+    out
+}
+
+/// Lower-cases the patterns on each `Host` line (`Host MyNas` -> `Host mynas`).
+fn fold_host_lines(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for line in text.lines() {
+        let body = line.trim_start();
+        let split = body.find(|c: char| c.is_whitespace() || c == '=').unwrap_or(body.len());
+        if body[..split].eq_ignore_ascii_case("host") {
+            let indent = &line[..line.len() - body.len()];
+            out.push_str(indent);
+            out.push_str(&body[..split]);
+            out.push_str(&body[split..].to_lowercase());
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
     }
     out
 }
@@ -185,6 +208,17 @@ Host *
         assert_eq!(cfg.resolve(&target("elsewhere")).hostname, "elsewhere");
         assert_eq!(cfg.resolve(&target("elsewhere")).port, 22);
         assert_eq!(cfg.list_hosts(), ["nas", "dev", "staging", "last"]);
+    }
+
+    #[test]
+    fn host_patterns_match_case_insensitively_like_openssh() {
+        let cfg = SshConfigFile::parse("Host MyNas\n    HostName 10.0.0.1\n    User admin\n    Port 2200\n\nHost Work-*\n    User jack\n");
+        assert_eq!(cfg.list_hosts(), ["MyNas"], "the list keeps the name as written");
+        for typed in ["MyNas", "mynas", "MYNAS"] {
+            let r = cfg.resolve(&target(typed));
+            assert_eq!((r.alias.as_str(), r.hostname.as_str(), r.user.as_str(), r.port), ("mynas", "10.0.0.1", "admin", 2200), "{typed}");
+        }
+        assert_eq!(cfg.resolve(&target("WORK-box")).user, "jack");
     }
 
     #[test]

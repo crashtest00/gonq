@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Policy {
     /// Client keys the server accepts for public key login.
     pub allowed_keys: Vec<PublicKey>,
@@ -21,6 +21,10 @@ pub struct Policy {
     pub password: Option<String>,
     /// What `realpath(".")` answers, and the folder SFTP paths are served from.
     pub root: PathBuf,
+    /// Failed attempts after which the server hangs up (`MaxAuthTries`); the library default when `None`.
+    pub max_auth_attempts: Option<usize>,
+    /// Never answer the first authentication request, as a server stalling after key exchange.
+    pub stall_auth: bool,
 }
 
 pub struct TestServer {
@@ -58,6 +62,7 @@ impl TestServer {
             methods: MethodSet::from(methods.as_slice()),
             auth_rejection_time: Duration::from_millis(1),
             auth_rejection_time_initial: Some(Duration::ZERO),
+            max_auth_attempts: policy.max_auth_attempts.unwrap_or(10),
             ..Default::default()
         };
         let connections = Arc::new(AtomicUsize::new(0));
@@ -102,6 +107,13 @@ struct Conn {
 
 impl Handler for Conn {
     type Error = test_error::Error;
+
+    async fn auth_none(&mut self, _user: &str) -> Result<Auth, Self::Error> {
+        if self.srv.policy.stall_auth {
+            std::future::pending::<()>().await;
+        }
+        Ok(Auth::reject())
+    }
 
     async fn auth_password(&mut self, _user: &str, password: &str) -> Result<Auth, Self::Error> {
         self.srv.password_tries.fetch_add(1, Ordering::SeqCst);
