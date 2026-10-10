@@ -35,3 +35,12 @@ Thumbs.db
 *.suo
 *.sln
 *.sw?
+
+# Editor backups
+*~
+
+# AI Gang output
+artifacts/
+
+# Windows download metadata
+*:Zone.Identifier
