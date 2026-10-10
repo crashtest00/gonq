@@ -11,45 +11,48 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use zeroize::Zeroizing;
 
-struct Fixture {
-    dir: tempfile::TempDir,
-    server: TestServer,
-    pool: Pool,
+pub(super) struct Fixture {
+    pub(super) dir: tempfile::TempDir,
+    pub(super) server: TestServer,
+    pub(super) pool: Pool,
 }
 
 impl Fixture {
-    fn ssh_dir(&self) -> PathBuf {
+    pub(super) fn ssh_dir(&self) -> PathBuf {
         self.dir.path().join(".ssh")
     }
-    fn known_hosts(&self) -> PathBuf {
+    pub(super) fn known_hosts(&self) -> PathBuf {
         self.ssh_dir().join("known_hosts")
     }
-    fn target(&self) -> String {
+    pub(super) fn target(&self) -> String {
         format!("me@127.0.0.1:{}", self.server.port)
     }
-    fn key(&self) -> ConnKey {
+    pub(super) fn key(&self) -> ConnKey {
         ConnKey::new("me", "127.0.0.1", self.server.port)
     }
     fn known_hosts_text(&self) -> String {
         std::fs::read_to_string(self.known_hosts()).unwrap_or_default()
     }
-    async fn connect(&self, answers: Answers) -> ConnectResult {
+    pub(super) async fn connect(&self, answers: Answers) -> ConnectResult {
         self.pool.connect(&self.target(), answers).await
     }
-    fn fingerprint(&self) -> String {
+    pub(super) fn fingerprint(&self) -> String {
         known_hosts::fingerprint(self.server.host_key.public_key())
     }
 }
 
 #[derive(Default)]
-struct Setup {
-    allowed: Vec<PublicKey>,
-    password: Option<&'static str>,
-    agent: Option<AgentSource>,
-    trusted: bool,
-    idle: Option<Duration>,
-    max_auth_attempts: Option<usize>,
-    stall_auth: bool,
+pub(super) struct Setup {
+    pub(super) allowed: Vec<PublicKey>,
+    pub(super) password: Option<&'static str>,
+    pub(super) agent: Option<AgentSource>,
+    pub(super) trusted: bool,
+    pub(super) idle: Option<Duration>,
+    pub(super) max_auth_attempts: Option<usize>,
+    pub(super) stall_auth: bool,
+    pub(super) no_posix_rename: bool,
+    pub(super) no_fsync: bool,
+    pub(super) kill_on_write: Option<usize>,
 }
 
 fn answers(trust: Option<&str>, passphrase: Option<&str>, password: Option<&str>) -> Answers {
@@ -61,11 +64,11 @@ fn answers(trust: Option<&str>, passphrase: Option<&str>, password: Option<&str>
     }
 }
 
-fn none() -> Answers {
+pub(super) fn none() -> Answers {
     Answers::default()
 }
 
-async fn fixture(setup: Setup) -> Fixture {
+pub(super) async fn fixture(setup: Setup) -> Fixture {
     let dir = tempfile::tempdir().unwrap();
     let ssh_dir = dir.path().join(".ssh");
     std::fs::create_dir_all(&ssh_dir).unwrap();
@@ -75,7 +78,11 @@ async fn fixture(setup: Setup) -> Fixture {
         root: dir.path().join("home"),
         max_auth_attempts: setup.max_auth_attempts,
         stall_auth: setup.stall_auth,
+        no_posix_rename: setup.no_posix_rename,
+        no_fsync: setup.no_fsync,
+        kill_on_write: setup.kill_on_write,
     };
+    std::fs::create_dir_all(dir.path().join("home")).unwrap();
     let server = TestServer::start(new_key(), policy).await;
     if setup.trusted {
         known_hosts::append(&ssh_dir.join("known_hosts"), "127.0.0.1", server.port, server.host_key.public_key()).unwrap();
@@ -94,11 +101,11 @@ async fn fixture(setup: Setup) -> Fixture {
     Fixture { dir, server, pool }
 }
 
-fn write_key(path: &Path, key: &PrivateKey) {
+pub(super) fn write_key(path: &Path, key: &PrivateKey) {
     std::fs::write(path, key.to_openssh(LineEnding::LF).unwrap().as_bytes()).unwrap();
 }
 
-fn is_connected(r: &ConnectResult) -> bool {
+pub(super) fn is_connected(r: &ConnectResult) -> bool {
     matches!(r, ConnectResult::Connected { .. })
 }
 
@@ -811,7 +818,7 @@ async fn an_unparseable_target_is_reported() {
 
 // ---- pool -----------------------------------------------------------------------------------
 
-async fn keyed_fixture(idle: Option<Duration>) -> (Fixture, PrivateKey) {
+pub(super) async fn keyed_fixture(idle: Option<Duration>) -> (Fixture, PrivateKey) {
     let client = new_key();
     let f = fixture(Setup { allowed: vec![client.public_key().clone()], trusted: true, idle, ..Default::default() }).await;
     write_key(&f.ssh_dir().join("id_ed25519"), &client);

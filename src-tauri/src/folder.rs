@@ -22,7 +22,7 @@ pub enum ListError {
     Io(String),
 }
 
-fn is_markdown(name: &str) -> bool {
+pub fn is_markdown(name: &str) -> bool {
     match name.rsplit_once('.') {
         Some((stem, ext)) => {
             !stem.is_empty() && (ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
@@ -59,8 +59,13 @@ pub fn list_directory(dir: &Path) -> Result<Vec<FolderEntry>, ListError> {
         entries.push(FolderEntry { path: item.path().to_string_lossy().into_owned(), name, is_dir });
     }
 
-    entries.sort_by_cached_key(|e| (!e.is_dir, e.name.to_lowercase()));
+    sort_entries(&mut entries);
     Ok(entries)
+}
+
+/// Folders first, each group alphabetical ignoring case.
+pub fn sort_entries(entries: &mut [FolderEntry]) {
+    entries.sort_by_cached_key(|e| (!e.is_dir, e.name.to_lowercase()));
 }
 
 #[cfg(test)]
