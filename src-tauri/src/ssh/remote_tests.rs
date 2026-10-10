@@ -575,17 +575,29 @@ async fn only_markdown_files_can_be_written() {
     let r = setup().await;
     r.put("notes.txt", "keep");
     r.put("real.conf", "keep");
-    std::os::unix::fs::symlink(r.at("real.conf"), r.at("sneaky.md")).unwrap();
     let stat = RemoteStat { mtime: 0, size: 0 };
-    for name in ["notes.txt", "sneaky.md", ".md", "noext"] {
+    for name in ["notes.txt", ".md", "noext"] {
         let out = r.save(name, "x", stat, true).await;
         assert!(matches!(out, Err(RemoteError::NotAllowed(_))), "{name}: {out:?}");
     }
     assert_eq!(std::fs::read_to_string(r.at("notes.txt")).unwrap(), "keep");
     assert_eq!(std::fs::read_to_string(r.at("real.conf")).unwrap(), "keep");
-    assert_eq!(r.names_in(""), ["notes.txt", "real.conf", "sneaky.md"]);
+    assert_eq!(r.names_in(""), ["notes.txt", "real.conf"]);
     r.put("upper.MARKDOWN", "a");
     saved(r.save("upper.MARKDOWN", "b", r.stat_on_disk("upper.MARKDOWN"), false).await);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_markdown_link_to_another_kind_of_file_is_not_written() {
+    let r = setup().await;
+    r.put("real.conf", "keep");
+    std::os::unix::fs::symlink(r.at("real.conf"), r.at("sneaky.md")).unwrap();
+    let stat = RemoteStat { mtime: 0, size: 0 };
+    let out = r.save("sneaky.md", "x", stat, true).await;
+    assert!(matches!(out, Err(RemoteError::NotAllowed(_))), "{out:?}");
+    assert_eq!(std::fs::read_to_string(r.at("real.conf")).unwrap(), "keep");
+    assert_eq!(r.names_in(""), ["real.conf", "sneaky.md"]);
 }
 
 #[cfg(unix)]
