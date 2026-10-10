@@ -5,7 +5,7 @@ const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
 vi.mock('./files', () => ({ isTauri: () => tauri }));
 
-import { AUTHOR_KEY, authorNameProblem, getAuthorName, getShowMarkers, setAuthorName, setShowMarkers } from './settings';
+import { AUTHOR_KEY, authorNameProblem, getAuthorName, setAuthorName } from './settings';
 
 beforeEach(() => {
   tauri = true;
@@ -63,31 +63,5 @@ describe('web', () => {
     expect(localStorage.getItem(AUTHOR_KEY)).toBe('Bo');
     expect(await getAuthorName()).toBe('Bo');
     expect(invoke).not.toHaveBeenCalled();
-  });
-});
-
-describe('show markers option', () => {
-  it('defaults to on, in the browser and on desktop', async () => {
-    tauri = false;
-    expect(await getShowMarkers()).toBe(true);
-    tauri = true;
-    invoke.mockResolvedValue(true);
-    expect(await getShowMarkers()).toBe(true);
-  });
-  it('is on when the read fails', async () => {
-    invoke.mockRejectedValue(new Error('x'));
-    expect(await getShowMarkers()).toBe(true);
-  });
-  it('round-trips through localStorage in the browser', async () => {
-    tauri = false;
-    expect(await setShowMarkers(false)).toBe(false);
-    expect(await getShowMarkers()).toBe(false);
-    await setShowMarkers(true);
-    expect(await getShowMarkers()).toBe(true);
-  });
-  it('is saved by the backend on desktop', async () => {
-    invoke.mockResolvedValue(false);
-    expect(await setShowMarkers(false)).toBe(false);
-    expect(invoke).toHaveBeenCalledWith('set_show_markers', { show: false });
   });
 });

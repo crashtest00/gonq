@@ -406,18 +406,6 @@ describe('markers in the active block', () => {
     expect(shownMarkers()).toEqual([]);
   });
 
-  test('with the option off the syntax is never shown, in any block', async () => {
-    const { user } = setup(DOC);
-    await openDoc(user);
-    await user.click(screen.getByRole('menuitem', { name: 'View' }));
-    await user.click(await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ }));
-    expect(view()).toHaveAttribute('data-markers', 'off');
-    await user.click(screen.getByRole('heading'));
-    await caretIn(screen.getByText(/^some/));
-    expect(activeBlocks()).toHaveLength(1);
-    expect(shownMarkers()).toEqual([]);
-  });
-
   test('markers do not change the text that is saved, and typing next to them keeps the formatting', async () => {
     const { user, saveDocument } = setup(DOC);
     await openDoc(user);
@@ -429,20 +417,6 @@ describe('markers in the active block', () => {
     expect(screen.getByText('bolder').tagName).toBe('STRONG');
   });
 
-  test('Backspace skips hidden syntax; at the start of a block it removes the block syntax', async () => {
-    const { user, saveDocument } = setup(DOC);
-    await openDoc(user);
-    await user.click(screen.getByRole('menuitem', { name: 'View' }));
-    await user.click(await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ }));
-    await user.click(screen.getByText('bold'));
-    await caretIn(screen.getByText('bold'), 0);
-    await user.keyboard('{Backspace}');
-    expect(activeSource()).toBe('some**bold** and `code`');
-    await caretIn(screen.getByRole('heading'), 0);
-    await user.keyboard('{Backspace}');
-    await user.keyboard('{Escape}{Control>}s{/Control}');
-    expect(saveDocument).toHaveBeenCalledWith(expect.objectContaining({ text: DOC.replace('# Title', 'Title').replace('some **bold**', 'some**bold**') }));
-  });
 });
 
 describe('splitting and joining blocks while typing', () => {
@@ -1040,18 +1014,6 @@ describe('rework of editing in place', () => {
       beforeInput('deleteWordForward');
       await settle();
       expect(await save(user, saveDocument)).toBe('one  three\n');
-    });
-
-    test('a word delete spares the hidden syntax inside the range', async () => {
-      const { user, saveDocument } = setup('foo**bar** x\n');
-      await openDoc(user);
-      await user.click(screen.getByRole('menuitem', { name: 'View' }));
-      await user.click(await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ }));
-      await user.click(screen.getByText('bar'));
-      await caretIn(screen.getByText('bar'));
-      beforeInput('deleteWordBackward');
-      await settle();
-      expect(await save(user, saveDocument)).toBe('**** x\n');
     });
 
     test('deleteSoftLineBackward removes to the start of the line', async () => {

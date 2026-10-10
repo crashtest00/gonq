@@ -27,11 +27,6 @@ async function openDoc(user: User) {
   await screen.findByTestId('markdown-view');
 }
 
-const markersOff = async (user: User) => {
-  await user.click(screen.getByRole('menuitem', { name: 'View' }));
-  await user.click(await screen.findByRole('menuitemcheckbox', { name: /Show markers in active block/ }));
-};
-
 const save = async (user: User, saveDocument: { mock: { calls: any[][] } }) => {
   await user.keyboard('{Escape}{Control>}s{/Control}');
   return saveDocument.mock.calls[saveDocument.mock.calls.length - 1]?.[0].text as string;
@@ -62,15 +57,13 @@ describe('undo and redo of a cell edit', () => {
   });
 });
 
-describe('Show markers on and off', () => {
-  test.each([['on', false], ['off', true]])('with the option %s no pipe or delimiter is shown while a cell is edited', async (_n, off) => {
+describe('table syntax', () => {
+  test('no pipe or delimiter is shown while a cell is edited', async () => {
     const { user } = setup(TABLE);
     await openDoc(user);
-    if (off) await markersOff(user);
     await user.click(cell('1'));
     await caretIn(cell('1'));
     await user.keyboard('x');
-    expect(view().dataset.markers).toBe(off ? 'off' : 'on');
     expect(shownMarkers()).toEqual([]);
     // Everything of the syntax inside the table is hidden by the stylesheet, as shownMarkers() ignores tables: check the classes.
     const table = screen.getByRole('table');
@@ -81,8 +74,8 @@ describe('Show markers on and off', () => {
 
 test('the stylesheet hides table syntax whether the table or a list/quote around it is the active block', async () => {
   const css = ((await import('node:fs' as string)) as { readFileSync: (p: string, e: string) => string }).readFileSync('src/styles/document.css', 'utf8');
-  expect(css).toContain(".gonq-doc[data-markers='on'] table[data-active] .gonq-mk,");
-  expect(css).toContain(".gonq-doc[data-markers='on'] [data-active] table .gonq-mk { display: none; }");
+  expect(css).toContain(".gonq-doc table[data-active] .gonq-mk,");
+  expect(css).toContain(".gonq-doc [data-active] table .gonq-mk { display: none; }");
 });
 
 describe('inline Markdown in cells', () => {
