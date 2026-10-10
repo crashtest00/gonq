@@ -3,7 +3,7 @@
 use super::auth::{AgentSource, Answers, ConnectResult, Env};
 use super::known_hosts;
 use super::pool::{Pool, PoolError};
-use super::test_server::{new_key, Policy, TestServer};
+use super::test_server::{new_key, to_virtual, Policy, TestServer};
 use super::uri::ConnKey;
 use russh::keys::ssh_key::{LineEnding, PrivateKey, PublicKey};
 use std::path::{Path, PathBuf};
@@ -69,9 +69,8 @@ fn answers(trust: Option<&str>, passphrase: Option<&str>, password: Option<&str>
 /// The virtual POSIX path the test server shows for a real one under the fixture folder (`/home/a.md`).
 pub(super) fn virt(dir: &std::path::Path, real: &std::path::Path) -> String {
     let canonical = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
-    let rel = real.strip_prefix(&canonical).or_else(|_| real.strip_prefix(dir)).unwrap_or(real);
-    let parts: Vec<_> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
-    format!("/{}", parts.join("/"))
+    let (m, r) = (canonical.to_string_lossy(), real.to_string_lossy());
+    to_virtual(&m, &r).or_else(|| to_virtual(&dir.to_string_lossy(), &r)).expect("path is under the fixture folder")
 }
 
 pub(super) fn none() -> Answers {

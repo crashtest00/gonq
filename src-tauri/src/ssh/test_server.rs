@@ -200,6 +200,7 @@ impl Conn {
 struct Sftp {
     root: PathBuf,
     mount: PathBuf,
+    root_virtual: String,
     posix_rename: bool,
     fsync: bool,
     kill_on_write: Option<usize>,
@@ -221,9 +222,11 @@ impl Sftp {
         let root = srv.policy.root.canonicalize().unwrap_or_else(|_| srv.policy.root.clone());
         let mount = srv.policy.mount.clone().or_else(|| srv.policy.root.parent().map(|p| p.to_path_buf())).unwrap_or_else(|| root.clone());
         let mount = mount.canonicalize().unwrap_or(mount);
+        let root_virtual = to_virtual(&mount.to_string_lossy(), &root.to_string_lossy()).unwrap_or_else(|| "/".into());
         Sftp {
             root,
             mount,
+            root_virtual,
             posix_rename: !srv.policy.no_posix_rename,
             fsync: !srv.policy.no_fsync,
             kill_on_write: srv.policy.kill_on_write,
@@ -236,25 +239,26 @@ impl Sftp {
         }
     }
 
-    /// The real path behind a virtual one.
-    fn path(&self, p: &str) -> PathBuf {
-        let (mut real, rest) = match p.strip_prefix('/') {
-            Some(rest) => (self.mount.clone(), rest),
-            None => (self.root.clone(), p),
-        };
-        real.extend(rest.split('/').filter(|s| !s.is_empty() && *s != "."));
-        real
+    /// The real path behind a virtual one. `..` is resolved lexically on the virtual path and one that
+    /// climbs above `/` is refused, as a chrooted server would.
+    fn path(&self, p: &str) -> Result<PathBuf, StatusCode> {
+        let full = if p.starts_with('/') { p.to_string() } else { format!("{}/{p}", self.root_virtual) };
+        let mut parts: Vec<&str> = Vec::new();
+        for s in full.split('/').filter(|s| !s.is_empty() && *s != ".") {
+            if s == ".." {
+                parts.pop().ok_or(StatusCode::PermissionDenied)?;
+            } else {
+                parts.push(s);
+            }
+        }
+        let mut real = self.mount.clone();
+        real.extend(parts);
+        Ok(real)
     }
 
-    /// The virtual path of a real one (as `/`-separated text, outside the mount as it is).
-    fn virt(&self, real: &std::path::Path) -> String {
-        match real.strip_prefix(&self.mount) {
-            Ok(rel) => {
-                let parts: Vec<_> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
-                format!("/{}", parts.join("/"))
-            }
-            Err(_) => real.to_string_lossy().replace('\\', "/"),
-        }
+    /// The virtual path of a real one; one outside the mount (a symlink pointing out) is refused.
+    fn virt(&self, real: &std::path::Path) -> Result<String, StatusCode> {
+        to_virtual(&self.mount.to_string_lossy(), &real.to_string_lossy()).ok_or(StatusCode::PermissionDenied)
     }
 
     fn new_handle(&mut self, open: Open) -> String {
@@ -267,6 +271,24 @@ impl Sftp {
 
 fn ok(id: u32) -> Status {
     Status { id, status_code: StatusCode::Ok, error_message: "Ok".into(), language_tag: "en-US".into() }
+}
+
+/// The virtual POSIX path (`/home/a.md`) of host path `real` under host folder `mount`, or `None` when
+/// `real` is outside it. Works on text so it behaves the same for any host: both `\\` and `/` separate,
+/// a `\\?\` verbatim prefix is dropped and drive letters compare case-insensitively. The result is always
+/// `/`-separated and absolute, never holding a drive letter or prefix.
+pub(super) fn to_virtual(mount: &str, real: &str) -> Option<String> {
+    fn parts(p: &str) -> Vec<String> {
+        let p = p.replace('\\', "/");
+        let p = p.strip_prefix("//?/").unwrap_or(&p);
+        p.split('/').filter(|s| !s.is_empty() && *s != ".").map(String::from).collect()
+    }
+    let (m, r) = (parts(mount), parts(real));
+    let same = |a: &String, b: &String| if a.ends_with(':') { a.eq_ignore_ascii_case(b) } else { a == b };
+    if r.len() < m.len() || !m.iter().zip(&r).all(|(a, b)| same(a, b)) {
+        return None;
+    }
+    Some(format!("/{}", r[m.len()..].join("/")))
 }
 
 fn code(e: std::io::Error) -> StatusCode {
@@ -342,13 +364,13 @@ impl russh_sftp::server::Handler for Sftp {
 
     async fn realpath(&mut self, id: u32, path: String) -> Result<Name, Self::Error> {
         let answer = if path == "." {
-            self.virt(&self.root)
+            self.virt(&self.root)?
         } else {
-            let full = self.path(&path);
+            let full = self.path(&path)?;
             // Like OpenSSH: a path that exists is resolved (symlinks, `..`); one that does not is only cleaned.
             match std::fs::canonicalize(&full) {
-                Ok(real) => self.virt(&real),
-                Err(_) if full.parent().is_some_and(|p| p.exists()) => self.virt(&full),
+                Ok(real) => self.virt(&real)?,
+                Err(_) if full.parent().is_some_and(|p| p.exists()) => self.virt(&full)?,
                 Err(e) => return Err(code(e)),
             }
         };
@@ -356,12 +378,12 @@ impl russh_sftp::server::Handler for Sftp {
     }
 
     async fn stat(&mut self, id: u32, path: String) -> Result<Attrs, Self::Error> {
-        let m = std::fs::metadata(self.path(&path)).map_err(code)?;
+        let m = std::fs::metadata(self.path(&path)?).map_err(code)?;
         Ok(Attrs { id, attrs: attrs_of(&m) })
     }
 
     async fn lstat(&mut self, id: u32, path: String) -> Result<Attrs, Self::Error> {
-        let m = std::fs::symlink_metadata(self.path(&path)).map_err(code)?;
+        let m = std::fs::symlink_metadata(self.path(&path)?).map_err(code)?;
         Ok(Attrs { id, attrs: attrs_of(&m) })
     }
 
@@ -376,7 +398,7 @@ impl russh_sftp::server::Handler for Sftp {
         #[cfg(unix)]
         if let Some(mode) = attrs.permissions {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(self.path(&path), std::fs::Permissions::from_mode(mode & 0o7777)).map_err(code)?;
+            std::fs::set_permissions(self.path(&path)?, std::fs::Permissions::from_mode(mode & 0o7777)).map_err(code)?;
         }
         #[cfg(not(unix))]
         let _ = (&path, &attrs);
@@ -421,7 +443,7 @@ impl russh_sftp::server::Handler for Sftp {
         }
         #[cfg(not(unix))]
         let _ = &attrs;
-        let file = o.open(self.path(&filename)).map_err(code)?;
+        let file = o.open(self.path(&filename)?).map_err(code)?;
         Ok(Handle { id, handle: self.new_handle(Open::File(file)) })
     }
 
@@ -449,7 +471,7 @@ impl russh_sftp::server::Handler for Sftp {
 
     async fn opendir(&mut self, id: u32, path: String) -> Result<Handle, Self::Error> {
         let mut entries = Vec::new();
-        for item in std::fs::read_dir(self.path(&path)).map_err(code)? {
+        for item in std::fs::read_dir(self.path(&path)?).map_err(code)? {
             let item = item.map_err(code)?;
             let m = std::fs::symlink_metadata(item.path()).map_err(code)?;
             entries.push((item.file_name().to_string_lossy().into_owned(), m));
@@ -467,40 +489,40 @@ impl russh_sftp::server::Handler for Sftp {
     }
 
     async fn remove(&mut self, id: u32, filename: String) -> Result<Status, Self::Error> {
-        std::fs::remove_file(self.path(&filename)).map_err(code)?;
+        std::fs::remove_file(self.path(&filename)?).map_err(code)?;
         Ok(ok(id))
     }
 
     async fn mkdir(&mut self, id: u32, path: String, _attrs: FileAttributes) -> Result<Status, Self::Error> {
-        std::fs::create_dir(self.path(&path)).map_err(code)?;
+        std::fs::create_dir(self.path(&path)?).map_err(code)?;
         Ok(ok(id))
     }
 
     async fn rmdir(&mut self, id: u32, path: String) -> Result<Status, Self::Error> {
-        std::fs::remove_dir(self.path(&path)).map_err(code)?;
+        std::fs::remove_dir(self.path(&path)?).map_err(code)?;
         Ok(ok(id))
     }
 
     /// SFTP v3 `rename` refuses to replace an existing file, as OpenSSH does.
     async fn rename(&mut self, id: u32, oldpath: String, newpath: String) -> Result<Status, Self::Error> {
-        let new = self.path(&newpath);
+        let new = self.path(&newpath)?;
         if new.exists() {
             return Err(StatusCode::Failure);
         }
-        std::fs::rename(self.path(&oldpath), new).map_err(code)?;
+        std::fs::rename(self.path(&oldpath)?, new).map_err(code)?;
         Ok(ok(id))
     }
 
     async fn readlink(&mut self, id: u32, path: String) -> Result<Name, Self::Error> {
-        let target = std::fs::read_link(self.path(&path)).map_err(code)?;
-        Ok(Name { id, files: vec![File::dummy(self.virt(&target))] })
+        let target = std::fs::read_link(self.path(&path)?).map_err(code)?;
+        Ok(Name { id, files: vec![File::dummy(self.virt(&target)?)] })
     }
 
     async fn extended(&mut self, id: u32, request: String, data: Vec<u8>) -> Result<Packet, Self::Error> {
         match request.as_str() {
             "posix-rename@openssh.com" if self.posix_rename => {
                 let paths = strings(&data);
-                std::fs::rename(self.path(&paths[0]), self.path(&paths[1])).map_err(code)?;
+                std::fs::rename(self.path(&paths[0])?, self.path(&paths[1])?).map_err(code)?;
                 if self.kill_after_rename {
                     self.kill.notify_one();
                     std::future::pending::<()>().await;
@@ -522,5 +544,31 @@ mod test_error {
         fn from(e: russh::Error) -> Self {
             Error(e.to_string())
         }
+    }
+}
+
+#[cfg(test)]
+mod virtual_path_tests {
+    use super::to_virtual;
+
+    #[test]
+    fn windows_host_paths_become_posix() {
+        for mount in [r"C:\Users\x\Temp\fx", r"\\?\C:\Users\x\Temp\fx", r"c:\Users\x\Temp\fx\"] {
+            for real in [r"C:\Users\x\Temp\fx\home\a.md", r"\\?\C:\Users\x\Temp\fx\home\a.md"] {
+                let v = to_virtual(mount, real).unwrap();
+                assert_eq!(v, "/home/a.md");
+                assert!(v.starts_with('/') && !v.contains(['\\', ':', '?']));
+            }
+            assert_eq!(to_virtual(mount, r"\\?\C:\Users\x\Temp\fx").unwrap(), "/");
+            assert_eq!(to_virtual(mount, r"C:\Users\x\Temp\fx2\a").as_deref(), None);
+            assert_eq!(to_virtual(mount, r"D:\Users\x\Temp\fx\a").as_deref(), None);
+        }
+    }
+
+    #[test]
+    fn posix_host_paths() {
+        assert_eq!(to_virtual("/tmp/fx", "/tmp/fx/home/a.md").unwrap(), "/home/a.md");
+        assert_eq!(to_virtual("/tmp/fx", "/tmp/fx").unwrap(), "/");
+        assert!(to_virtual("/tmp/fx", "/tmp/other").is_none());
     }
 }
