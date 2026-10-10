@@ -14,8 +14,9 @@ use russh::keys::agent::client::{AgentClient, AgentStream};
 use russh::keys::agent::AgentIdentity;
 use russh::keys::{load_secret_key, HashAlg, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate};
 use russh::{MethodKind, MethodSet};
-use russh_sftp::client::SftpSession;
+use russh_sftp::client::{RawSftpSession, SftpSession};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -109,6 +110,21 @@ pub struct Session {
     pub handle: Handle<HostKeyHandler>,
     pub sftp: SftpSession,
     pub home: String,
+    /// A second SFTP channel for the OpenSSH extensions the high-level client does not expose
+    /// (`posix-rename`, `fsync`); `None` if the server would not open it.
+    pub ext: Option<SftpExt>,
+}
+
+/// Raw SFTP access plus the extensions the server announced in its version reply.
+pub struct SftpExt {
+    pub raw: RawSftpSession,
+    pub extensions: HashMap<String, String>,
+}
+
+impl SftpExt {
+    pub fn offers(&self, name: &str) -> bool {
+        self.extensions.get(name).is_some_and(|v| v == "1")
+    }
 }
 
 pub struct HostKeyHandler {
@@ -259,13 +275,22 @@ async fn connect_once(
         channel.request_subsystem(true, "sftp").await.map_err(|e| e.to_string())?;
         let sftp = SftpSession::new(channel.into_stream()).await.map_err(|e| e.to_string())?;
         let home = sftp.canonicalize(".").await.map_err(|e| e.to_string())?;
-        Ok::<_, String>((sftp, home))
+        let ext = open_ext(&handle).await;
+        Ok::<_, String>((sftp, home, ext))
     };
     match tokio::time::timeout(env.connect_timeout, opened).await {
-        Ok(Ok((sftp, home))) => Ok(Session { handle, sftp, home }),
+        Ok(Ok((sftp, home, ext))) => Ok(Session { handle, sftp, home, ext }),
         Ok(Err(e)) => Err(unreachable(format!("the server did not open an SFTP channel: {e}")).into()),
         Err(_) => Err(unreachable("the server did not open an SFTP channel in time").into()),
     }
+}
+
+async fn open_ext(handle: &Handle<HostKeyHandler>) -> Option<SftpExt> {
+    let channel = handle.channel_open_session().await.ok()?;
+    channel.request_subsystem(true, "sftp").await.ok()?;
+    let raw = RawSftpSession::new(channel.into_stream());
+    let version = raw.init().await.ok()?;
+    Some(SftpExt { raw, extensions: version.extensions })
 }
 
 /// Order, like OpenSSH: agent keys, key files that open without a question, encrypted key files

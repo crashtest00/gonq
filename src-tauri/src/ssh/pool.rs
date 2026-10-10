@@ -7,7 +7,7 @@
 
 use super::auth::{self, Answers, ConnectResult, Env, Progress, Session};
 use super::config::SshConfigFile;
-use super::uri::{ConnKey, Target};
+use super::uri::{ConnKey, Target, UriError};
 use russh::Disconnect;
 use russh_sftp::client::error::Error as SftpError;
 use russh_sftp::client::SftpSession;
@@ -38,6 +38,11 @@ impl Conn {
     /// The SFTP realpath of `.` when the session was opened.
     pub fn home(&self) -> &str {
         &self.session.home
+    }
+
+    /// The second SFTP channel, with the extensions the server announced.
+    pub fn ext(&self) -> Option<&super::auth::SftpExt> {
+        self.session.ext.as_ref()
     }
 
     pub fn is_alive(&self) -> bool {
@@ -126,9 +131,18 @@ impl Pool {
             Ok(t) => t,
             Err(e) => return ConnectResult::Unreachable { reason: e.to_string() },
         };
-        let resolved = SshConfigFile::load(&self.inner.env.config_path).resolve(&target);
-        let key = ConnKey::new(&resolved.user, &resolved.alias, resolved.port);
+        let key = self.key_of(&target);
         self.open(&key, answers).await
+    }
+
+    /// The connection a typed target (`user@host`, an alias, an `ssh://` address) names.
+    pub fn key_for(&self, target: &str) -> Result<ConnKey, UriError> {
+        Ok(self.key_of(&Target::parse(target)?))
+    }
+
+    fn key_of(&self, target: &Target) -> ConnKey {
+        let resolved = SshConfigFile::load(&self.inner.env.config_path).resolve(target);
+        ConnKey::new(&resolved.user, &resolved.alias, resolved.port)
     }
 
     async fn open(&self, key: &ConnKey, answers: Answers) -> ConnectResult {
@@ -307,7 +321,7 @@ fn connected(conn: &Conn) -> ConnectResult {
 }
 
 /// An SFTP error that means the session is gone rather than that the command was refused.
-fn connection_lost(e: &SftpError) -> bool {
+pub(super) fn connection_lost(e: &SftpError) -> bool {
     match e {
         SftpError::Status(s) => matches!(s.status_code, StatusCode::NoConnection | StatusCode::ConnectionLost),
         _ => true,
