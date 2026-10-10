@@ -1,4 +1,5 @@
 mod folder;
+mod ssh;
 mod recents;
 mod settings;
 
@@ -124,6 +125,7 @@ fn allow_recent_document<R: Runtime>(app: AppHandle<R>, path: String) -> Result<
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(ssh::new_pool())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -138,7 +140,9 @@ pub fn run() {
             get_author_name,
             set_author_name,
             get_show_markers,
-            set_show_markers
+            set_show_markers,
+            ssh::ssh_list_hosts,
+            ssh::ssh_connect
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
