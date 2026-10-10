@@ -14,6 +14,7 @@ Tauri 2 desktop app (Rust) with a React 18 + TypeScript + Vite 5 frontend. Node 
 - src/platform/ also wraps folder listing/Open Folder (folders.ts) and recent documents (recents.ts, settings.ts author name + View > Show markers in active block (Markdown syntax markers; not yet consumed by the editor); localStorage on web); remote.ts is the ssh:// boundary (remote_read/write/list/exists wrappers, RemoteStat, error wording, setConnectHandler hook for the Connect flow; files.ts/folders.ts route ssh:// paths to it); connect.ts is the Connect to Server boundary (ssh_list_hosts/ssh_connect/remote_list_folders/remote_open_root/ssh_disconnect wrappers, ssh:// input parsing, last 5 opened remote folders in localStorage); external.ts holds REPO_URL and opens links in the default browser (opener plugin)
 - src-tauri/      — Rust crate (folder.rs listing, recents.rs recent.json in app data dir, settings.rs settings.json (author name, show-markers option) in app config dir; commands in lib.rs), src/ssh/ (SSH connection foundation: uri RemotePath/ConnKey, ~/.ssh/config, known_hosts, auth, connection pool; commands ssh_list_hosts/ssh_connect; fs.rs remote list/read/atomic save with conflicts, allow.rs the remote allow-list; commands remote_*/ssh_disconnect in mod.rs; test_server.rs is the in-process russh+SFTP server over a real temp folder that the tests use), tauri.conf.json, capabilities, icons
 - .github/workflows/ — build-desktop.yml (workflow_dispatch with `sha`, dispatched by Jenkins only) and release-desktop.yml (`v*` tag push, tagged by Jenkins only); never add other triggers or run/tag by hand
+- e2e/            — opt-in Playwright Chromium tests against the web build (`npm run test:e2e`; playwright.config.ts builds + serves via vite preview; needs `npx playwright install chromium`; excluded from vitest, not run by Jenkins)
 - assets/        — logo sources (OUTLINE = FULL with text as paths, MICRO for 16/24px), render-icons.js that builds src-tauri/icons, preview/ PNG renders
 - dist/           — web build output (gitignored); served by nginx in the Dockerfile for beta
 
@@ -28,4 +29,4 @@ Tauri 2 desktop app (Rust) with a React 18 + TypeScript + Vite 5 frontend. Node 
 - Branches: feature|bugfix|chore/<reference>-description, targeting `dev`.
 
 ## Test Framework
-Vitest + jsdom + React Testing Library (`npm test`, setup in src/setupTests.ts).
+Vitest + jsdom + React Testing Library (`npm test`, setup in src/setupTests.ts). Browser tests: Playwright in e2e/ (opt-in, `npm run test:e2e`).
