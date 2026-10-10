@@ -46,6 +46,23 @@ function parentOf(path: string): string {
   return i <= 0 ? '/' : path.slice(0, i);
 }
 
+/** An absolute path with `.`, `..` and repeated slashes resolved. */
+function normalizePath(path: string): string {
+  const out: string[] = [];
+  for (const part of path.split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') out.pop();
+    else out.push(part);
+  }
+  return `/${out.join('/')}`;
+}
+
+/** What was typed in the path field as an absolute path: relative names join the folder shown, `~` is home. */
+export function resolveTyped(typed: string, base: string, home: string): string {
+  if (typed === '~' || typed.startsWith('~/')) return normalizePath(`${home}/${typed.slice(1)}`);
+  return normalizePath(typed.startsWith('/') ? typed : `${base}/${typed}`);
+}
+
 function Busy({ children }: { children: ReactNode }) {
   return (
     <p role="status" className="m-0 flex items-center gap-2 py-6 text-[13px] text-muted-foreground">
@@ -145,6 +162,9 @@ function FolderPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const goTyped = () => {
+    if (text.trim() !== '') void go(resolveTyped(text.trim(), current.current ?? start, home));
+  };
   const enter = (name: string) => void go(path === '/' ? `/${name}` : `${path}/${name}`);
   const open = async () => {
     if (path === null || opening) return;
@@ -191,14 +211,14 @@ function FolderPicker({
             if (e.key === 'Enter') {
               e.preventDefault();
               e.stopPropagation();
-              if (text.trim() !== '') void go(text.trim());
+              goTyped();
             }
           }}
           spellCheck={false}
           autoFocus
           className={field}
         />
-        <button type="button" onClick={() => text.trim() !== '' && void go(text.trim())} disabled={loading} className={plain}>
+        <button type="button" onClick={goTyped} disabled={loading} className={plain}>
           Go
         </button>
       </div>
@@ -312,20 +332,38 @@ export function ConnectDialog({
     };
   }, []);
 
-  const finish = useCallback((connected: boolean) => onClose(connected), [onClose]);
+  const closed = useRef(false);
+  const finish = useCallback(
+    (connected: boolean) => {
+      if (closed.current) return;
+      closed.current = true;
+      onClose(connected);
+    },
+    [onClose],
+  );
+
+  /**
+   * Closes the half-open session for the current target unless a tab or the navigator uses it. Sessions are keyed by
+   * what ssh config resolves, so until the connection reports its authority nothing is disconnected: guessing could
+   * close a session a tab uses.
+   */
+  const release = () => {
+    if (started.current && !reconnect && authority.current !== null && !inUse(authority.current)) void disconnectHost(target.current);
+    started.current = false;
+  };
 
   const cancel = () => {
     run.current += 1;
-    if (started.current && !reconnect) {
-      const name = authority.current ?? target.current;
-      if (!inUse(name)) void disconnectHost(target.current);
-    }
+    release();
     finish(false);
   };
 
   const openFolder = useCallback(
     async (uri: string) => {
+      const id = run.current;
       await openRoot(uri);
+      // Cancelled meanwhile: the session is already closed, so the folder must not become the root.
+      if (id !== run.current) return;
       addRecentFolder(uri);
       onOpened(uri);
       finish(true);
@@ -347,6 +385,7 @@ export function ConnectDialog({
             try {
               return await openFolder(next.uri);
             } catch (e) {
+              if (closed.current) return;
               const why = e instanceof RemoteFileError ? folderProblem(e, sshPathOf(next.uri)) : e instanceof Error ? e.message : String(e);
               return setStep({ name: 'pick', authority: r.authority, start: r.home, notice: `Couldn't open that folder: ${why}` });
             }
@@ -395,6 +434,7 @@ export function ConnectDialog({
     (typed: string, next: After) => {
       const parsed = parseConnectInput(typed);
       if (parsed.target === '') return;
+      if (started.current && parsed.target !== target.current) release();
       target.current = parsed.target;
       after.current = next.kind === 'pick' && next.path === null ? { kind: 'pick', path: parsed.path } : next;
       authority.current = null;
@@ -462,6 +502,7 @@ export function ConnectDialog({
 
   const backToHost = () => {
     run.current += 1;
+    release();
     setStep({ name: 'host' });
   };
   const actions = (primaryButton?: ReactNode) => (

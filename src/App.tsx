@@ -32,6 +32,13 @@ function parentDir(path: string): string | null {
   return i === 0 ? path.slice(0, 1) : path.slice(0, i);
 }
 
+interface ConnectRequest {
+  id: number;
+  host?: string;
+  reconnect: boolean;
+  resolve: (connected: boolean) => void;
+}
+
 export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const session = useDocument();
   const { meta, text, dirty, region } = session;
@@ -62,7 +69,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [skillOpen, setSkillOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   // The Connect dialog: from File > Connect to Server, from a login a save or expand needs, or from an error row.
-  const [connecting, setConnecting] = useState<{ host?: string; reconnect: boolean; resolve?: (connected: boolean) => void } | null>(null);
+  const [connecting, setConnecting] = useState<ConnectRequest | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
@@ -426,11 +433,32 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     },
     [session.peekTabs, folder],
   );
-  const openConnect = useCallback((host?: string) => {
-    if (connectSupported()) setConnecting((c) => c ?? { host, reconnect: false });
+  // One Connect dialog at a time. Each request gets its own key so its dialog starts fresh; requests that
+  // arrive while one is open wait their turn and start only after it closes.
+  const connectingNow = useRef<ConnectRequest | null>(null);
+  const connectQueue = useRef<ConnectRequest[]>([]);
+  const connectSeq = useRef(0);
+  const requestConnect = useCallback((host: string | undefined, reconnect: boolean): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      const req: ConnectRequest = { id: ++connectSeq.current, host, reconnect, resolve };
+      if (connectingNow.current === null) {
+        connectingNow.current = req;
+        setConnecting(req);
+      } else connectQueue.current.push(req);
+    });
   }, []);
+  const connectClosed = useCallback((connected: boolean) => {
+    connectingNow.current?.resolve(connected);
+    const next = connectQueue.current.shift() ?? null;
+    connectingNow.current = next;
+    setConnecting(next);
+  }, []);
+  /** File > Connect to Server; does nothing while a Connect dialog is already open. */
+  const openConnect = useCallback((host?: string): Promise<boolean> => {
+    if (!connectSupported() || connectingNow.current !== null) return Promise.resolve(false);
+    return requestConnect(host, false);
+  }, [requestConnect]);
   // A save or a folder expand that needs a login waits on the Connect dialog, then runs again.
-  const connectChain = useRef<Promise<unknown>>(Promise.resolve());
   const connectPending = useRef(new Map<string, Promise<boolean>>());
   useEffect(() => {
     if (!connectSupported()) return;
@@ -438,15 +466,12 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const key = remoteAccount(path).toLowerCase();
       const existing = connectPending.current.get(key);
       if (existing !== undefined) return existing;
-      const asked = connectChain.current.then(
-        () => new Promise<boolean>((resolve) => setConnecting({ host: remoteAccount(path), reconnect: true, resolve })),
-      );
-      connectChain.current = asked;
+      const asked = requestConnect(remoteAccount(path), true);
       connectPending.current.set(key, asked);
       void asked.finally(() => connectPending.current.delete(key));
       return asked;
     });
-  }, []);
+  }, [requestConnect]);
   const openedRemoteFolder = useCallback((uri: string) => {
     folderChosen.current = true;
     setFolder(uri);
@@ -655,14 +680,12 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
       {connecting !== null && (
         <ConnectDialog
+          key={connecting.id}
           host={connecting.host}
           reconnect={connecting.reconnect}
           inUse={hostInUse}
           onOpened={openedRemoteFolder}
-          onClose={(connected) => {
-            connecting.resolve?.(connected);
-            setConnecting(null);
-          }}
+          onClose={connectClosed}
         />
       )}
       {conflict !== null && <ConflictDialog name={conflict.name} deleted={conflict.deleted} onChoose={conflict.resolve} />}
