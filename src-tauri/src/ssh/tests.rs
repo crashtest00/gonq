@@ -266,8 +266,12 @@ async fn a_locked_key_does_not_hide_an_unencrypted_one() {
 }
 
 fn locked_key(f: &Fixture, name: &str, key: &PrivateKey) -> String {
+    locked_key_with(f, name, key, "pw")
+}
+
+fn locked_key_with(f: &Fixture, name: &str, key: &PrivateKey, passphrase: &str) -> String {
     let path = f.ssh_dir().join(name);
-    write_key(&path, &key.encrypt(&mut rand::rng(), "pw").unwrap());
+    write_key(&path, &key.encrypt(&mut rand::rng(), passphrase).unwrap());
     path.to_string_lossy().into_owned()
 }
 
@@ -331,6 +335,49 @@ async fn each_locked_key_is_asked_in_turn_and_skipping_moves_to_the_next() {
     assert_eq!(r, ConnectResult::NeedsPassphrase { key_path: second.clone() });
     let r = f.connect(Answers { passphrase: Some(Zeroizing::new("pw".into())), ..skipping(&[Path::new(&first)]) }).await;
     assert!(is_connected(&r), "{r:?}");
+}
+
+#[tokio::test]
+async fn two_locked_keys_both_opened_and_refused_move_on_to_the_password() {
+    let f = fixture(Setup { allowed: vec![new_key().public_key().clone()], password: Some("secret"), trusted: true, ..Default::default() }).await;
+    let first = locked_key_with(&f, "id_ed25519", &new_key(), "passA");
+    let second = locked_key_with(&f, "id_ecdsa", &new_key(), "passB");
+    assert_eq!(f.connect(none()).await, ConnectResult::NeedsPassphrase { key_path: first.clone() });
+    // The first opens and is refused; the second is asked for, once.
+    assert_eq!(f.connect(answers(None, Some("passA"), None)).await, ConnectResult::NeedsPassphrase { key_path: second.clone() });
+    // The second opens and is refused: no further passphrase prompt.
+    assert_eq!(f.connect(answers(None, Some("passB"), None)).await, ConnectResult::NeedsPassword { attempts_left: 3 });
+    assert_eq!(f.connect(answers(None, None, Some("bad"))).await, ConnectResult::NeedsPassword { attempts_left: 2 });
+    assert_eq!(f.connect(answers(None, None, Some("bad"))).await, ConnectResult::NeedsPassword { attempts_left: 1 });
+    let r = f.connect(answers(None, None, Some("bad"))).await;
+    assert_eq!(
+        r,
+        ConnectResult::AuthFailed { tried: vec![format!("key {first}"), format!("key {second}"), "password".into()] }
+    );
+}
+
+#[tokio::test]
+async fn two_locked_keys_the_second_authorized_connects_after_the_second_passphrase() {
+    let wanted = new_key();
+    let f = fixture(Setup { allowed: vec![wanted.public_key().clone()], password: Some("secret"), trusted: true, ..Default::default() }).await;
+    let first = locked_key_with(&f, "id_ed25519", &new_key(), "passA");
+    let second = locked_key_with(&f, "id_ecdsa", &wanted, "passB");
+    assert_eq!(f.connect(none()).await, ConnectResult::NeedsPassphrase { key_path: first });
+    assert_eq!(f.connect(answers(None, Some("passA"), None)).await, ConnectResult::NeedsPassphrase { key_path: second });
+    let r = f.connect(answers(None, Some("passB"), None)).await;
+    assert!(is_connected(&r), "{r:?}");
+    assert_eq!(f.server.password_tries.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn one_locked_key_refused_and_one_skipped_move_on_to_the_password() {
+    let f = fixture(Setup { allowed: vec![new_key().public_key().clone()], password: Some("secret"), trusted: true, ..Default::default() }).await;
+    let first = locked_key_with(&f, "id_ed25519", &new_key(), "passA");
+    let second = locked_key_with(&f, "id_ecdsa", &new_key(), "passB");
+    assert_eq!(f.connect(none()).await, ConnectResult::NeedsPassphrase { key_path: first.clone() });
+    assert_eq!(f.connect(answers(None, Some("passA"), None)).await, ConnectResult::NeedsPassphrase { key_path: second.clone() });
+    let r = f.connect(skipping(&[Path::new(&second)])).await;
+    assert_eq!(r, ConnectResult::NeedsPassword { attempts_left: 3 });
 }
 
 #[tokio::test]

@@ -5,7 +5,7 @@
 //! is reopened once per command, silently: only when the agent or an unencrypted key works,
 //! otherwise the caller gets the prompt the connection needs ([`ConnectResult`]).
 
-use super::auth::{self, Answers, ConnectResult, Env, Session};
+use super::auth::{self, Answers, ConnectResult, Env, Progress, Session};
 use super::config::SshConfigFile;
 use super::uri::{ConnKey, Target};
 use russh::Disconnect;
@@ -89,7 +89,7 @@ struct Inner {
     env: Env,
     idle_timeout: Duration,
     slots: Mutex<HashMap<ConnKey, Slot>>,
-    password_failures: Mutex<HashMap<ConnKey, (u8, Instant)>>,
+    progress: Mutex<HashMap<ConnKey, (Progress, Instant)>>,
     reaper_started: AtomicBool,
 }
 
@@ -110,7 +110,7 @@ impl Pool {
                 env,
                 idle_timeout,
                 slots: Mutex::new(HashMap::new()),
-                password_failures: Mutex::new(HashMap::new()),
+                progress: Mutex::new(HashMap::new()),
                 reaper_started: AtomicBool::new(false),
             }),
         }
@@ -146,10 +146,10 @@ impl Pool {
             host: key.host.clone(),
             port: Some(key.port),
         });
-        let mut failures = self.password_failures(key);
-        match auth::connect(&self.inner.env, &target, &answers, &mut failures).await {
+        let mut progress = self.progress(key);
+        match auth::connect(&self.inner.env, &target, &answers, &mut progress).await {
             Ok(session) => {
-                self.set_password_failures(key, 0);
+                self.set_progress(key, Progress::default());
                 let conn = Arc::new(Conn {
                     key: key.clone(),
                     session,
@@ -163,7 +163,7 @@ impl Pool {
             Err(result) => {
                 // The count carries over while the user is still being asked; any other end starts over.
                 let carry = matches!(result, ConnectResult::NeedsPassword { .. } | ConnectResult::NeedsPassphrase { .. });
-                self.set_password_failures(key, if carry { failures } else { 0 });
+                self.set_progress(key, if carry { progress } else { Progress::default() });
                 result
             }
         }
@@ -252,24 +252,24 @@ impl Pool {
         self.inner.slots.lock().unwrap_or_else(|e| e.into_inner()).entry(key.clone()).or_default().clone()
     }
 
-    fn password_failures(&self, key: &ConnKey) -> u8 {
-        let mut map = self.inner.password_failures.lock().unwrap_or_else(|e| e.into_inner());
+    fn progress(&self, key: &ConnKey) -> Progress {
+        let mut map = self.inner.progress.lock().unwrap_or_else(|e| e.into_inner());
         match map.get(key) {
-            Some((n, at)) if at.elapsed() < FAILURE_MEMORY => *n,
+            Some((p, at)) if at.elapsed() < FAILURE_MEMORY => p.clone(),
             Some(_) => {
                 map.remove(key);
-                0
+                Progress::default()
             }
-            None => 0,
+            None => Progress::default(),
         }
     }
 
-    fn set_password_failures(&self, key: &ConnKey, n: u8) {
-        let mut map = self.inner.password_failures.lock().unwrap_or_else(|e| e.into_inner());
-        if n == 0 {
+    fn set_progress(&self, key: &ConnKey, progress: Progress) {
+        let mut map = self.inner.progress.lock().unwrap_or_else(|e| e.into_inner());
+        if progress == Progress::default() {
             map.remove(key);
         } else {
-            map.insert(key.clone(), (n, Instant::now()));
+            map.insert(key.clone(), (progress, Instant::now()));
         }
     }
 

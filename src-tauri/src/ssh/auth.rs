@@ -183,21 +183,31 @@ enum AgentMode {
     TimedOut,
 }
 
-/// Connects and authenticates. `password_failures` is how many wrong passwords the user has
-/// already given this host; it is updated, and the caller keeps it between calls. The whole call
+/// What a run of `ssh_connect` calls has already settled for one host. It holds no secret; the
+/// caller keeps it between calls while the user is still being asked, and starts over after that.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Progress {
+    /// Wrong passwords given so far.
+    pub password_failures: u8,
+    /// Encrypted key files that were opened with a passphrase (accepted by the server or not);
+    /// they are not asked about again.
+    pub opened_keys: Vec<PathBuf>,
+}
+
+/// Connects and authenticates. `progress` is updated, and the caller keeps it between calls. The whole call
 /// is bounded by `overall_timeout`.
 pub async fn connect(
     env: &Env,
     target: &Resolved,
     answers: &Answers,
-    password_failures: &mut u8,
+    progress: &mut Progress,
 ) -> Result<Session, ConnectResult> {
     let attempt = async {
-        match connect_once(env, target, answers, password_failures, AgentMode::Use).await {
+        match connect_once(env, target, answers, progress, AgentMode::Use).await {
             Ok(session) => Ok(session),
             Err(Stop::Result(r)) => Err(r),
             // Drop the stuck session and start again on a fresh one, leaving the agent out.
-            Err(Stop::AgentStalled) => match connect_once(env, target, answers, password_failures, AgentMode::TimedOut).await {
+            Err(Stop::AgentStalled) => match connect_once(env, target, answers, progress, AgentMode::TimedOut).await {
                 Ok(session) => Ok(session),
                 Err(Stop::Result(r)) => Err(r),
                 Err(Stop::AgentStalled) => Err(unreachable("ssh-agent did not answer")),
@@ -214,7 +224,7 @@ async fn connect_once(
     env: &Env,
     target: &Resolved,
     answers: &Answers,
-    password_failures: &mut u8,
+    progress: &mut Progress,
     agent: AgentMode,
 ) -> Result<Session, Stop> {
     let verdict = Arc::new(Mutex::new(None));
@@ -242,7 +252,7 @@ async fn connect_once(
         Ok(Ok(handle)) => handle,
     };
 
-    authenticate(&mut handle, env, target, answers, password_failures, agent).await?;
+    authenticate(&mut handle, env, target, answers, progress, agent).await?;
 
     let opened = async {
         let channel = handle.channel_open_session().await.map_err(|e| e.to_string())?;
@@ -266,7 +276,7 @@ async fn authenticate(
     env: &Env,
     target: &Resolved,
     answers: &Answers,
-    password_failures: &mut u8,
+    progress: &mut Progress,
     agent: AgentMode,
 ) -> Result<(), Stop> {
     let user = target.user.as_str();
@@ -308,7 +318,9 @@ async fn authenticate(
         if handle.is_closed() {
             return Err(disconnected(&tried));
         }
-        if try_locked_keys(handle, env, target, answers, hash, &locked, &mut tried).await? {
+        // Keys opened on an earlier call were offered then; they still count as tried.
+        tried.extend(progress.opened_keys.iter().map(|p| format!("key {}", display_path(p))));
+        if try_locked_keys(handle, env, target, answers, hash, &locked, &mut progress.opened_keys, &mut tried).await? {
             return Ok(());
         }
         if handle.is_closed() {
@@ -318,11 +330,11 @@ async fn authenticate(
 
     // A server that offers only public keys is never asked for a password.
     if offers(&offered, MethodKind::Password) {
-        if *password_failures >= MAX_PASSWORD_ATTEMPTS {
+        if progress.password_failures >= MAX_PASSWORD_ATTEMPTS {
             // The attempts were used up on an earlier call.
             tried.push("password".into());
         } else {
-            match try_password(handle, env, user, answers, password_failures, &mut tried).await? {
+            match try_password(handle, env, user, answers, &mut progress.password_failures, &mut tried).await? {
                 PasswordOutcome::Connected => return Ok(()),
                 PasswordOutcome::Ask { attempts_left } => return Err(ConnectResult::NeedsPassword { attempts_left }.into()),
                 PasswordOutcome::Exhausted => {}
@@ -539,9 +551,12 @@ async fn try_plain_keys(
     Ok(false)
 }
 
-/// Encrypted key files, after everything that needs no question. With no passphrase given, the
-/// first one not skipped is asked for (`NeedsPassphrase`). A given passphrase is tried on each of
-/// them; if it opens none, the first is asked for again. Ok(true) when a key was accepted.
+/// Encrypted key files, after everything that needs no question. A key is done once it has been
+/// opened (the server may still have refused it) or skipped. With no passphrase given, the first
+/// key not done is asked for (`NeedsPassphrase`). A given passphrase is tried on each key not
+/// done; if some did not open, the first of those is asked for again. Ok(true) when a key was
+/// accepted; Ok(false) when every key is done.
+#[allow(clippy::too_many_arguments)]
 async fn try_locked_keys(
     handle: &mut Handle<HostKeyHandler>,
     env: &Env,
@@ -549,18 +564,23 @@ async fn try_locked_keys(
     answers: &Answers,
     hash: Option<HashAlg>,
     locked: &[PathBuf],
+    opened_keys: &mut Vec<PathBuf>,
     tried: &mut Vec<String>,
 ) -> Result<bool, Stop> {
-    let pending: Vec<&PathBuf> =
-        locked.iter().filter(|p| !answers.skip_passphrase.iter().any(|s| Path::new(s) == p.as_path())).collect();
+    let pending: Vec<PathBuf> = locked
+        .iter()
+        .filter(|p| !answers.skip_passphrase.iter().any(|s| Path::new(s) == p.as_path()) && !opened_keys.contains(p))
+        .cloned()
+        .collect();
     let Some(first) = pending.first() else { return Ok(false) };
     let Some(passphrase) = answers.passphrase.as_ref() else {
         return Err(ConnectResult::NeedsPassphrase { key_path: display_path(first) }.into());
     };
     let mut not_opened: Vec<&PathBuf> = Vec::new();
-    for path in pending {
+    for path in &pending {
         match load_key(path, Some(passphrase.as_str())) {
             Ok(key) => {
+                opened_keys.push(path.clone());
                 if offer_key(handle, env, target, hash, key, path, tried).await? {
                     return Ok(true);
                 }
