@@ -1,6 +1,6 @@
 import { syntaxTree } from '@codemirror/language';
-import { type EditorState, type Extension, type Range, StateField } from '@codemirror/state';
-import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view';
+import { type EditorState, type Extension, Prec, type Range, StateField } from '@codemirror/state';
+import { Decoration, type DecorationSet, EditorView, keymap, WidgetType } from '@codemirror/view';
 
 /**
  * GFM tables shown as real tables. The whole table block is replaced by a widget whose cells
@@ -100,6 +100,7 @@ class TableWidget extends WidgetType {
         if (cell && this.canEdit) {
           td.contentEditable = 'plaintext-only';
           td.spellcheck = false;
+          td.tabIndex = -1;
           td.addEventListener('blur', () => commit(view, wrap, td));
           td.addEventListener('keydown', (e) => cellKey(view, wrap, td, e));
           td.addEventListener('paste', (e) => {
@@ -129,7 +130,9 @@ function commit(view: EditorView, wrap: HTMLElement, td: HTMLElement): boolean {
   if (!cell) return false;
   const next = escapeCell(td.textContent ?? '');
   if (next === cell.text) return false;
-  view.dispatch({ changes: { from: cell.from, to: cell.to, insert: next }, userEvent: 'input.type' });
+  // A trailing backslash would escape the pipe that closes the cell when nothing separates them.
+  const guard = next.endsWith('\\') && !/\s/.test(view.state.sliceDoc(cell.to, cell.to + 1)) ? ' ' : '';
+  view.dispatch({ changes: { from: cell.from, to: cell.to, insert: next + guard }, userEvent: 'input.type' });
   return true;
 }
 
@@ -147,7 +150,27 @@ function cellKey(view: EditorView, wrap: HTMLElement, td: HTMLElement, e: Keyboa
   let tr = r;
   let tc = c;
   if (e.key === 'Enter') tr = r + 1;
-  else if (e.key === 'Tab') {
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    const down = e.key === 'ArrowDown';
+    const last = wrap.querySelectorAll('tr').length - 1;
+    if (down ? r < last : r > 0) {
+      commit(view, wrap, td);
+      focusCell(view, tablePos, r + (down ? 1 : -1), c);
+      return;
+    }
+    // Off the edge of the table: back to the document, on the line before or after it.
+    commit(view, wrap, td);
+    const t = tableAt(view, tablePos);
+    if (!t) return;
+    const pos = down ? t.to + 1 : t.from - 1;
+    if (pos < 0 || pos > view.state.doc.length) return;
+    td.blur();
+    view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+    view.focus();
+    return;
+  } else if (e.key === 'Tab') {
     tc = c + (e.shiftKey ? -1 : 1);
   } else if (e.key === 'Escape') {
     td.blur();
@@ -184,6 +207,32 @@ function build(state: EditorState): DecorationSet {
   return Decoration.set(out, true);
 }
 
+/** The table whose first (`start`) or last line is the line at `lineNo`, if any. */
+function tableBeside(state: EditorState, lineNo: number, start: boolean) {
+  const edge = start ? state.doc.line(lineNo).from : state.doc.line(lineNo).to;
+  let found: { from: number; to: number } | undefined;
+  state.field(tableField).between(edge, edge, (from, to) => {
+    if ((start ? from : to) === edge) found = { from, to };
+  });
+  return found;
+}
+
+/** Arrow keys step into the table from the line above or below it (it is one atomic range otherwise). */
+function enterTable(down: boolean) {
+  return (view: EditorView) => {
+    const sel = view.state.selection.main;
+    if (!sel.empty) return false;
+    const doc = view.state.doc;
+    const no = doc.lineAt(sel.head).number + (down ? 1 : -1);
+    if (no < 1 || no > doc.lines) return false;
+    const t = tableBeside(view.state, no, down);
+    if (!t) return false;
+    const rows = parseTable(view.state, t.from, t.to).rows.length;
+    focusCell(view, t.from, down ? 0 : rows - 1, 0);
+    return true;
+  };
+}
+
 const tableField = StateField.define<DecorationSet>({
   create: build,
   update(value, tr) {
@@ -194,4 +243,7 @@ const tableField = StateField.define<DecorationSet>({
   provide: (f) => [EditorView.decorations.from(f), EditorView.atomicRanges.of((v) => v.state.field(f))],
 });
 
-export const tables: Extension = tableField;
+export const tables: Extension = [
+  tableField,
+  Prec.highest(keymap.of([{ key: 'ArrowDown', run: enterTable(true) }, { key: 'ArrowUp', run: enterTable(false) }])),
+];
