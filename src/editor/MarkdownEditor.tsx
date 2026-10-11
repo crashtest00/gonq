@@ -120,6 +120,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     const v = new EditorView({ state: createEditorState(text, raw, extras()), parent: host.current! });
     view.current = v;
     current.current = tabId;
+    v.focus();
     return () => {
       v.destroy();
       view.current = null;

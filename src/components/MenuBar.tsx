@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator, MenubarShortcut, MenubarTrigger } from './ui/menubar';
 
 const EMPTY_MENUS = ['View', 'Insert', 'Format'];
@@ -15,6 +16,8 @@ export interface MenuActions {
   onPreferences?: () => void;
   onAgentSkill?: () => void;
   onAbout?: () => void;
+  /** Puts focus in the editor; used instead of returning it to the File menu after New. */
+  onFocusEditor?: () => void;
 }
 
 export function MenuBar({
@@ -33,17 +36,36 @@ export function MenuBar({
   onPreferences,
   onAgentSkill,
   onAbout,
+  onFocusEditor,
 }: MenuActions & { hasDocument: boolean; canUndo: boolean; canRedo: boolean }) {
+  const focusEditor = useRef(false);
   return (
     <>
       <Menubar>
         <MenubarMenu>
           <MenubarTrigger>File</MenubarTrigger>
-          <MenubarContent>
-            <MenubarItem onSelect={onNew}>
+          <MenubarContent
+            onCloseAutoFocus={(e) => {
+              if (!focusEditor.current) return;
+              focusEditor.current = false;
+              e.preventDefault();
+              onFocusEditor?.();
+            }}
+          >
+            <MenubarItem
+              onSelect={() => {
+                focusEditor.current = true;
+                onNew();
+              }}
+            >
               New<MenubarShortcut>Ctrl+N</MenubarShortcut>
             </MenubarItem>
-            <MenubarItem onSelect={onOpen}>
+            <MenubarItem
+              onSelect={() => {
+                focusEditor.current = true;
+                onOpen();
+              }}
+            >
               Open…<MenubarShortcut>Ctrl+O</MenubarShortcut>
             </MenubarItem>
             <MenubarItem onSelect={onOpenFolder}>Open Folder…</MenubarItem>

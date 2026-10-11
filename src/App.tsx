@@ -501,6 +501,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         canUndo={session.canUndo}
         canRedo={session.canRedo}
         onNew={newFile}
+        onFocusEditor={() => editor.current?.focus()}
         onCloseTab={activeId === null ? undefined : () => void closeTab(activeId)}
         onOpen={() => void openFile()}
         onOpenFolder={() => void openFolder()}
@@ -513,7 +514,10 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onAgentSkill={() => setSkillOpen(true)}
         onAbout={() => setAboutOpen(true)}
       />
-      <TabStrip tabs={session.tabs} activeId={activeId} onSelect={session.activate} onClose={(id) => void closeTab(id)} onNew={newFile} outlineOpen={outlineOpen} onToggleOutline={() => {
+      <TabStrip tabs={session.tabs} activeId={activeId} onSelect={(id) => {
+        session.activate(id);
+        editor.current?.focus();
+      }} onClose={(id) => void closeTab(id)} onNew={newFile} outlineOpen={outlineOpen} onToggleOutline={() => {
           setOutlineOpen((o) => !o);
           setFolderOpen(false);
         }} folderOpen={folderOpen} onToggleFolder={() => {
