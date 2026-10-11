@@ -238,10 +238,28 @@ describe('tables', () => {
       e.done();
     });
 
-    test('ArrowUp from the line below enters the last row', () => {
+    test('ArrowUp from the blank line below enters the last row', () => {
       const e = show(src, src.indexOf('\nafter'));
       run(e.view, 'ArrowUp');
       expect(document.activeElement).toBe(e.q('td')[0]);
+      e.done();
+    });
+
+    test('ArrowUp from the "after" line stops on the blank line, a second one enters the last row', () => {
+      const e = show(src, src.indexOf('after'));
+      run(e.view, 'ArrowUp');
+      expect(e.view.state.selection.main.head).toBe(src.indexOf('\nafter'));
+      run(e.view, 'ArrowUp');
+      expect(document.activeElement).toBe(e.q('td')[0]);
+      e.done();
+    });
+
+    test('ArrowDown from "before" stops on the blank line, a second one enters the first row', () => {
+      const e = show(src, 0);
+      run(e.view, 'ArrowDown');
+      expect(e.view.state.selection.main.head).toBe(src.indexOf('\n\n| h') + 1);
+      run(e.view, 'ArrowDown');
+      expect(document.activeElement).toBe(e.q('th')[0]);
       e.done();
     });
 
