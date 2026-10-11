@@ -119,3 +119,61 @@ test('activating a tab focuses its editor', async () => {
   await user.click(first);
   await waitFor(() => expect(screen.getByTestId('editor').querySelector('.cm-content')).toHaveFocus(), { timeout: LOAD_TIMEOUT });
 });
+
+describe('editor focus', () => {
+  const cm = () => screen.getByTestId('editor').querySelector('.cm-content');
+  const focused = () => waitFor(() => expect(cm()).toHaveFocus(), { timeout: LOAD_TIMEOUT });
+  const fileItem = async (user: ReturnType<typeof userEvent.setup>, name: RegExp) => {
+    await user.click(screen.getByRole('menuitem', { name: 'File' }));
+    await user.click(await screen.findByRole('menuitem', { name }));
+  };
+  const doc: OpenedDocument = { name: 'a.md', path: '/tmp/a.md', text: 'hello\n' };
+
+  test('File > New from the empty state focuses the editor', async () => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => null)} />);
+    await fileItem(user, /^New/);
+    await focused();
+  });
+
+  test('File > Open from the empty state focuses the editor', async () => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => doc)} />);
+    await fileItem(user, /^Open…/);
+    await focused();
+  });
+
+  test('File > New and File > Open with documents open focus the new tab', async () => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => doc)} />);
+    await fileItem(user, /^New/);
+    await focused();
+    await fileItem(user, /^New/);
+    await focused();
+    (document.activeElement as HTMLElement).blur();
+    await fileItem(user, /^Open…/);
+    await focused();
+  });
+
+  test('clicking the already-active tab focuses the editor', async () => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => null)} />);
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    await focused();
+    const tab = screen.getByRole('tab', { selected: true });
+    tab.focus();
+    expect(cm()).not.toHaveFocus();
+    await user.click(tab);
+    await focused();
+  });
+
+  test('closing the active tab focuses the editor of the tab that becomes active', async () => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => null)} />);
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    await user.click(screen.getAllByRole('button', { name: /^Close/ })[1]);
+    await focused();
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+  });
+});
