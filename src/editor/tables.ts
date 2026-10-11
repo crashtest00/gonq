@@ -226,7 +226,13 @@ function enterTable(down: boolean) {
     const no = doc.lineAt(sel.head).number + (down ? 1 : -1);
     if (no < 1 || no > doc.lines) return false;
     const t = tableBeside(view.state, no, down);
-    if (!t) return false;
+    if (!t) {
+      // A blank line between this line and a table: step onto it ourselves, native vertical motion jumps past the table.
+      const next = no + (down ? 1 : -1);
+      if (doc.line(no).length > 0 || next < 1 || next > doc.lines || !tableBeside(view.state, next, down)) return false;
+      view.dispatch({ selection: { anchor: doc.line(no).from }, scrollIntoView: true, userEvent: 'select' });
+      return true;
+    }
     const rows = parseTable(view.state, t.from, t.to).rows.length;
     focusCell(view, t.from, down ? 0 : rows - 1, 0);
     return true;
