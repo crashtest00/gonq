@@ -60,3 +60,10 @@
 
 /* Read-only preview in a dialog. */
 .gonq-preview .cm-content { padding: 8px 4px; }
+
+/* GFM tables: a real table whose cells edit the Markdown source. */
+.gonq-editor .cm-table-wrap { overflow-x: auto; margin: 8px 0; }
+.gonq-editor .cm-table { border-collapse: collapse; min-width: 50%; }
+.gonq-editor .cm-table th, .gonq-editor .cm-table td { border: 1px solid var(--border); padding: 6px 12px; min-width: 4em; }
+.gonq-editor .cm-table th { background: var(--surface); font-weight: 600; text-align: left; }
+.gonq-editor .cm-table [contenteditable]:focus { outline: 2px solid var(--primary); outline-offset: -2px; }

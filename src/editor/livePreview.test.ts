@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { createEditorState } from './extensions';
+import { createEditorState, modeCompartment, modeExtension } from './extensions';
 
 /** A live-preview editor over `text` with the caret at `caret`; returns what is shown. */
 function show(text: string, caret = text.length) {
@@ -116,12 +116,11 @@ describe('block constructs', () => {
 });
 
 describe('what stays source', () => {
-  test('comment-thread markers, images and tables are not styled or hidden', () => {
+  test('comment-thread markers and images are not styled or hidden', () => {
     const text = 'a [💬](#md-thread-c20260910143022a3f9c1) b ![alt](pic.png)\n\n| h1 | h2 |\n| -- | -- |\n| c | d |\n\nend';
     const e = show(text, text.length);
     expect(e.shown()).toContain('[💬](#md-thread-c20260910143022a3f9c1)');
     expect(e.shown()).toContain('![alt](pic.png)');
-    expect(e.shown()).toContain('| h1 | h2 |');
     expect(e.q('.cm-link')).toHaveLength(0);
     e.done();
   });
@@ -143,4 +142,54 @@ test('a large document builds decorations for the visible part only', () => {
   expect(e.q('.cm-strong').length).toBeLessThan(2500);
   expect(performance.now() - t0).toBeLessThan(2000);
   e.done();
+});
+
+describe('tables', () => {
+  const doc = 'before\n\n| h1 | h2 |\n| :-- | --: |\n| a | b |\n| c | |\n\nafter';
+  test('render as a table with header, alignment and body rows; source is untouched', () => {
+    const e = show(doc, 0);
+    expect(e.q('table')).toHaveLength(1);
+    expect(e.q('th').map((n) => n.textContent)).toEqual(['h1', 'h2']);
+    expect(e.q('td').map((n) => n.textContent)).toEqual(['a', 'b', 'c', '']);
+    expect((e.q('th')[1] as HTMLElement).style.textAlign).toBe('right');
+    expect(e.shown()).not.toContain('| h1');
+    expect(e.view.state.doc.toString()).toBe(doc);
+    e.done();
+  });
+
+  test('editing a cell changes only that cell in the source', () => {
+    const e = show(doc, 0);
+    const td = e.q('td')[1] as HTMLElement;
+    td.textContent = 'x | y';
+    td.dispatchEvent(new FocusEvent('blur'));
+    expect(e.view.state.doc.toString()).toBe(doc.replace('| a | b |', '| a | x \\| y |'));
+    expect((e.q('td')[1] as HTMLElement).textContent).toBe('x | y');
+    e.done();
+  });
+
+  test('an empty cell can be filled', () => {
+    const e = show(doc, 0);
+    const td = e.q('td')[3] as HTMLElement;
+    td.textContent = 'z';
+    td.dispatchEvent(new FocusEvent('blur'));
+    expect(e.view.state.doc.toString()).toBe(doc.replace('| c | |', '| c | z|'));
+    e.done();
+  });
+
+  test('Tab from the last cell appends a row', () => {
+    const e = show(doc, 0);
+    const td = e.q('td')[3] as HTMLElement;
+    td.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+    expect(e.view.state.doc.toString()).toBe(doc.replace('| c | |', '| c | |\n| | |'));
+    expect(e.q('tr')).toHaveLength(4);
+    e.done();
+  });
+
+  test('Raw mode shows the table as source', () => {
+    const e = show(doc, 0);
+    e.view.dispatch({ effects: modeCompartment.reconfigure(modeExtension(true)) });
+    expect(e.q('table')).toHaveLength(0);
+    expect(e.shown()).toContain('| h1 | h2 |');
+    e.done();
+  });
 });
