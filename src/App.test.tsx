@@ -109,3 +109,13 @@ describe('without the desktop runtime (web build)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Opening a folder needs the desktop app.');
   });
 });
+
+test('activating a tab focuses its editor', async () => {
+  const user = userEvent.setup();
+  render(<App files={fakeFiles(async () => null)} />);
+  await user.click(screen.getByRole('button', { name: 'New tab' }));
+  await user.click(screen.getByRole('button', { name: 'New tab' }));
+  const [first] = screen.getAllByRole('tab');
+  await user.click(first);
+  await waitFor(() => expect(screen.getByTestId('editor').querySelector('.cm-content')).toHaveFocus(), { timeout: LOAD_TIMEOUT });
+});
