@@ -3,7 +3,11 @@ import { EditorState, type Extension, type StateEffect } from '@codemirror/state
 import { EditorView } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { applyFormat, type Format } from '../components/formatting';
+import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCommentThread, effectiveCommentCreationPosition, AGENT_GUIDANCE, hasAgentGuidance } from '../comment-threads';
+import { commentThreadCreationChanges } from '../comment-threads/editor/codemirror';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
+import { editorHost } from './host';
+import { threadEdit } from './threads';
 
 export interface EditorChange {
   text: string;
@@ -28,6 +32,12 @@ export interface EditorHandle {
   setText(next: string): void;
   /** Scrolls the text at `offset` to the top of the canvas; `select` also puts the caret there. */
   reveal(offset: number, select?: boolean): void;
+  /**
+   * Opens a thread on the selection `{from, to}` or at a caret offset: the marker goes where `safeMarkerPosition`
+   * puts it and the block (with the agent note, once per file) at the end, as one undoable change.
+   * Returns the new document text, or throws (e.g. an author name the format cannot hold).
+   */
+  createThread(target: { from: number; to: number } | number, author: string, body: string): string;
   /** Collapses the selection to its end. */
   collapse(): void;
   focus(): void;
@@ -43,6 +53,10 @@ interface Props {
   tabIds: number[];
   onChange: (id: number, change: EditorChange) => void;
   onSelection: (selection: EditorSelection | null, head: number) => void;
+  /** Path of the document in the active tab; relative images are read from beside it. */
+  docPath: string | null;
+  /** A 💬 / ✅ marker was clicked. */
+  onOpenThread: (id: string, ordinal: number) => void;
 }
 
 interface Saved {
@@ -97,9 +111,13 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     }
   });
 
+  const hostExt = useRef<Extension | null>(null);
+  hostExt.current ??= editorHost.of({ docPath: () => latest.current.docPath, openThread: (id, ordinal) => latest.current.onOpenThread(id, ordinal) });
+  const extras = () => [listener.current!, hostExt.current!];
+
   useLayoutEffect(() => {
     const { tabId, text, raw } = latest.current;
-    const v = new EditorView({ state: createEditorState(text, raw, listener.current!), parent: host.current! });
+    const v = new EditorView({ state: createEditorState(text, raw, extras()), parent: host.current! });
     view.current = v;
     current.current = tabId;
     return () => {
@@ -115,7 +133,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     if (current.current !== null) saved.current.set(current.current, { state: v.state, scroll: v.scrollSnapshot() });
     current.current = props.tabId;
     const back = saved.current.get(props.tabId);
-    v.setState(back?.state ?? createEditorState(props.text, props.raw, listener.current!));
+    v.setState(back?.state ?? createEditorState(props.text, props.raw, extras()));
     if (back) v.dispatch({ effects: back.scroll });
     else v.scrollDOM.scrollTop = 0;
     saved.current.delete(props.tabId);
@@ -159,7 +177,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         if (!v) return;
         const change = diff(v.state.doc.toString(), next);
         if (change.from === change.to && change.insert === '') return;
-        v.dispatch({ changes: change, userEvent: 'input.replace' });
+        v.dispatch({ changes: change, userEvent: 'input.replace', annotations: threadEdit.of(true) });
       },
       reveal(offset, select = false) {
         const v = view.current;
@@ -169,6 +187,24 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
           ...(select ? { selection: { anchor: at } } : {}),
           effects: EditorView.scrollIntoView(at, { y: 'start', yMargin: 20 }),
         });
+      },
+      createThread(target, author, body) {
+        const v = view.current;
+        if (!v) throw new Error('No document is open.');
+        const selected = typeof target === 'number' ? '' : v.state.sliceDoc(target.from, target.to);
+        const thread = createCommentThread(author, body, normalizeAnchor(selected));
+        const position =
+          typeof target === 'number'
+            ? target
+            : effectiveCommentCreationPosition({ empty: target.from === target.to, head: target.from, to: target.to }, selected);
+        // The note for agents goes just ahead of the first block, once per file.
+        const block = `${hasAgentGuidance(v.state.doc.toString()) ? '' : `${AGENT_GUIDANCE}\n\n`}${serializeCommentThread(thread)}\n`;
+        v.dispatch({
+          changes: commentThreadCreationChanges(v.state, position, formatCommentMarker(thread.id), block),
+          userEvent: 'input.thread',
+          annotations: threadEdit.of(true),
+        });
+        return v.state.doc.toString();
       },
       collapse() {
         const v = view.current;

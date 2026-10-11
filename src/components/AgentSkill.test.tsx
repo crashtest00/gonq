@@ -151,8 +151,9 @@ test('a file edited strictly by following SKILL.md parses and renders in Gonq', 
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /^Open…/ }));
   await screen.findByTestId('editor');
-  // The markers and thread blocks are Markdown source in the editor.
-  expect(screen.getByTestId('editor').textContent).toContain('[💬](#md-thread-c20260910143022a3f9c1d7e2b4)');
+  // The markers are glyphs and the thread blocks are hidden in the editor.
+  await waitFor(() => expect(screen.getByTestId('editor').querySelectorAll('.cm-thread-marker')).toHaveLength(3), { timeout: 10000 });
+  expect(screen.getByTestId('editor').textContent).not.toContain('@thread');
   await user.click(screen.getByRole('button', { name: 'Comments' }));
   const rows = within(screen.getByRole('list')).getAllByRole('listitem');
   expect(rows).toHaveLength(3);

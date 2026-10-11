@@ -13,6 +13,5 @@
     "allowSyntheticDefaultImports": true,
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src", "vite.config.ts"],
-  "exclude": ["src/comment-threads/editor"]
+  "include": ["src", "vite.config.ts"]
 }

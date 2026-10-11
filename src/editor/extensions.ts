@@ -6,6 +6,7 @@ import { EditorView, keymap, placeholder } from '@codemirror/view';
 import { Strikethrough, Table, TaskList } from '@lezer/markdown';
 import { livePreview } from './livePreview';
 import { openLink } from './openLink';
+import { protectThreadBlocks, separateThreadBlocks } from './threads';
 
 export const PLACEHOLDER = 'Click here to start writing.';
 
@@ -24,6 +25,8 @@ export const modeExtension = (raw: boolean): Extension => (raw ? RAW : LIVE);
 export function editorExtensions(raw: boolean, extra: Extension = []): Extension {
   return [
     history(),
+    protectThreadBlocks,
+    separateThreadBlocks,
     keymap.of([...defaultKeymap, ...historyKeymap]),
     gonqMarkdown(),
     EditorView.lineWrapping,

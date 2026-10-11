@@ -117,12 +117,11 @@ describe('block constructs', () => {
 });
 
 describe('what stays source', () => {
-  test('comment-thread markers and images are not styled or hidden', () => {
-    const text = 'a [💬](#md-thread-c20260910143022a3f9c1) b ![alt](pic.png)\n\n| h1 | h2 |\n| -- | -- |\n| c | d |\n\nend';
+  test('reference-style links and tables are not turned into thread markers', () => {
+    const text = 'a [x][ref] b\n\n| h1 | h2 |\n| -- | -- |\n| c | d |\n\n[ref]: https://x.test\n\nend';
     const e = show(text, text.length);
-    expect(e.shown()).toContain('[💬](#md-thread-c20260910143022a3f9c1)');
-    expect(e.shown()).toContain('![alt](pic.png)');
-    expect(e.q('.cm-link')).toHaveLength(0);
+    expect(e.shown()).toContain('[x][ref]');
+    expect(e.q('.cm-thread-marker')).toHaveLength(0);
     e.done();
   });
 });

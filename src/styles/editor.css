@@ -67,3 +67,15 @@
 .gonq-editor .cm-table th, .gonq-editor .cm-table td { border: 1px solid var(--border); padding: 6px 12px; min-width: 4em; }
 .gonq-editor .cm-table th { background: var(--surface); font-weight: 600; text-align: left; }
 .gonq-editor .cm-table [contenteditable]:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+/* Comment-thread markers: literal glyphs, clickable; the thread blocks themselves are hidden. */
+.gonq-editor .cm-thread-marker { cursor: pointer; font-size: 0.85em; padding: 0 2px; vertical-align: baseline; user-select: none; }
+.gonq-editor .cm-thread-marker:hover { filter: brightness(1.15); transform: scale(1.15); display: inline-block; }
+.gonq-editor .cm-thread-block { height: 0; overflow: hidden; }
+.gonq-editor .cm-thread-block-only { height: 1.6em; }
+
+/* Images */
+.gonq-editor .cm-image { display: inline-block; max-width: 100%; vertical-align: bottom; }
+.gonq-editor .cm-image img { display: block; max-width: 100%; height: auto; border-radius: 4px; }
+.gonq-editor .cm-image-loading { min-width: 2em; min-height: 1.2em; background: var(--surface); border-radius: 4px; }
+.gonq-editor .cm-image-missing { color: var(--muted-foreground); background: var(--surface); border: 1px dashed var(--border); border-radius: 4px; padding: 2px 8px; font-size: 13px; }
