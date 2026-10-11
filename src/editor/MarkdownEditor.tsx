@@ -137,6 +137,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     if (back) v.dispatch({ effects: back.scroll });
     else v.scrollDOM.scrollTop = 0;
     saved.current.delete(props.tabId);
+    v.focus();
   }, [props.tabId, props.text, props.raw]);
 
   // Formatted / Raw: the same state, a different mode extension.
