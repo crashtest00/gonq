@@ -2,8 +2,10 @@ import { syntaxTree } from '@codemirror/language';
 import { type Extension, type Range, RangeSet } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
-import { parseCommentMarkerFragment } from '../comment-threads';
+import { OPEN_COMMENT_LABEL, RESOLVED_COMMENT_LABEL, parseCommentMarkerFragment, parseCommentMarkers } from '../comment-threads';
+import { ImageWidget } from './images';
 import { tables } from './tables';
+import { hideThreadBlocks, ThreadMarker } from './threads';
 
 /**
  * Live preview: styles the Markdown constructs in place and hides their syntax characters
@@ -125,15 +127,31 @@ function build(view: EditorView): Built {
           marks(n.node, markName, touches(n.from, n.to));
           return;
         }
-        case 'Image':
-          return false; // out of scope: shown as source
+        case 'Image': {
+          const url = n.node.getChild('URL');
+          const marks = n.node.getChildren('LinkMark');
+          if (!url || marks.length < 2) return false;
+          const widget = new ImageWidget(doc.sliceString(url.from, url.to).replace(/^<|>$/g, ''), doc.sliceString(marks[0].to, marks[1].from));
+          // The source shows while the caret is in it, with the image after it; otherwise the image stands for it.
+          if (touches(n.from, n.to)) out.push(Decoration.widget({ widget, side: 1 }).range(n.to));
+          else hide(n.from, n.to, Decoration.replace({ widget }));
+          return false;
+        }
         case 'Link': {
           const kids: SyntaxNode[] = [];
           for (let c = n.node.firstChild; c; c = c.nextSibling) kids.push(c);
           const url = kids.find((c) => c.name === 'URL');
           const lm = kids.filter((c) => c.name === 'LinkMark');
-          // Comment-thread markers and reference links stay as source.
-          if (!url || lm.length < 2 || parseCommentMarkerFragment(doc.sliceString(url.from, url.to)) !== undefined) return false;
+          if (!url || lm.length < 2) return false; // reference links stay as source
+          if (parseCommentMarkerFragment(doc.sliceString(url.from, url.to)) !== undefined) {
+            // A thread marker is a glyph; only Raw mode shows its source.
+            const source = doc.sliceString(n.from, n.to);
+            const found = [...parseCommentMarkers(source)];
+            if (found.length === 1 && found[0][1][0].from === 0 && found[0][1][0].to === source.length) {
+              hide(n.from, n.to, Decoration.replace({ widget: new ThreadMarker(found[0][0], found[0][1][0].status === 'resolved' ? RESOLVED_COMMENT_LABEL : OPEN_COMMENT_LABEL) }));
+            }
+            return false;
+          }
           out.push(Decoration.mark({ class: 'cm-link', attributes: { 'data-href': doc.sliceString(url.from, url.to) } }).range(lm[0].to, lm[1].from));
           if (!touches(n.from, n.to)) {
             hide(n.from, lm[0].to);
@@ -253,5 +271,5 @@ function linkClicks(open: (href: string) => void): Extension {
 }
 
 export function livePreview(open: (href: string) => void): Extension {
-  return [plugin, tables, linkClicks(open)];
+  return [plugin, tables, hideThreadBlocks, linkClicks(open)];
 }

@@ -14,9 +14,9 @@ import { ConflictDialog, type ConflictChoice } from './components/ConflictDialog
 import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
 import { ConnectDialog } from './components/ConnectDialog';
 import { assertConnectAvailable } from './platform/connect';
-import { listThreads } from './components/threads';
+import { listThreads, threadKey } from './components/threads';
 import { isCommentableAt, selectionRange, type ThreadTarget } from './components/newThread';
-import { parseCommentMarkers, appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
+import { parseCommentMarkers, appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus } from './comment-threads';
 import { RawSwitch } from './components/RawSwitch';
 import { MarkdownEditor, type EditorHandle, type EditorSelection } from './editor/MarkdownEditor';
 import { useDocument } from './document/useDocument';
@@ -132,12 +132,10 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         return setError('The document changed while you were writing; start the comment again.');
       }
       try {
-        const opened = openThreadIn(text, draft.target, authorName, body.trim());
-        const { thread } = opened;
-        // The note for agents goes just ahead of the new block, once per file.
-        const next = withAgentGuidance(opened.doc, thread.from);
-        editor.current?.setText(next);
-        const created = listThreads(next).find((t) => t.thread.id === thread.id);
+        if (editor.current === null) throw new Error('No document is open.');
+        const before = new Set(listThreads(text).map((t) => t.thread.id));
+        const next = editor.current.createThread(draft.target, authorName, body.trim());
+        const created = listThreads(next).find((t) => !before.has(t.thread.id));
         setError(null);
         setDraft(null);
         setSelection(null);
@@ -564,6 +562,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
               text={text}
               raw={rawAll}
               tabIds={session.tabIds}
+              docPath={meta.path}
+              onOpenThread={(id, ordinal) => {
+                const key = threadKey(id, ordinal);
+                if (!listThreads(textRef.current).some((t) => t.key === key)) return;
+                setDraft(null);
+                openThread(key);
+              }}
               onChange={session.edited}
               onSelection={(sel, head) => {
                 setSelection(sel);

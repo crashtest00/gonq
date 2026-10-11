@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import App from './../App';
@@ -47,12 +47,26 @@ ${block(A, 'open', 'Where does this number come from?', { anchor: 'holds through
 ${block(B, 'resolved', 'Second thread body that is definitely longer than fifty characters in total.')}
 `;
 
-test('markers and thread blocks are shown as Markdown source in the one editor', async () => {
-  await openDoc(DOC);
-  const text = screen.getByTestId('editor').textContent ?? '';
-  expect(text).toContain(`[💬](#md-thread-${A})`);
-  expect(text).toContain(`[✅](#md-thread-${B})`);
-  expect(text).toContain('@thread ' + A);
+test('formatted mode shows markers as glyphs and hides the thread blocks; Raw shows the source', async () => {
+  const user = await openDoc(DOC);
+  const editor = screen.getByTestId('editor');
+  await waitFor(() => expect(editor.querySelectorAll('.cm-thread-marker')).toHaveLength(2), { timeout: 10000 });
+  expect(editor.textContent).toContain('Para one 💬 here.');
+  expect(editor.textContent).toContain('Para two ✅ there.');
+  expect(editor.textContent).not.toContain('@thread');
+  await user.click(screen.getByRole('switch', { name: /raw/i }));
+  await waitFor(() => expect(editor.textContent).toContain(`[💬](#md-thread-${A})`), { timeout: 10000 });
+  expect(editor.textContent).toContain(`[✅](#md-thread-${B})`);
+  expect(editor.textContent).toContain('@thread ' + A);
+});
+
+test('clicking a marker opens that thread in the sidebar', async () => {
+  const user = await openDoc(DOC);
+  const editor = screen.getByTestId('editor');
+  await waitFor(() => expect(editor.querySelectorAll('.cm-thread-marker')).toHaveLength(2), { timeout: 10000 });
+  await user.click(editor.querySelectorAll('.cm-thread-marker')[1]);
+  expect(await screen.findByRole('button', { name: 'Close thread' })).toBeInTheDocument();
+  expect(screen.getByText(/Second thread body/)).toBeInTheDocument();
 });
 
 test('toggle shows/hides the sidebar and reopening shows All threads', async () => {
