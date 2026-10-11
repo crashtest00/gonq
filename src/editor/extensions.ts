@@ -3,14 +3,14 @@ import { markdown } from '@codemirror/lang-markdown';
 import { commonmarkLanguage } from '@codemirror/lang-markdown';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder } from '@codemirror/view';
-import { Strikethrough, TaskList } from '@lezer/markdown';
+import { Strikethrough, Table, TaskList } from '@lezer/markdown';
 import { livePreview } from './livePreview';
 import { openLink } from './openLink';
 
 export const PLACEHOLDER = 'Click here to start writing.';
 
-/** CommonMark plus the two GFM pieces Gonq supports (strikethrough, task lists); tables stay plain source. */
-export const gonqMarkdown = () => markdown({ base: commonmarkLanguage, extensions: [Strikethrough, TaskList] });
+/** CommonMark plus the GFM pieces Gonq supports: strikethrough, task lists and tables. */
+export const gonqMarkdown = () => markdown({ base: commonmarkLanguage, extensions: [Strikethrough, TaskList, Table] });
 
 const LIVE: Extension = livePreview(openLink);
 /** Raw: the same editor and document with no live-preview styling, in the monospace face. */

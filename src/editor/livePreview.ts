@@ -3,6 +3,7 @@ import { type Extension, type Range, RangeSet } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 import { parseCommentMarkerFragment } from '../comment-threads';
+import { tables } from './tables';
 
 /**
  * Live preview: styles the Markdown constructs in place and hides their syntax characters
@@ -252,5 +253,5 @@ function linkClicks(open: (href: string) => void): Extension {
 }
 
 export function livePreview(open: (href: string) => void): Extension {
-  return [plugin, linkClicks(open)];
+  return [plugin, tables, linkClicks(open)];
 }
