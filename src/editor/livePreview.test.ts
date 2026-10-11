@@ -1,5 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
+import { applyFormat } from '../components/formatting';
 
 /** A live-preview editor over `text` with the caret at `caret`; returns what is shown. */
 function show(text: string, caret = text.length) {
@@ -182,6 +183,90 @@ describe('tables', () => {
     td.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
     expect(e.view.state.doc.toString()).toBe(doc.replace('| c | |', '| c | |\n| | |'));
     expect(e.q('tr')).toHaveLength(4);
+    e.done();
+  });
+
+  describe('cell safety in unpadded tables', () => {
+    const edit = (text: string, idx: number, value: string, kind = 'td') => {
+      const e = show(text, 0);
+      const td = e.q(kind)[idx] as HTMLElement;
+      td.textContent = value;
+      td.dispatchEvent(new FocusEvent('blur'));
+      const out = { doc: e.view.state.doc.toString(), cells: e.q('th,td').map((n) => n.textContent) };
+      e.done();
+      return out;
+    };
+    test.each([
+      ['header cell', '|a|b|\n|-|-|\n|1|2|', 0, 'a\\', 'th', ['a\\', 'b', '1', '2']],
+      ['body cell', '|a|b|\n|-|-|\n|1|2|', 0, '1\\', 'td', ['a', 'b', '1\\', '2']],
+      ['last body cell', '|a|b|\n|-|-|\n|1|2|', 1, '2\\', 'td', ['a', 'b', '1', '2\\']],
+    ])('a trailing backslash in the %s keeps the cell boundaries', (_n, text, idx, value, kind, cells) => {
+      const r = edit(text, idx, value, kind);
+      expect(r.cells).toEqual(cells);
+      expect(r.cells).toHaveLength(4);
+    });
+
+    test('a pipe typed in an unpadded cell is escaped', () => {
+      const r = edit('|a|b|\n|-|-|\n|1|2|', 0, 'x|y');
+      expect(r.doc).toBe('|a|b|\n|-|-|\n|x\\|y|2|');
+      expect(r.cells).toEqual(['a', 'b', 'x|y', '2']);
+    });
+
+    test('pasting text with pipes and backslashes keeps one cell', () => {
+      const e = show('|a|b|\n|-|-|\n|1|2|', 0);
+      const td = e.q('td')[0] as HTMLElement;
+      td.textContent = 'p|q\\r\\';
+      td.dispatchEvent(new FocusEvent('blur'));
+      expect(e.q('td').map((n) => n.textContent)).toEqual(['p|q\\r\\', '2']);
+      e.done();
+    });
+  });
+
+  describe('arrow keys', () => {
+    const src = 'before\n\n| h | i |\n| - | - |\n| a | b |\n\nafter';
+    const key = (el: Element, k: string) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    const run = (view: EditorView, k: string) => {
+      const b = view.state.facet(EditorView.editable) && view.contentDOM;
+      const ev = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true });
+      b && b.dispatchEvent(ev);
+    };
+
+    test('ArrowDown from the line above enters the first cell', () => {
+      const e = show(src, src.indexOf('\n\n| h') + 1);
+      run(e.view, 'ArrowDown');
+      expect(document.activeElement).toBe(e.q('th')[0]);
+      e.done();
+    });
+
+    test('ArrowUp from the line below enters the last row', () => {
+      const e = show(src, src.indexOf('\nafter'));
+      run(e.view, 'ArrowUp');
+      expect(document.activeElement).toBe(e.q('td')[0]);
+      e.done();
+    });
+
+    test('arrows move between rows and out of the table', () => {
+      const e = show(src, 0);
+      const th = e.q('th')[1] as HTMLElement;
+      const td = e.q('td')[1] as HTMLElement;
+      th.focus();
+      key(th, 'ArrowDown');
+      expect(document.activeElement).toBe(td);
+      key(td, 'ArrowUp');
+      expect(document.activeElement).toBe(th);
+      key(th, 'ArrowUp');
+      expect(e.view.state.selection.main.head).toBe(src.indexOf('\n\n| h') + 1);
+      key(td, 'ArrowDown');
+      expect(e.view.state.selection.main.head).toBe(src.indexOf('\nafter'));
+      e.done();
+    });
+  });
+
+  test('Insert table produces a rendered, editable table', () => {
+    const { value } = applyFormat('table', '', 0, 0);
+    const e = show(value, 0);
+    expect(e.q('th').map((n) => n.textContent)).toEqual(['Column 1', 'Column 2']);
+    expect(e.q('td').map((n) => n.textContent)).toEqual(['Cell', 'Cell']);
     e.done();
   });
 
