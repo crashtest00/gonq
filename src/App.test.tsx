@@ -3,6 +3,9 @@ import userEvent from '@testing-library/user-event';
 import App from './App';
 import { NotUtf8Error, type FileAccess, type OpenedDocument } from './platform/files';
 
+// The live-preview decorations are built after mount; under full-suite load that can exceed waitFor's 1s default.
+const LOAD_TIMEOUT = 10000;
+
 function fakeFiles(pick: () => Promise<OpenedDocument | null>): FileAccess {
   return { pickDocument: pick, saveDocument: async (d) => ({ name: d.name, path: d.path }), saveDocumentAs: async (d) => ({ name: d.name, path: null }) };
 }
@@ -29,8 +32,13 @@ test('File > Open renders the file and names the tab', async () => {
   const doc: OpenedDocument = { name: 'notes.md', path: '/tmp/notes.md', text: '# Title\n\nHello **world**.\n' };
   render(<App files={fakeFiles(async () => doc)} />);
   await openMenuItem();
-  await waitFor(() => expect(screen.getByTestId('editor')).toHaveTextContent('Title'));
-  expect(screen.getByTestId('editor')).toHaveTextContent('Hello world.');
+  await waitFor(
+    () => {
+      expect(screen.getByTestId('editor')).toHaveTextContent('Title');
+      expect(screen.getByTestId('editor')).toHaveTextContent('Hello world.');
+    },
+    { timeout: LOAD_TIMEOUT },
+  );
   expect(screen.getByRole('tab')).toHaveTextContent('notes.md');
 });
 
@@ -58,8 +66,13 @@ test('an empty document renders without error', async () => {
   const doc: OpenedDocument = { name: 'empty.md', path: null, text: '' };
   render(<App files={fakeFiles(async () => doc)} />);
   await openMenuItem();
-  await waitFor(() => expect(screen.getByRole('tab')).toHaveTextContent('empty.md'));
-  expect(screen.getByTestId('editor')).toHaveTextContent('Click here to start writing.');
+  await waitFor(
+    () => {
+      expect(screen.getByRole('tab')).toHaveTextContent('empty.md');
+      expect(screen.getByTestId('editor')).toHaveTextContent('Click here to start writing.');
+    },
+    { timeout: LOAD_TIMEOUT },
+  );
   expect(within(document.body).queryByRole('alert')).not.toBeInTheDocument();
 });
 

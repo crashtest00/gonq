@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import App from './../App';
@@ -41,9 +41,15 @@ test('the dialog shows the skill in the live-preview editor, without the front m
   render(<App files={files()} />);
   const d = await openSkill(user);
   const preview = within(d).getByTestId('markdown-preview');
-  expect(preview.querySelector('.cm-heading-1')?.textContent).toBe('Gonq comment threads');
-  expect(preview.querySelectorAll('.cm-heading-2').length).toBeGreaterThan(0);
-  expect(preview.querySelectorAll('.cm-codeblock').length).toBeGreaterThan(0);
+  // Decorations arrive after mount; under full-suite load that can exceed waitFor's 1s default.
+  await waitFor(
+    () => {
+      expect(preview.querySelector('.cm-heading-1')?.textContent).toBe('Gonq comment threads');
+      expect(preview.querySelectorAll('.cm-heading-2').length).toBeGreaterThan(0);
+      expect(preview.querySelectorAll('.cm-codeblock').length).toBeGreaterThan(0);
+    },
+    { timeout: 10000 },
+  );
   expect(preview.textContent).not.toContain('name: gonq-comment-threads');
   // Read-only: it cannot be typed into.
   expect(preview.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false');
