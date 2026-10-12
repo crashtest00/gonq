@@ -80,7 +80,12 @@
 .gonq-editor .cm-image-loading { min-width: 2em; min-height: 1.2em; background: var(--surface); border-radius: 4px; }
 .gonq-editor .cm-image-missing { color: var(--muted-foreground); background: var(--surface); border: 1px dashed var(--border); border-radius: 4px; padding: 2px 8px; font-size: 13px; }
 .gonq-editor .cm-table-wrap { position: relative; }
-.gonq-editor .cm-table-toolbar { display: none; gap: 2px; margin-bottom: 4px; }
-.gonq-editor .cm-table-wrap:focus-within .cm-table-toolbar { display: flex; flex-wrap: wrap; }
+/* The bar floats in room reserved above the table, so showing it never moves the text. */
+.gonq-editor .cm-table-editable { padding-top: 28px; }
+.gonq-editor .cm-table-toolbar { position: absolute; top: 0; left: 0; display: flex; flex-wrap: wrap; gap: 2px; visibility: hidden; }
+.gonq-editor .cm-table-wrap:hover .cm-table-toolbar, .gonq-editor .cm-table-wrap:focus-within .cm-table-toolbar { visibility: visible; }
 .gonq-editor .cm-table-tool { border: 1px solid var(--border); background: var(--surface); color: inherit; border-radius: 4px; padding: 1px 6px; font-size: 12px; cursor: pointer; }
-.gonq-editor .cm-table-tool:hover { background: var(--border); }
+.gonq-editor .cm-table-tool:hover:not(:disabled) { background: var(--border); }
+.gonq-editor .cm-table-tool:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.gonq-editor .cm-table-tool[aria-pressed='true'] { background: var(--border); }
+.gonq-editor .cm-table-tool:disabled { opacity: 0.4; cursor: default; }

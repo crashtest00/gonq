@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language';
-import { type EditorState, type Extension, Prec, type Range, StateField } from '@codemirror/state';
+import { ChangeSet, type ChangeSpec, type EditorState, type Extension, Prec, type Range, StateField, type Text } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, keymap, WidgetType } from '@codemirror/view';
 
 /**
@@ -18,10 +18,11 @@ export interface TableModel {
   align: ('left' | 'center' | 'right' | null)[];
 }
 
-/** Splits a table line on unescaped pipes into cells with the document range of their trimmed text. */
-function splitLine(text: string, offset: number): Cell[] {
-  const cells: Cell[] = [];
-  let start = 0;
+/**
+ * Where the cells of a table line are separated: cell i lies between cuts[i] and cuts[i + 1]. A cut is
+ * an unescaped pipe, except the virtual ones (-1, and the line length) standing in for a missing outer pipe.
+ */
+function lineCuts(text: string): { cuts: number[]; lead: boolean; trail: boolean } {
   const bounds: number[] = [];
   for (let i = 0; i < text.length; i++) {
     if (text[i] === '\\') i++;
@@ -29,10 +30,15 @@ function splitLine(text: string, offset: number): Cell[] {
   }
   const lead = /^\s*\|/.test(text);
   const trail = bounds.length > 0 && /^\s*$/.test(text.slice(bounds[bounds.length - 1] + 1));
-  const cuts = [...(lead ? [] : [-1]), ...bounds, ...(trail ? [] : [text.length])];
-  const first = lead ? bounds[0] : -1;
-  start = first;
-  for (let k = lead ? 1 : 1; k < cuts.length; k++) {
+  return { cuts: [...(lead ? [] : [-1]), ...bounds, ...(trail ? [] : [text.length])], lead, trail };
+}
+
+/** Splits a table line on unescaped pipes into cells with the document range of their trimmed text. */
+function splitLine(text: string, offset: number): Cell[] {
+  const cells: Cell[] = [];
+  const { cuts } = lineCuts(text);
+  let start = cuts[0];
+  for (let k = 1; k < cuts.length; k++) {
     const end = cuts[k];
     const raw = text.slice(start + 1, end);
     const lt = raw.length - raw.trimStart().length;
@@ -46,7 +52,10 @@ function splitLine(text: string, offset: number): Cell[] {
 }
 
 export function parseTable(state: EditorState, from: number, to: number): TableModel {
-  const doc = state.doc;
+  return parseDoc(state.doc, from, to);
+}
+
+function parseDoc(doc: Text, from: number, to: number): TableModel {
   const rows: Cell[][] = [];
   let align: TableModel['align'] = [];
   const first = doc.lineAt(from).number;
@@ -83,7 +92,7 @@ class TableWidget extends WidgetType {
   }
   toDOM(view: EditorView) {
     const wrap = document.createElement('div');
-    wrap.className = 'cm-table-wrap';
+    wrap.className = this.canEdit ? 'cm-table-wrap cm-table-editable' : 'cm-table-wrap';
     if (this.canEdit) wrap.appendChild(toolbar(view, wrap));
     const table = wrap.appendChild(document.createElement('table'));
     table.className = 'cm-table';
@@ -121,19 +130,24 @@ class TableWidget extends WidgetType {
   }
 }
 
+/** The change that writes an edited cell back to the source, or null when its text is unchanged. */
+function cellEdit(doc: Text, t: { from: number; to: number }, td: HTMLElement): ChangeSpec | null {
+  const cell = parseDoc(doc, t.from, t.to).rows[Number(td.dataset.row)]?.[Number(td.dataset.col)];
+  if (!cell) return null;
+  const next = escapeCell(td.textContent ?? '');
+  if (next === cell.text) return null;
+  // A trailing backslash would escape the pipe that closes the cell when nothing separates them.
+  const guard = next.endsWith('\\') && !/\s/.test(doc.sliceString(cell.to, cell.to + 1)) ? ' ' : '';
+  return { from: cell.from, to: cell.to, insert: next + guard };
+}
+
 /** Writes an edited cell back to the source as one change; a no-op when the text is unchanged. */
 function commit(view: EditorView, wrap: HTMLElement, td: HTMLElement): boolean {
   if (!wrap.isConnected) return false;
-  const pos = view.posAtDOM(wrap);
-  const t = tableAt(view, pos);
-  if (!t) return false;
-  const cell = parseTable(view.state, t.from, t.to).rows[Number(td.dataset.row)]?.[Number(td.dataset.col)];
-  if (!cell) return false;
-  const next = escapeCell(td.textContent ?? '');
-  if (next === cell.text) return false;
-  // A trailing backslash would escape the pipe that closes the cell when nothing separates them.
-  const guard = next.endsWith('\\') && !/\s/.test(view.state.sliceDoc(cell.to, cell.to + 1)) ? ' ' : '';
-  view.dispatch({ changes: { from: cell.from, to: cell.to, insert: next + guard }, userEvent: 'input.type' });
+  const t = tableAt(view, view.posAtDOM(wrap));
+  const change = t && cellEdit(view.state.doc, t, td);
+  if (!change) return false;
+  view.dispatch({ changes: change, userEvent: 'input.type' });
   return true;
 }
 
@@ -142,66 +156,83 @@ type Align = TableModel['align'][number];
 /** Where the table's row `r` lives: line 0 is the header, the delimiter line is skipped. */
 const rowLine = (first: number, r: number) => first + (r === 0 ? 0 : r + 1);
 
-/** The table as normalized Markdown, from its cells; used by the column and alignment edits. */
-function render(rows: string[][], align: Align[]): string {
-  const line = (cells: string[]) => '| ' + cells.join(' | ') + ' |';
-  const delim = align.map((a) => (a === 'center' ? ':---:' : a === 'right' ? '---:' : a === 'left' ? ':---' : '---'));
-  return [line(rows[0]), line(delim), ...rows.slice(1).map(line)].join('\n');
-}
-
 type TableOp = 'rowAbove' | 'rowBelow' | 'colLeft' | 'colRight' | 'delRow' | 'delCol' | 'delTable' | 'left' | 'center' | 'right';
 
-/** Applies a toolbar action for the cell (r, c) as ordinary document changes; returns the cell to refocus. */
-function tableEdit(view: EditorView, t: { from: number; to: number }, op: TableOp, r: number, c: number): [number, number] | null {
-  const doc = view.state.doc;
-  const model = parseTable(view.state, t.from, t.to);
+const isAlign = (op: TableOp): op is NonNullable<Align> => op === 'left' || op === 'center' || op === 'right';
+
+/** A toolbar action as changes to the source (in coordinates of the document it was planned on) and the cell to refocus. */
+interface Plan {
+  changes: ChangeSpec[];
+  focus: [number, number] | null;
+}
+
+/**
+ * Plans a toolbar action for the cell (r, c), or null when it does not apply there. Only the touched
+ * cells change: every other character of the table, spacing and outer pipes included, is left as it is.
+ */
+function tableEdit(doc: Text, t: { from: number; to: number }, op: TableOp, r: number, c: number): Plan | null {
+  const model = parseDoc(doc, t.from, t.to);
   const first = doc.lineAt(t.from).number;
+  const last = doc.lineAt(t.to).number;
   const cols = Math.max(...model.rows.map((x) => x.length), 1);
-  const dispatch = (from: number, to: number, insert: string) => view.dispatch({ changes: { from, to, insert }, userEvent: 'input' });
-  const rewrite = (rows: string[][], align: Align[]) => dispatch(t.from, t.to, render(rows, align));
-  const texts = () => model.rows.map((row) => Array.from({ length: cols }, (_, i) => escapeCell(row[i]?.text ?? '')));
-  const align = () => Array.from({ length: cols }, (_, i) => model.align[i] ?? null);
+  // Every line of the table (the delimiter row included) with the cuts between its cells.
+  const lines = Array.from({ length: last - first + 1 }, (_, i) => {
+    const line = doc.line(first + i);
+    return { line, delimiter: i === 1, ...lineCuts(line.text) };
+  });
   switch (op) {
     case 'rowAbove':
     case 'rowBelow': {
       // Nothing goes above the header: "above" on it inserts the first body row.
       const below = op === 'rowBelow' || r === 0;
-      const line = doc.line(rowLine(first, r));
+      const line = doc.line(r === 0 ? first + 1 : rowLine(first, r)); // the delimiter row stays under the header
       const text = '|' + ' |'.repeat(cols);
-      if (below) dispatch(line.to, line.to, '\n' + text);
-      else dispatch(line.from, line.from, text + '\n');
-      return [below ? r + 1 : r, c];
+      return { changes: [below ? { from: line.to, insert: '\n' + text } : { from: line.from, insert: text + '\n' }], focus: [below ? r + 1 : r, c] };
     }
     case 'delRow': {
       if (r === 0) return null; // the header is what makes it a table
       const line = doc.line(rowLine(first, r));
-      const last = r === model.rows.length - 1;
-      dispatch(last ? line.from - 1 : line.from, last ? line.to : line.to + 1, '');
-      return [Math.min(r, model.rows.length - 2), c];
+      const end = r === model.rows.length - 1;
+      return { changes: [{ from: end ? line.from - 1 : line.from, to: end ? line.to : line.to + 1 }], focus: [Math.min(r, model.rows.length - 2), c] };
     }
     case 'colLeft':
     case 'colRight': {
       const at = op === 'colLeft' ? c : c + 1;
-      const rows = texts().map((x) => [...x.slice(0, at), '', ...x.slice(at)]);
-      const al = align();
-      rewrite(rows, [...al.slice(0, at), null, ...al.slice(at)]);
-      return [r, at];
+      const changes: ChangeSpec[] = [];
+      for (const { line, delimiter, cuts, trail } of lines) {
+        const n = cuts.length - 1;
+        if (n < at) continue; // a short body row: the table pads it
+        const cell = delimiter ? '---' : '';
+        if (at < n) {
+          // Before the pipe that opens the cell now at `at`; at the line start when that pipe is not written.
+          changes.push(cuts[at] < 0 ? { from: line.from, insert: delimiter ? cell + ' | ' : ' | ' } : { from: line.from + cuts[at], insert: `| ${cell}${cell ? ' ' : ''}` });
+        } else if (trail) changes.push({ from: line.from + cuts[n] + 1, insert: ` ${cell}${cell ? ' ' : ''}|` });
+        else changes.push({ from: line.to, insert: delimiter ? ' | ---' : ' | |' });
+      }
+      return { changes, focus: [r, at] };
     }
     case 'delCol': {
-      if (cols < 2) return null;
-      rewrite(texts().map((x) => x.filter((_, i) => i !== c)), align().filter((_, i) => i !== c));
-      return [r, Math.min(c, cols - 2)];
+      if (lines[0].cuts.length < 3) return null; // the last column stays
+      const changes: ChangeSpec[] = [];
+      for (const { line, cuts } of lines) {
+        if (cuts.length - 1 < 2 || cuts.length - 1 <= c) continue;
+        const [a, b] = [cuts[c], cuts[c + 1]];
+        changes.push(a < 0 ? { from: line.from, to: line.from + b + 1 + (/^\s*/.exec(line.text.slice(b + 1))?.[0].length ?? 0) } : { from: line.from + a, to: line.from + b });
+      }
+      return { changes, focus: [r, Math.min(c, cols - 2)] };
     }
     case 'delTable': {
       const a = t.from > 0 ? t.from - 1 : t.from;
-      dispatch(a, t.from > 0 ? t.to : Math.min(t.to + 1, doc.length), '');
-      return null;
+      return { changes: [{ from: a, to: t.from > 0 ? t.to : Math.min(t.to + 1, doc.length) }], focus: null };
     }
     default: {
-      const al = align();
-      al[c] = al[c] === op ? null : op; // pressing the active alignment clears it
-      rewrite(texts(), al);
-      return [r, c];
+      if (!isAlign(op)) return null;
+      const cell = splitLine(lines[1].line.text, lines[1].line.from)[c];
+      if (!cell) return null; // a column the delimiter row does not cover
+      // Keeps the number of dashes; pressing the active alignment clears it.
+      const dashes = '-'.repeat(Math.max(1, (cell.text.match(/-/g) ?? []).length));
+      const mark = model.align[c] === op ? dashes : op === 'left' ? ':' + dashes : op === 'right' ? dashes + ':' : ':' + dashes + ':';
+      return { changes: [{ from: cell.from, to: cell.to, insert: mark }], focus: [r, c] };
     }
   }
 }
@@ -219,7 +250,11 @@ const TOOLS: { op: TableOp; label: string; text: string }[] = [
   { op: 'delTable', label: 'Delete table', text: '🗑' },
 ];
 
-/** The bar over a table (shown while a cell has focus) acting on the cell that has it. */
+/**
+ * The bar over a table (shown on hover and while the table has focus) acting on the cell that last had
+ * it. Buttons the cell cannot use are disabled. It is one tab stop with arrow-key navigation; Shift+Tab
+ * from the first cell reaches it, Escape or Tab leaves it for the cell again.
+ */
 function toolbar(view: EditorView, wrap: HTMLElement): HTMLElement {
   const bar = document.createElement('div');
   bar.className = 'cm-table-toolbar';
@@ -227,11 +262,8 @@ function toolbar(view: EditorView, wrap: HTMLElement): HTMLElement {
   bar.setAttribute('role', 'toolbar');
   bar.setAttribute('aria-label', 'Table');
   let last: HTMLElement | null = null;
-  wrap.addEventListener('focusin', (e) => {
-    const cell = (e.target as HTMLElement).closest<HTMLElement>('[data-row]');
-    if (cell) last = cell;
-  });
-  for (const tool of TOOLS) {
+  const cell = () => (last && wrap.isConnected && wrap.contains(last) ? last : null);
+  const buttons = TOOLS.map((tool) => {
     const b = bar.appendChild(document.createElement('button'));
     b.type = 'button';
     b.className = 'cm-table-tool';
@@ -239,21 +271,73 @@ function toolbar(view: EditorView, wrap: HTMLElement): HTMLElement {
     b.title = b.ariaLabel = tool.label;
     b.textContent = tool.text;
     b.tabIndex = -1;
+    b.disabled = true; // until a cell is the target
     // Keep the focus (and caret) in the cell while the button is pressed.
     b.addEventListener('mousedown', (e) => e.preventDefault());
     b.addEventListener('click', () => {
-      const td = last && wrap.contains(last) ? last : null;
-      if (!td || !wrap.isConnected) return;
-      commit(view, wrap, td);
-      const tablePos = view.posAtDOM(wrap);
-      const t = tableAt(view, tablePos);
-      if (!t) return;
-      const next = tableEdit(view, t, tool.op, Number(td.dataset.row), Number(td.dataset.col));
-      if (next) focusCell(view, t.from, next[0], next[1]);
+      const td = cell();
+      const t = td && tableAt(view, view.posAtDOM(wrap));
+      if (!td || !t) return;
+      // A cell edited but not yet written joins the action in one transaction: one undo step.
+      const pending = cellEdit(view.state.doc, t, td);
+      const typed = ChangeSet.of(pending ?? [], view.state.doc.length);
+      const doc = typed.apply(view.state.doc);
+      const at = { from: typed.mapPos(t.from, -1), to: typed.mapPos(t.to, 1) };
+      const plan = tableEdit(doc, at, tool.op, Number(td.dataset.row), Number(td.dataset.col));
+      if (!plan) return;
+      view.dispatch({ changes: typed.compose(ChangeSet.of(plan.changes, doc.length)), userEvent: 'input' });
+      if (plan.focus) focusCell(view, at.from, plan.focus[0], plan.focus[1]);
       else view.focus();
     });
-  }
+    return b;
+  });
+  const refresh = () => {
+    const td = cell();
+    const t = td && tableAt(view, view.posAtDOM(wrap));
+    const model = t && parseDoc(view.state.doc, t.from, t.to);
+    buttons.forEach((b, i) => {
+      const op = TOOLS[i].op;
+      const r = Number(td?.dataset.row);
+      const c = Number(td?.dataset.col);
+      b.disabled = !td || !t || tableEdit(view.state.doc, t, op, r, c) === null;
+      if (isAlign(op)) b.ariaPressed = String(!!model && model.align[c] === op);
+    });
+  };
+  wrap.addEventListener('focusin', (e) => {
+    const td = (e.target as HTMLElement).closest<HTMLElement>('[data-row]');
+    if (td && td !== last) {
+      last = td;
+      refresh();
+    }
+  });
+  // One tab stop (the first usable button), moved with the arrow keys.
+  const roving = (to: HTMLElement) => {
+    buttons.forEach((b) => (b.tabIndex = b === to ? 0 : -1));
+    to.focus();
+  };
+  bar.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === 'Tab') {
+      e.preventDefault();
+      cell()?.focus();
+      return;
+    }
+    const usable = buttons.filter((b) => !b.disabled);
+    const i = usable.indexOf(document.activeElement as HTMLButtonElement);
+    if (i < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault();
+    const n = usable.length;
+    roving(usable[e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n]);
+  });
+  bar.addEventListener('focusin', (e) => {
+    if (e.target instanceof HTMLButtonElement) buttons.forEach((b) => (b.tabIndex = b === e.target ? 0 : -1));
+  });
+  buttons[0].tabIndex = 0;
   return bar;
+}
+
+/** Shift+Tab off the first cell: to the toolbar's first usable button. */
+function focusToolbar(wrap: HTMLElement) {
+  wrap.querySelector<HTMLButtonElement>('.cm-table-tool:not(:disabled)')?.focus();
 }
 
 function focusCell(view: EditorView, tablePos: number, r: number, c: number) {
@@ -302,7 +386,10 @@ function cellKey(view: EditorView, wrap: HTMLElement, td: HTMLElement, e: Keyboa
   const rows = wrap.querySelectorAll('tr').length;
   if (tc < 0) [tr, tc] = [r - 1, cols - 1];
   else if (tc >= cols) [tr, tc] = [r + 1, 0];
-  if (tr < 0) return;
+  if (tr < 0) {
+    focusToolbar(wrap);
+    return;
+  }
   commit(view, wrap, td);
   if (tr >= rows) {
     // Past the last row: append an empty one.
