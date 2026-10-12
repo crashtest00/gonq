@@ -1,3 +1,4 @@
+import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
 import { applyFormat } from '../components/formatting';
@@ -285,15 +286,20 @@ describe('tables', () => {
       (cell as HTMLElement).focus();
       (e.view.contentDOM.querySelector(`[data-op="${op}"]`) as HTMLElement).click();
     };
+    const key = (el: Element, k: string, shiftKey = false) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, shiftKey, bubbles: true, cancelable: true }));
     test.each([
       ['rowBelow', 'td', 0, '| a | b |\n| |' + ' |' + '\n| c | d |'],
       ['rowAbove', 'td', 2, '| a | b |\n| |' + ' |' + '\n| c | d |'],
       ['delRow', 'td', 0, '| h | i |\n| - | - |\n| c | d |'],
       ['delRow', 'td', 2, '| h | i |\n| - | - |\n| a | b |\n\nafter'],
-      ['colRight', 'td', 0, '| h |  | i |\n| --- | --- | --- |\n| a |  | b |\n| c |  | d |'],
-      ['colLeft', 'th', 0, '|  | h | i |\n| --- | --- | --- |\n|  | a | b |\n|  | c | d |'],
-      ['delCol', 'td', 0, '| i |\n| --- |\n| b |\n| d |'],
-      ['right', 'td', 1, '| h | i |\n| --- | ---: |\n| a | b |\n| c | d |'],
+      ['colRight', 'td', 0, '| h | | i |\n| - | --- | - |\n| a | | b |\n| c | | d |'],
+      ['colRight', 'td', 1, '| h | i | |\n| - | - | --- |\n| a | b | |\n| c | d | |'],
+      ['colLeft', 'th', 0, '| | h | i |\n| --- | - | - |\n| | a | b |\n| | c | d |'],
+      ['delCol', 'td', 0, '| i |\n| - |\n| b |\n| d |'],
+      ['delCol', 'td', 1, '| h |\n| - |\n| a |\n| c |'],
+      ['right', 'td', 1, '| h | i |\n| - | -: |\n| a | b |\n| c | d |'],
+      ['rowBelow', 'th', 0, '| h | i |\n| - | - |\n| | |\n| a | b |'],
+      ['rowAbove', 'th', 0, '| h | i |\n| - | - |\n| | |\n| a | b |'],
     ])('%s on %s %i edits the source', (op, kind, idx, expected) => {
       const e = show(src, 0);
       press(e, e.q(kind)[idx], op);
@@ -301,14 +307,86 @@ describe('tables', () => {
       e.done();
     });
 
-    test('alignment toggles off and the header cannot be deleted', () => {
+    test('column and alignment edits change only the touched cells', () => {
+      const odd = 'a | b\n:--- | ---\n1   |   2\n| x | y |\n';
+      const cases: [string, number, string][] = [
+        ['colRight', 0, 'a | | b\n:--- | --- | ---\n1   | |   2\n| x | | y |\n'],
+        ['colRight', 1, 'a | b | |\n:--- | --- | ---\n1   |   2 | |\n| x | y | |\n'],
+        ['colLeft', 0, ' | a | b\n--- | :--- | ---\n | 1   |   2\n| | x | y |\n'],
+        ['delCol', 0, 'b\n---\n2\n| y |\n'],
+        ['delCol', 1, 'a \n:--- \n1   \n| x |\n'],
+        ['center', 1, 'a | b\n:--- | :---:\n1   |   2\n| x | y |\n'],
+        ['right', 0, 'a | b\n---: | ---\n1   |   2\n| x | y |\n'],
+      ];
+      for (const [op, col, expected] of cases) {
+        const e = show(odd, 0);
+        press(e, e.q('td')[col], op);
+        expect(e.view.state.doc.toString()).toBe(expected);
+        e.done();
+      }
+    });
+
+    test('an edit is one undo step, with a not yet written cell edit in the same step', () => {
+      const e = show(src, 0);
+      const td = e.q('td')[0] as HTMLElement;
+      td.focus();
+      td.textContent = 'typed';
+      press(e, td, 'colRight');
+      expect(e.view.state.doc.toString()).toContain('| typed | | b |');
+      undo(e.view);
+      expect(e.view.state.doc.toString()).toBe(src);
+      redo(e.view);
+      expect(e.view.state.doc.toString()).toContain('| typed | | b |');
+      e.done();
+    });
+
+    test('alignment toggles off', () => {
       const e = show(src, 0);
       press(e, e.q('td')[0], 'center');
-      expect(e.view.state.doc.toString()).toContain('| :---: | --- |');
+      expect(e.view.state.doc.toString()).toContain('| :-: | - |');
+      expect(e.q('[data-op="center"]')[0].getAttribute('aria-pressed')).toBe('true');
       press(e, e.q('td')[0], 'center');
-      expect(e.view.state.doc.toString()).toContain('| --- | --- |');
-      press(e, e.q('th')[0], 'delRow');
-      expect(e.q('tr')).toHaveLength(3);
+      expect(e.view.state.doc.toString()).toContain('| - | - |');
+      e.done();
+    });
+
+    test('buttons are disabled until a cell is the target and where the action does not apply', () => {
+      const e = show(src, 0);
+      const disabled = () => e.q('.cm-table-tool').filter((b) => (b as HTMLButtonElement).disabled).map((b) => (b as HTMLElement).dataset.op);
+      expect(disabled()).toHaveLength(10);
+      (e.q('th')[0] as HTMLElement).focus();
+      expect(disabled()).toEqual(['delRow']);
+      (e.q('td')[0] as HTMLElement).focus();
+      expect(disabled()).toEqual([]);
+      e.done();
+      const one = show('| h |\n| - |\n| a |', 0);
+      (one.q('td')[0] as HTMLElement).focus();
+      expect(one.q('[data-op="delCol"]').map((b) => (b as HTMLButtonElement).disabled)).toEqual([true]);
+      one.done();
+    });
+
+    test('the toolbar is reachable by keyboard and Escape returns to the cell', () => {
+      const e = show(src, 0);
+      const th = e.q('th')[0] as HTMLElement;
+      th.focus();
+      key(th, 'Tab', true);
+      const first = e.q('.cm-table-tool')[0] as HTMLElement;
+      expect(document.activeElement).toBe(first);
+      key(first, 'ArrowRight');
+      expect((document.activeElement as HTMLElement).dataset.op).toBe('rowBelow');
+      key(document.activeElement as HTMLElement, 'End');
+      expect((document.activeElement as HTMLElement).dataset.op).toBe('delTable');
+      key(document.activeElement as HTMLElement, 'Home');
+      (document.activeElement as HTMLElement).click(); // Enter/Space activate a button as a click
+      expect(e.view.state.doc.toString()).toContain('| h | i |\n| - | - |\n| | |\n| a | b |');
+      expect(e.q('tr')).toHaveLength(4);
+      expect(document.activeElement?.tagName).toBe('TD');
+      const header = e.q('th')[0] as HTMLElement;
+      header.focus();
+      key(header, 'Tab', true);
+      expect(document.activeElement?.tagName).toBe('BUTTON');
+      key(document.activeElement as HTMLElement, 'Escape');
+      expect(document.activeElement).toBe(header);
       e.done();
     });
 
