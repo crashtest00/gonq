@@ -84,6 +84,7 @@ class TableWidget extends WidgetType {
   toDOM(view: EditorView) {
     const wrap = document.createElement('div');
     wrap.className = 'cm-table-wrap';
+    if (this.canEdit) wrap.appendChild(toolbar(view, wrap));
     const table = wrap.appendChild(document.createElement('table'));
     table.className = 'cm-table';
     const cols = Math.max(...this.model.rows.map((r) => r.length), 1);
@@ -134,6 +135,125 @@ function commit(view: EditorView, wrap: HTMLElement, td: HTMLElement): boolean {
   const guard = next.endsWith('\\') && !/\s/.test(view.state.sliceDoc(cell.to, cell.to + 1)) ? ' ' : '';
   view.dispatch({ changes: { from: cell.from, to: cell.to, insert: next + guard }, userEvent: 'input.type' });
   return true;
+}
+
+type Align = TableModel['align'][number];
+
+/** Where the table's row `r` lives: line 0 is the header, the delimiter line is skipped. */
+const rowLine = (first: number, r: number) => first + (r === 0 ? 0 : r + 1);
+
+/** The table as normalized Markdown, from its cells; used by the column and alignment edits. */
+function render(rows: string[][], align: Align[]): string {
+  const line = (cells: string[]) => '| ' + cells.join(' | ') + ' |';
+  const delim = align.map((a) => (a === 'center' ? ':---:' : a === 'right' ? '---:' : a === 'left' ? ':---' : '---'));
+  return [line(rows[0]), line(delim), ...rows.slice(1).map(line)].join('\n');
+}
+
+type TableOp = 'rowAbove' | 'rowBelow' | 'colLeft' | 'colRight' | 'delRow' | 'delCol' | 'delTable' | 'left' | 'center' | 'right';
+
+/** Applies a toolbar action for the cell (r, c) as ordinary document changes; returns the cell to refocus. */
+function tableEdit(view: EditorView, t: { from: number; to: number }, op: TableOp, r: number, c: number): [number, number] | null {
+  const doc = view.state.doc;
+  const model = parseTable(view.state, t.from, t.to);
+  const first = doc.lineAt(t.from).number;
+  const cols = Math.max(...model.rows.map((x) => x.length), 1);
+  const dispatch = (from: number, to: number, insert: string) => view.dispatch({ changes: { from, to, insert }, userEvent: 'input' });
+  const rewrite = (rows: string[][], align: Align[]) => dispatch(t.from, t.to, render(rows, align));
+  const texts = () => model.rows.map((row) => Array.from({ length: cols }, (_, i) => escapeCell(row[i]?.text ?? '')));
+  const align = () => Array.from({ length: cols }, (_, i) => model.align[i] ?? null);
+  switch (op) {
+    case 'rowAbove':
+    case 'rowBelow': {
+      // Nothing goes above the header: "above" on it inserts the first body row.
+      const below = op === 'rowBelow' || r === 0;
+      const line = doc.line(rowLine(first, r));
+      const text = '|' + ' |'.repeat(cols);
+      if (below) dispatch(line.to, line.to, '\n' + text);
+      else dispatch(line.from, line.from, text + '\n');
+      return [below ? r + 1 : r, c];
+    }
+    case 'delRow': {
+      if (r === 0) return null; // the header is what makes it a table
+      const line = doc.line(rowLine(first, r));
+      const last = r === model.rows.length - 1;
+      dispatch(last ? line.from - 1 : line.from, last ? line.to : line.to + 1, '');
+      return [Math.min(r, model.rows.length - 2), c];
+    }
+    case 'colLeft':
+    case 'colRight': {
+      const at = op === 'colLeft' ? c : c + 1;
+      const rows = texts().map((x) => [...x.slice(0, at), '', ...x.slice(at)]);
+      const al = align();
+      rewrite(rows, [...al.slice(0, at), null, ...al.slice(at)]);
+      return [r, at];
+    }
+    case 'delCol': {
+      if (cols < 2) return null;
+      rewrite(texts().map((x) => x.filter((_, i) => i !== c)), align().filter((_, i) => i !== c));
+      return [r, Math.min(c, cols - 2)];
+    }
+    case 'delTable': {
+      const a = t.from > 0 ? t.from - 1 : t.from;
+      dispatch(a, t.from > 0 ? t.to : Math.min(t.to + 1, doc.length), '');
+      return null;
+    }
+    default: {
+      const al = align();
+      al[c] = al[c] === op ? null : op; // pressing the active alignment clears it
+      rewrite(texts(), al);
+      return [r, c];
+    }
+  }
+}
+
+const TOOLS: { op: TableOp; label: string; text: string }[] = [
+  { op: 'rowAbove', label: 'Insert row above', text: '↑▭' },
+  { op: 'rowBelow', label: 'Insert row below', text: '↓▭' },
+  { op: 'colLeft', label: 'Insert column left', text: '←▯' },
+  { op: 'colRight', label: 'Insert column right', text: '→▯' },
+  { op: 'left', label: 'Align column left', text: '⇤' },
+  { op: 'center', label: 'Align column center', text: '↔' },
+  { op: 'right', label: 'Align column right', text: '⇥' },
+  { op: 'delRow', label: 'Delete row', text: '−▭' },
+  { op: 'delCol', label: 'Delete column', text: '−▯' },
+  { op: 'delTable', label: 'Delete table', text: '🗑' },
+];
+
+/** The bar over a table (shown while a cell has focus) acting on the cell that has it. */
+function toolbar(view: EditorView, wrap: HTMLElement): HTMLElement {
+  const bar = document.createElement('div');
+  bar.className = 'cm-table-toolbar';
+  bar.contentEditable = 'false';
+  bar.setAttribute('role', 'toolbar');
+  bar.setAttribute('aria-label', 'Table');
+  let last: HTMLElement | null = null;
+  wrap.addEventListener('focusin', (e) => {
+    const cell = (e.target as HTMLElement).closest<HTMLElement>('[data-row]');
+    if (cell) last = cell;
+  });
+  for (const tool of TOOLS) {
+    const b = bar.appendChild(document.createElement('button'));
+    b.type = 'button';
+    b.className = 'cm-table-tool';
+    b.dataset.op = tool.op;
+    b.title = b.ariaLabel = tool.label;
+    b.textContent = tool.text;
+    b.tabIndex = -1;
+    // Keep the focus (and caret) in the cell while the button is pressed.
+    b.addEventListener('mousedown', (e) => e.preventDefault());
+    b.addEventListener('click', () => {
+      const td = last && wrap.contains(last) ? last : null;
+      if (!td || !wrap.isConnected) return;
+      commit(view, wrap, td);
+      const tablePos = view.posAtDOM(wrap);
+      const t = tableAt(view, tablePos);
+      if (!t) return;
+      const next = tableEdit(view, t, tool.op, Number(td.dataset.row), Number(td.dataset.col));
+      if (next) focusCell(view, t.from, next[0], next[1]);
+      else view.focus();
+    });
+  }
+  return bar;
 }
 
 function focusCell(view: EditorView, tablePos: number, r: number, c: number) {

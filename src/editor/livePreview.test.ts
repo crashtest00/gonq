@@ -279,6 +279,48 @@ describe('tables', () => {
     });
   });
 
+  describe('toolbar', () => {
+    const src = 'before\n\n| h | i |\n| - | - |\n| a | b |\n| c | d |\n\nafter';
+    const press = (e: ReturnType<typeof show>, cell: Element, op: string) => {
+      (cell as HTMLElement).focus();
+      (e.view.contentDOM.querySelector(`[data-op="${op}"]`) as HTMLElement).click();
+    };
+    test.each([
+      ['rowBelow', 'td', 0, '| a | b |\n| |' + ' |' + '\n| c | d |'],
+      ['rowAbove', 'td', 2, '| a | b |\n| |' + ' |' + '\n| c | d |'],
+      ['delRow', 'td', 0, '| h | i |\n| - | - |\n| c | d |'],
+      ['delRow', 'td', 2, '| h | i |\n| - | - |\n| a | b |\n\nafter'],
+      ['colRight', 'td', 0, '| h |  | i |\n| --- | --- | --- |\n| a |  | b |\n| c |  | d |'],
+      ['colLeft', 'th', 0, '|  | h | i |\n| --- | --- | --- |\n|  | a | b |\n|  | c | d |'],
+      ['delCol', 'td', 0, '| i |\n| --- |\n| b |\n| d |'],
+      ['right', 'td', 1, '| h | i |\n| --- | ---: |\n| a | b |\n| c | d |'],
+    ])('%s on %s %i edits the source', (op, kind, idx, expected) => {
+      const e = show(src, 0);
+      press(e, e.q(kind)[idx], op);
+      expect(e.view.state.doc.toString()).toContain(expected);
+      e.done();
+    });
+
+    test('alignment toggles off and the header cannot be deleted', () => {
+      const e = show(src, 0);
+      press(e, e.q('td')[0], 'center');
+      expect(e.view.state.doc.toString()).toContain('| :---: | --- |');
+      press(e, e.q('td')[0], 'center');
+      expect(e.view.state.doc.toString()).toContain('| --- | --- |');
+      press(e, e.q('th')[0], 'delRow');
+      expect(e.q('tr')).toHaveLength(3);
+      e.done();
+    });
+
+    test('delete table removes it from the source', () => {
+      const e = show(src, 0);
+      press(e, e.q('td')[0], 'delTable');
+      expect(e.view.state.doc.toString()).toBe('before\n\n\nafter');
+      expect(e.q('table')).toHaveLength(0);
+      e.done();
+    });
+  });
+
   test('Insert table produces a rendered, editable table', () => {
     const { value } = applyFormat('table', '', 0, 0);
     const e = show(value, 0);
