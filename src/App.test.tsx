@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
+import { editorView, select } from './testing/editor';
 import { NotUtf8Error, type FileAccess, type OpenedDocument } from './platform/files';
 
 // The live-preview decorations are built after mount; under full-suite load that can exceed waitFor's 1s default.
@@ -175,5 +176,31 @@ describe('editor focus', () => {
     await user.click(screen.getAllByRole('button', { name: /^Close/ })[1]);
     await focused();
     expect(screen.getAllByRole('tab')).toHaveLength(1);
+  });
+});
+
+describe('table toolbar row', () => {
+  test('is not shown with no file open', () => {
+    render(<App files={fakeFiles(async () => null)} />);
+    expect(screen.queryByRole('toolbar', { name: 'Table' })).not.toBeInTheDocument();
+  });
+
+  test('appears under the main toolbar while a table cell is targeted, and goes when the focus leaves the table', async () => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => null)} />);
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    await user.click(await screen.findByRole('button', { name: 'Insert table' }, { timeout: LOAD_TIMEOUT }));
+    const cell = await waitFor(() => {
+      const td = screen.getByTestId('editor').querySelector<HTMLElement>('td');
+      if (!td) throw new Error('no table yet');
+      return td;
+    }, { timeout: LOAD_TIMEOUT });
+    cell.focus();
+    const row = await screen.findByRole('toolbar', { name: 'Table' });
+    expect(screen.getByRole('toolbar', { name: 'Editing' }).compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    screen.getByTestId('editor').querySelector<HTMLElement>('.cm-content')!.focus();
+    // The caret may still lie in the table (the row then stays, by design): put it after the table.
+    select(editorView().state.doc.length);
+    await waitFor(() => expect(screen.queryByRole('toolbar', { name: 'Table' })).not.toBeInTheDocument());
   });
 });

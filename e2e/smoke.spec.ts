@@ -113,32 +113,54 @@ test('clicking a task checkbox toggles [ ] / [x] in the text; the outline follow
   await expect(page.getByRole('complementary', { name: 'Outline' })).toContainText('Typed heading');
 });
 
-test('table toolbar shows on hover and on focus without moving the table, and edits the source', async ({ page }) => {
+test('the table toolbar row shows only while the caret is in a table, and edits the source', async ({ page }) => {
   await newDocument(page);
   await page.locator('.cm-editor').click();
   await page.keyboard.type('before\n\n| h | i |\n| - | - |\n| a | b |\n\nafter');
   await page.keyboard.press('Control+Home');
   const table = page.locator('.cm-table');
-  const bar = page.locator('.cm-table-toolbar');
+  const bar = page.getByRole('toolbar', { name: 'Table' });
   await expect(table).toBeVisible();
-  await expect(bar).toBeHidden();
-  const top = (await table.boundingBox())!.y;
+  await expect(bar).toHaveCount(0);
   await table.hover();
-  await expect(bar).toBeVisible();
-  expect((await table.boundingBox())!.y).toBe(top);
-  await page.mouse.move(5, 5);
-  await expect(bar).toBeHidden();
-  // Focus (without hover) shows it too; Shift+Tab from the first cell reaches the buttons.
-  await page.locator('.cm-table th').first().focus();
-  await page.mouse.move(5, 5);
+  await expect(bar).toHaveCount(0);
+  await page.locator('.cm-table th').first().click();
   await expect(bar).toBeVisible();
   await expect(page.locator('[data-op="delRow"]')).toBeDisabled();
   await page.keyboard.press('Shift+Tab');
   await expect(page.locator('[data-op="rowAbove"]')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.locator('.cm-table th').first()).toBeFocused();
+  await page.locator('[data-op="colRight"]').click();
+  await expect(page.locator('.cm-table th')).toHaveCount(3);
+  await expect(bar).toBeVisible();
+  // Leaving the table for the text hides the row again.
+  await page.keyboard.press('Escape');
+  await expect(bar).toHaveCount(0);
+});
+
+test('the table toolbar row follows undo/redo into the table and goes in Raw mode', async ({ page }) => {
+  await newDocument(page);
+  await page.locator('.cm-editor').click();
+  await page.keyboard.type('before\n\n| h | i |\n| - | - |\n| a | b |\n\nafter');
+  await page.keyboard.press('Control+Home');
+  const bar = page.getByRole('toolbar', { name: 'Table' });
   await page.locator('.cm-table th').first().click();
   await page.locator('[data-op="colRight"]').click();
   await expect(page.locator('.cm-table th')).toHaveCount(3);
-  expect((await table.boundingBox())!.y).toBe(top);
+  await page.keyboard.press('Escape');
+  await expect(bar).toHaveCount(0);
+  // Undo changes the table: the row comes back, for the cell the change was in.
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.cm-table th')).toHaveCount(2);
+  await expect(bar).toBeVisible();
+  await page.getByRole('button', { name: 'Redo' }).click();
+  await expect(page.locator('.cm-table th')).toHaveCount(3);
+  await expect(bar).toBeVisible();
+  // Raw mode has no table, so no row.
+  await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+  await expect(page.locator('.cm-table')).toHaveCount(0);
+  await expect(bar).toHaveCount(0);
+  await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+  await expect(page.locator('.cm-table')).toBeVisible();
 });

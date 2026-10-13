@@ -1,6 +1,6 @@
 import { syntaxTree } from '@codemirror/language';
-import { ChangeSet, type ChangeSpec, type EditorState, type Extension, Prec, type Range, StateField, type Text } from '@codemirror/state';
-import { Decoration, type DecorationSet, EditorView, keymap, WidgetType } from '@codemirror/view';
+import { ChangeSet, type ChangeSpec, type EditorState, type Extension, Prec, type Range, StateField, type Text, Facet } from '@codemirror/state';
+import { Decoration, type DecorationSet, EditorView, keymap, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view';
 
 /**
  * GFM tables shown as real tables. The whole table block is replaced by a widget whose cells
@@ -93,7 +93,6 @@ class TableWidget extends WidgetType {
   toDOM(view: EditorView) {
     const wrap = document.createElement('div');
     wrap.className = this.canEdit ? 'cm-table-wrap cm-table-editable' : 'cm-table-wrap';
-    if (this.canEdit) wrap.appendChild(toolbar(view, wrap));
     const table = wrap.appendChild(document.createElement('table'));
     table.className = 'cm-table';
     const cols = Math.max(...this.model.rows.map((r) => r.length), 1);
@@ -151,12 +150,12 @@ function commit(view: EditorView, wrap: HTMLElement, td: HTMLElement): boolean {
   return true;
 }
 
-type Align = TableModel['align'][number];
+export type Align = TableModel['align'][number];
 
 /** Where the table's row `r` lives: line 0 is the header, the delimiter line is skipped. */
 const rowLine = (first: number, r: number) => first + (r === 0 ? 0 : r + 1);
 
-type TableOp = 'rowAbove' | 'rowBelow' | 'colLeft' | 'colRight' | 'delRow' | 'delCol' | 'delTable' | 'left' | 'center' | 'right';
+export type TableOp = 'rowAbove' | 'rowBelow' | 'colLeft' | 'colRight' | 'delRow' | 'delCol' | 'delTable' | 'left' | 'center' | 'right';
 
 const isAlign = (op: TableOp): op is NonNullable<Align> => op === 'left' || op === 'center' || op === 'right';
 
@@ -237,107 +236,162 @@ function tableEdit(doc: Text, t: { from: number; to: number }, op: TableOp, r: n
   }
 }
 
-const TOOLS: { op: TableOp; label: string; text: string }[] = [
-  { op: 'rowAbove', label: 'Insert row above', text: '↑▭' },
-  { op: 'rowBelow', label: 'Insert row below', text: '↓▭' },
-  { op: 'colLeft', label: 'Insert column left', text: '←▯' },
-  { op: 'colRight', label: 'Insert column right', text: '→▯' },
-  { op: 'left', label: 'Align column left', text: '⇤' },
-  { op: 'center', label: 'Align column center', text: '↔' },
-  { op: 'right', label: 'Align column right', text: '⇥' },
-  { op: 'delRow', label: 'Delete row', text: '−▭' },
-  { op: 'delCol', label: 'Delete column', text: '−▯' },
-  { op: 'delTable', label: 'Delete table', text: '🗑' },
-];
-
-/**
- * The bar over a table (shown on hover and while the table has focus) acting on the cell that last had
- * it. Buttons the cell cannot use are disabled. It is one tab stop with arrow-key navigation; Shift+Tab
- * from the first cell reaches it, Escape or Tab leaves it for the cell again.
- */
-function toolbar(view: EditorView, wrap: HTMLElement): HTMLElement {
-  const bar = document.createElement('div');
-  bar.className = 'cm-table-toolbar';
-  bar.contentEditable = 'false';
-  bar.setAttribute('role', 'toolbar');
-  bar.setAttribute('aria-label', 'Table');
-  let last: HTMLElement | null = null;
-  const cell = () => (last && wrap.isConnected && wrap.contains(last) ? last : null);
-  const buttons = TOOLS.map((tool) => {
-    const b = bar.appendChild(document.createElement('button'));
-    b.type = 'button';
-    b.className = 'cm-table-tool';
-    b.dataset.op = tool.op;
-    b.title = b.ariaLabel = tool.label;
-    b.textContent = tool.text;
-    b.tabIndex = -1;
-    b.disabled = true; // until a cell is the target
-    // Keep the focus (and caret) in the cell while the button is pressed.
-    b.addEventListener('mousedown', (e) => e.preventDefault());
-    b.addEventListener('click', () => {
-      const td = cell();
-      const t = td && tableAt(view, view.posAtDOM(wrap));
-      if (!td || !t) return;
-      // A cell edited but not yet written joins the action in one transaction: one undo step.
-      const pending = cellEdit(view.state.doc, t, td);
-      const typed = ChangeSet.of(pending ?? [], view.state.doc.length);
-      const doc = typed.apply(view.state.doc);
-      const at = { from: typed.mapPos(t.from, -1), to: typed.mapPos(t.to, 1) };
-      const plan = tableEdit(doc, at, tool.op, Number(td.dataset.row), Number(td.dataset.col));
-      if (!plan) return;
-      view.dispatch({ changes: typed.compose(ChangeSet.of(plan.changes, doc.length)), userEvent: 'input' });
-      if (plan.focus) focusCell(view, at.from, plan.focus[0], plan.focus[1]);
-      else view.focus();
-    });
-    return b;
-  });
-  const refresh = () => {
-    const td = cell();
-    const t = td && tableAt(view, view.posAtDOM(wrap));
-    const model = t && parseDoc(view.state.doc, t.from, t.to);
-    buttons.forEach((b, i) => {
-      const op = TOOLS[i].op;
-      const r = Number(td?.dataset.row);
-      const c = Number(td?.dataset.col);
-      b.disabled = !td || !t || tableEdit(view.state.doc, t, op, r, c) === null;
-      if (isAlign(op)) b.ariaPressed = String(!!model && model.align[c] === op);
-    });
-  };
-  wrap.addEventListener('focusin', (e) => {
-    const td = (e.target as HTMLElement).closest<HTMLElement>('[data-row]');
-    if (td && td !== last) {
-      last = td;
-      refresh();
-    }
-  });
-  // One tab stop (the first usable button), moved with the arrow keys.
-  const roving = (to: HTMLElement) => {
-    buttons.forEach((b) => (b.tabIndex = b === to ? 0 : -1));
-    to.focus();
-  };
-  bar.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' || e.key === 'Tab') {
-      e.preventDefault();
-      cell()?.focus();
-      return;
-    }
-    const usable = buttons.filter((b) => !b.disabled);
-    const i = usable.indexOf(document.activeElement as HTMLButtonElement);
-    if (i < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
-    e.preventDefault();
-    const n = usable.length;
-    roving(usable[e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n]);
-  });
-  bar.addEventListener('focusin', (e) => {
-    if (e.target instanceof HTMLButtonElement) buttons.forEach((b) => (b.tabIndex = b === e.target ? 0 : -1));
-  });
-  buttons[0].tabIndex = 0;
-  return bar;
+/** What the table toolbar (outside the editor) needs to know about the cell that has the focus. */
+export interface TableTarget {
+  /** Actions the cell cannot use. */
+  disabled: TableOp[];
+  /** Alignment of the cell's column. */
+  align: Align;
 }
 
-/** Shift+Tab off the first cell: to the toolbar's first usable button. */
-function focusToolbar(wrap: HTMLElement) {
-  wrap.querySelector<HTMLButtonElement>('.cm-table-tool:not(:disabled)')?.focus();
+/** Receives the table target whenever it changes: null while the caret is not in a table. */
+export const tableTargetListener = Facet.define<(target: TableTarget | null) => void, ((target: TableTarget | null) => void) | null>({
+  combine: (v) => v[0] ?? null,
+});
+
+const ALL_OPS: TableOp[] = ['rowAbove', 'rowBelow', 'colLeft', 'colRight', 'left', 'center', 'right', 'delRow', 'delCol', 'delTable'];
+
+/** The row and column of the table cell the position `pos` (inside the table `t`) lies in. */
+function cellAtPos(doc: Text, t: { from: number; to: number }, pos: number): [number, number] {
+  const first = doc.lineAt(t.from).number;
+  const line = doc.lineAt(pos);
+  const idx = line.number - first;
+  const rows = parseDoc(doc, t.from, t.to).rows.length;
+  const r = idx <= 0 ? 0 : Math.min(idx === 1 ? 1 : idx - 1, rows - 1);
+  const { cuts } = lineCuts(line.text);
+  let c = 0;
+  for (let i = 0; i < cuts.length - 1; i++) if (cuts[i] < pos - line.from) c = i;
+  return [r, c];
+}
+
+/**
+ * Follows the table the toolbar acts on: the cell that has the focus or, when no cell does, the cell the
+ * caret lies in (an undo or redo can put it there). It is none in Raw mode, where there is no table widget.
+ */
+class TableTracker {
+  /** The cell that has the focus. */
+  private focused: HTMLElement | null = null;
+  /** The cell the caret (or the last undo/redo) points at while no cell has the focus. */
+  private derived: HTMLElement | null = null;
+  private hint: number | null = null;
+  private last = '';
+  private destroyed = false;
+  constructor(readonly view: EditorView) {
+    view.dom.addEventListener('focusin', this.focusin);
+    view.dom.addEventListener('focusout', this.focusout);
+  }
+  get cell() {
+    return this.focused ?? this.derived;
+  }
+  focusin = (e: FocusEvent) => {
+    this.focused = (e.target as HTMLElement).closest<HTMLElement>('.cm-table-editable [data-row]');
+    this.refresh();
+  };
+  focusout = (e: FocusEvent) => {
+    const to = e.relatedTarget as Element | null;
+    // Focus may go to the table toolbar and still target the same cell.
+    if (!to || (!this.view.dom.contains(to) && !to.closest('[data-table-toolbar]'))) this.release();
+  };
+  release() {
+    this.focused = null;
+    this.derived = null;
+    this.report();
+  }
+  update(u: ViewUpdate) {
+    const undone = u.transactions.some((tr) => tr.isUserEvent('undo') || tr.isUserEvent('redo'));
+    // Where an undo or redo last changed the document, until the caret is moved elsewhere.
+    if (undone) {
+      this.hint = null;
+      u.changes.iterChangedRanges((_a, _b, from) => void (this.hint ??= from));
+    } else if (u.selectionSet) this.hint = null;
+    else if (this.hint !== null) this.hint = u.changes.mapPos(this.hint);
+    // The widgets are redrawn after the plugins update: look at the table once they are.
+    if (this.cell || u.docChanged || u.selectionSet || u.transactions.some((tr) => tr.effects.length)) {
+      this.view.requestMeasure({ key: this, read: () => this.refresh(), write: () => {} });
+    }
+  }
+  destroy() {
+    this.destroyed = true;
+    this.view.dom.removeEventListener('focusin', this.focusin);
+    this.view.dom.removeEventListener('focusout', this.focusout);
+    this.focused = this.derived = null;
+    this.report();
+  }
+  /** Recomputes the cell from the focus and the caret, then reports. */
+  refresh() {
+    if (this.destroyed) return;
+    const hint = this.hint;
+    if (this.focused && !this.focused.isConnected) this.focused = null;
+    this.derived = null;
+    if (!this.focused && this.view.hasFocus) {
+      const pos = hint !== null ? Math.min(hint, this.view.state.doc.length) : this.view.state.selection.main.head;
+      const t = tableAt(this.view, pos);
+      if (t && (hint !== null ? pos >= t.from && pos <= t.to : pos > t.from && pos < t.to)) {
+        const [r, c] = cellAtPos(this.view.state.doc, t, pos);
+        for (const w of Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-table-wrap'))) {
+          if (this.view.posAtDOM(w) !== t.from) continue;
+          this.derived = w.querySelector<HTMLElement>(`[data-row="${r}"][data-col="${c}"]`) ?? w.querySelector<HTMLElement>('[data-row]');
+        }
+      }
+    }
+    this.report();
+  }
+  /** The cell and its table while both are still in the document. */
+  target() {
+    const td = this.cell;
+    const wrap = td?.closest<HTMLElement>('.cm-table-wrap') ?? null;
+    const t = td && wrap && wrap.isConnected ? tableAt(this.view, this.view.posAtDOM(wrap)) : undefined;
+    return td && wrap && t ? { td, wrap, t } : null;
+  }
+  report() {
+    const tg = this.target();
+    let out: TableTarget | null = null;
+    if (tg) {
+      const r = Number(tg.td.dataset.row);
+      const c = Number(tg.td.dataset.col);
+      out = {
+        disabled: ALL_OPS.filter((op) => tableEdit(this.view.state.doc, tg.t, op, r, c) === null),
+        align: parseTable(this.view.state, tg.t.from, tg.t.to).align[c] ?? null,
+      };
+    }
+    const key = JSON.stringify(out);
+    if (key === this.last) return;
+    this.last = key;
+    this.view.state.facet(tableTargetListener)?.(out);
+  }
+}
+
+const trackerPlugin = ViewPlugin.fromClass(TableTracker);
+
+/** Runs a table toolbar action on the cell that has the focus; one undo step, a typed-but-unwritten cell joins it. */
+export function runTableOp(view: EditorView, op: TableOp) {
+  const tg = view.plugin(trackerPlugin)?.target();
+  if (!tg) return;
+  const { td, t } = tg;
+  const pending = cellEdit(view.state.doc, t, td);
+  const typed = ChangeSet.of(pending ?? [], view.state.doc.length);
+  const doc = typed.apply(view.state.doc);
+  const at = { from: typed.mapPos(t.from, -1), to: typed.mapPos(t.to, 1) };
+  const plan = tableEdit(doc, at, op, Number(td.dataset.row), Number(td.dataset.col));
+  if (!plan) return;
+  view.dispatch({ changes: typed.compose(ChangeSet.of(plan.changes, doc.length)), userEvent: 'input' });
+  if (plan.focus) focusCell(view, at.from, plan.focus[0], plan.focus[1]);
+  else view.focus();
+}
+
+/** Puts the focus back in the cell the toolbar acts on. */
+export function focusTableCell(view: EditorView) {
+  view.plugin(trackerPlugin)?.target()?.td.focus();
+}
+
+/** The caret left the table for somewhere outside the editor (the toolbar lost focus too). */
+export function releaseTable(view: EditorView) {
+  view.plugin(trackerPlugin)?.release();
+}
+
+/** Shift+Tab off the first cell: to the table toolbar's first usable button. */
+function focusToolbar() {
+  document.querySelector<HTMLButtonElement>('[data-table-toolbar] button:not(:disabled)')?.focus();
 }
 
 function focusCell(view: EditorView, tablePos: number, r: number, c: number) {
@@ -387,7 +441,7 @@ function cellKey(view: EditorView, wrap: HTMLElement, td: HTMLElement, e: Keyboa
   if (tc < 0) [tr, tc] = [r - 1, cols - 1];
   else if (tc >= cols) [tr, tc] = [r + 1, 0];
   if (tr < 0) {
-    focusToolbar(wrap);
+    focusToolbar();
     return;
   }
   commit(view, wrap, td);
@@ -458,5 +512,6 @@ const tableField = StateField.define<DecorationSet>({
 
 export const tables: Extension = [
   tableField,
+  trackerPlugin,
   Prec.highest(keymap.of([{ key: 'ArrowDown', run: enterTable(true) }, { key: 'ArrowUp', run: enterTable(false) }])),
 ];
