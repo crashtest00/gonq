@@ -6,6 +6,8 @@ import { PreferencesDialog } from './components/PreferencesDialog';
 import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
 import { TabStrip } from './components/TabStrip';
 import { EditToolbar } from './components/EditToolbar';
+import { TableToolbar } from './components/TableToolbar';
+import type { TableTarget } from './editor/tables';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
@@ -53,6 +55,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [recents, setRecents] = useState<RecentDocument[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
+  const [tableTarget, setTableTarget] = useState<TableTarget | null>(null);
   const [selection, setSelection] = useState<EditorSelection | null>(null);
   const [caret, setCaret] = useState<number | null>(null);
   const editor = useRef<EditorHandle>(null);
@@ -540,6 +543,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {meta !== null && <EditToolbar canUndo={session.canUndo} canRedo={session.canRedo} onUndo={undo} onRedo={redo} onFormat={(f, url) => editor.current?.format(f, url)} />}
+          {meta !== null && tableTarget !== null && (
+            <TableToolbar
+              target={tableTarget}
+              onAction={(op) => editor.current?.tableAction(op)}
+              onReturn={() => editor.current?.focusTableCell()}
+              onLeave={() => editor.current?.releaseTable()}
+            />
+          )}
           {(error !== null || savingTo !== null || notice !== null || meta === null) && (
             <div className="mx-auto box-border w-full max-w-[760px] shrink-0 px-10 pt-5">
               {error !== null && (
@@ -573,6 +584,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                 setDraft(null);
                 openThread(key);
               }}
+              onTable={setTableTarget}
               onChange={session.edited}
               onSelection={(sel, head) => {
                 setSelection(sel);

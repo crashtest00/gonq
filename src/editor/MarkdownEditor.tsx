@@ -2,6 +2,7 @@ import { redo, redoDepth, undo, undoDepth } from '@codemirror/commands';
 import { EditorState, type Extension, type StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react';
+import { focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
 import { applyFormat, type Format } from '../components/formatting';
 import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCommentThread, effectiveCommentCreationPosition, AGENT_GUIDANCE, hasAgentGuidance } from '../comment-threads';
 import { commentThreadCreationChanges } from '../comment-threads/editor/codemirror';
@@ -41,6 +42,12 @@ export interface EditorHandle {
   /** Collapses the selection to its end. */
   collapse(): void;
   focus(): void;
+  /** Runs a table toolbar action on the focused table cell. */
+  tableAction(op: TableOp): void;
+  /** Puts the focus back in the table cell the toolbar acts on. */
+  focusTableCell(): void;
+  /** The toolbar lost focus for good: the caret is no longer in a table. */
+  releaseTable(): void;
 }
 
 interface Props {
@@ -57,6 +64,8 @@ interface Props {
   docPath: string | null;
   /** A 💬 / ✅ marker was clicked. */
   onOpenThread: (id: string, ordinal: number) => void;
+  /** The focused table cell changed: null when the caret is not in a table. */
+  onTable: (target: TableTarget | null) => void;
 }
 
 interface Saved {
@@ -113,7 +122,9 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
 
   const hostExt = useRef<Extension | null>(null);
   hostExt.current ??= editorHost.of({ docPath: () => latest.current.docPath, openThread: (id, ordinal) => latest.current.onOpenThread(id, ordinal) });
-  const extras = () => [listener.current!, hostExt.current!];
+  const tableExt = useRef<Extension | null>(null);
+  tableExt.current ??= tableTargetListener.of((t) => latest.current.onTable(t));
+  const extras = () => [listener.current!, hostExt.current!, tableExt.current!];
 
   useLayoutEffect(() => {
     const { tabId, text, raw } = latest.current;
@@ -157,6 +168,9 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   useImperativeHandle(
     ref,
     () => ({
+      tableAction: (op) => view.current && runTableOp(view.current, op),
+      focusTableCell: () => view.current && focusTableCell(view.current),
+      releaseTable: () => view.current && releaseTable(view.current),
       undo: () => view.current && (undo(view.current), view.current.focus()),
       redo: () => view.current && (redo(view.current), view.current.focus()),
       format(format, url = '') {
