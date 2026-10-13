@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
+import { editorView, select } from './testing/editor';
 import { NotUtf8Error, type FileAccess, type OpenedDocument } from './platform/files';
 
 // The live-preview decorations are built after mount; under full-suite load that can exceed waitFor's 1s default.
@@ -198,6 +199,8 @@ describe('table toolbar row', () => {
     const row = await screen.findByRole('toolbar', { name: 'Table' });
     expect(screen.getByRole('toolbar', { name: 'Editing' }).compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     screen.getByTestId('editor').querySelector<HTMLElement>('.cm-content')!.focus();
+    // The caret may still lie in the table (the row then stays, by design): put it after the table.
+    select(editorView().state.doc.length);
     await waitFor(() => expect(screen.queryByRole('toolbar', { name: 'Table' })).not.toBeInTheDocument());
   });
 });
