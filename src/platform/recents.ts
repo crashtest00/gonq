@@ -2,6 +2,7 @@
 // on desktop, localStorage in the browser.
 import { invoke } from '@tauri-apps/api/core';
 import { isTauri } from './files';
+import { isSshPath } from './remote';
 
 export interface RecentDocument {
   path: string;
@@ -20,7 +21,8 @@ function readLocal(): RecentDocument[] {
     const parsed = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]');
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .filter((r) => r && typeof r.path === 'string' && typeof r.openedAt === 'number')
+      // A browser cannot reach ssh:// files, so none are shown there.
+      .filter((r) => r && typeof r.path === 'string' && typeof r.openedAt === 'number' && !isSshPath(r.path))
       .slice(0, MAX_RECENTS);
   } catch {
     return [];

@@ -10,7 +10,7 @@ const EFFECTS: [string, string][] = [
 ];
 
 test.each(EFFECTS)('%s button carries its own text effect (%s)', (name, effect) => {
-  render(<EditToolbar editing canUndo={false} canRedo={false} onUndo={vi.fn()} onRedo={vi.fn()} />);
+  render(<EditToolbar canUndo={false} canRedo={false} onUndo={vi.fn()} onRedo={vi.fn()} onFormat={vi.fn()} />);
   const button = screen.getByRole('button', { name });
   expect(button).toHaveClass(effect);
   for (const [other, otherEffect] of EFFECTS) {

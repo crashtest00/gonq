@@ -64,4 +64,10 @@ describe('web', () => {
     expect(await getAuthorName()).toBe('Bo');
     expect(invoke).not.toHaveBeenCalled();
   });
+  it('ignores a leftover gonq.showMarkersInActiveBlock value and still reads the author name', async () => {
+    localStorage.setItem('gonq.showMarkersInActiveBlock', 'false');
+    localStorage.setItem(AUTHOR_KEY, 'Bo');
+    expect(await getAuthorName()).toBe('Bo');
+    expect(localStorage.getItem('gonq.showMarkersInActiveBlock')).toBe('false');
+  });
 });

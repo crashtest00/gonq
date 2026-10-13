@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MenuBar } from './components/MenuBar';
 import { AgentSkillDialog } from './components/AgentSkillDialog';
+import { AboutDialog } from './components/AboutDialog';
 import { PreferencesDialog } from './components/PreferencesDialog';
 import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
 import { TabStrip } from './components/TabStrip';
@@ -9,16 +10,20 @@ import { OutlineSidebar } from './components/OutlineSidebar';
 import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
-import { listThreads } from './components/threads';
-import { isCommentableAt, selectionToRange, type ThreadTarget } from './components/newThread';
-import { appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus, openThread as openThreadIn, withAgentGuidance } from './comment-threads';
+import { ConflictDialog, type ConflictChoice } from './components/ConflictDialog';
+import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
+import { ConnectDialog } from './components/ConnectDialog';
+import { assertConnectAvailable } from './platform/connect';
+import { listThreads, threadKey } from './components/threads';
+import { isCommentableAt, selectionRange, type ThreadTarget } from './components/newThread';
+import { parseCommentMarkers, appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus } from './comment-threads';
 import { RawSwitch } from './components/RawSwitch';
-import { MarkdownView } from './components/MarkdownView';
+import { MarkdownEditor, type EditorHandle, type EditorSelection } from './editor/MarkdownEditor';
 import { useDocument } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
 import { FolderSidebar } from './components/FolderSidebar';
-import { foldersSupported, pathExists, pickFolder } from './platform/folders';
+import { pathExists, pickFolder } from './platform/folders';
 import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from './platform/recents';
 
 function parentDir(path: string): string | null {
@@ -27,9 +32,16 @@ function parentDir(path: string): string | null {
   return i === 0 ? path.slice(0, 1) : path.slice(0, i);
 }
 
+interface ConnectRequest {
+  id: number;
+  host?: string;
+  reconnect: boolean;
+  resolve: (connected: boolean) => void;
+}
+
 export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const session = useDocument();
-  const { meta, text, dirty, region } = session;
+  const { meta, text } = session;
   const rawAll = session.raw;
   const [error, setError] = useState<string | null>(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -41,18 +53,23 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [recents, setRecents] = useState<RecentDocument[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
-  const [selection, setSelection] = useState<{ from: number; to: number; text: string; x: number; y: number } | null>(null);
-  const [caret, setCaret] = useState<{ offset: number; text: string } | null>(null);
-  const [reveal, setReveal] = useState<string | null>(null);
+  const [selection, setSelection] = useState<EditorSelection | null>(null);
+  const [caret, setCaret] = useState<number | null>(null);
+  const editor = useRef<EditorHandle>(null);
   const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
+  const [conflict, setConflict] = useState<{ name: string; deleted: boolean; resolve: (c: ConflictChoice) => void } | null>(null);
+  // A remote save slower than a second says where it is going; an in-place save says it was not atomic.
+  const [savingTo, setSavingTo] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const activeId = session.activeId;
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
-  const mainRef = useRef<HTMLElement>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  // The Connect dialog: from File > Connect to Server, from a login a save or expand needs, or from an error row.
+  const [connecting, setConnecting] = useState<ConnectRequest | null>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
-  const doc = useMemo(() => (meta === null ? null : { name: meta.name, path: meta.path, text }), [meta, text]);
 
   useEffect(() => {
     let live = true;
@@ -66,6 +83,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const docPath = meta?.path ?? null;
   useEffect(() => {
     if (docPath === null || folderChosen.current) return;
+    // A remote document's parent is not on the allow-list; the remote root comes from the Connect flow.
+    if (isSshPath(docPath)) return;
     const parent = parentDir(docPath);
     if (parent !== null) setFolder(parent);
   }, [docPath]);
@@ -73,7 +92,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     if (path !== null) addRecent(path).then(setRecents, () => {});
   }, []);
 
-  // Switching tabs: the comments sidebar goes back to All threads, and the canvas gets its scroll back.
+  // Switching tabs: the comments sidebar goes back to All threads.
   useEffect(() => {
     setSelectedKey(null);
     setDraft(null);
@@ -81,16 +100,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     setCaret(null);
     setError(null);
   }, [activeId]);
-  useLayoutEffect(() => {
-    if (mainRef.current) mainRef.current.scrollTop = session.activeTab?.scrollTop ?? 0;
-    // Only a switch restores scroll; ordinary edits keep the canvas where it is.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId]);
 
   const textRef = useRef(text);
   textRef.current = text;
-  const liveSelection = selection !== null && selection.text === text ? selection : null;
-  const liveCaret = caret !== null && caret.text === text ? caret.offset : null;
+  const liveSelection = useMemo(() => {
+    const range = selection === null ? null : selectionRange(text, selection.from, selection.to);
+    return selection !== null && range !== null ? { ...range, x: selection.x, y: selection.y } : null;
+  }, [selection, text]);
+  const liveCaret = caret !== null && caret <= text.length ? caret : null;
   const canAddAtCursor = liveCaret !== null && isCommentableAt(text, liveCaret);
 
   const startDraft = useCallback(
@@ -115,25 +132,23 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         return setError('The document changed while you were writing; start the comment again.');
       }
       try {
-        const opened = openThreadIn(text, draft.target, authorName, body.trim());
-        const { thread } = opened;
-        // The note for agents goes just ahead of the new block, once per file.
-        const next = withAgentGuidance(opened.doc, thread.from);
-        session.replaceText(next);
-        const created = listThreads(next).find((t) => t.thread.id === thread.id);
+        if (editor.current === null) throw new Error('No document is open.');
+        const before = new Set(listThreads(text).map((t) => t.thread.id));
+        const next = editor.current.createThread(draft.target, authorName, body.trim());
+        const created = listThreads(next).find((t) => !before.has(t.thread.id));
         setError(null);
         setDraft(null);
         setSelection(null);
-        window.getSelection()?.removeAllRanges();
+        editor.current?.collapse();
         if (created) {
           setSelectedKey(created.key);
-          setReveal(created.key);
+          revealThread(next, created.thread.id, created.ordinal);
         }
       } catch (e) {
         failed(e);
       }
     },
-    [draft, text, authorName, session.replaceText],
+    [draft, text, authorName, editor],
   );
 
   const reply = useCallback(
@@ -141,13 +156,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined || body.trim() === '') return;
       try {
-        session.replaceText(appendToThread(text, { id: item.thread.id, ordinal: item.ordinal }, authorName, body.trim()));
+        editor.current?.setText(appendToThread(text, { id: item.thread.id, ordinal: item.ordinal }, authorName, body.trim()));
         setError(null);
       } catch (e) {
         failed(e);
       }
     },
-    [threads, text, authorName, session.replaceText],
+    [threads, text, authorName, editor],
   );
 
   const setStatus = useCallback(
@@ -155,13 +170,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined) return;
       try {
-        session.replaceText(setThreadStatus(text, { id: item.thread.id, ordinal: item.ordinal }, status));
+        editor.current?.setText(setThreadStatus(text, { id: item.thread.id, ordinal: item.ordinal }, status));
         setError(null);
       } catch (e) {
         failed(e);
       }
     },
-    [threads, text, session.replaceText],
+    [threads, text, editor],
   );
 
   const edit = useCallback(
@@ -169,13 +184,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined || body.trim() === '') return;
       try {
-        session.replaceText(editThreadMessage(text, { id: item.thread.id, ordinal: item.ordinal }, body.trim()));
+        editor.current?.setText(editThreadMessage(text, { id: item.thread.id, ordinal: item.ordinal }, body.trim()));
         setError(null);
       } catch (e) {
         failed(e);
       }
     },
-    [threads, text, session.replaceText],
+    [threads, text, editor],
   );
 
   const remove = useCallback(
@@ -183,24 +198,21 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined) return;
       try {
-        session.replaceText(deleteThread(text, { id: item.thread.id, ordinal: item.ordinal }));
+        editor.current?.setText(deleteThread(text, { id: item.thread.id, ordinal: item.ordinal }));
         setError(null);
         setSelectedKey(null);
       } catch (e) {
         failed(e);
       }
     },
-    [threads, text, session.replaceText],
+    [threads, text, editor],
   );
 
-  // Once the new marker is rendered, bring it into view.
-  useEffect(() => {
-    if (reveal === null) return;
-    const main = mainRef.current;
-    const marker = main?.querySelector<HTMLElement>(`[data-thread-key="${CSS.escape(reveal)}"]`);
-    if (main && marker) main.scrollTop += marker.getBoundingClientRect().top - main.getBoundingClientRect().top - 40;
-    setReveal(null);
-  }, [reveal, text]);
+  /** Brings the marker of a thread into view; a thread with no marker has nothing to scroll to. */
+  const revealThread = useCallback((doc: string, id: string, ordinal: number) => {
+    const marker = parseCommentMarkers(doc).get(id)?.[ordinal];
+    if (marker) editor.current?.reveal(marker.from);
+  }, []);
 
   const toggleComments = useCallback(() => {
     // Each reopen starts at the All threads list.
@@ -209,41 +221,22 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     setCommentsOpen((open) => !open);
   }, []);
 
-  // A selection inside one paragraph or task item offers a comment button next to it.
-  useEffect(() => {
-    const onChange = () => {
-      const article = mainRef.current?.querySelector('[data-testid="markdown-view"]');
-      const sel = window.getSelection();
-      const range = article && sel ? selectionToRange(article, sel, textRef.current) : null;
-      if (!range || !sel) return setSelection(null);
-      const box = sel.getRangeAt(0).getBoundingClientRect?.() ?? { right: 0, top: 0 };
-      setSelection({ ...range, text: textRef.current, x: box.right + 4, y: Math.max(0, box.top - 30) });
-    };
-    document.addEventListener('selectionchange', onChange);
-    return () => document.removeEventListener('selectionchange', onChange);
-  }, []);
+  const openThread = useCallback(
+    (key: string) => {
+      setSelectedKey(key);
+      setCommentsOpen(true);
+      const item = listThreads(textRef.current).find((t) => t.key === key);
+      if (item) revealThread(textRef.current, item.thread.id, item.ordinal);
+    },
+    [revealThread],
+  );
 
-  const openThread = useCallback((key: string) => {
-    setSelectedKey(key);
-    setCommentsOpen(true);
-    // A thread with no marker in the view has nothing to scroll to.
-    const main = mainRef.current;
-    const marker = main?.querySelector<HTMLElement>(`[data-thread-key="${CSS.escape(key)}"]`);
-    if (main && marker) {
-      main.scrollTop += marker.getBoundingClientRect().top - main.getBoundingClientRect().top - 40;
-    }
-  }, []);
-
-  const jumpToHeading = useCallback((from: number) => {
-    const main = mainRef.current;
-    const heading = main?.querySelector<HTMLElement>(`:is(h1,h2,h3,h4,h5,h6)[data-from="${from}"]`);
-    if (main && heading) main.scrollTop += heading.getBoundingClientRect().top - main.getBoundingClientRect().top - 20;
-  }, []);
+  const jumpToHeading = useCallback((from: number) => editor.current?.reveal(from, true), []);
 
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
   /** Writes tab `id`; true when it is on disk, false when cancelled or failed. */
-  const write = useCallback(
+  const doWrite = useCallback(
     async (id: number, as: boolean): Promise<boolean> => {
       const tab = session.peek(id);
       if (tab === null) return true;
@@ -251,27 +244,63 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const snapshot = tab.text;
       // Save As may not land on a file another tab holds.
       const taken = (path: string) => session.peekTabs().some((t) => t.id !== id && t.path === path);
+      const remotePath = !as && tab.meta.path !== null && isSshPath(tab.meta.path) ? tab.meta.path : null;
+      const slow = remotePath === null ? null : setTimeout(() => setSavingTo(remoteHost(remotePath)), 1000);
       try {
-        const saved = as
-          ? await files.saveDocumentAs({ name: tab.meta.name, text: snapshot }, taken)
-          : tab.meta.path === null
-            ? await files.saveDocument({ name: tab.meta.name, path: null, text: snapshot }, taken)
-            : await files.saveDocument({ name: tab.meta.name, path: tab.meta.path, text: snapshot });
+        const doc = { name: tab.meta.name, path: tab.meta.path, text: snapshot, remote: tab.meta.remote };
+        let saved;
+        if (as) saved = await files.saveDocumentAs({ name: tab.meta.name, text: snapshot }, taken);
+        else if (tab.meta.path === null) saved = await files.saveDocument({ ...doc, path: null }, taken);
+        else {
+          try {
+            saved = await files.saveDocument(doc);
+          } catch (e) {
+            if (!(e instanceof RemoteConflictError)) throw e;
+            if (slow !== null) clearTimeout(slow);
+            setSavingTo(null);
+            const choice = await new Promise<ConflictChoice>((resolve) => setConflict({ name: e.name_, deleted: e.deleted, resolve }));
+            setConflict(null);
+            // Cancel leaves the tab unsaved, text intact.
+            if (choice === 'cancel') return false;
+            saved = await files.saveDocument(doc, undefined, { force: true });
+          }
+        }
         if (saved === null) return false;
         if (saved.path !== null && saved.path !== tab.meta.path && taken(saved.path)) {
           setError(`${saved.path} is already open in another tab, so it was not saved there. Choose another name.`);
           return false;
         }
         setError(null);
-        session.saved(id, saved, snapshot);
+        if (saved.inPlaceHost !== undefined) {
+          setNotice(`Saved in place on ${remoteHost(saved.inPlaceHost)} (not atomic): the server can't swap files safely, so a dropped connection could leave the file half written.`);
+        }
+        session.saved(id, { name: saved.name, path: saved.path, remote: saved.remote }, snapshot);
         if (saved.path !== tab.meta.path) remember(saved.path);
         return true;
       } catch (e) {
         failed(e);
         return false;
+      } finally {
+        if (slow !== null) clearTimeout(slow);
+        setSavingTo(null);
       }
     },
     [files, session.peek, session.peekTabs, session.saved, remember],
+  );
+  // One save per tab at a time: a request made while one is pending joins it (no parallel write, no second dialog).
+  const pendingSaves = useRef(new Map<number, Promise<boolean>>());
+  const write = useCallback(
+    (id: number, as: boolean): Promise<boolean> => {
+      const pending = pendingSaves.current.get(id);
+      if (pending !== undefined && !as) return pending;
+      const run = (pending ?? Promise.resolve(true)).then(() => doWrite(id, as));
+      const tracked = run.finally(() => {
+        if (pendingSaves.current.get(id) === tracked) pendingSaves.current.delete(id);
+      });
+      pendingSaves.current.set(id, tracked);
+      return tracked;
+    },
+    [doWrite],
   );
   const save = useCallback(() => (activeId === null ? Promise.resolve(true) : write(activeId, false)), [write, activeId]);
   const saveAs = useCallback(() => (activeId === null ? Promise.resolve(true) : write(activeId, true)), [write, activeId]);
@@ -325,7 +354,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       try {
         if (fromRecents) {
           await allowRecentDocument(path);
-          if (!(await pathExists(path))) {
+          // A remote file stays in the list when its host is unreachable; opening it reports why.
+          if (!isSshPath(path) && !(await pathExists(path))) {
             await removeRecent(path).then(setRecents, () => {});
             return setError(`${path} no longer exists, so it was removed from recent documents.`);
           }
@@ -335,6 +365,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         session.open(opened);
         remember(opened.path);
       } catch (e) {
+        // Only a file the server says is gone leaves the recent list.
+        if (fromRecents && e instanceof RemoteFileError && e.kind === 'not_found') await removeRecent(path).then(setRecents, () => {});
         failed(e);
       }
     },
@@ -357,20 +389,88 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     }
   }, []);
 
+  /** Whether an open tab or the navigator root still uses the session for this host (user@host, or a bare host). */
+  const hostInUse = useCallback(
+    (name: string) => {
+      const want = name.toLowerCase().replace(/^ssh:\/\//, '');
+      const same = (path: string) => {
+        if (!isSshPath(path)) return false;
+        const account = remoteAccount(path).toLowerCase();
+        return account === want || account.endsWith(`@${want}`);
+      };
+      return session.peekTabs().some((t) => t.path !== null && same(t.path)) || (folder !== null && same(folder));
+    },
+    [session.peekTabs, folder],
+  );
+  // One Connect dialog at a time. Each request gets its own key so its dialog starts fresh; requests that
+  // arrive while one is open wait their turn and start only after it closes.
+  const connectingNow = useRef<ConnectRequest | null>(null);
+  const connectQueue = useRef<ConnectRequest[]>([]);
+  const connectSeq = useRef(0);
+  const requestConnect = useCallback((host: string | undefined, reconnect: boolean): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      const req: ConnectRequest = { id: ++connectSeq.current, host, reconnect, resolve };
+      if (connectingNow.current === null) {
+        connectingNow.current = req;
+        setConnecting(req);
+      } else connectQueue.current.push(req);
+    });
+  }, []);
+  const connectClosed = useCallback((connected: boolean) => {
+    connectingNow.current?.resolve(connected);
+    const next = connectQueue.current.shift() ?? null;
+    connectingNow.current = next;
+    setConnecting(next);
+  }, []);
+  /** File > Connect to Server; does nothing while a Connect dialog is already open. */
+  const openConnect = useCallback((host?: string): Promise<boolean> => {
+    try {
+      assertConnectAvailable();
+    } catch (e) {
+      failed(e);
+      return Promise.resolve(false);
+    }
+    if (connectingNow.current !== null) return Promise.resolve(false);
+    return requestConnect(host, false);
+  }, [requestConnect]);
+  // A save or a folder expand that needs a login waits on the Connect dialog, then runs again.
+  const connectPending = useRef(new Map<string, Promise<boolean>>());
+  useEffect(() => {
+    return setConnectHandler((path) => {
+      const key = remoteAccount(path).toLowerCase();
+      const existing = connectPending.current.get(key);
+      if (existing !== undefined) return existing;
+      const asked = requestConnect(remoteAccount(path), true);
+      connectPending.current.set(key, asked);
+      void asked.finally(() => connectPending.current.delete(key));
+      return asked;
+    });
+  }, [requestConnect]);
+  const openedRemoteFolder = useCallback((uri: string) => {
+    folderChosen.current = true;
+    setFolder(uri);
+    setError(null);
+    setOutlineOpen(false);
+    setFolderOpen(true);
+  }, []);
+
   // Keyboard shortcuts read the latest handlers through a ref, so the listener is added once.
   const openPrefs = useCallback(() => setPrefsOpen(true), []);
-  const actions = useRef({ newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo, openPrefs });
-  actions.current = { newFile, openFile, save, saveAs, undo: session.undo, redo: session.redo, openPrefs };
+  const undo = useCallback(() => editor.current?.undo(), []);
+  const redo = useCallback(() => editor.current?.redo(), []);
+  const actions = useRef({ newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect });
+  actions.current = { newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
       const a = actions.current;
       const key = e.key.toLowerCase();
       const target = e.target as HTMLElement | null;
-      // Undo in any other text field is that field's own.
-      const foreignField = target?.closest('input, textarea') && !target.closest('[data-block-editor]');
+      // Undo in the editor is CodeMirror's own, as it is in any other text field.
+      const foreignField = target?.closest('input, textarea, .cm-editor');
       let run: (() => unknown) | null = null;
       if (e.key === ',' && !e.shiftKey) run = a.openPrefs;
+      else if (key === 'k' && e.shiftKey) run = () => a.openConnect();
       else if (key === 'o') run = a.openFile;
       else if (key === 'n') run = a.newFile;
       else if (key === 's') run = e.shiftKey ? a.saveAs : a.save;
@@ -401,17 +501,23 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         canUndo={session.canUndo}
         canRedo={session.canRedo}
         onNew={newFile}
+        onFocusEditor={() => editor.current?.focus()}
         onCloseTab={activeId === null ? undefined : () => void closeTab(activeId)}
         onOpen={() => void openFile()}
-        onOpenFolder={foldersSupported() ? () => void openFolder() : undefined}
+        onOpenFolder={() => void openFolder()}
+        onConnect={() => void openConnect()}
         onSave={() => void save()}
         onSaveAs={() => void saveAs()}
-        onUndo={session.undo}
-        onRedo={session.redo}
+        onUndo={undo}
+        onRedo={redo}
         onPreferences={openPrefs}
         onAgentSkill={() => setSkillOpen(true)}
+        onAbout={() => setAboutOpen(true)}
       />
-      <TabStrip tabs={session.tabs} activeId={activeId} onSelect={session.activate} onClose={(id) => void closeTab(id)} onNew={newFile} outlineOpen={outlineOpen} onToggleOutline={() => {
+      <TabStrip tabs={session.tabs} activeId={activeId} onSelect={(id) => {
+        session.activate(id);
+        editor.current?.focus();
+      }} onClose={(id) => void closeTab(id)} onNew={newFile} outlineOpen={outlineOpen} onToggleOutline={() => {
           setOutlineOpen((o) => !o);
           setFolderOpen(false);
         }} folderOpen={folderOpen} onToggleFolder={() => {
@@ -422,71 +528,59 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         {outlineOpen && <OutlineSidebar items={outline} onJump={jumpToHeading} />}
         {folderOpen && (
           <FolderSidebar
-            supported={foldersSupported()}
             folder={folder}
             recents={recents}
             currentPath={meta?.path ?? null}
             onOpenFolder={() => void openFolder()}
             onOpenFile={openFromFolder}
+            onLogin={(path) => openConnect(remoteAccount(path))}
             onOpenRecent={(path) => void openKnownPath(path, true)}
             onRemoveRecent={(path) => void removeRecent(path).then(setRecents, () => {})}
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {doc !== null && (
-            <EditToolbar editing={region !== null} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={session.undo} onRedo={session.redo} />
-          )}
-          <main ref={mainRef} onScroll={(e) => session.setScrollTop(e.currentTarget.scrollTop)} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-            <div className="mx-auto box-border w-full max-w-[760px] px-10 pb-16 pt-5">
+          {meta !== null && <EditToolbar canUndo={session.canUndo} canRedo={session.canRedo} onUndo={undo} onRedo={redo} onFormat={(f, url) => editor.current?.format(f, url)} />}
+          {(error !== null || savingTo !== null || notice !== null || meta === null) && (
+            <div className="mx-auto box-border w-full max-w-[760px] shrink-0 px-10 pt-5">
               {error !== null && (
                 <div role="alert" className="mb-5 rounded-control border border-destructive px-3 py-2 text-[13px] text-destructive">
                   {error}
                 </div>
               )}
-              {doc !== null ? (
-                <>
-                  <MarkdownView
-                    doc={doc}
-                    files={files}
-                    threads={threads}
-                    onOpenThread={openThread}
-                    editing={{
-                      region,
-                      onStart: session.startEdit,
-                      onChange: session.changeEdit,
-                      onCaret: (offset) =>
-                        setCaret((c) => (c !== null && c.offset === offset && c.text === text ? c : { offset, text })),
-                      onClose: session.closeEdit,
-                      onToggleTask: session.replaceRange,
-                      rawAll,
-                    }}
-                  />
-                  {region === null && !rawAll && (
-                    <div
-                      data-testid="append-area"
-                      className="min-h-24 cursor-text text-[13px] text-muted-foreground"
-                      onClick={session.startAppend}
-                    >
-                      {text === '' && 'Click here to start writing.'}
-                    </div>
-                  )}
-                </>
-              ) : (
-                error === null && (
-                  <p className="text-[13px] text-muted-foreground">Use File &gt; Open to open a Markdown file, or File &gt; New to start one.</p>
-                )
+              {savingTo !== null && <div role="status" className="mb-5 text-[13px] text-muted-foreground">Saving to {savingTo}…</div>}
+              {notice !== null && (
+                <div role="status" className="mb-5 flex items-start justify-between gap-3 rounded-control border border-border px-3 py-2 text-[13px] text-muted-foreground">
+                  <span>{notice}</span>
+                  <button type="button" aria-label="Dismiss notice" onClick={() => setNotice(null)} className="cursor-pointer border-0 bg-transparent p-0 text-inherit">×</button>
+                </div>
+              )}
+              {meta === null && error === null && (
+                <p className="text-[13px] text-muted-foreground">Use File &gt; Open to open a Markdown file, or File &gt; New to start one.</p>
               )}
             </div>
-          </main>
-          {doc !== null && (
-            <RawSwitch
+          )}
+          {meta !== null && activeId !== null && (
+            <MarkdownEditor
+              ref={editor}
+              tabId={activeId}
+              text={text}
               raw={rawAll}
-              onChange={(raw) => {
-                session.closeEdit();
-                session.setRaw(raw);
+              tabIds={session.tabIds}
+              docPath={meta.path}
+              onOpenThread={(id, ordinal) => {
+                const key = threadKey(id, ordinal);
+                if (!listThreads(textRef.current).some((t) => t.key === key)) return;
+                setDraft(null);
+                openThread(key);
+              }}
+              onChange={session.edited}
+              onSelection={(sel, head) => {
+                setSelection(sel);
+                setCaret(head);
               }}
             />
           )}
+          {meta !== null && <RawSwitch raw={rawAll} onChange={session.setRaw} />}
         </div>
         {commentsOpen && (
           <CommentsSidebar
@@ -500,10 +594,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             draft={draft === null ? null : { anchor: draft.anchor }}
             canAdd={meta !== null && (liveSelection !== null || canAddAtCursor)}
             onAdd={addComment}
-            onCancelDraft={() => {
-              setDraft(null);
-              window.getSelection()?.removeAllRanges();
-            }}
+            onCancelDraft={() => setDraft(null)}
             onSubmitDraft={submitDraft}
             onReply={reply}
             onSetStatus={setStatus}
@@ -534,6 +625,18 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         />
       )}
       {skillOpen && <AgentSkillDialog files={files} onClose={() => setSkillOpen(false)} />}
+      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+      {connecting !== null && (
+        <ConnectDialog
+          key={connecting.id}
+          host={connecting.host}
+          reconnect={connecting.reconnect}
+          inUse={hostInUse}
+          onOpened={openedRemoteFolder}
+          onClose={connectClosed}
+        />
+      )}
+      {conflict !== null && <ConflictDialog name={conflict.name} deleted={conflict.deleted} onChoose={conflict.resolve} />}
       {asking !== null && <UnsavedChangesDialog name={asking.name} onChoose={asking.resolve} />}
     </div>
   );

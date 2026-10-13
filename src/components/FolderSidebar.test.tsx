@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
+import { caretAt, type as typeText } from '../testing/editor';
 import App from '../App';
 import { FolderSidebar, ROW_CHUNK, relativeTime } from './FolderSidebar';
 import type { FileAccess, OpenedDocument } from '../platform/files';
@@ -25,7 +26,7 @@ afterEach(() => {
 });
 
 const noop = () => {};
-const props = { supported: true, folder: null, recents: [], currentPath: null, onOpenFolder: noop, onOpenFile: noop, onOpenRecent: noop, onRemoveRecent: noop };
+const props = { folder: null, recents: [], currentPath: null, onOpenFolder: noop, onOpenFile: noop, onOpenRecent: noop, onRemoveRecent: noop };
 
 test('relativeTime buckets', () => {
   const now = 1_000_000_000;
@@ -41,11 +42,6 @@ test('empty state offers Open Folder and shows no recents', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Open Folder…' }));
   expect(onOpenFolder).toHaveBeenCalled();
   expect(screen.getByText('No recent documents.')).toBeInTheDocument();
-});
-
-test('web explains that folders need the desktop app', () => {
-  render(<FolderSidebar {...props} supported={false} />);
-  expect(screen.getByText(/desktop app/)).toBeInTheDocument();
 });
 
 test('lists the folder lazily and opens a file', async () => {
@@ -93,7 +89,6 @@ const doc: OpenedDocument = { name: 'n.md', path: '/n.md', text: '# T\n' };
 const files: FileAccess = {
   pickDocument: async () => doc,
   openPath: async (path) => ({ name: 'r.md', path, text: '# Recent doc\n' }),
-  loadImage: async () => null,
   saveDocument: async (d) => ({ name: d.name, path: d.path }),
   saveDocumentAs: async (d) => ({ name: d.name, path: null }),
 };
@@ -111,21 +106,20 @@ test('App: toggle swaps with the outline; opening a file records it and recents 
 
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /Open…/ }));
-  await screen.findByTestId('markdown-view');
+  await screen.findByTestId('editor');
   await waitFor(() => expect(JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')[0].path).toBe('/n.md'));
 
   await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
   await user.click(await within(screen.getByRole('complementary', { name: 'Folder navigator' })).findByText('r.md'));
-  expect(await screen.findByText('Recent doc')).toBeInTheDocument();
+  expect((await screen.findAllByText(/Recent doc/)).length).toBeGreaterThan(0);
 });
 
 const side = () => within(screen.getByRole('complementary', { name: 'Folder navigator' }));
-const editorBox = () => screen.getByRole('textbox', { name: /Markdown source/ });
 
 async function openFileMenu(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('menuitem', { name: 'File' }));
   await user.click(await screen.findByRole('menuitem', { name: /Open…/ }));
-  await screen.findByTestId('markdown-view');
+  await screen.findByTestId('editor');
 }
 
 test('renders folders before files, in the order listed', async () => {
@@ -240,9 +234,8 @@ describe('opening from the folder pane uses tabs', () => {
     render(<App files={f} />);
     await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
     await openFileMenu(user);
-    await user.click(screen.getByText('last paragraph'));
-    await user.type(editorBox(), '!');
-    await user.keyboard('{Escape}');
+    caretAt('last paragraph');
+    typeText('!');
     await user.click(click === 'folder' ? await side().findByText('other.md') : side().getByText('rec.md'));
     return { user };
   }
@@ -265,5 +258,64 @@ describe('opening from the folder pane uses tabs', () => {
     expect(opened).toHaveBeenCalledTimes(1);
     expect(screen.getAllByRole('tab')).toHaveLength(2);
     expect(screen.getByText('Other doc text')).toBeInTheDocument();
+  });
+});
+
+describe('remote root', () => {
+  const root = 'ssh://me@nas/home/me/docs';
+
+  test('the header shows the folder name with user@host beneath it', async () => {
+    listDirectory.mockResolvedValue([]);
+    render(<FolderSidebar {...props} folder={root} />);
+    expect(screen.getByText('docs')).toBeInTheDocument();
+    expect(screen.getByText('me@nas')).toBeInTheDocument();
+  });
+
+  test('a slow remote listing shows a spinner only after 150 ms', async () => {
+    let finish: (rows: unknown[]) => void = () => {};
+    listDirectory.mockReturnValue(new Promise((r) => (finish = r)));
+    render(<FolderSidebar {...props} folder={root} />);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(await screen.findByRole('status', {}, { timeout: 1000 })).toHaveTextContent('Loading…');
+    finish([{ name: 'a.md', path: `${root}/a.md`, isDir: false }]);
+    expect(await screen.findByRole('button', { name: 'a.md' })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  test('a fast remote listing never shows the spinner', async () => {
+    listDirectory.mockResolvedValue([{ name: 'a.md', path: `${root}/a.md`, isDir: false }]);
+    render(<FolderSidebar {...props} folder={root} />);
+    await screen.findByRole('button', { name: 'a.md' });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  test('an auth_required error row offers Log in, which reports the failing folder', async () => {
+    const { ListDirectoryError } = await import('../platform/folders');
+    listDirectory.mockRejectedValue(new ListDirectoryError('auth_required', "Couldn't list docs on nas: you need to log in again."));
+    const onLogin = vi.fn();
+    render(<FolderSidebar {...props} folder={root} onLogin={onLogin} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Log in' }));
+    expect(onLogin).toHaveBeenCalledWith(root);
+  });
+
+  test('the row is listed again once the login succeeds, and not when it is cancelled', async () => {
+    const { ListDirectoryError } = await import('../platform/folders');
+    listDirectory.mockRejectedValueOnce(new ListDirectoryError('auth_required', 'log in again'));
+    listDirectory.mockResolvedValue([]);
+    const onLogin = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    render(<FolderSidebar {...props} folder={root} onLogin={onLogin} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Log in' }));
+    await waitFor(() => expect(onLogin).toHaveBeenCalledTimes(1));
+    expect(listDirectory).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await waitFor(() => expect(listDirectory).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+
+  test('a local folder shows no account line', () => {
+    listDirectory.mockResolvedValue([]);
+    render(<FolderSidebar {...props} folder="/proj" />);
+    expect(screen.getByText('proj')).toBeInTheDocument();
+    expect(screen.queryByText(/@/)).not.toBeInTheDocument();
   });
 });

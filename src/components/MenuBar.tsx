@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator, MenubarShortcut, MenubarTrigger } from './ui/menubar';
 
 const EMPTY_MENUS = ['View', 'Insert', 'Format'];
@@ -6,13 +7,17 @@ export interface MenuActions {
   onNew: () => void;
   onCloseTab?: () => void;
   onOpen: () => void;
-  onOpenFolder?: () => void;
+  onOpenFolder: () => void;
+  onConnect: () => void;
   onSave: () => void;
   onSaveAs: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onPreferences?: () => void;
   onAgentSkill?: () => void;
+  onAbout?: () => void;
+  /** Puts focus in the editor; used instead of returning it to the File menu after New. */
+  onFocusEditor?: () => void;
 }
 
 export function MenuBar({
@@ -23,26 +28,50 @@ export function MenuBar({
   onCloseTab,
   onOpen,
   onOpenFolder,
+  onConnect,
   onSave,
   onSaveAs,
   onUndo,
   onRedo,
   onPreferences,
   onAgentSkill,
+  onAbout,
+  onFocusEditor,
 }: MenuActions & { hasDocument: boolean; canUndo: boolean; canRedo: boolean }) {
+  const focusEditor = useRef(false);
   return (
     <>
       <Menubar>
         <MenubarMenu>
           <MenubarTrigger>File</MenubarTrigger>
-          <MenubarContent>
-            <MenubarItem onSelect={onNew}>
+          <MenubarContent
+            onCloseAutoFocus={(e) => {
+              if (!focusEditor.current) return;
+              focusEditor.current = false;
+              e.preventDefault();
+              onFocusEditor?.();
+            }}
+          >
+            <MenubarItem
+              onSelect={() => {
+                focusEditor.current = true;
+                onNew();
+              }}
+            >
               New<MenubarShortcut>Ctrl+N</MenubarShortcut>
             </MenubarItem>
-            <MenubarItem onSelect={onOpen}>
+            <MenubarItem
+              onSelect={() => {
+                focusEditor.current = true;
+                onOpen();
+              }}
+            >
               Open…<MenubarShortcut>Ctrl+O</MenubarShortcut>
             </MenubarItem>
-            {onOpenFolder && <MenubarItem onSelect={onOpenFolder}>Open Folder…</MenubarItem>}
+            <MenubarItem onSelect={onOpenFolder}>Open Folder…</MenubarItem>
+            <MenubarItem onSelect={onConnect}>
+              Connect to Server…<MenubarShortcut>Ctrl+Shift+K</MenubarShortcut>
+            </MenubarItem>
             <MenubarSeparator />
             <MenubarItem disabled={!hasDocument} onSelect={onSave}>
               Save<MenubarShortcut>Ctrl+S</MenubarShortcut>
@@ -81,10 +110,11 @@ export function MenuBar({
           </MenubarMenu>
         ))}
         <MenubarMenu>
-          <MenubarTrigger disabled={!onAgentSkill}>Help</MenubarTrigger>
-          {onAgentSkill && (
+          <MenubarTrigger data-help-menu disabled={!onAgentSkill && !onAbout}>Help</MenubarTrigger>
+          {(onAgentSkill || onAbout) && (
             <MenubarContent>
-              <MenubarItem onSelect={onAgentSkill}>Agent skill…</MenubarItem>
+              {onAgentSkill && <MenubarItem onSelect={onAgentSkill}>Agent skill…</MenubarItem>}
+              {onAbout && <MenubarItem onSelect={onAbout}>About Gonq</MenubarItem>}
             </MenubarContent>
           )}
         </MenubarMenu>

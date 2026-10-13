@@ -9,6 +9,10 @@
     "dialog:allow-save",
     "fs:allow-read-file",
     "fs:allow-write-text-file",
-    "core:window:allow-destroy"
+    "core:window:allow-destroy",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://github.com/crashtest00/gonq" }]
+    }
   ]
 }

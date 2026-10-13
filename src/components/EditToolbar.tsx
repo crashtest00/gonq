@@ -1,5 +1,5 @@
 import { Bold, Italic, Link, List, ListChecks, ListOrdered, Redo2, Strikethrough, Table, Underline, Undo2, type LucideIcon } from 'lucide-react';
-import { applyFormat, type Format } from './formatting';
+import type { Format } from './formatting';
 
 const button =
   'flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-control border-0 bg-transparent p-0 text-foreground hover:bg-surface disabled:pointer-events-none disabled:text-muted-foreground disabled:opacity-50';
@@ -16,42 +16,30 @@ const FORMATS: { format: Format; label: string; icon: LucideIcon; effect?: strin
   { format: 'table', label: 'Insert table', icon: Table },
 ];
 
-/** Applies a format to the Markdown field that has focus, through the same input path as typing. */
-function formatActiveField(format: Format) {
-  const el = document.activeElement;
-  if (!(el instanceof HTMLTextAreaElement) || !el.hasAttribute('data-block-editor')) return;
-  let url = '';
-  if (format === 'link') {
-    // Ask for the address; cancelling (or an empty answer) changes nothing.
-    const answer = window.prompt('Link URL', 'https://')?.trim();
-    if (!answer || !el.isConnected) return;
-    url = answer;
-  }
-  const next = applyFormat(format, el.value, el.selectionStart, el.selectionEnd, url);
-  if (next.value !== el.value) {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(el, next.value);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-  el.setSelectionRange(next.start, next.end);
+/** The link address to write; cancelling (or an empty answer) changes nothing. */
+function askUrl(): string | null {
+  return window.prompt('Link URL', 'https://')?.trim() || null;
 }
 
 export function EditToolbar({
-  editing,
   canUndo,
   canRedo,
   onUndo,
   onRedo,
+  onFormat,
 }: {
-  /** A block is open for editing, so formats have a field to act on. */
-  editing: boolean;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  /** Applies a format to the editor's selection. */
+  onFormat: (format: Format, url?: string) => void;
 }) {
   return (
     <>
-      <div role="toolbar" aria-label="Editing" className="flex h-[42px] shrink-0 items-center gap-1 overflow-x-auto px-3">
+      <div role="toolbar" aria-label="Editing" className="flex h-[42px] shrink-0 items-center overflow-x-auto px-3">
+        {/* Auto margins centre the group when it fits and collapse to zero when it overflows, so it scrolls from the left edge. */}
+        <div className="mx-auto flex shrink-0 items-center gap-1">
         <button type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo} className={button}>
           <Undo2 size={16} aria-hidden />
         </button>
@@ -65,16 +53,20 @@ export function EditToolbar({
               type="button"
               aria-label={label}
               title={label}
-              disabled={!editing}
-              // Keep focus (and the selection) in the field being formatted.
+              // Keep focus (and the selection) in the editor.
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatActiveField(format)}
+              onClick={() => {
+                if (format !== 'link') return onFormat(format);
+                const url = askUrl();
+                if (url !== null) onFormat(format, url);
+              }}
               className={`${button} ${effect ?? ''}`}
             >
               <Icon size={16} aria-hidden />
             </button>
           </span>
         ))}
+        </div>
       </div>
       <div className="h-px shrink-0 bg-border" />
     </>

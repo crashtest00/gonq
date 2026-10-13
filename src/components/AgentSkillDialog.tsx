@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AGENT_SKILL, AGENT_SKILL_BODY, AGENT_SKILL_FILENAME } from '../agent-skill/skill';
 import { copyText } from '../platform/clipboard';
-import { MarkdownView } from './MarkdownView';
+import { MarkdownPreview } from '../editor/MarkdownPreview';
 import type { FileAccess } from '../platform/files';
 
 const button =
@@ -52,7 +52,7 @@ export function AgentSkillDialog({ files, onClose }: { files: FileAccess; onClos
           aria-label="SKILL.md"
           className="mb-3 min-h-0 flex-1 overflow-auto rounded-control border border-border bg-background px-4 py-2"
         >
-          <MarkdownView doc={{ name: AGENT_SKILL_FILENAME, path: null, text: AGENT_SKILL_BODY }} files={files} plain />
+          <MarkdownPreview text={AGENT_SKILL_BODY} />
         </div>
         <p role={status?.error ? 'alert' : 'status'} className={`m-0 mb-3 min-h-4 text-[12px] ${status?.error ? 'text-destructive' : 'text-muted-foreground'}`}>
           {status?.text}

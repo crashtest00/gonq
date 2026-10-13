@@ -1,4 +1,5 @@
 mod folder;
+mod ssh;
 mod recents;
 mod settings;
 
@@ -92,16 +93,25 @@ fn recent_documents_remove<R: Runtime>(app: AppHandle<R>, path: String) -> Resul
     recents::remove(&recents_file(&app)?, &path)
 }
 
+/// Whether the app itself recorded `path` as an opened document.
+fn is_recent<R: Runtime>(app: &AppHandle<R>, path: &str) -> Result<bool, String> {
+    let _guard = RECENTS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    Ok(recents::load(&recents_file(app)?).iter().any(|r| r.path == path))
+}
+
 /// A recent document from an earlier session is no longer in the fs scope. Re-grants its
 /// folder, but only for a path the app itself recorded as opened.
 #[tauri::command]
-fn allow_recent_document<R: Runtime>(app: AppHandle<R>, path: String) -> Result<(), String> {
-    let known = {
-        let _guard = RECENTS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        recents::load(&recents_file(&app)?).iter().any(|r| r.path == path)
-    };
-    if !known {
+fn allow_recent_document<R: Runtime>(
+    app: AppHandle<R>,
+    remote: tauri::State<'_, ssh::fs::Remote>,
+    path: String,
+) -> Result<(), String> {
+    if !is_recent(&app, &path)? {
         return Err("not a recent document".into());
+    }
+    if ssh::is_ssh_path(&path) {
+        return ssh::allow_recent(&remote, &path);
     }
     let folder = PathBuf::from(&path).parent().map(PathBuf::from).ok_or("file has no folder")?;
     app.fs_scope().allow_directory(folder, true).map_err(|e| e.to_string())
@@ -110,8 +120,11 @@ fn allow_recent_document<R: Runtime>(app: AppHandle<R>, path: String) -> Result<
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(ssh::new_pool())
+        .manage(ssh::fs::Remote::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             allow_document_folder,
             list_directory,
@@ -121,7 +134,16 @@ pub fn run() {
             recent_documents_remove,
             allow_recent_document,
             get_author_name,
-            set_author_name
+            set_author_name,
+            ssh::ssh_list_hosts,
+            ssh::ssh_connect,
+            ssh::ssh_disconnect,
+            ssh::remote_list_folders,
+            ssh::remote_open_root,
+            ssh::remote_list_directory,
+            ssh::remote_read,
+            ssh::remote_write,
+            ssh::remote_exists
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

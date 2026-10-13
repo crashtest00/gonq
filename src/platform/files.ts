@@ -3,6 +3,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import { isSshPath, remoteFileName, remoteRead, remoteWrite, type RemoteStat } from './remote';
+
+export { isSshPath };
 
 export interface OpenedDocument {
   name: string;
@@ -10,6 +13,8 @@ export interface OpenedDocument {
   path: string | null;
   /** The file's text exactly as read: the source of truth, never normalised. */
   text: string;
+  /** ssh:// documents only: the server's version when it was read. */
+  remote?: RemoteStat;
 }
 
 export class NotUtf8Error extends Error {
@@ -23,6 +28,15 @@ export class NotUtf8Error extends Error {
 export interface SavedDocument {
   name: string;
   path: string | null;
+  /** ssh:// documents only: the server's version just written. */
+  remote?: RemoteStat;
+  /** Set on the first in-place (non-atomic) save to a host: the host to tell the user about. */
+  inPlaceHost?: string;
+}
+
+export interface SaveOptions {
+  /** Overwrite a copy that changed on the server (the user chose Overwrite). */
+  force?: boolean;
 }
 
 /** Returns true for a path that must not be written (another open tab already holds it). */
@@ -43,15 +57,14 @@ export interface FileAccess {
    * Resolves null when the user cancels. Rejects when the file cannot be written.
    */
   saveDocument(
-    doc: { name: string; path: string | null; text: string },
+    doc: { name: string; path: string | null; text: string; remote?: RemoteStat },
     taken?: PathTaken,
+    options?: SaveOptions,
   ): Promise<SavedDocument | null>;
   /** Always asks where to put the file. Resolves null when the user cancels. */
   saveDocumentAs(doc: { name: string; text: string }, taken?: PathTaken): Promise<SavedDocument | null>;
   /** Reads a known file (desktop only; absent in the browser). Rejects when it cannot be opened. */
   openPath?(path: string): Promise<OpenedDocument>;
-  /** Resolves a displayable URL for an image, or null when it cannot be loaded. */
-  loadImage(doc: OpenedDocument, src: string): Promise<string | null>;
 }
 
 export function decodeUtf8(bytes: Uint8Array, name: string): string {
@@ -63,40 +76,9 @@ export function decodeUtf8(bytes: Uint8Array, name: string): string {
   }
 }
 
-const REMOTE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
-
-export function isRemoteSource(src: string): boolean {
-  return REMOTE.test(src);
-}
-
 function basename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
-
-/** Joins a document-relative reference onto the document's folder, lexically. */
-export function resolveRelativePath(docPath: string, src: string): string {
-  const sep = docPath.includes('\\') && !docPath.includes('/') ? '\\' : '/';
-  const clean = decodeURIComponent(src.split(/[?#]/)[0]);
-  const parts = docPath.split(/[\\/]/);
-  parts.pop();
-  for (const seg of clean.split(/[\\/]/)) {
-    if (seg === '' || seg === '.') continue;
-    if (seg === '..') parts.pop();
-    else parts.push(seg);
-  }
-  return parts.join(sep);
-}
-
-const MIME: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  svg: 'image/svg+xml',
-  bmp: 'image/bmp',
-  avif: 'image/avif',
-};
 
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -112,6 +94,24 @@ async function tauriWrite(path: string, text: string): Promise<SavedDocument> {
     // Images are a nicety; the save itself succeeded.
   }
   return { name: basename(path), path };
+}
+
+async function openRemote(path: string): Promise<OpenedDocument> {
+  const name = remoteFileName(path);
+  const { bytes, stat } = await remoteRead(path);
+  return { name, path, text: decodeUtf8(bytes, name), remote: stat };
+}
+
+/** Throws RemoteConflictError when the server's copy changed and `force` is not set. */
+async function saveRemote(path: string, text: string, expected: RemoteStat | undefined, force: boolean): Promise<SavedDocument> {
+  if (expected === undefined) throw new Error(`No server version is known for ${path}; it cannot be saved safely.`);
+  const saved = await remoteWrite(path, text, expected, force);
+  return {
+    name: remoteFileName(path),
+    path,
+    remote: saved.stat,
+    inPlaceHost: saved.warn ? path : undefined,
+  };
 }
 
 const tauriFiles: FileAccess = {
@@ -130,14 +130,16 @@ const tauriFiles: FileAccess = {
   },
 
   async openPath(path) {
+    if (isSshPath(path)) return openRemote(path);
     const name = basename(path);
     const text = decodeUtf8(await readFile(path), name);
     await invoke('allow_document_folder', { path });
     return { name, path, text };
   },
 
-  async saveDocument(doc, taken) {
+  async saveDocument(doc, taken, options) {
     if (doc.path === null) return tauriFiles.saveDocumentAs(doc, taken);
+    if (isSshPath(doc.path)) return saveRemote(doc.path, doc.text, doc.remote, options?.force === true);
     return tauriWrite(doc.path, doc.text);
   },
 
@@ -150,18 +152,6 @@ const tauriFiles: FileAccess = {
     // Refused before anything is written, so the other tab's file is never overwritten.
     if (taken?.(path)) throw new PathTakenError(path);
     return tauriWrite(path, doc.text);
-  },
-
-  async loadImage(doc, src) {
-    if (isRemoteSource(src)) return src;
-    if (doc.path === null) return null;
-    try {
-      const bytes = await readFile(resolveRelativePath(doc.path, src));
-      const ext = src.split(/[?#]/)[0].split('.').pop()?.toLowerCase() ?? '';
-      return URL.createObjectURL(new Blob([bytes], { type: MIME[ext] ?? 'application/octet-stream' }));
-    } catch {
-      return null;
-    }
   },
 };
 
@@ -199,10 +189,6 @@ const webFiles: FileAccess = {
     link.click();
     URL.revokeObjectURL(url);
     return { name, path: null };
-  },
-
-  async loadImage(_doc, src) {
-    return isRemoteSource(src) ? src : null;
   },
 };
 

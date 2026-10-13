@@ -201,16 +201,15 @@ timestamp.
 | `document.ts` | Document-level operations, including edit and delete |
 | `guidance.ts` | The embedded note for AI agents |
 | `index.ts` | Barrel |
-| `editor/codemirror.ts` | Editor layer — not built, not exported from the barrel |
+| `editor/codemirror.ts` | Editor layer (CodeMirror changes for create/resolve/delete) — built and type-checked, not exported from the barrel |
 
 ## Dependencies
 
 None. TypeScript, no runtime imports, no third-party source.
 
 `editor/codemirror.ts` is the exception and is deliberately outside all of that:
-it needs `@codemirror/state` (types only), is not exported from the barrel, and
-nothing builds it today. It is a starting point for the CodeMirror + Tauri
-desktop work. Marker placement is not decided there — it delegates to
+it needs `@codemirror/state` (types only) and is not exported from the barrel.
+Gonq's editor uses it to create threads. Marker placement is not decided there — it delegates to
 `safeMarkerPosition`, which is normative on every surface.
 
 ## Tests

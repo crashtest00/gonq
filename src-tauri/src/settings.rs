@@ -131,4 +131,14 @@ mod tests {
             assert_eq!(get_author_name(&f), name);
         }
     }
+
+    #[test]
+    fn legacy_show_markers_key_is_ignored_and_dropped_on_save() {
+        let f = file("legacy-markers");
+        fs::create_dir_all(f.parent().unwrap()).unwrap();
+        fs::write(&f, r#"{"author_name":"Ann","show_markers_in_active_block":false}"#).unwrap();
+        assert_eq!(get_author_name(&f), "Ann");
+        set_author_name(&f, "Bo").unwrap();
+        assert!(!fs::read_to_string(&f).unwrap().contains("show_markers"));
+    }
 }
