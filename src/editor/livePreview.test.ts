@@ -2,15 +2,17 @@ import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
 import { applyFormat } from '../components/formatting';
+import { focusTableCell, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
 
 /** A live-preview editor over `text` with the caret at `caret`; returns what is shown. */
 function show(text: string, caret = text.length) {
   const parent = document.body.appendChild(document.createElement('div'));
-  const view = new EditorView({ state: createEditorState(text, false), parent });
+  const targets: (TableTarget | null)[] = [];
+  const view = new EditorView({ state: createEditorState(text, false, tableTargetListener.of((t) => targets.push(t))), parent });
   view.dispatch({ selection: { anchor: caret } });
   const shown = () => view.contentDOM.textContent ?? '';
   const q = (sel: string) => Array.from(view.contentDOM.querySelectorAll(sel));
-  return { view, shown, q, move: (to: number) => view.dispatch({ selection: { anchor: to } }), done: () => (view.destroy(), parent.remove()) };
+  return { view, shown, q, targets, target: () => targets[targets.length - 1] ?? null, move: (to: number) => view.dispatch({ selection: { anchor: to } }), done: () => (view.destroy(), parent.remove()) };
 }
 
 describe('syntax is hidden until the caret touches the construct', () => {
@@ -284,7 +286,7 @@ describe('tables', () => {
     const src = 'before\n\n| h | i |\n| - | - |\n| a | b |\n| c | d |\n\nafter';
     const press = (e: ReturnType<typeof show>, cell: Element, op: string) => {
       (cell as HTMLElement).focus();
-      (e.view.contentDOM.querySelector(`[data-op="${op}"]`) as HTMLElement).click();
+      runTableOp(e.view, op as TableOp);
     };
     const key = (el: Element, k: string, shiftKey = false) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, shiftKey, bubbles: true, cancelable: true }));
     test.each([
@@ -344,49 +346,47 @@ describe('tables', () => {
       const e = show(src, 0);
       press(e, e.q('td')[0], 'center');
       expect(e.view.state.doc.toString()).toContain('| :-: | - |');
-      expect(e.q('[data-op="center"]')[0].getAttribute('aria-pressed')).toBe('true');
+      expect(e.target()?.align).toBe('center');
       press(e, e.q('td')[0], 'center');
       expect(e.view.state.doc.toString()).toContain('| - | - |');
       e.done();
     });
 
-    test('buttons are disabled until a cell is the target and where the action does not apply', () => {
+    test('the target reports the focused cell, what it cannot do and its alignment', () => {
       const e = show(src, 0);
-      const disabled = () => e.q('.cm-table-tool').filter((b) => (b as HTMLButtonElement).disabled).map((b) => (b as HTMLElement).dataset.op);
-      expect(disabled()).toHaveLength(10);
+      expect(e.target()).toBeNull();
       (e.q('th')[0] as HTMLElement).focus();
-      expect(disabled()).toEqual(['delRow']);
+      expect(e.target()).toEqual({ disabled: ['delRow'], align: null });
       (e.q('td')[0] as HTMLElement).focus();
-      expect(disabled()).toEqual([]);
+      expect(e.target()).toEqual({ disabled: [], align: null });
+      e.view.focus();
+      expect(e.target()).toBeNull();
       e.done();
       const one = show('| h |\n| - |\n| a |', 0);
       (one.q('td')[0] as HTMLElement).focus();
-      expect(one.q('[data-op="delCol"]').map((b) => (b as HTMLButtonElement).disabled)).toEqual([true]);
+      expect(one.target()?.disabled).toEqual(['delCol']);
       one.done();
     });
 
-    test('the toolbar is reachable by keyboard and Escape returns to the cell', () => {
+    test('there is no toolbar inside the table', () => {
+      const e = show(src, 0);
+      expect(e.q('.cm-table-toolbar, .cm-table-tool')).toHaveLength(0);
+      e.done();
+    });
+
+    test('an action keeps the caret in the table; with no cell targeted nothing is refocused', () => {
       const e = show(src, 0);
       const th = e.q('th')[0] as HTMLElement;
       th.focus();
-      key(th, 'Tab', true);
-      const first = e.q('.cm-table-tool')[0] as HTMLElement;
-      expect(document.activeElement).toBe(first);
-      key(first, 'ArrowRight');
-      expect((document.activeElement as HTMLElement).dataset.op).toBe('rowBelow');
-      key(document.activeElement as HTMLElement, 'End');
-      expect((document.activeElement as HTMLElement).dataset.op).toBe('delTable');
-      key(document.activeElement as HTMLElement, 'Home');
-      (document.activeElement as HTMLElement).click(); // Enter/Space activate a button as a click
+      runTableOp(e.view, 'rowBelow');
       expect(e.view.state.doc.toString()).toContain('| h | i |\n| - | - |\n| | |\n| a | b |');
       expect(e.q('tr')).toHaveLength(4);
       expect(document.activeElement?.tagName).toBe('TD');
-      const header = e.q('th')[0] as HTMLElement;
-      header.focus();
-      key(header, 'Tab', true);
-      expect(document.activeElement?.tagName).toBe('BUTTON');
-      key(document.activeElement as HTMLElement, 'Escape');
-      expect(document.activeElement).toBe(header);
+      expect(e.target()).not.toBeNull();
+      (e.q('td')[0] as HTMLElement).focus();
+      e.view.focus(); // out of the table
+      focusTableCell(e.view);
+      expect(document.activeElement).not.toBe(e.q('td')[0]);
       e.done();
     });
 
