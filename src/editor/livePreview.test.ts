@@ -368,6 +368,54 @@ describe('tables', () => {
       one.done();
     });
 
+    describe('without a focused cell', () => {
+      /** Lets the editor look at the redrawn table. */
+      const settle = (e: ReturnType<typeof show>) => new Promise<void>((r) => e.view.requestMeasure({ read: () => requestAnimationFrame(() => r()) }));
+
+      test('undo that changes the table shows the target; one that moves away hides it', async () => {
+        const e = show('x\n\n' + src, 0);
+        e.view.focus();
+        await settle(e);
+        expect(e.target()).toBeNull();
+        (e.q('td')[0] as HTMLElement).focus();
+        runTableOp(e.view, 'rowBelow');
+        e.view.focus();
+        await settle(e);
+        expect(e.target()).toBeNull();
+        undo(e.view);
+        await settle(e);
+        expect(e.target()).not.toBeNull();
+        redo(e.view);
+        await settle(e);
+        expect(e.target()).not.toBeNull();
+        e.move(0);
+        await settle(e);
+        expect(e.target()).toBeNull();
+        e.done();
+      });
+
+      test('a caret inside the table source targets the cell it lies in', async () => {
+        const e = show(src, 0);
+        e.view.focus();
+        e.move(src.indexOf('| a') + 2);
+        await settle(e);
+        expect(e.target()).not.toBeNull();
+        runTableOp(e.view, 'delRow');
+        expect(e.view.state.doc.toString()).not.toContain('| a |');
+        e.done();
+      });
+
+      test('switching to Raw hides it', async () => {
+        const e = show(src, 0);
+        (e.q('td')[0] as HTMLElement).focus();
+        expect(e.target()).not.toBeNull();
+        e.view.dispatch({ effects: modeCompartment.reconfigure(modeExtension(true)) });
+        await settle(e);
+        expect(e.target()).toBeNull();
+        e.done();
+      });
+    });
+
     test('there is no toolbar inside the table', () => {
       const e = show(src, 0);
       expect(e.q('.cm-table-toolbar, .cm-table-tool')).toHaveLength(0);

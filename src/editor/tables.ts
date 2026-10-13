@@ -251,17 +251,41 @@ export const tableTargetListener = Facet.define<(target: TableTarget | null) => 
 
 const ALL_OPS: TableOp[] = ['rowAbove', 'rowBelow', 'colLeft', 'colRight', 'left', 'center', 'right', 'delRow', 'delCol', 'delTable'];
 
-/** Follows the table cell that has the focus and reports it to the toolbar. */
+/** The row and column of the table cell the position `pos` (inside the table `t`) lies in. */
+function cellAtPos(doc: Text, t: { from: number; to: number }, pos: number): [number, number] {
+  const first = doc.lineAt(t.from).number;
+  const line = doc.lineAt(pos);
+  const idx = line.number - first;
+  const rows = parseDoc(doc, t.from, t.to).rows.length;
+  const r = idx <= 0 ? 0 : Math.min(idx === 1 ? 1 : idx - 1, rows - 1);
+  const { cuts } = lineCuts(line.text);
+  let c = 0;
+  for (let i = 0; i < cuts.length - 1; i++) if (cuts[i] < pos - line.from) c = i;
+  return [r, c];
+}
+
+/**
+ * Follows the table the toolbar acts on: the cell that has the focus or, when no cell does, the cell the
+ * caret lies in (an undo or redo can put it there). It is none in Raw mode, where there is no table widget.
+ */
 class TableTracker {
-  cell: HTMLElement | null = null;
+  /** The cell that has the focus. */
+  private focused: HTMLElement | null = null;
+  /** The cell the caret (or the last undo/redo) points at while no cell has the focus. */
+  private derived: HTMLElement | null = null;
+  private hint: number | null = null;
   private last = '';
+  private destroyed = false;
   constructor(readonly view: EditorView) {
     view.dom.addEventListener('focusin', this.focusin);
     view.dom.addEventListener('focusout', this.focusout);
   }
+  get cell() {
+    return this.focused ?? this.derived;
+  }
   focusin = (e: FocusEvent) => {
-    this.cell = (e.target as HTMLElement).closest<HTMLElement>('.cm-table-editable [data-row]');
-    this.report();
+    this.focused = (e.target as HTMLElement).closest<HTMLElement>('.cm-table-editable [data-row]');
+    this.refresh();
   };
   focusout = (e: FocusEvent) => {
     const to = e.relatedTarget as Element | null;
@@ -269,16 +293,47 @@ class TableTracker {
     if (!to || (!this.view.dom.contains(to) && !to.closest('[data-table-toolbar]'))) this.release();
   };
   release() {
-    this.cell = null;
+    this.focused = null;
+    this.derived = null;
     this.report();
   }
   update(u: ViewUpdate) {
-    if (this.cell && (u.docChanged || u.selectionSet)) this.report();
+    const undone = u.transactions.some((tr) => tr.isUserEvent('undo') || tr.isUserEvent('redo'));
+    // Where an undo or redo last changed the document, until the caret is moved elsewhere.
+    if (undone) {
+      this.hint = null;
+      u.changes.iterChangedRanges((_a, _b, from) => void (this.hint ??= from));
+    } else if (u.selectionSet) this.hint = null;
+    else if (this.hint !== null) this.hint = u.changes.mapPos(this.hint);
+    // The widgets are redrawn after the plugins update: look at the table once they are.
+    if (this.cell || u.docChanged || u.selectionSet || u.transactions.some((tr) => tr.effects.length)) {
+      this.view.requestMeasure({ key: this, read: () => this.refresh(), write: () => {} });
+    }
   }
   destroy() {
+    this.destroyed = true;
     this.view.dom.removeEventListener('focusin', this.focusin);
     this.view.dom.removeEventListener('focusout', this.focusout);
-    this.cell = null;
+    this.focused = this.derived = null;
+    this.report();
+  }
+  /** Recomputes the cell from the focus and the caret, then reports. */
+  refresh() {
+    if (this.destroyed) return;
+    const hint = this.hint;
+    if (this.focused && !this.focused.isConnected) this.focused = null;
+    this.derived = null;
+    if (!this.focused && this.view.hasFocus) {
+      const pos = hint !== null ? Math.min(hint, this.view.state.doc.length) : this.view.state.selection.main.head;
+      const t = tableAt(this.view, pos);
+      if (t && (hint !== null ? pos >= t.from && pos <= t.to : pos > t.from && pos < t.to)) {
+        const [r, c] = cellAtPos(this.view.state.doc, t, pos);
+        for (const w of Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-table-wrap'))) {
+          if (this.view.posAtDOM(w) !== t.from) continue;
+          this.derived = w.querySelector<HTMLElement>(`[data-row="${r}"][data-col="${c}"]`) ?? w.querySelector<HTMLElement>('[data-row]');
+        }
+      }
+    }
     this.report();
   }
   /** The cell and its table while both are still in the document. */
