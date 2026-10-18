@@ -15,7 +15,7 @@ export function OutlineSidebar({ items, onJump }: { items: OutlineItem[]; onJump
                   type="button"
                   onClick={() => onJump(item.from)}
                   title={item.text}
-                  style={{ paddingLeft: item.level === 1 ? 0 : 22 }}
+                  style={{ paddingLeft: item.level === 1 ? 0 : 10 + (item.level - 1) * 12 }}
                   className={`block w-full cursor-pointer truncate border-0 bg-transparent py-1 text-left hover:text-foreground ${
                     item.level === 1 ? 'text-[13px] font-semibold text-foreground' : 'text-[12.5px] text-muted-foreground'
                   }`}
