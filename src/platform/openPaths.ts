@@ -5,8 +5,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { isTauri } from './files';
 
-const TAKE_COMMAND = 'take_pending_open_paths';
-const OPEN_EVENT = 'open-paths';
+const TAKE_COMMAND = 'take_launch_paths';
+const OPEN_EVENT = 'launch-open-paths';
 
 /** The paths queued before the frontend was ready; the native side forgets them once returned. */
 export async function takePendingOpenPaths(): Promise<string[]> {

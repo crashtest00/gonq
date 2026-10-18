@@ -13,9 +13,14 @@ test('ignores headings in fenced code, closing hashes and non-headings', () => {
   expect(outlineOf(text).map((i) => [i.level, i.text])).toEqual([[2, 'Two']]);
 });
 
-test('H3 and deeper are not listed', () => {
-  expect(outlineOf('# A\n\n### C\n\n#### D\n\n###### F\n\n## B\n').map((i) => [i.level, i.text])).toEqual([
+test('lists H1 through H6 in document order with their levels', () => {
+  const text = '# A\n\n### C\n\n#### D\n\n##### E\n\n###### F\n\n## B\n\n####### seven\n';
+  expect(outlineOf(text).map((i) => [i.level, i.text])).toEqual([
     [1, 'A'],
+    [3, 'C'],
+    [4, 'D'],
+    [5, 'E'],
+    [6, 'F'],
     [2, 'B'],
   ]);
 });

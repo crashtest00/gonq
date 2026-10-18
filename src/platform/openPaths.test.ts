@@ -25,7 +25,7 @@ beforeEach(() => {
 test('takes the queued paths from the native side', async () => {
   invoke.mockResolvedValue(['/a b/é.md']);
   expect(await takePendingOpenPaths()).toEqual(['/a b/é.md']);
-  expect(invoke).toHaveBeenCalledWith('take_pending_open_paths');
+  expect(invoke).toHaveBeenCalledWith('take_launch_paths');
 });
 
 test('forwards event payloads and unregisters', async () => {
