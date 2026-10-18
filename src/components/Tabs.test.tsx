@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { caretAt, docText, editorView, select, type as typeText } from '../testing/editor';
@@ -298,4 +298,21 @@ test('same file names in different folders show enough of the path', () => {
       { name: 'todo.md', path: '/q/x/todo.md' },
     ]),
   ).toEqual(['p/x/todo.md', 'q/x/todo.md']);
+});
+
+test('Ctrl+W closes the active tab; tabs can be dragged to reorder', async () => {
+  const { user } = setup([A, B]);
+  await openFile(user);
+  await screen.findByText('first doc');
+  await openFile(user);
+  await screen.findByText('second doc');
+  const dt = { setData: () => {}, effectAllowed: '' };
+  fireEvent.dragStart(tab(/b\.md/), { dataTransfer: dt });
+  fireEvent.dragOver(tab(/a\.md/), { dataTransfer: dt });
+  fireEvent.drop(tab(/a\.md/), { dataTransfer: dt });
+  expect(tabs().map((t) => t.textContent)).toEqual([expect.stringContaining('b.md'), expect.stringContaining('a.md')]);
+  expect(tab(/b\.md/)).toHaveAttribute('aria-selected', 'true');
+  await user.keyboard('{Control>}w{/Control}');
+  expect(tabs()).toHaveLength(1);
+  expect(tab(/a\.md/)).toBeInTheDocument();
 });

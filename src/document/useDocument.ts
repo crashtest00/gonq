@@ -126,6 +126,23 @@ export function useDocument() {
     [update],
   );
 
+  /** Moves a tab to the position `to` in the strip (clamped); the active tab stays the same. */
+  const move = useCallback(
+    (id: number, to: number) => {
+      update((s) => {
+        const from = s.tabs.findIndex((t) => t.id === id);
+        if (from < 0) return s;
+        const dest = Math.max(0, Math.min(to, s.tabs.length - 1));
+        if (dest === from) return s;
+        const tabs = [...s.tabs];
+        const [tab] = tabs.splice(from, 1);
+        tabs.splice(dest, 0, tab);
+        return { ...s, tabs };
+      });
+    },
+    [update],
+  );
+
   const setRaw = useCallback(
     (raw: boolean) => {
       const id = stateRef.current.activeId;
@@ -174,6 +191,7 @@ export function useDocument() {
       open,
       openUntitled,
       close,
+      move,
       activate,
       findByPath,
       setRaw,
@@ -183,6 +201,6 @@ export function useDocument() {
       dirtyIds,
       saved,
     }),
-    [meta, tabInfos, tabIds, state.activeId, active, open, openUntitled, close, activate, findByPath, setRaw, edited, peek, peekTabs, dirtyIds, saved],
+    [meta, tabInfos, tabIds, state.activeId, active, open, openUntitled, close, move, activate, findByPath, setRaw, edited, peek, peekTabs, dirtyIds, saved],
   );
 }
