@@ -79,3 +79,12 @@ test('table is inserted as its own block', () => {
   expect(run('table', '', 0).value).toBe('| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |');
   expect(run('table', 'text', 4).value).toBe('text\n\n| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |');
 });
+
+test('list formats work on an empty line and keep indentation', () => {
+  expect(run('bullet', '', 0)).toMatchObject({ value: '- ', start: 2, end: 2 });
+  expect(run('numbered', 'a\n\nb', 2)).toMatchObject({ value: 'a\n1. \nb', start: 5 });
+  expect(run('task', '', 0).value).toBe('- [ ] ');
+  expect(run('bullet', '- ', 2).value).toBe('');
+  expect(run('bullet', '  - a', 0, 5).value).toBe('  a');
+  expect(run('numbered', '  - a', 0, 5).value).toBe('  1. a');
+});

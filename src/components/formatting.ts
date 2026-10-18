@@ -92,6 +92,7 @@ function wrap(value: string, start: number, end: number, [open, close]: [string,
 }
 
 const PREFIX = { bullet: /^([-*+]) /, numbered: /^\d+[.)] /, task: /^[-*+] \[[ xX]\] / } as const;
+const INDENT = /^[ \t]*/;
 
 function lines(value: string, start: number, end: number, kind: 'bullet' | 'numbered' | 'task'): Edit {
   const from = value.lastIndexOf('\n', start - 1) + 1;
@@ -99,19 +100,25 @@ function lines(value: string, start: number, end: number, kind: 'bullet' | 'numb
   const to = nl < 0 ? value.length : nl;
   const rows = value.slice(from, to).split('\n');
   // A task line is also a bullet line, so check the more specific pattern first.
-  const has = (r: string) => (kind === 'bullet' ? PREFIX.bullet.test(r) && !PREFIX.task.test(r) : PREFIX[kind].test(r));
+  const unindented = (r: string) => r.replace(INDENT, '');
+  const has = (r: string) => (kind === 'bullet' ? PREFIX.bullet.test(unindented(r)) && !PREFIX.task.test(unindented(r)) : PREFIX[kind].test(unindented(r)));
   const content = rows.filter((r) => r.trim() !== '');
   const off = content.length > 0 && content.every(has);
+  // Blank lines are skipped within a multi-line selection, but a selection of only blank lines (e.g. the caret on an empty line) is prefixed.
+  const onlyBlank = content.length === 0;
   let n = 0;
   const out = rows.map((r) => {
-    if (r.trim() === '') return r;
-    const bare = r.replace(PREFIX.task, '').replace(PREFIX.bullet, '').replace(PREFIX.numbered, '');
-    if (off) return bare;
+    if (r.trim() === '' && !onlyBlank) return r;
+    const indent = r.match(INDENT)![0];
+    const bare = unindented(r).replace(PREFIX.task, '').replace(PREFIX.bullet, '').replace(PREFIX.numbered, '');
+    if (off) return indent + bare;
     n++;
-    return (kind === 'bullet' ? '- ' : kind === 'task' ? '- [ ] ' : `${n}. `) + bare;
+    return indent + (kind === 'bullet' ? '- ' : kind === 'task' ? '- [ ] ' : `${n}. `) + bare;
   });
   const text = out.join('\n');
-  return { value: value.slice(0, from) + text + value.slice(to), start: from, end: from + text.length };
+  // A caret on a blank line lands after the new marker, ready to type.
+  const caret = onlyBlank && start === end ? from + text.length : null;
+  return { value: value.slice(0, from) + text + value.slice(to), start: caret ?? from, end: caret ?? from + text.length };
 }
 
 const TABLE = '| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |';
