@@ -24,6 +24,7 @@ import { MarkdownEditor, type EditorHandle, type EditorSelection } from './edito
 import { useDocument } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
+import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
 import { pathExists, pickFolder } from './platform/folders';
 import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from './platform/recents';
@@ -95,13 +96,16 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     if (path !== null) addRecent(path).then(setRecents, () => {});
   }, []);
 
+  const launchError = useRef<string | null>(null);
   // Switching tabs: the comments sidebar goes back to All threads.
   useEffect(() => {
     setSelectedKey(null);
     setDraft(null);
     setSelection(null);
     setCaret(null);
-    setError(null);
+    // Errors from paths opened at launch outlive the tab switch they caused.
+    setError(launchError.current);
+    launchError.current = null;
   }, [activeId]);
 
   const textRef = useRef(text);
@@ -375,6 +379,76 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     },
     [files, session.findByPath, session.activate, session.open, remember],
   );
+
+  /** Opens one path the OS delivered; resolves the reason it was not opened, else null. */
+  const openLaunchPath = useCallback(
+    async (path: string): Promise<string | null> => {
+      if (!/\.(md|markdown)$/i.test(path)) return `${path} is not a Markdown file (.md or .markdown), so it was not opened.`;
+      const existing = session.findByPath(path);
+      if (existing !== null) {
+        session.activate(existing);
+        return null;
+      }
+      try {
+        if (files.openPath === undefined) throw new Error(`${path} cannot be opened here.`);
+        const opened = await files.openPath(path);
+        session.open(opened);
+        remember(opened.path);
+        return null;
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+    },
+    [files, session.findByPath, session.activate, session.open, remember],
+  );
+
+  // Launch paths run one batch at a time, in order; one that fails does not stop the others.
+  const launchChain = useRef<Promise<void>>(Promise.resolve());
+  const openLaunchPaths = useCallback(
+    (paths: string[]) => {
+      launchChain.current = launchChain.current.then(async () => {
+        const errors: string[] = [];
+        for (const path of paths) {
+          const reason = await openLaunchPath(path);
+          if (reason !== null) errors.push(reason);
+        }
+        if (errors.length === 0) return;
+        const message = errors.join(' ');
+        // A tab switch from this batch clears the banner; hand the message to that effect instead.
+        launchError.current = message;
+        setError(message);
+        setTimeout(() => (launchError.current = null), 0);
+      });
+    },
+    [openLaunchPath],
+  );
+  const openLaunchPathsRef = useRef(openLaunchPaths);
+  openLaunchPathsRef.current = openLaunchPaths;
+  useEffect(() => {
+    // Subscribe first so a launch between the two steps is queued, not lost.
+    const early: string[][] = [];
+    let ready = false;
+    const deliver = (paths: string[]) => (ready ? openLaunchPathsRef.current(paths) : early.push(paths));
+    const stop = listenOpenPaths(deliver);
+    let live = true;
+    takePendingOpenPaths().then(
+      (pending) => {
+        if (!live) return;
+        ready = true;
+        if (pending.length > 0) openLaunchPathsRef.current(pending);
+        for (const paths of early) openLaunchPathsRef.current(paths);
+      },
+      (e) => {
+        ready = true;
+        for (const paths of early) openLaunchPathsRef.current(paths);
+        if (live) setError(e instanceof Error ? e.message : String(e));
+      },
+    );
+    return () => {
+      live = false;
+      stop();
+    };
+  }, []);
 
   const openFromFolder = useCallback((path: string) => void openKnownPath(path, false), [openKnownPath]);
 
