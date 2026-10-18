@@ -1,7 +1,27 @@
 import { useRef } from 'react';
-import { Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator, MenubarShortcut, MenubarTrigger } from './ui/menubar';
+import { Table } from 'lucide-react';
+import type { TableOp, TableTarget } from '../editor/tables';
+import { askUrl, FORMATS } from './EditToolbar';
+import type { Format } from './formatting';
+import { TOOLS } from './TableToolbar';
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarShortcut,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
+  MenubarTrigger,
+} from './ui/menubar';
 
-const EMPTY_MENUS = ['View', 'Insert', 'Format'];
+const EMPTY_MENUS = ['View', 'Insert'];
+
+/** The Format menu mirrors the toolbar: the table button becomes the Table sub-menu's first item. */
+const TEXT_FORMATS = FORMATS.filter((f) => f.format !== 'table');
+const TABLE_FORMAT = FORMATS.find((f) => f.format === 'table')!;
 
 export interface MenuActions {
   onNew: () => void;
@@ -18,6 +38,12 @@ export interface MenuActions {
   onAbout?: () => void;
   /** Puts focus in the editor; used instead of returning it to the File menu after New. */
   onFocusEditor?: () => void;
+  /** Applies a format to the editor's selection, like the formatting toolbar. */
+  onFormat?: (format: Format, url?: string) => void;
+  /** Runs a table action on the table cell the caret is in, like the table toolbar. */
+  onTableAction?: (op: TableOp) => void;
+  /** Puts the focus back in the table cell the table actions act on. */
+  onFocusTableCell?: () => void;
 }
 
 export function MenuBar({
@@ -37,7 +63,11 @@ export function MenuBar({
   onAgentSkill,
   onAbout,
   onFocusEditor,
-}: MenuActions & { hasDocument: boolean; canUndo: boolean; canRedo: boolean }) {
+  onFormat,
+  onTableAction,
+  onFocusTableCell,
+  tableTarget = null,
+}: MenuActions & { hasDocument: boolean; canUndo: boolean; canRedo: boolean; tableTarget?: TableTarget | null }) {
   const focusEditor = useRef(false);
   return (
     <>
@@ -102,6 +132,56 @@ export function MenuBar({
                 </MenubarItem>
               </>
             )}
+          </MenubarContent>
+        </MenubarMenu>
+        <MenubarMenu>
+          <MenubarTrigger data-format-menu disabled={!hasDocument || !onFormat}>Format</MenubarTrigger>
+          <MenubarContent
+            data-format-menu
+            // The editor (or the table cell the action used) keeps the focus, not the menu button.
+            onCloseAutoFocus={(e) => {
+              e.preventDefault();
+              if (tableTarget !== null) onFocusTableCell?.();
+              else onFocusEditor?.();
+            }}
+          >
+            {TEXT_FORMATS.map(({ format, label, icon: Icon, effect }) => (
+              <MenubarItem
+                key={format}
+                onSelect={() => {
+                  if (format !== 'link') return onFormat?.(format);
+                  const url = askUrl();
+                  if (url !== null) onFormat?.(format, url);
+                }}
+              >
+                <Icon size={14} aria-hidden className="mr-2" />
+                <span className={effect}>{label}</span>
+              </MenubarItem>
+            ))}
+            <MenubarSeparator />
+            <MenubarSub>
+              <MenubarSubTrigger>
+                <Table size={14} aria-hidden className="mr-2" />
+                Table
+              </MenubarSubTrigger>
+              <MenubarSubContent data-format-menu>
+                <MenubarItem onSelect={() => onFormat?.('table')}>
+                  <TABLE_FORMAT.icon size={14} aria-hidden className="mr-2" />
+                  {TABLE_FORMAT.label}
+                </MenubarItem>
+                {TOOLS.map(({ op, label, divider }) => (
+                  <span key={op} className="contents">
+                    {(divider || op === 'rowAbove') && <MenubarSeparator />}
+                    <MenubarItem
+                      disabled={tableTarget === null || tableTarget.disabled.includes(op) || !onTableAction}
+                      onSelect={() => onTableAction?.(op)}
+                    >
+                      {label}
+                    </MenubarItem>
+                  </span>
+                ))}
+              </MenubarSubContent>
+            </MenubarSub>
           </MenubarContent>
         </MenubarMenu>
         {EMPTY_MENUS.map((label) => (

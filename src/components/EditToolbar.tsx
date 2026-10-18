@@ -4,7 +4,7 @@ import type { Format } from './formatting';
 const button =
   'flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-control border-0 bg-transparent p-0 text-foreground hover:bg-surface disabled:pointer-events-none disabled:text-muted-foreground disabled:opacity-50';
 
-const FORMATS: { format: Format; label: string; icon: LucideIcon; effect?: string; divider?: boolean }[] = [
+export const FORMATS: { format: Format; label: string; icon: LucideIcon; effect?: string; divider?: boolean }[] = [
   { format: 'bold', effect: 'font-bold', label: 'Bold', icon: Bold, divider: true },
   { format: 'italic', effect: 'italic', label: 'Italic', icon: Italic },
   { format: 'underline', effect: 'underline', label: 'Underline', icon: Underline },
@@ -17,7 +17,7 @@ const FORMATS: { format: Format; label: string; icon: LucideIcon; effect?: strin
 ];
 
 /** The link address to write; cancelling (or an empty answer) changes nothing. */
-function askUrl(): string | null {
+export function askUrl(): string | null {
   return window.prompt('Link URL', 'https://')?.trim() || null;
 }
 
