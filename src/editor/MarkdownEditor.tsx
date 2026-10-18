@@ -9,6 +9,8 @@ import { commentThreadCreationChanges } from '../comment-threads/editor/codemirr
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
 import { editorHost } from './host';
 import { threadEdit } from './threads';
+import { refreshToc } from './toc';
+import { tocChange } from '../components/toc';
 
 export interface EditorChange {
   text: string;
@@ -39,6 +41,10 @@ export interface EditorHandle {
    * Returns the new document text, or throws (e.g. an author name the format cannot hold).
    */
   createThread(target: { from: number; to: number } | number, author: string, body: string): string;
+  /** Inserts `![alt](src)` at the caret (replacing the selection) as one undoable change. */
+  insertImage(src: string, alt: string): void;
+  /** Inserts a table of contents at the caret, or rebuilds the existing one; one undoable change. Returns whether it refreshed one. */
+  insertToc(): 'inserted' | 'refreshed';
   /** Copies the selection to the clipboard (throws a clear error when the browser refuses). */
   copy(): Promise<void>;
   /** Copies the selection to the clipboard and deletes it. */
@@ -242,6 +248,25 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
           annotations: threadEdit.of(true),
         });
         return v.state.doc.toString();
+      },
+      insertImage(src, alt) {
+        const v = view.current;
+        if (!v) throw new Error('No document is open.');
+        v.dispatch(v.state.replaceSelection(`![${alt}](${src})`), { userEvent: 'input.image', scrollIntoView: true });
+        v.focus();
+      },
+      insertToc() {
+        const v = view.current;
+        if (!v) throw new Error('No document is open.');
+        const text = v.state.doc.toString();
+        if (refreshToc(v)) {
+          v.focus();
+          return 'refreshed';
+        }
+        const { insert, from, to } = tocChange(text, v.state.selection.main.head);
+        v.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length }, userEvent: 'input.toc', scrollIntoView: true });
+        v.focus();
+        return 'inserted';
       },
       async copy() {
         const v = view.current;

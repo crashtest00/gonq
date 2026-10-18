@@ -6,6 +6,7 @@ import { EditorView, keymap, placeholder, type Command } from '@codemirror/view'
 import { Strikethrough, Table, TaskList } from '@lezer/markdown';
 import { livePreview } from './livePreview';
 import { openLink } from './openLink';
+import { tocWidgets } from './toc';
 import { protectThreadBlocks, separateThreadBlocks } from './threads';
 
 export const PLACEHOLDER = 'Click here to start writing.';
@@ -13,7 +14,7 @@ export const PLACEHOLDER = 'Click here to start writing.';
 /** CommonMark plus the GFM pieces Gonq supports: strikethrough, task lists and tables. */
 export const gonqMarkdown = () => markdown({ base: commonmarkLanguage, extensions: [Strikethrough, TaskList, Table] });
 
-const LIVE: Extension = livePreview(openLink);
+const LIVE: Extension = [livePreview(openLink), tocWidgets];
 /** Raw: the same editor and document with no live-preview styling, in the monospace face. */
 const RAW: Extension = EditorView.editorAttributes.of({ class: 'cm-raw' });
 

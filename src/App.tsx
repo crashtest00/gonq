@@ -25,6 +25,7 @@ import { MarkdownEditor, type EditorHandle, type EditorSelection } from './edito
 import { useDocument } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
+import { pickImage } from './platform/images';
 import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
 import { pathExists, pickFolder } from './platform/folders';
@@ -549,6 +550,24 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     );
   };
   const redo = useCallback(() => editor.current?.redo(), []);
+  const insertImage = () => {
+    pickImage(docPath).then(
+      (picked) => {
+        if (picked === null) return;
+        editor.current?.insertImage(picked.src, picked.alt);
+        setError(null);
+      },
+      (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    );
+  };
+  const insertToc = () => {
+    try {
+      editor.current?.insertToc();
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
   const actions = useRef({ closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect });
   actions.current = { closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect };
   useEffect(() => {
@@ -602,6 +621,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onSaveAs={() => void saveAs()}
         onUndo={undo}
         onRedo={redo}
+        onInsertImage={insertImage}
+        onInsertToc={insertToc}
         onPreferences={openPrefs}
         onAgentSkill={() => setSkillOpen(true)}
         onAbout={() => setAboutOpen(true)}

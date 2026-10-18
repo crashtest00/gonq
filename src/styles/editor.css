@@ -79,3 +79,7 @@
 .gonq-editor .cm-image img { display: block; max-width: 100%; height: auto; border-radius: 4px; }
 .gonq-editor .cm-image-loading { min-width: 2em; min-height: 1.2em; background: var(--surface); border-radius: 4px; }
 .gonq-editor .cm-image-missing { color: var(--muted-foreground); background: var(--surface); border: 1px dashed var(--border); border-radius: 4px; padding: 2px 8px; font-size: 13px; }
+.gonq-editor .cm-toc-first { padding-top: 0.5em; }
+.gonq-editor .cm-toc-header { font-weight: 600; user-select: none; }
+.gonq-editor .cm-toc-refresh { margin-left: 0.75em; padding: 0 0.5em; border: 1px solid var(--border); border-radius: 4px; font-size: 0.8em; font-weight: 400; cursor: pointer; }
+.gonq-editor .cm-toc-refresh:hover { background: var(--accent); }

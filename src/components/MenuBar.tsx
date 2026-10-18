@@ -1,8 +1,6 @@
 import { useRef } from 'react';
 import { Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator, MenubarShortcut, MenubarTrigger } from './ui/menubar';
 
-const EMPTY_MENUS = ['View', 'Insert', 'Format'];
-
 export interface MenuActions {
   onNew: () => void;
   onCloseTab?: () => void;
@@ -13,6 +11,8 @@ export interface MenuActions {
   onSaveAs: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onInsertImage: () => void;
+  onInsertToc: () => void;
   onPreferences?: () => void;
   onAgentSkill?: () => void;
   onAbout?: () => void;
@@ -33,6 +33,8 @@ export function MenuBar({
   onSaveAs,
   onUndo,
   onRedo,
+  onInsertImage,
+  onInsertToc,
   onPreferences,
   onAgentSkill,
   onAbout,
@@ -104,11 +106,42 @@ export function MenuBar({
             )}
           </MenubarContent>
         </MenubarMenu>
-        {EMPTY_MENUS.map((label) => (
-          <MenubarMenu key={label}>
-            <MenubarTrigger disabled>{label}</MenubarTrigger>
-          </MenubarMenu>
-        ))}
+        <MenubarMenu>
+          <MenubarTrigger disabled>View</MenubarTrigger>
+        </MenubarMenu>
+        <MenubarMenu>
+          <MenubarTrigger>Insert</MenubarTrigger>
+          <MenubarContent
+            onCloseAutoFocus={(e) => {
+              if (!focusEditor.current) return;
+              focusEditor.current = false;
+              e.preventDefault();
+              onFocusEditor?.();
+            }}
+          >
+            <MenubarItem
+              disabled={!hasDocument}
+              onSelect={() => {
+                focusEditor.current = true;
+                onInsertImage();
+              }}
+            >
+              Image…
+            </MenubarItem>
+            <MenubarItem
+              disabled={!hasDocument}
+              onSelect={() => {
+                focusEditor.current = true;
+                onInsertToc();
+              }}
+            >
+              Table of Contents
+            </MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+        <MenubarMenu>
+          <MenubarTrigger disabled>Format</MenubarTrigger>
+        </MenubarMenu>
         <MenubarMenu>
           <MenubarTrigger data-help-menu disabled={!onAgentSkill && !onAbout}>Help</MenubarTrigger>
           {(onAgentSkill || onAbout) && (
