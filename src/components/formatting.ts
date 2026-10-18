@@ -73,7 +73,60 @@ function clampToMarkers(value: string, start: number, end: number): [number, num
   return [start, end];
 }
 
-function wrap(value: string, start: number, end: number, [open, close]: [string, string]): Edit {
+/** Leading indentation, quote, list, task or heading marks of a line: not part of its text. */
+const BLOCK_PREFIX = /^(?:[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?)?|[ \t]*#{1,6}[ \t]+)/;
+
+/** Whether `[start, end)` is already wrapped in the marks, outside it or included in it. */
+function wrapped(value: string, start: number, end: number, [open, close]: [string, string]): boolean {
+  const inner = value.slice(start, end);
+  return (
+    (start >= open.length && value.slice(start - open.length, start) === open && value.slice(end, end + close.length) === close) ||
+    (inner.length >= open.length + close.length && inner.startsWith(open) && inner.endsWith(close))
+  );
+}
+
+/** A selection over several lines is wrapped line by line: marks never span a line break, a blank line or a list/heading prefix. */
+function wrapLines(value: string, start: number, end: number, marks: [string, string]): Edit {
+  const segs: [number, number][] = [];
+  let at = value.lastIndexOf('\n', start - 1) + 1;
+  while (at <= end) {
+    const nl = value.indexOf('\n', at);
+    const lineEnd = nl < 0 ? value.length : nl;
+    let from = Math.max(at, start);
+    let to = Math.min(lineEnd, end);
+    if (from <= at) from = at + BLOCK_PREFIX.exec(value.slice(at, lineEnd))![0].length;
+    const text = value.slice(from, to);
+    from += text.length - text.trimStart().length;
+    to -= text.length - text.trimEnd().length;
+    if (to > from) segs.push([from, to]);
+    if (nl < 0) break;
+    at = nl + 1;
+  }
+  if (segs.length === 0) return { value, start, end };
+  const off = segs.every(([f, t]) => wrapped(value, f, t, marks));
+  // Forward pass with a running shift; the selection ends up covering the text of the first to the last line.
+  let out = value;
+  let shift = 0;
+  let newStart = -1;
+  let newEnd = end;
+  for (const [f, t] of segs) {
+    if (off || !wrapped(value, f, t, marks)) {
+      const r = wrap(out, f + shift, t + shift, marks, true);
+      shift += r.value.length - out.length;
+      out = r.value;
+      if (newStart < 0) newStart = r.start;
+      newEnd = r.end;
+    } else {
+      if (newStart < 0) newStart = f + shift;
+      newEnd = t + shift;
+    }
+  }
+  return { value: out, start: newStart, end: newEnd };
+}
+
+function wrap(value: string, start: number, end: number, marks: [string, string], single = false): Edit {
+  const [open, close] = marks;
+  if (!single && value.slice(start, end).includes('\n')) return wrapLines(value, start, end, marks);
   // Selection already wrapped (marks just outside it, or included in it): unwrap.
   if (start >= open.length && value.slice(start - open.length, start) === open && value.slice(end, end + close.length) === close) {
     return {
