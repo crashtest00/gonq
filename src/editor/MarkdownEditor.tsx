@@ -157,7 +157,10 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     const v = view.current;
     if (!v) return;
     const want = modeExtension(props.raw);
-    if (modeCompartment.get(v.state) !== want) v.dispatch({ effects: modeCompartment.reconfigure(want) });
+    if (modeCompartment.get(v.state) === want) return;
+    v.dispatch({ effects: modeCompartment.reconfigure(want) });
+    // The switch button took focus with its click; give it back so the caret shows and keys edit.
+    v.focus();
   }, [props.raw, props.tabId]);
 
   // Closed tabs release their state.

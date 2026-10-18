@@ -111,3 +111,14 @@ test('Undo and Redo work across the switch', async () => {
   await save(user);
   expect(saveDocument).toHaveBeenCalledWith({ name: 'a.md', path: '/d/a.md', text: `!${DOC}` });
 });
+
+test('the editor keeps focus (and so its caret and keys) after the switch is clicked', async () => {
+  const { user } = setup('a **b** c\n');
+  await openDoc(user);
+  await user.click(sw());
+  expect(editorView().hasFocus).toBe(true);
+  await user.click(sw());
+  expect(editorView().hasFocus).toBe(true);
+  await user.keyboard('{Control>}{End}{/Control}{Backspace}');
+  expect(docText()).toBe('a **b** c');
+});
