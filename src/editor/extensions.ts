@@ -1,8 +1,8 @@
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { commonmarkLanguage } from '@codemirror/lang-markdown';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
-import { EditorView, keymap, placeholder } from '@codemirror/view';
+import { EditorView, keymap, placeholder, type Command } from '@codemirror/view';
 import { Strikethrough, Table, TaskList } from '@lezer/markdown';
 import { livePreview } from './livePreview';
 import { openLink } from './openLink';
@@ -21,13 +21,29 @@ const RAW: Extension = EditorView.editorAttributes.of({ class: 'cm-raw' });
 export const modeCompartment = new Compartment();
 export const modeExtension = (raw: boolean): Extension => (raw ? RAW : LIVE);
 
+const LIST_LINE = /^[ \t]*([-*+]|\d+[.)])([ \t]|$)/;
+
+/** Tab / Shift+Tab indent or outdent list lines (marker-only ones too); elsewhere Tab keeps moving focus. */
+const listIndent = (command: Command): Command => (view) => {
+  const { state } = view;
+  const inList = state.selection.ranges.some((r) => {
+    for (let pos = r.from; pos <= r.to; ) {
+      const line = state.doc.lineAt(pos);
+      if (LIST_LINE.test(line.text)) return true;
+      pos = line.to + 1;
+    }
+    return false;
+  });
+  return inList && command(view);
+};
+
 /** Every text-editing behaviour (typing, history, keys, list continuation) is CodeMirror's or lang-markdown's own. */
 export function editorExtensions(raw: boolean, extra: Extension = []): Extension {
   return [
     history(),
     protectThreadBlocks,
     separateThreadBlocks,
-    keymap.of([...defaultKeymap, ...historyKeymap]),
+    keymap.of([{ key: 'Tab', run: listIndent(indentMore), shift: listIndent(indentLess) }, ...defaultKeymap, ...historyKeymap]),
     gonqMarkdown(),
     EditorView.lineWrapping,
     placeholder(PLACEHOLDER),

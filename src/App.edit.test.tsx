@@ -183,6 +183,17 @@ test('lang-markdown continues a list on Enter', async () => {
   expect(docText()).toBe('- one\n- two');
 });
 
+test('Tab and Shift+Tab indent and outdent list lines, including an empty item', async () => {
+  const { user } = setup('- one\n- ');
+  await openDoc(user);
+  select(8);
+  editorView().focus();
+  await user.keyboard('{Tab}');
+  expect(docText()).toBe('- one\n  - ');
+  await user.keyboard('{Shift>}{Tab}{/Shift}');
+  expect(docText()).toBe('- one\n- ');
+});
+
 describe('Edit menu and shortcuts', () => {
   async function edited() {
     const ctx = setup();
