@@ -1,4 +1,5 @@
 mod folder;
+mod launch;
 mod ssh;
 mod recents;
 mod settings;
@@ -8,7 +9,7 @@ use recents::Recent;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_fs::FsExt;
 
 /// Lets the webview read the folder of a document the user picked, so its
@@ -117,9 +118,53 @@ fn allow_recent_document<R: Runtime>(
     app.fs_scope().allow_directory(folder, true).map_err(|e| e.to_string())
 }
 
+/// Opens the main window's attention: shown, unminimised and focused.
+fn focus_main<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+}
+
+/// Hands Markdown files the OS asked us to open to the frontend. Each file's folder joins the
+/// fs scope (the OS launch is the user's choice, like a dialog pick), so relative images load.
+fn deliver_paths<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>) {
+    if paths.is_empty() {
+        return;
+    }
+    for p in &paths {
+        if let Some(folder) = PathBuf::from(p).parent() {
+            let _ = app.fs_scope().allow_directory(folder, true);
+            let _ = app.fs_scope().allow_file(p);
+        }
+    }
+    if let Some(ready) = app.state::<launch::LaunchPaths>().deliver(paths) {
+        let _ = app.emit(launch::OPEN_PATHS_EVENT, ready);
+    }
+}
+
+/// The Markdown files the app was launched with (and any opened before the frontend asked).
+/// After this call further launch paths arrive as `launch-open-paths` events.
+#[tauri::command]
+fn take_launch_paths(launch: tauri::State<'_, launch::LaunchPaths>) -> Vec<String> {
+    launch.take()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            focus_main(app);
+            deliver_paths(app, launch::paths_from_args(&argv, std::path::Path::new(&cwd)));
+        }))
+        .manage(launch::LaunchPaths::default())
+        .setup(|app| {
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let args: Vec<String> = std::env::args().collect();
+            deliver_paths(app.handle(), launch::paths_from_args(&args, &cwd));
+            Ok(())
+        })
         .manage(ssh::new_pool())
         .manage(ssh::fs::Remote::default())
         .plugin(tauri_plugin_dialog::init())
@@ -135,6 +180,7 @@ pub fn run() {
             allow_recent_document,
             get_author_name,
             set_author_name,
+            take_launch_paths,
             ssh::ssh_list_hosts,
             ssh::ssh_connect,
             ssh::ssh_disconnect,
@@ -145,6 +191,21 @@ pub fn run() {
             ssh::remote_write,
             ssh::remote_exists
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+    app.run(|app, event| match event {
+        // macOS delivers files opened from Finder (file association) as events, not arguments.
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        tauri::RunEvent::Opened { urls } => {
+            let paths = urls
+                .iter()
+                .filter_map(|u| u.to_file_path().ok())
+                .filter(|p| launch::is_markdown(p) && p.is_file())
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect();
+            focus_main(app);
+            deliver_paths(app, paths);
+        }
+        _ => {}
+    });
 }
