@@ -461,8 +461,9 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const openPrefs = useCallback(() => setPrefsOpen(true), []);
   const undo = useCallback(() => editor.current?.undo(), []);
   const redo = useCallback(() => editor.current?.redo(), []);
-  const actions = useRef({ newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect });
-  actions.current = { newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect };
+  const closeActive = useCallback(() => (activeId === null ? undefined : closeTab(activeId)), [activeId, closeTab]);
+  const actions = useRef({ closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect });
+  actions.current = { closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -476,6 +477,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       else if (key === 'k' && e.shiftKey) run = () => a.openConnect();
       else if (key === 'o') run = a.openFile;
       else if (key === 'n') run = a.newFile;
+      else if (key === 'w' && !e.shiftKey) run = a.closeActive;
       else if (key === 's') run = e.shiftKey ? a.saveAs : a.save;
       else if (!foreignField && key === 'z') run = e.shiftKey ? a.redo : a.undo;
       else if (!foreignField && key === 'y') run = a.redo;
@@ -520,7 +522,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       <TabStrip tabs={session.tabs} activeId={activeId} onSelect={(id) => {
         session.activate(id);
         editor.current?.focus();
-      }} onClose={(id) => void closeTab(id)} onNew={newFile} outlineOpen={outlineOpen} onToggleOutline={() => {
+      }} onClose={(id) => void closeTab(id)} onMove={session.move} onNew={newFile} outlineOpen={outlineOpen} onToggleOutline={() => {
           setOutlineOpen((o) => !o);
           setFolderOpen(false);
         }} folderOpen={folderOpen} onToggleFolder={() => {

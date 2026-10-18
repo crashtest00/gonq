@@ -111,6 +111,21 @@ export function useDocument() {
   /** Opens a new empty untitled document in a new tab. */
   const openUntitled = useCallback(() => add({ name: untitledName(stateRef.current.tabs), path: null }, ''), [add]);
 
+  /** Moves tab `id` to position `to` (index in the tab list); the active tab and every tab's state stay as they are. */
+  const move = useCallback(
+    (id: number, to: number) => {
+      update((s) => {
+        const from = s.tabs.findIndex((t) => t.id === id);
+        const dest = Math.max(0, Math.min(to, s.tabs.length - 1));
+        if (from < 0 || from === dest) return s;
+        const tabs = s.tabs.slice();
+        tabs.splice(dest, 0, tabs.splice(from, 1)[0]);
+        return { ...s, tabs };
+      });
+    },
+    [update],
+  );
+
   /** Closes a tab without asking; closing the last one leaves no tab at all. */
   const close = useCallback(
     (id: number) => {
@@ -174,6 +189,7 @@ export function useDocument() {
       open,
       openUntitled,
       close,
+      move,
       activate,
       findByPath,
       setRaw,
@@ -183,6 +199,6 @@ export function useDocument() {
       dirtyIds,
       saved,
     }),
-    [meta, tabInfos, tabIds, state.activeId, active, open, openUntitled, close, activate, findByPath, setRaw, edited, peek, peekTabs, dirtyIds, saved],
+    [meta, tabInfos, tabIds, state.activeId, active, open, openUntitled, close, move, activate, findByPath, setRaw, edited, peek, peekTabs, dirtyIds, saved],
   );
 }

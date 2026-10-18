@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { caretAt, docText, editorView, select, type as typeText } from '../testing/editor';
@@ -298,4 +298,84 @@ test('same file names in different folders show enough of the path', () => {
       { name: 'todo.md', path: '/q/x/todo.md' },
     ]),
   ).toEqual(['p/x/todo.md', 'q/x/todo.md']);
+});
+
+describe('reordering tabs by dragging', () => {
+  const names = () => tabs().map((t) => t.textContent);
+  function drag(from: HTMLElement, to: HTMLElement) {
+    fireEvent.dragStart(from);
+    fireEvent.dragOver(to);
+    fireEvent.drop(to);
+    fireEvent.dragEnd(from);
+  }
+
+  test('dropping a tab on another moves it; the active tab and its editor state stay', async () => {
+    const { user } = setup([A, B]);
+    await openFile(user);
+    await screen.findByText('first doc');
+    edit('first doc', '!');
+    await openFile(user);
+    await screen.findByText('second doc');
+    drag(tab(/b\.md/), tab(/a\.md/));
+    expect(names()[0]).toMatch(/b\.md/);
+    expect(names()[1]).toMatch(/a\.md/);
+    expect(tab(/b\.md/)).toHaveAttribute('aria-selected', 'true');
+    await user.click(tab(/a\.md/));
+    expect(await screen.findByText('first doc!')).toBeInTheDocument();
+  });
+
+  test('clicking a tab still activates it', async () => {
+    const { user } = setup([A, B]);
+    await openFile(user);
+    await screen.findByText('first doc');
+    await openFile(user);
+    await screen.findByText('second doc');
+    await user.click(tab(/a\.md/));
+    expect(tab(/a\.md/)).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('dragging the only tab onto itself changes nothing', async () => {
+    const { user } = setup([A]);
+    await openFile(user);
+    await screen.findByText('first doc');
+    drag(tab(/a\.md/), tab(/a\.md/));
+    expect(tabs()).toHaveLength(1);
+    expect(tab(/a\.md/)).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+describe('Ctrl-W', () => {
+  test('closes the active tab and prevents the browser default', async () => {
+    const { user } = setup([A, B]);
+    await openFile(user);
+    await screen.findByText('first doc');
+    await openFile(user);
+    await screen.findByText('second doc');
+    const ev = new KeyboardEvent('keydown', { key: 'w', ctrlKey: true, bubbles: true, cancelable: true });
+    act(() => void document.body.dispatchEvent(ev));
+    expect(ev.defaultPrevented).toBe(true);
+    await vi.waitFor(() => expect(tabs()).toHaveLength(1));
+    expect(tab(/a\.md/)).toBeInTheDocument();
+  });
+
+  test('on the last tab it behaves like its close button', async () => {
+    const { user } = setup([A]);
+    await openFile(user);
+    await screen.findByText('first doc');
+    await user.keyboard('{Control>}w{/Control}');
+    await vi.waitFor(() => expect(screen.queryAllByRole('tab')).toHaveLength(0));
+  });
+
+  test('with unsaved changes it asks instead of discarding', async () => {
+    const { user } = setup([A]);
+    await openFile(user);
+    await screen.findByText('first doc');
+    edit('first doc', '!');
+    act(() => void document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', ctrlKey: true, bubbles: true, cancelable: true })));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('a.md');
+    expect(tabs()).toHaveLength(1);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(tabs()).toHaveLength(1);
+  });
 });

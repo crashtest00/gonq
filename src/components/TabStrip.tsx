@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FolderTree, ListTree, MessageSquare, Plus, Server, X } from 'lucide-react';
 import type { TabInfo } from '../document/useDocument';
 import { isSshPath } from '../platform/remote';
@@ -30,6 +30,7 @@ export function TabStrip({
   activeId,
   onSelect,
   onClose,
+  onMove,
   onNew,
   outlineOpen = false,
   onToggleOutline,
@@ -42,6 +43,7 @@ export function TabStrip({
   activeId: number | null;
   onSelect: (id: number) => void;
   onClose: (id: number) => void;
+  onMove?: (id: number, toIndex: number) => void;
   onNew: () => void;
   outlineOpen?: boolean;
   onToggleOutline?: () => void;
@@ -51,6 +53,7 @@ export function TabStrip({
   onToggleComments: () => void;
 }) {
   const labels = tabLabels(tabs);
+  const [dragId, setDragId] = useState<number | null>(null);
   const activeRef = useRef<HTMLDivElement>(null);
   // The strip scrolls sideways when tabs overflow; the active tab is always brought into view.
   useEffect(() => {
@@ -59,7 +62,7 @@ export function TabStrip({
 
   return (
     <>
-      <div className="flex h-[46px] shrink-0 items-center px-3">
+      <div className="flex min-h-[46px] shrink-0 items-center px-3">
         <button
           type="button"
           aria-label="Document outline"
@@ -94,6 +97,24 @@ export function TabStrip({
                 role="tab"
                 aria-selected={active}
                 tabIndex={active ? 0 : -1}
+                draggable={onMove !== undefined}
+                onDragStart={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  setDragId(tab.id);
+                  e.dataTransfer?.setData('text/plain', tab.name);
+                  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => {
+                  if (dragId === null) return;
+                  e.preventDefault();
+                }}
+                onDrop={(e) => {
+                  if (dragId === null) return;
+                  e.preventDefault();
+                  onMove?.(dragId, i);
+                  setDragId(null);
+                }}
+                onDragEnd={() => setDragId(null)}
                 title={tab.path ?? tab.name}
                 onClick={() => onSelect(tab.id)}
                 onKeyDown={(e) => {
