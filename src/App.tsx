@@ -6,6 +6,7 @@ import { PreferencesDialog } from './components/PreferencesDialog';
 import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
 import { TabStrip } from './components/TabStrip';
 import { EditToolbar } from './components/EditToolbar';
+import { EditorContextMenu } from './components/EditorContextMenu';
 import { TableToolbar } from './components/TableToolbar';
 import type { TableTarget } from './editor/tables';
 import { OutlineSidebar } from './components/OutlineSidebar';
@@ -539,6 +540,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   }, [closeTab]);
   const openPrefs = useCallback(() => setPrefsOpen(true), []);
   const undo = useCallback(() => editor.current?.undo(), []);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const clipboardOp = (op: 'cut' | 'copy' | 'paste') => () => {
+    editor.current?.[op]().then(
+      () => setError(null),
+      (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    );
+  };
   const redo = useCallback(() => editor.current?.redo(), []);
   const actions = useRef({ closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect });
   actions.current = { closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect };
@@ -665,6 +674,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                 openThread(key);
               }}
               onTable={setTableTarget}
+              onContextMenu={(x, y) => setMenu({ x, y })}
               onChange={session.edited}
               onSelection={(sel, head) => {
                 setSelection(sel);
@@ -695,6 +705,22 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           />
         )}
       </div>
+      {menu !== null && (
+        <EditorContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={closeMenu}
+          items={[
+            { label: 'Add Comment', onSelect: addComment, disabled: liveSelection === null && !canAddAtCursor },
+            { label: 'Cut', onSelect: clipboardOp('cut'), disabled: selection === null, divider: true },
+            { label: 'Copy', onSelect: clipboardOp('copy'), disabled: selection === null },
+            { label: 'Paste', onSelect: clipboardOp('paste') },
+            { label: 'Select All', onSelect: () => editor.current?.selectAll(), divider: true },
+            { label: 'Bold', onSelect: () => editor.current?.format('bold'), divider: true },
+            { label: 'Italic', onSelect: () => editor.current?.format('italic') },
+          ]}
+        />
+      )}
       {liveSelection !== null && draft === null && (
         <button
           type="button"
