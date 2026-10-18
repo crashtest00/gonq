@@ -3,7 +3,8 @@ import { EditorState, type Extension, type StateEffect } from '@codemirror/state
 import { EditorView } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
-import { applyFormat, type Format } from '../components/formatting';
+import { type Format } from '../components/formatting';
+import { diff, formatView } from './formatCommands';
 import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCommentThread, effectiveCommentCreationPosition, AGENT_GUIDANCE, hasAgentGuidance } from '../comment-threads';
 import { commentThreadCreationChanges } from '../comment-threads/editor/codemirror';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
@@ -97,16 +98,6 @@ async function writeClipboard(text: string): Promise<void> {
   }
 }
 
-/** The single smallest replacement that turns `a` into `b`. */
-function diff(a: string, b: string): { from: number; to: number; insert: string } {
-  let start = 0;
-  const max = Math.min(a.length, b.length);
-  while (start < max && a[start] === b[start]) start++;
-  let end = 0;
-  while (end < max - start && a[a.length - 1 - end] === b[b.length - 1 - end]) end++;
-  return { from: start, to: a.length - end, insert: b.slice(start, b.length - end) };
-}
-
 /**
  * The one editor for the document: a single CodeMirror view whose state is swapped when the active tab
  * changes. Everything about editing text is CodeMirror's; this component only hosts it.
@@ -197,16 +188,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       format(format, url = '') {
         const v = view.current;
         if (!v) return;
-        const value = v.state.doc.toString();
-        const sel = v.state.selection.main;
-        const next = applyFormat(format, value, sel.from, sel.to, url);
-        const change = diff(value, next.value);
-        v.dispatch({
-          ...(next.value === value ? {} : { changes: change }),
-          selection: { anchor: next.start, head: next.end },
-          userEvent: 'input.format',
-          scrollIntoView: true,
-        });
+        formatView(v, format, url);
         v.focus();
       },
       setText(next) {

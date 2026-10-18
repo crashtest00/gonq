@@ -4,6 +4,7 @@ import { commonmarkLanguage } from '@codemirror/lang-markdown';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder, type Command } from '@codemirror/view';
 import { Strikethrough, Table, TaskList } from '@lezer/markdown';
+import { formatKeymap } from './formatCommands';
 import { livePreview } from './livePreview';
 import { openLink } from './openLink';
 import { protectThreadBlocks, separateThreadBlocks } from './threads';
@@ -43,6 +44,7 @@ export function editorExtensions(raw: boolean, extra: Extension = []): Extension
     history(),
     protectThreadBlocks,
     separateThreadBlocks,
+    formatKeymap,
     keymap.of([{ key: 'Tab', run: listIndent(indentMore), shift: listIndent(indentLess) }, ...defaultKeymap, ...historyKeymap]),
     gonqMarkdown(),
     EditorView.lineWrapping,
