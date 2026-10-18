@@ -1,7 +1,7 @@
 import { markdownLanguage } from '@codemirror/lang-markdown';
 import { parseCommentMarkerFragment } from '../comment-threads';
 
-export type OutlineItem = { level: 1 | 2; text: string; from: number };
+export type OutlineItem = { level: 1 | 2 | 3 | 4 | 5 | 6; text: string; from: number };
 
 /** A heading's text with its Markdown syntax and comment-thread markers taken out. */
 function plain(src: string): string {
@@ -17,7 +17,7 @@ function plain(src: string): string {
 }
 
 /**
- * The H1 and H2 headings (ATX and setext) of a document, in order, read from the same Markdown
+ * The H1-H6 headings (ATX; setext for H1 and H2) of a document, in order, read from the same Markdown
  * parse the editor styles. Thread blocks are HTML comments, so they hold no headings. `from` is the
  * heading's offset in the text.
  */
@@ -25,7 +25,7 @@ export function outlineOf(text: string): OutlineItem[] {
   const items: OutlineItem[] = [];
   markdownLanguage.parser.parse(text).iterate({
     enter(n) {
-      const m = /^(?:ATX|Setext)Heading([12])$/.exec(n.name);
+      const m = /^(?:ATX|Setext)Heading([1-6])$/.exec(n.name);
       if (!m) return;
       let src = text.slice(n.from, n.to);
       if (n.name.startsWith('Setext')) src = src.slice(0, src.indexOf('\n'));
