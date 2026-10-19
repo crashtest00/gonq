@@ -623,6 +623,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onRedo={redo}
         onInsertImage={insertImage}
         onInsertToc={insertToc}
+        raw={rawAll}
+        onToggleRaw={() => session.setRaw(!rawAll)}
         onPreferences={openPrefs}
         onAgentSkill={() => setSkillOpen(true)}
         onAbout={() => setAboutOpen(true)}

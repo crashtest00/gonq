@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator, MenubarShortcut, MenubarTrigger } from './ui/menubar';
+import { Menubar, MenubarCheckboxItem, MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator, MenubarShortcut, MenubarTrigger } from './ui/menubar';
 
 export interface MenuActions {
   onNew: () => void;
@@ -13,6 +13,9 @@ export interface MenuActions {
   onRedo: () => void;
   onInsertImage: () => void;
   onInsertToc: () => void;
+  /** Raw/Formatted for the active tab; the View > Raw Markdown item is disabled without a tab. */
+  raw?: boolean;
+  onToggleRaw?: () => void;
   onPreferences?: () => void;
   onAgentSkill?: () => void;
   onAbout?: () => void;
@@ -35,6 +38,8 @@ export function MenuBar({
   onRedo,
   onInsertImage,
   onInsertToc,
+  raw = false,
+  onToggleRaw,
   onPreferences,
   onAgentSkill,
   onAbout,
@@ -107,7 +112,16 @@ export function MenuBar({
           </MenubarContent>
         </MenubarMenu>
         <MenubarMenu>
-          <MenubarTrigger disabled>View</MenubarTrigger>
+          <MenubarTrigger>View</MenubarTrigger>
+          <MenubarContent>
+            <MenubarCheckboxItem
+              checked={raw}
+              disabled={!hasDocument || !onToggleRaw}
+              onCheckedChange={() => onToggleRaw?.()}
+            >
+              Raw Markdown
+            </MenubarCheckboxItem>
+          </MenubarContent>
         </MenubarMenu>
         <MenubarMenu>
           <MenubarTrigger>Insert</MenubarTrigger>
