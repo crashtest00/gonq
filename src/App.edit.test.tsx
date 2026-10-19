@@ -223,6 +223,16 @@ describe('Edit menu and shortcuts', () => {
     expect(docText()).toBe(ORIGINAL);
   });
 
+  test('Ctrl+S in the editor saves and Ctrl+Shift+Z redoes', async () => {
+    const { user, saveDocument } = await edited();
+    editorView().focus();
+    await user.keyboard('{Control>}z{/Control}');
+    await user.keyboard('{Control>}{Shift>}z{/Shift}{/Control}');
+    expect(docText()).toBe(ORIGINAL + '!');
+    await user.keyboard('{Control>}s{/Control}');
+    expect(saveDocument).toHaveBeenCalledTimes(1);
+  });
+
   test('Ctrl+Z outside the editor undoes the editor too', async () => {
     const { user } = await edited();
     (document.activeElement as HTMLElement | null)?.blur();

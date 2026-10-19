@@ -1,6 +1,7 @@
-import { defaultKeymap, history, historyKeymap, indentLess, indentMore } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, indentLess, indentMore, redo } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { commonmarkLanguage } from '@codemirror/lang-markdown';
+import { search, searchKeymap } from '@codemirror/search';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder, type Command } from '@codemirror/view';
 import { Strikethrough, Table, TaskList } from '@lezer/markdown';
@@ -46,7 +47,15 @@ export function editorExtensions(raw: boolean, extra: Extension = []): Extension
     protectThreadBlocks,
     separateThreadBlocks,
     formatKeymap,
-    keymap.of([{ key: 'Tab', run: listIndent(indentMore), shift: listIndent(indentLess) }, ...defaultKeymap, ...historyKeymap]),
+    keymap.of([
+      { key: 'Tab', run: listIndent(indentMore), shift: listIndent(indentLess) },
+      // historyKeymap binds Ctrl+Shift+Z only on Linux; Windows would otherwise have just Ctrl+Y.
+      { key: 'Mod-Shift-z', run: redo, preventDefault: true },
+      ...searchKeymap,
+      ...defaultKeymap,
+      ...historyKeymap,
+    ]),
+    search({ top: true }),
     gonqMarkdown(),
     EditorView.lineWrapping,
     placeholder(PLACEHOLDER),
