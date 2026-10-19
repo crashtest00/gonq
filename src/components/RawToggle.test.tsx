@@ -122,3 +122,18 @@ test('the editor keeps focus (and so its caret and keys) after the switch is cli
   await user.keyboard('{Control>}{End}{/Control}{Backspace}');
   expect(docText()).toBe('a **b** c');
 });
+
+test('View > Raw Markdown toggles the same mode as the footer switch', async () => {
+  const { user } = setup();
+  await openDoc(user);
+  expect(raw()).toBe(false);
+  await user.click(screen.getByRole('menuitem', { name: 'View' }));
+  await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Raw Markdown' }));
+  expect(raw()).toBe(true);
+  expect(sw().getAttribute('aria-checked')).toBe('true');
+  await user.click(sw());
+  expect(raw()).toBe(false);
+  await user.click(screen.getByRole('menuitem', { name: 'View' }));
+  await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Raw Markdown' }));
+  expect(raw()).toBe(true);
+});

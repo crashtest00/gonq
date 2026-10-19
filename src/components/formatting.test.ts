@@ -111,3 +111,12 @@ test('list formats work on an empty line and keep indentation', () => {
   expect(run('bullet', '  - a', 0, 5).value).toBe('  a');
   expect(run('numbered', '  - a', 0, 5).value).toBe('  1. a');
 });
+
+test('inline formats on a multi-line selection wrap each line, skipping blanks and list prefixes', () => {
+  expect(run('bold', 'one\ntwo', 0, 7).value).toBe('**one**\n**two**');
+  expect(run('bold', 'one\n\ntwo', 0, 8).value).toBe('**one**\n\n**two**');
+  expect(run('italic', '- a\n- b', 0, 7).value).toBe('- *a*\n- *b*');
+  expect(run('bold', '**one**\n**two**', 0, 15).value).toBe('one\ntwo');
+  expect(run('bold', '**one**\ntwo', 0, 11).value).toBe('**one**\n**two**');
+  expect(run('strike', 'ab cd\nef gh', 3, 8).value).toBe('ab ~~cd~~\n~~ef~~ gh');
+});

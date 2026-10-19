@@ -3,12 +3,15 @@ import { EditorState, type Extension, type StateEffect } from '@codemirror/state
 import { EditorView } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
-import { applyFormat, type Format } from '../components/formatting';
+import { type Format } from '../components/formatting';
+import { diff, formatView } from './formatCommands';
 import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCommentThread, effectiveCommentCreationPosition, AGENT_GUIDANCE, hasAgentGuidance } from '../comment-threads';
 import { commentThreadCreationChanges } from '../comment-threads/editor/codemirror';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
 import { editorHost } from './host';
 import { threadEdit } from './threads';
+import { refreshToc } from './toc';
+import { tocChange } from '../components/toc';
 
 export interface EditorChange {
   text: string;
@@ -39,6 +42,10 @@ export interface EditorHandle {
    * Returns the new document text, or throws (e.g. an author name the format cannot hold).
    */
   createThread(target: { from: number; to: number } | number, author: string, body: string): string;
+  /** Inserts `![alt](src)` at the caret (replacing the selection) as one undoable change. */
+  insertImage(src: string, alt: string): void;
+  /** Inserts a table of contents at the caret, or rebuilds the existing one; one undoable change. Returns whether it refreshed one. */
+  insertToc(): 'inserted' | 'refreshed';
   /** Copies the selection to the clipboard (throws a clear error when the browser refuses). */
   copy(): Promise<void>;
   /** Copies the selection to the clipboard and deletes it. */
@@ -95,16 +102,6 @@ async function writeClipboard(text: string): Promise<void> {
   } catch {
     throw new Error('Clipboard access was denied; use Ctrl+C.');
   }
-}
-
-/** The single smallest replacement that turns `a` into `b`. */
-function diff(a: string, b: string): { from: number; to: number; insert: string } {
-  let start = 0;
-  const max = Math.min(a.length, b.length);
-  while (start < max && a[start] === b[start]) start++;
-  let end = 0;
-  while (end < max - start && a[a.length - 1 - end] === b[b.length - 1 - end]) end++;
-  return { from: start, to: a.length - end, insert: b.slice(start, b.length - end) };
 }
 
 /**
@@ -197,16 +194,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       format(format, url = '') {
         const v = view.current;
         if (!v) return;
-        const value = v.state.doc.toString();
-        const sel = v.state.selection.main;
-        const next = applyFormat(format, value, sel.from, sel.to, url);
-        const change = diff(value, next.value);
-        v.dispatch({
-          ...(next.value === value ? {} : { changes: change }),
-          selection: { anchor: next.start, head: next.end },
-          userEvent: 'input.format',
-          scrollIntoView: true,
-        });
+        formatView(v, format, url);
         v.focus();
       },
       setText(next) {
@@ -242,6 +230,25 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
           annotations: threadEdit.of(true),
         });
         return v.state.doc.toString();
+      },
+      insertImage(src, alt) {
+        const v = view.current;
+        if (!v) throw new Error('No document is open.');
+        v.dispatch(v.state.replaceSelection(`![${alt}](${src})`), { userEvent: 'input.image', scrollIntoView: true });
+        v.focus();
+      },
+      insertToc() {
+        const v = view.current;
+        if (!v) throw new Error('No document is open.');
+        const text = v.state.doc.toString();
+        if (refreshToc(v)) {
+          v.focus();
+          return 'refreshed';
+        }
+        const { insert, from, to } = tocChange(text, v.state.selection.main.head);
+        v.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length }, userEvent: 'input.toc', scrollIntoView: true });
+        v.focus();
+        return 'inserted';
       },
       async copy() {
         const v = view.current;

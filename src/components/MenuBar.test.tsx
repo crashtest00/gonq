@@ -22,6 +22,8 @@ function setup(over: Partial<Parameters<typeof MenuBar>[0]> = {}) {
       onSaveAs={noop}
       onUndo={noop}
       onRedo={noop}
+      onInsertImage={noop}
+      onInsertToc={noop}
       {...props}
       {...over}
     />,
@@ -34,7 +36,7 @@ const openFormat = async (user = userEvent.setup()) => {
   return user;
 };
 
-const names = (items: HTMLElement[]) => items.map((i) => i.textContent);
+const names = (items: HTMLElement[]) => items.map((i) => i.textContent?.replace(/Ctrl\+\S+$/, ''));
 
 test('Format lists every formatting action of the toolbar, with the same names', async () => {
   setup();
@@ -61,7 +63,7 @@ test.each([
 ])('%s runs the toolbar format %s', async (name, format) => {
   const p = setup();
   const user = await openFormat();
-  await user.click(screen.getByRole('menuitem', { name }));
+  await user.click(screen.getByRole('menuitem', { name: new RegExp(`^${name}(\\s|$)`) }));
   expect(p.onFormat).toHaveBeenCalledWith(format);
 });
 
@@ -69,7 +71,7 @@ test('Insert link asks for the address like the toolbar button', async () => {
   const p = setup();
   vi.spyOn(window, 'prompt').mockReturnValue(' https://x.test ');
   const user = await openFormat();
-  await user.click(screen.getByRole('menuitem', { name: 'Insert link' }));
+  await user.click(screen.getByRole('menuitem', { name: /^Insert link/ }));
   expect(p.onFormat).toHaveBeenCalledWith('link', 'https://x.test');
 });
 
@@ -77,7 +79,7 @@ test('Insert link changes nothing when the prompt is cancelled', async () => {
   const p = setup();
   vi.spyOn(window, 'prompt').mockReturnValue(null);
   const user = await openFormat();
-  await user.click(screen.getByRole('menuitem', { name: 'Insert link' }));
+  await user.click(screen.getByRole('menuitem', { name: /^Insert link/ }));
   expect(p.onFormat).not.toHaveBeenCalled();
 });
 

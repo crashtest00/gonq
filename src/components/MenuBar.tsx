@@ -1,11 +1,13 @@
 import { useRef } from 'react';
 import { Table } from 'lucide-react';
 import type { TableOp, TableTarget } from '../editor/tables';
-import { askUrl, FORMATS } from './EditToolbar';
+import { askUrl } from '../editor/formatCommands';
+import { FORMATS } from './EditToolbar';
 import type { Format } from './formatting';
 import { TOOLS } from './TableToolbar';
 import {
   Menubar,
+  MenubarCheckboxItem,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
@@ -16,8 +18,6 @@ import {
   MenubarSubTrigger,
   MenubarTrigger,
 } from './ui/menubar';
-
-const EMPTY_MENUS = ['View', 'Insert'];
 
 /** The Format menu mirrors the toolbar: the table button becomes the Table sub-menu's first item. */
 const TEXT_FORMATS = FORMATS.filter((f) => f.format !== 'table');
@@ -33,6 +33,11 @@ export interface MenuActions {
   onSaveAs: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onInsertImage: () => void;
+  onInsertToc: () => void;
+  /** Raw/Formatted for the active tab; the View > Raw Markdown item is disabled without a tab. */
+  raw?: boolean;
+  onToggleRaw?: () => void;
   onPreferences?: () => void;
   onAgentSkill?: () => void;
   onAbout?: () => void;
@@ -59,6 +64,10 @@ export function MenuBar({
   onSaveAs,
   onUndo,
   onRedo,
+  onInsertImage,
+  onInsertToc,
+  raw = false,
+  onToggleRaw,
   onPreferences,
   onAgentSkill,
   onAbout,
@@ -135,6 +144,48 @@ export function MenuBar({
           </MenubarContent>
         </MenubarMenu>
         <MenubarMenu>
+          <MenubarTrigger>View</MenubarTrigger>
+          <MenubarContent>
+            <MenubarCheckboxItem
+              checked={raw}
+              disabled={!hasDocument || !onToggleRaw}
+              onCheckedChange={() => onToggleRaw?.()}
+            >
+              Raw Markdown
+            </MenubarCheckboxItem>
+          </MenubarContent>
+        </MenubarMenu>
+        <MenubarMenu>
+          <MenubarTrigger>Insert</MenubarTrigger>
+          <MenubarContent
+            onCloseAutoFocus={(e) => {
+              if (!focusEditor.current) return;
+              focusEditor.current = false;
+              e.preventDefault();
+              onFocusEditor?.();
+            }}
+          >
+            <MenubarItem
+              disabled={!hasDocument}
+              onSelect={() => {
+                focusEditor.current = true;
+                onInsertImage();
+              }}
+            >
+              Image…
+            </MenubarItem>
+            <MenubarItem
+              disabled={!hasDocument}
+              onSelect={() => {
+                focusEditor.current = true;
+                onInsertToc();
+              }}
+            >
+              Table of Contents
+            </MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+        <MenubarMenu>
           <MenubarTrigger data-format-menu disabled={!hasDocument || !onFormat}>Format</MenubarTrigger>
           <MenubarContent
             data-format-menu
@@ -145,7 +196,7 @@ export function MenuBar({
               else onFocusEditor?.();
             }}
           >
-            {TEXT_FORMATS.map(({ format, label, icon: Icon, effect }) => (
+            {TEXT_FORMATS.map(({ format, label, shortcut, icon: Icon, effect }) => (
               <MenubarItem
                 key={format}
                 onSelect={() => {
@@ -156,6 +207,7 @@ export function MenuBar({
               >
                 <Icon size={14} aria-hidden className="mr-2" />
                 <span className={effect}>{label}</span>
+                {shortcut && <MenubarShortcut>{shortcut}</MenubarShortcut>}
               </MenubarItem>
             ))}
             <MenubarSeparator />
@@ -184,11 +236,6 @@ export function MenuBar({
             </MenubarSub>
           </MenubarContent>
         </MenubarMenu>
-        {EMPTY_MENUS.map((label) => (
-          <MenubarMenu key={label}>
-            <MenubarTrigger disabled>{label}</MenubarTrigger>
-          </MenubarMenu>
-        ))}
         <MenubarMenu>
           <MenubarTrigger data-help-menu disabled={!onAgentSkill && !onAbout}>Help</MenubarTrigger>
           {(onAgentSkill || onAbout) && (
