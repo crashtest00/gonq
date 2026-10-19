@@ -602,6 +602,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onSaveAs={() => void saveAs()}
         onUndo={undo}
         onRedo={redo}
+        raw={rawAll}
+        onToggleRaw={() => session.setRaw(!rawAll)}
         onPreferences={openPrefs}
         onAgentSkill={() => setSkillOpen(true)}
         onAbout={() => setAboutOpen(true)}
