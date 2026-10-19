@@ -1,6 +1,6 @@
 # AI Gang spec: parallel agent sessions and the Active Agent Roster
 
-2026-10-18 · Doc: https://claude.ai/code/artifact/b10f340d-c3e3-4dd0-a320-2c1fbb505381 (the doc is the maintained copy; this file mirrors it, minus the lifecycle diagram). Previous version: `/home/gonq/deploy-bak-parallel-2026-10-18/spec-v1-2026-10-17.md`.
+2026-10-18, updated 2026-10-19 · Doc: https://claude.ai/code/artifact/b10f340d-c3e3-4dd0-a320-2c1fbb505381 (the doc is the maintained copy; this file mirrors it, minus the lifecycle diagram). Previous version: `/home/gonq/deploy-bak-parallel-2026-10-18/spec-v1-2026-10-17.md`.
 
 ## Status
 
@@ -175,7 +175,12 @@ All suites pass. The second live run showed 1 dispatch and 0 resumes per subtask
 - 3 stories, each producing one agent-created subtask (`6a92ef49`, `c6af691d`, `368b3399`): 1 dispatch and 1 session each, all `ok` + reported, 0 resumes.
 - PRs #98, #99 and #100 all merged. Two sessions overlapped throughout, and the third waited for a slot.
 - A merge-conflict rework of `418da14e` dispatched once.
-- One claim key per subtask in Redis. No `Skipped duplicate` lines, so the duplicate race did not recur in this run, and the claim path is covered by its regression test only.
+- One claim key per subtask in Redis. The duplicate race did not recur in this run.
+
+**Later live runs (2026-10-19):**
+
+- **Duplicate blocked:** ScrumMaster logged `Skipped duplicate dispatch ready:79139e3f:…`, the claim working on a real duplicate event. Only one stream entry was left.
+- **First live resume:** `4e7acca1` (merge-conflict rework of PR #105) pushed its fix, then ended `ok` without reporting. The reaper resumed it 60 s later as a true `--resume` of session `49d9e5f5`, in the same worktree. It reported `completed` within 9 s; the ledger shows `resumes=1`.
 
 ## Deployment on this install
 
@@ -212,7 +217,7 @@ Backups are in `/home/gonq/deploy-bak-parallel-2026-10-18/`.
 
 - **Slot order is not FIFO across roles.** Free slots rotate between the per-role consumers, not by message age. The wait is bounded.
 - **No Django admin roster page** (REQ-10); `GET /roster` is the only view.
-- **The duplicate-dispatch claim is unexercised live** (see Verification).
+- **Resume has one live data point so far** (`4e7acca1`). The two-resume ceiling and the failure report have not fired live since the fixes.
 - **Agents cannot reach Jenkins from the container**, so a rework for a failed build cannot read the console. This gap predates the branch.
 
 **Open questions**
