@@ -613,6 +613,10 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         canRedo={session.canRedo}
         onNew={newFile}
         onFocusEditor={() => editor.current?.focus()}
+        onFormat={(f, url) => editor.current?.format(f, url)}
+        onTableAction={(op) => editor.current?.tableAction(op)}
+        onFocusTableCell={() => editor.current?.focusTableCell()}
+        tableTarget={tableTarget}
         onCloseTab={activeId === null ? undefined : () => void closeTab(activeId)}
         onOpen={() => void openFile()}
         onOpenFolder={() => void openFolder()}

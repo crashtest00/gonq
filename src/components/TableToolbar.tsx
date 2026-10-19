@@ -15,7 +15,7 @@ const minus = (icon: LucideIcon): ReactNode => {
   );
 };
 
-const TOOLS: { op: TableOp; label: string; icon: ReactNode; divider?: boolean }[] = [
+export const TOOLS: { op: TableOp; label: string; icon: ReactNode; divider?: boolean }[] = [
   { op: 'rowAbove', label: 'Insert row above', icon: <BetweenHorizontalStart size={16} aria-hidden /> },
   { op: 'rowBelow', label: 'Insert row below', icon: <BetweenHorizontalEnd size={16} aria-hidden /> },
   { op: 'colLeft', label: 'Insert column left', icon: <BetweenVerticalStart size={16} aria-hidden /> },

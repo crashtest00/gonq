@@ -75,9 +75,32 @@ test('list formats prefix every selected line and toggle off', () => {
   expect(run('task', '- [x] a', 0).value).toBe('a');
 });
 
-test('table is inserted as its own block', () => {
-  expect(run('table', '', 0).value).toBe('| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |');
-  expect(run('table', 'text', 4).value).toBe('text\n\n| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |');
+const T = '| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |';
+
+test('table is inserted as its own block with a blank line and the caret below it', () => {
+  // End of document.
+  expect(run('table', '', 0)).toMatchObject({ value: T + '\n\n', start: T.length + 2, end: T.length + 2 });
+  expect(run('table', 'text', 4)).toMatchObject({ value: 'text\n\n' + T + '\n\n', start: 6 + T.length + 2 });
+});
+
+test('table inserted in the middle of text splits it and leaves the caret before the rest', () => {
+  const r = run('table', 'abcd', 2);
+  expect(r.value).toBe('ab\n\n' + T + '\n\ncd');
+  expect(r.value.slice(r.start)).toBe('cd');
+  expect(r.start).toBe(r.end);
+});
+
+test('table inserted with another table directly below keeps them apart', () => {
+  const below = '| a | b |\n| - | - |\n| 1 | 2 |';
+  for (const gap of ['', '\n']) {
+    const r = run('table', 'x\n' + gap + below, 1);
+    expect(r.value.slice(0, r.start)).toBe('x\n\n' + T + '\n\n');
+    // The caret's line is empty and a blank line separates it from the table below.
+    expect(r.value.slice(r.start)).toBe('\n\n' + below);
+  }
+  const r = run('table', below, 0);
+  expect(r.value).toBe(T + '\n\n' + below);
+  expect(r.start).toBe(T.length + 2);
 });
 
 test('list formats work on an empty line and keep indentation', () => {

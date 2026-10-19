@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import { editorView, select } from './testing/editor';
@@ -202,5 +202,44 @@ describe('table toolbar row', () => {
     // The caret may still lie in the table (the row then stays, by design): put it after the table.
     select(editorView().state.doc.length);
     await waitFor(() => expect(screen.queryByRole('toolbar', { name: 'Table' })).not.toBeInTheDocument());
+  });
+});
+
+describe('Format menu', () => {
+  const run = async (user: ReturnType<typeof userEvent.setup>, how: 'menu' | 'toolbar') => {
+    if (how === 'toolbar') return user.click(await screen.findByRole('button', { name: 'Insert table' }, { timeout: LOAD_TIMEOUT }));
+    await user.click(screen.getByRole('menuitem', { name: 'Format' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Table' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Insert table' }));
+  };
+
+  test.each(['menu', 'toolbar'] as const)('inserting a table from the %s leaves a blank line and the caret below it', async (how) => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => null)} />);
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    await run(user, how);
+    await waitFor(() => expect(editorView().state.doc.toString()).toContain('| Cell | Cell |'), { timeout: LOAD_TIMEOUT });
+    const doc = editorView().state.doc.toString();
+    expect(doc.endsWith('| Cell | Cell |\n\n')).toBe(true);
+    expect(editorView().state.selection.main.head).toBe(doc.length);
+  }, 20000);
+
+  test('the Table sub-menu acts on the focused table cell', async () => {
+    const user = userEvent.setup();
+    render(<App files={fakeFiles(async () => null)} />);
+    await user.click(screen.getByRole('button', { name: 'New tab' }));
+    await run(user, 'toolbar');
+    const cell = await waitFor(() => {
+      const td = screen.getByTestId('editor').querySelector<HTMLElement>('td');
+      if (!td) throw new Error('no table yet');
+      return td;
+    }, { timeout: LOAD_TIMEOUT });
+    cell.focus();
+    await screen.findByRole('toolbar', { name: 'Table' });
+    await user.click(screen.getByRole('menuitem', { name: 'Format' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Table' }));
+    expect(await screen.findByRole('menuitem', { name: 'Insert row below' })).not.toHaveAttribute('data-disabled');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Insert row below' }));
+    await waitFor(() => expect(screen.getByTestId('editor').querySelectorAll('tbody tr')).toHaveLength(2));
   });
 });

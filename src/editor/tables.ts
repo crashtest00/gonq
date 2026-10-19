@@ -289,8 +289,8 @@ class TableTracker {
   };
   focusout = (e: FocusEvent) => {
     const to = e.relatedTarget as Element | null;
-    // Focus may go to the table toolbar and still target the same cell.
-    if (!to || (!this.view.dom.contains(to) && !to.closest('[data-table-toolbar]'))) this.release();
+    // Focus may go to the table toolbar or the Format menu and still target the same cell.
+    if (!to || (!this.view.dom.contains(to) && !to.closest('[data-table-toolbar], [data-format-menu]'))) this.release();
   };
   release() {
     this.focused = null;

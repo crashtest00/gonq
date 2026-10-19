@@ -195,13 +195,15 @@ export function applyFormat(format: Format, value: string, start: number, end: n
       return { value: value.slice(0, start) + link + value.slice(end), start: at, end: at };
     }
     case 'table': {
-      // A table is its own block: separate it from text on the same line.
+      // A table is its own block: separate it from text on the same line, and leave a blank line after it
+      // with the caret there, so typing continues below the table.
       const before = value.slice(0, end);
       const lead = before === '' || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
       const rest = value.slice(end);
-      const trail = rest === '' || rest.startsWith('\n\n') ? '' : rest.startsWith('\n') ? '\n' : '\n\n';
-      const at = before.length + lead.length;
-      return { value: before + lead + TABLE + trail + rest, start: at + 2, end: at + 10 };
+      // Whatever already follows (text, or another table) stays a separate block from the caret's line.
+      const tail = rest.startsWith('\n') && !rest.startsWith('\n\n') ? '\n' : '';
+      const at = before.length + lead.length + TABLE.length + 2;
+      return { value: before + lead + TABLE + '\n\n' + tail + rest, start: at, end: at };
     }
     default:
       return lines(value, start, end, format);
