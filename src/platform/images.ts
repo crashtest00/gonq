@@ -1,6 +1,7 @@
 // Image files for the editor live behind this boundary: native reads (Tauri fs, ssh) stay here and the
 // browser gets a clear error instead of a different UI.
-import { readFile } from '@tauri-apps/plugin-fs';
+import { open } from '@tauri-apps/plugin-dialog';
+import { readFile, stat } from '@tauri-apps/plugin-fs';
 import { isTauri } from './files';
 import { isSshPath, remoteRead } from './remote';
 
@@ -72,4 +73,41 @@ export function loadImage(src: string, docPath: string | null): Promise<string> 
 export function clearImageCache(): void {
   for (const url of cache.values()) void url.then((u) => u.startsWith('blob:') && URL.revokeObjectURL(u), () => {});
   cache.clear();
+}
+
+/** Largest picture Insert > Image accepts; a bigger one would be read whole into memory to show it. */
+export const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+
+const norm = (p: string) => p.replace(/\\/g, '/');
+
+/** How a document refers to `path`: relative to its folder when it lies beneath it, else the absolute path; URL-safe. */
+export function imageReference(path: string, docPath: string | null): string {
+  const target = norm(path);
+  let ref = target;
+  if (docPath !== null) {
+    const dir = norm(docPath).split('/').slice(0, -1).join('/') + '/';
+    if (dir.length > 1 && target.toLowerCase().startsWith(dir.toLowerCase())) ref = target.slice(dir.length);
+  }
+  return ref.replace(/ /g, '%20').replace(/\(/g, '%28').replace(/\)/g, '%29');
+}
+
+/** Alt text from a file name: its base name without the extension, brackets removed. */
+export function imageAlt(path: string): string {
+  return (norm(path).split('/').pop() ?? path).replace(/\.[^.]*$/, '').replace(/[[\]]/g, '');
+}
+
+/**
+ * Asks for a picture and returns the Markdown reference to put in `docPath`'s text (null when cancelled).
+ * Throws a clear error in the browser (no file paths there), for a document on a server, or for a very large file.
+ */
+export async function pickImage(docPath: string | null): Promise<{ src: string; alt: string } | null> {
+  if (!isTauri()) throw new Error('Inserting an image stored on this computer needs the desktop app; the browser cannot refer to a file by its path.');
+  if (isSshPath(docPath)) throw new Error('Pictures from this computer cannot be inserted into a document on a server.');
+  const path = await open({ multiple: false, directory: false, filters: [{ name: 'Images', extensions: Object.keys(MIME) }] });
+  if (path === null) return null;
+  const { size } = await stat(path);
+  if (size > MAX_IMAGE_BYTES) {
+    throw new Error(`${imageAlt(path)} is ${Math.round(size / 1048576)} MB; pictures over ${MAX_IMAGE_BYTES / 1048576} MB are not inserted. Resize it first.`);
+  }
+  return { src: imageReference(path, docPath), alt: imageAlt(path) };
 }
