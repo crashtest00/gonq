@@ -137,7 +137,7 @@ export function TabStrip({
                 }}
                 className={`flex h-[34px] max-w-[320px] shrink-0 cursor-pointer items-center whitespace-nowrap bg-surface pl-[22px] pr-3 text-[13px] ${
                   active
-                    ? 'font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(20,23,31,.06)]'
+                    ? 'font-semibold text-foreground [filter:drop-shadow(0_1px_2px_var(--tab-shadow))]'
                     : 'text-muted-foreground opacity-45'
                 }`}
                 style={{ clipPath: 'polygon(10px 0, calc(100% - 10px) 0, 100% 100%, 0 100%)' }}

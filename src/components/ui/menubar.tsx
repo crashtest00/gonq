@@ -87,6 +87,27 @@ const MenubarCheckboxItem = React.forwardRef<
 ));
 MenubarCheckboxItem.displayName = MenubarPrimitive.CheckboxItem.displayName;
 
+const MenubarRadioGroup = MenubarPrimitive.RadioGroup;
+
+const MenubarRadioItem = React.forwardRef<
+  React.ElementRef<typeof MenubarPrimitive.RadioItem>,
+  React.ComponentPropsWithoutRef<typeof MenubarPrimitive.RadioItem>
+>(({ className, children, ...props }, ref) => (
+  <MenubarPrimitive.RadioItem
+    ref={ref}
+    className={cn(
+      'relative flex cursor-default select-none items-center rounded-[4px] py-1.5 pl-7 pr-2 outline-none',
+      'focus:bg-background data-[disabled]:pointer-events-none data-[disabled]:text-muted-foreground',
+      className,
+    )}
+    {...props}
+  >
+    <MenubarPrimitive.ItemIndicator className="absolute left-2 inline-flex items-center">●</MenubarPrimitive.ItemIndicator>
+    {children}
+  </MenubarPrimitive.RadioItem>
+));
+MenubarRadioItem.displayName = MenubarPrimitive.RadioItem.displayName;
+
 const MenubarSub = MenubarPrimitive.Sub;
 
 const MenubarSubTrigger = React.forwardRef<
@@ -138,4 +159,4 @@ const MenubarShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanE
 );
 MenubarShortcut.displayName = 'MenubarShortcut';
 
-export { Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarCheckboxItem, MenubarSeparator, MenubarShortcut, MenubarSub, MenubarSubTrigger, MenubarSubContent };
+export { Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarCheckboxItem, MenubarRadioGroup, MenubarRadioItem, MenubarSeparator, MenubarShortcut, MenubarSub, MenubarSubTrigger, MenubarSubContent };

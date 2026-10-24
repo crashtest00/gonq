@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useTheme } from './lib/useTheme';
 import { MenuBar } from './components/MenuBar';
 import { AgentSkillDialog } from './components/AgentSkillDialog';
 import { AboutDialog } from './components/AboutDialog';
@@ -69,6 +70,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [notice, setNotice] = useState<string | null>(null);
   const activeId = session.activeId;
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
+  const [theme, setThemeChoice] = useTheme(useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []));
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -608,6 +610,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background font-sans text-foreground">
       <MenuBar
+        theme={theme}
+        onTheme={setThemeChoice}
         hasDocument={meta !== null}
         canUndo={session.canUndo}
         canRedo={session.canRedo}
