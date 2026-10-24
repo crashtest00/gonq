@@ -17,8 +17,10 @@ import { hideThreadBlocks, ThreadMarker } from './threads';
 class Bullet extends WidgetType {
   toDOM() {
     const el = document.createElement('span');
-    el.className = 'cm-bullet';
-    el.textContent = '•';
+    el.className = 'cm-list-box';
+    const dot = el.appendChild(document.createElement('span'));
+    dot.className = 'cm-bullet';
+    dot.textContent = '•';
     return el;
   }
   eq() {
@@ -93,6 +95,8 @@ function build(view: EditorView): Built {
     for (let c = node.firstChild; c; c = c.nextSibling) if (c.name === name && !show) hide(c.from, c.to);
   };
   const insTags: { from: number; to: number; open: boolean }[] = [];
+  // Lines of list items: nesting depth, and whether the line starts the item (hanging indent).
+  const listLines = new Map<number, { depth: number; first: boolean }>();
 
   syntaxTree(state).iterate({
     from,
@@ -200,6 +204,29 @@ function build(view: EditorView): Built {
         case 'CodeBlock':
           lineClass(n.from, n.to, 'cm-codeblock');
           return false;
+        case 'ListItem': {
+          let depth = 0;
+          for (let p = n.node.parent; p; p = p.parent) if (p.name === 'ListItem') depth++;
+          const head = doc.lineAt(n.from);
+          const at = n.node.getChild('ListMark')?.from ?? n.from;
+          const lead = doc.sliceString(head.from, at);
+          // An indented top-level item (Tab on the first item of a list) still shows one step in.
+          if (depth === 0 && /^[ \t]+$/.test(lead)) depth = 1;
+          if (/^[ \t]*$/.test(lead)) hide(head.from, at);
+          const numbers = new Set<number>([head.number]);
+          for (let c = n.node.firstChild; c; c = c.nextSibling) {
+            if (c.name !== 'Paragraph' && c.name !== 'Task') continue;
+            for (let no = doc.lineAt(c.from).number; no <= doc.lineAt(c.to).number; no++) numbers.add(no);
+          }
+          for (const no of numbers) {
+            const l = doc.line(no);
+            if (l.to < from || l.from > to) continue;
+            listLines.set(no, { depth, first: no === head.number });
+            // Continuation lines are indented in the source; the padding replaces that.
+            if (no !== head.number) hide(l.from, l.from + (/^[ \t]*/.exec(l.text)?.[0].length ?? 0));
+          }
+          return;
+        }
         case 'ListMark': {
           const item = n.node.parent;
           const task = item?.getChild('Task');
@@ -208,8 +235,13 @@ function build(view: EditorView): Built {
           const bullet = /^[-*+]$/.test(doc.sliceString(n.from, n.to));
           if (task) {
             if (!near) hide(n.from, Math.min(task.from, n.to + 1));
-          } else if (bullet && !near) hide(n.from, n.to, BULLET);
-          else if (!bullet) out.push(mark('cm-list-number').range(n.from, n.to));
+          } else {
+            // Marker and its space share one box, so bullets and numbers have the same width and gap.
+            const gap = /[ \t]/.test(doc.sliceString(n.to, n.to + 1)) ? 1 : 0;
+            // The bullet widget stands for the marker and its space and is the box itself.
+            if (bullet && !near) hide(n.from, n.to + gap, BULLET);
+            else out.push(mark(bullet ? 'cm-list-box' : 'cm-list-box cm-list-number').range(n.from, n.to + gap));
+          }
           return;
         }
         case 'TaskMarker': {
@@ -221,6 +253,10 @@ function build(view: EditorView): Built {
       }
     },
   });
+
+  for (const [no, { depth, first }] of listLines) {
+    out.push(Decoration.line({ class: first ? 'cm-li cm-li-first' : 'cm-li', attributes: { style: `--depth: ${depth}` } }).range(doc.line(no).from));
+  }
 
   // `<ins>…</ins>` pairs are underlined.
   const open: { from: number; to: number }[] = [];

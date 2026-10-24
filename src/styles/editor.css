@@ -42,12 +42,19 @@
 .gonq-editor .cm-code-last { border-bottom: 1px solid var(--border); border-radius: 0 0 10px 10px; padding-bottom: 12px; }
 .gonq-editor .cm-hidden-line { line-height: 0.4; font-size: 0.4em; }
 
-.gonq-editor .cm-bullet { display: inline-block; width: 1.4em; font-size: 1.3em; line-height: 1; color: var(--muted-foreground); }
+/* Lists: every item line is indented by its depth plus the marker box; the first line hangs back by the marker box so
+   wrapped lines align with the item text. Bullet, number and checkbox share the marker box width. */
+.gonq-editor { --list-marker: 26px; --list-indent: 28px; }
+.gonq-editor .cm-line.cm-li { padding-left: calc(var(--depth) * var(--list-indent) + var(--list-marker)); }
+.gonq-editor .cm-line.cm-li-first { text-indent: calc(-1 * var(--list-marker)); }
+.gonq-editor .cm-quote.cm-li { padding-left: calc(16px + var(--depth) * var(--list-indent) + var(--list-marker)); }
+.gonq-editor .cm-list-box { display: inline-block; min-width: var(--list-marker); text-indent: 0; }
+.gonq-editor .cm-bullet { font-size: 1.3em; line-height: 1; color: var(--muted-foreground); }
 .gonq-editor .cm-list-number { color: var(--muted-foreground); }
 .gonq-editor .cm-task-done { color: var(--muted-foreground); text-decoration: line-through; }
 /* Task checkbox: 18px, 4px radius, 1.5px primary border; a check in the primary stroke when done. */
 .gonq-editor .cm-task-box {
-  display: inline-block; box-sizing: border-box; width: 18px; height: 18px; margin: 0 8px 0 0; vertical-align: -3px; cursor: pointer;
+  display: inline-block; box-sizing: border-box; width: 18px; height: 18px; margin: 0 calc(var(--list-marker) - 22px) 0 0; vertical-align: -3px; cursor: pointer;
   border: 1.5px solid var(--primary-text); border-radius: 4px; background: var(--surface) no-repeat center;
 }
 .gonq-editor .cm-task-box-checked { position: relative; }

@@ -4,7 +4,7 @@ import { commonmarkLanguage } from '@codemirror/lang-markdown';
 import { search, searchKeymap } from '@codemirror/search';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder, type Command } from '@codemirror/view';
-import { Strikethrough, Table, TaskList } from '@lezer/markdown';
+import { Strikethrough, Table, TaskList, type MarkdownConfig } from '@lezer/markdown';
 import { formatKeymap } from './formatCommands';
 import { livePreview } from './livePreview';
 import { openLink } from './openLink';
@@ -14,7 +14,30 @@ import { protectThreadBlocks, separateThreadBlocks } from './threads';
 export const PLACEHOLDER = 'Click here to start writing.';
 
 /** CommonMark plus the GFM pieces Gonq supports: strikethrough, task lists and tables. */
-export const gonqMarkdown = () => markdown({ base: commonmarkLanguage, extensions: [Strikethrough, TaskList, Table] });
+const LIST_START = /^(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
+const THEMATIC_BREAK = /^(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,})$/;
+
+/**
+ * A list item right under a table row ends the table instead of turning the table into a Setext heading
+ * (`| 1 | 2 |` then `- ` would otherwise read as an H2). Uses lezer's `endLeaf` block-parser hook, the same
+ * one its own Table, list and HR parsers use; a `---` line still underlines as before.
+ */
+const ListEndsTable: MarkdownConfig = {
+  parseBlock: [
+    {
+      name: 'ListEndsTable',
+      endLeaf(_cx, line, leaf) {
+        // The table's leaf parser is not exported: it is the one with `rows` (null, false or the parsed rows).
+        if (!leaf.parsers.some((p) => 'rows' in p && Array.isArray((p as { rows: unknown }).rows))) return false;
+        const text = line.text.slice(line.pos);
+        return LIST_START.test(text) && !THEMATIC_BREAK.test(text.trim());
+      },
+      before: 'SetextHeading',
+    },
+  ],
+};
+
+export const gonqMarkdown = () => markdown({ base: commonmarkLanguage, extensions: [Strikethrough, TaskList, Table, ListEndsTable] });
 
 const LIVE: Extension = [livePreview(openLink), tocWidgets];
 /** Raw: the same editor and document with no live-preview styling, in the monospace face. */
