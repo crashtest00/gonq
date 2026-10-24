@@ -2,7 +2,7 @@ import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/command
 import { EditorState, type Extension, type StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react';
-import { caretOffset, keepCaretOffsetAfterSwitch } from './caretAnchor';
+import { caretOffset, focusCaretCellAfterSwitch, keepCaretVisible } from './caretAnchor';
 import { focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
 import { type Format } from '../components/formatting';
 import { diff, formatView } from './formatCommands';
@@ -175,13 +175,13 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     const want = modeExtension(props.raw);
     if (modeCompartment.get(v.state) === want) return;
     const before = caretOffset(v);
-    v.dispatch({ effects: modeCompartment.reconfigure(want) });
+    v.dispatch({ effects: [modeCompartment.reconfigure(want), keepCaretVisible(v, before)] });
     // The switch button took focus with its click; give it back so the caret shows and keys edit.
     v.focus();
-    // Line heights changed: re-measure for the caret height, enter the table cell the caret was in
-    // (Formatted only) and scroll so the caret stays where it was on screen.
+    // Line heights changed: the scroll effect above keeps the caret where it was on screen (centred if it
+    // was off-screen); re-measure, and enter the table cell the caret was in (Formatted only).
     if (props.raw) v.requestMeasure();
-    else keepCaretOffsetAfterSwitch(v, before);
+    else focusCaretCellAfterSwitch(v);
   }, [props.raw, props.tabId]);
 
   // Closed tabs release their state.
