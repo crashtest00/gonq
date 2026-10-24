@@ -2,8 +2,8 @@ import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/command
 import { EditorState, type Extension, type StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react';
-import { caretOffset, focusCaretCellAfterSwitch, keepCaretVisible } from './caretAnchor';
-import { focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
+import { caretOffset, keepCaretVisible } from './caretAnchor';
+import { focusCaretCell, focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
 import { type Format } from '../components/formatting';
 import { diff, formatView } from './formatCommands';
 import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCommentThread, effectiveCommentCreationPosition, AGENT_GUIDANCE, hasAgentGuidance } from '../comment-threads';
@@ -175,12 +175,12 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     const want = modeExtension(props.raw);
     if (modeCompartment.get(v.state) === want) return;
     const before = caretOffset(v);
-    v.dispatch({ effects: [modeCompartment.reconfigure(want), keepCaretVisible(v, before)] });
+    v.dispatch({ effects: [modeCompartment.reconfigure(want), keepCaretVisible(v, before, !props.raw)] });
     // The switch button took focus with its click; give it back so the caret shows and keys edit.
     v.focus();
     // Line heights changed: the scroll effect above keeps the caret where it was on screen (centred if it
-    // was off-screen); in Formatted, enter the table cell the caret was in and scroll it into view.
-    if (!props.raw) focusCaretCellAfterSwitch(v);
+    // was off-screen; a table in full when the caret is in one); in Formatted, enter the table cell the caret was in.
+    if (!props.raw) focusCaretCell(v);
   }, [props.raw, props.tabId]);
 
   // Closed tabs release their state.
