@@ -511,6 +511,9 @@ function enterTable(down: boolean) {
       return true;
     }
     const rows = parseTable(view.state, t.from, t.to).rows.length;
+    // Put the caret on the table's edge first: with it on the line next to the table, CodeMirror writes it back
+    // to the DOM selection after the cell took the focus, which pulls the focus out of the cell again.
+    view.dispatch({ selection: { anchor: down ? t.from : t.to }, userEvent: 'select' });
     focusCell(view, t.from, down ? 0 : rows - 1, 0);
     return true;
   };
