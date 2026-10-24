@@ -308,9 +308,9 @@ pub async fn list_folders(pool: &Pool, uri: &str) -> Result<FolderListing, Remot
 pub async fn list_directory(pool: &Pool, remote: &Remote, uri: &str) -> Result<Vec<FolderEntry>, RemoteError> {
     let origin = parse(uri)?;
     let p = &origin;
-    precheck(remote, &p, uri)?;
+    precheck(remote, p, uri)?;
     run(pool, &p.key, |conn| async move {
-        let p = sem!(allowed(&conn, remote, &p, uri));
+        let p = sem!(allowed(&conn, remote, p, uri));
         let real = sem!(resolved(&conn, remote, &p, uri).await?);
         let rows = sem!(read_entries(&conn, &real, uri).await?);
         let base = normalize(&p.path);
@@ -332,9 +332,9 @@ pub async fn list_directory(pool: &Pool, remote: &Remote, uri: &str) -> Result<V
 pub async fn read(pool: &Pool, remote: &Remote, uri: &str) -> Result<(RemoteStat, Vec<u8>), RemoteError> {
     let origin = parse(uri)?;
     let p = &origin;
-    precheck(remote, &p, uri)?;
+    precheck(remote, p, uri)?;
     run(pool, &p.key, |conn| async move {
-        let p = sem!(allowed(&conn, remote, &p, uri));
+        let p = sem!(allowed(&conn, remote, p, uri));
         let real = sem!(resolved(&conn, remote, &p, uri).await?);
         // Gonq opens Markdown only: a recorded recent cannot be used to read other files, and a
         // link cannot lead to one.
@@ -365,7 +365,7 @@ pub async fn read(pool: &Pool, remote: &Remote, uri: &str) -> Result<(RemoteStat
 pub async fn exists(pool: &Pool, remote: &Remote, uri: &str, recorded: bool) -> bool {
     let Ok(origin) = parse(uri) else { return false };
     let p = &origin;
-    if !recorded && !p.needs_home() && !remote.allow.permits(&p) {
+    if !recorded && !p.needs_home() && !remote.allow.permits(p) {
         return false;
     }
     let found = run(pool, &p.key, |conn| async move {
@@ -398,14 +398,14 @@ pub async fn write(
     if !is_markdown(base_name(&p.path)) {
         return Err(not_allowed(&format!("{uri}: only Markdown files can be written")));
     }
-    precheck(remote, &p, uri)?;
+    precheck(remote, p, uri)?;
     // Set once the rename (or the in-place write) may have reached the server: a lost link after
     // that point cannot be retried, since the retry would see our own change as a conflict.
     let committed = AtomicBool::new(false);
     let committed = &committed;
     run(pool, &p.key, |conn| async move {
         committed.store(false, Ordering::SeqCst);
-        let p = sem!(allowed(&conn, remote, &p, uri));
+        let p = sem!(allowed(&conn, remote, p, uri));
         let sftp = conn.sftp();
         // A link is followed, so the target is replaced and the link stays a link.
         let target = match sftp.canonicalize(p.path.clone()).await {

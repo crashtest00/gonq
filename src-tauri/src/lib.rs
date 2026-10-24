@@ -212,7 +212,7 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
-    app.run(|app, event| match event {
+    app.run(|#[allow(unused_variables)] app, event| match event {
         // macOS delivers files opened from Finder (file association) as events, not arguments.
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         tauri::RunEvent::Opened { urls } => {
