@@ -279,7 +279,7 @@ test('Raw -> Formatted keeps the caret at the same height on screen, with no lay
   await page.getByRole('switch', { name: /Raw Markdown/ }).click();
   await page.waitForTimeout(300);
   const after = await offset();
-  expect(Math.abs(after - before)).toBeLessThan(30);
+  expect(Math.abs(after - before)).toBeLessThan(24);
   expect(errors.filter((e) => /layout/i.test(e))).toEqual([]);
 });
 
@@ -310,7 +310,25 @@ for (const where of ['below', 'above'] as const) {
   });
 }
 
-/** Raw document of `lines`, caret put on line `at` (0-based) and that line scrolled to `target` px below the top of the editor, then Raw -> Formatted. */
+/** The caret's (or focused cell's) px below the top of the editor's scroll area. */
+const offsetOf = (page: Page, what: 'caret' | 'cell') =>
+  page.evaluate((w) => {
+    const sc = document.querySelector('.cm-scroller')!.getBoundingClientRect();
+    const r = (w === 'caret' ? window.getSelection()!.getRangeAt(0) : document.activeElement!).getBoundingClientRect();
+    return r.top - sc.top;
+  }, what);
+
+/** Puts the caret (as it is) `target` px below the top of the editor and returns where it really sits. */
+async function placeCaret(page: Page, target: number) {
+  await page.evaluate((t) => {
+    const sc = document.querySelector('.cm-scroller')!;
+    const top = window.getSelection()!.getRangeAt(0).getBoundingClientRect().top - sc.getBoundingClientRect().top;
+    sc.scrollTop += top - t;
+  }, target);
+  return offsetOf(page, 'caret');
+}
+
+/** Raw document of `lines`, caret put on line `at` (0-based) and that line scrolled to `target` px below the top of the editor, then Raw -> Formatted. Returns the caret's offset before the switch. */
 async function rawThenFormatted(page: Page, lines: string[], at: number, target: number) {
   await newDocument(page);
   await page.locator('.cm-editor').click();
@@ -318,69 +336,75 @@ async function rawThenFormatted(page: Page, lines: string[], at: number, target:
   await page.keyboard.insertText(lines.join('\n'));
   await page.keyboard.press('Control+Home');
   for (let i = 0; i < at; i++) await page.keyboard.press('ArrowDown');
-  await page.evaluate((t) => {
-    const sc = document.querySelector('.cm-scroller')!;
-    const top = window.getSelection()!.getRangeAt(0).getBoundingClientRect().top - sc.getBoundingClientRect().top;
-    sc.scrollTop += top - t;
-  }, target);
+  const before = await placeCaret(page, target);
   await page.getByRole('switch', { name: /Raw Markdown/ }).click();
   await page.waitForTimeout(500);
+  return before;
 }
 
-const visible = (page: Page, selector: string) =>
-  page.evaluate((sel) => {
-    const sc = document.querySelector('.cm-scroller')!.getBoundingClientRect();
-    const r = (sel === 'caret' ? window.getSelection()!.getRangeAt(0) : document.activeElement!).getBoundingClientRect();
-    return r.top >= sc.top - 1 && r.bottom <= sc.bottom + 1;
-  }, selector);
-
+const LINE = 24;
 const longDoc = (n: number) => Array.from({ length: n }, (_, i) => `Line ${i} with **bold** text`);
 
-test('Raw -> Formatted keeps a caret near the bottom of the view visible', async ({ page }) => {
-  await rawThenFormatted(page, longDoc(120), 60, 480);
-  expect(await visible(page, 'caret')).toBe(true);
+test('Raw -> Formatted keeps a caret near the bottom of the view where it was', async ({ page }) => {
+  const before = await rawThenFormatted(page, longDoc(120), 60, 480);
+  expect(Math.abs((await offsetOf(page, 'caret')) - before)).toBeLessThan(LINE);
 });
 
-test('Raw -> Formatted keeps the first and the last line visible', async ({ page }) => {
-  await rawThenFormatted(page, longDoc(120), 0, 5);
-  expect(await visible(page, 'caret')).toBe(true);
-  await rawThenFormatted(page, longDoc(120), 119, 480);
-  expect(await visible(page, 'caret')).toBe(true);
+test('Raw -> Formatted keeps the first and the last line as close to where they were as the document allows', async ({ page }) => {
+  let before = await rawThenFormatted(page, longDoc(120), 0, 5);
+  // The document top clamps the first line: it can only move down, to the editor padding.
+  expect(await offsetOf(page, 'caret')).toBeGreaterThanOrEqual(0);
+  expect(Math.abs((await offsetOf(page, 'caret')) - before)).toBeLessThan(40);
+  before = await rawThenFormatted(page, longDoc(120), 119, 480);
+  // The last line cannot be scrolled above the document end.
+  expect(Math.abs((await offsetOf(page, 'caret')) - before)).toBeLessThan(40);
 });
 
-test('Raw -> Formatted keeps a caret on a hidden code fence line visible', async ({ page }) => {
+test('Raw -> Formatted keeps a caret on a hidden code fence line where it was', async ({ page }) => {
   const lines = longDoc(60);
   lines.splice(30, 0, '```ts', 'const a = 1;', '```');
-  await rawThenFormatted(page, lines, 30, 300);
-  expect(await visible(page, 'caret')).toBe(true);
+  const before = await rawThenFormatted(page, lines, 30, 300);
+  expect(Math.abs((await offsetOf(page, 'caret')) - before)).toBeLessThan(LINE);
 });
 
-for (const [name, row] of [['header', 0], ['delimiter', 1], ['last body row', 5]] as const) {
-  test(`Raw -> Formatted focuses and shows the table cell for a caret in the ${name} row low on screen`, async ({ page }) => {
-    const table = ['| h1 | h2 | h3 |', '| --- | --- | --- |', '| x1 | y1 | z1 |', '| x2 | y2 | z2 |', '| x3 | y3 | z3 |', '| x4 | y4 | z4 |'];
-    const lines = [...longDoc(40), '', ...table, '', ...longDoc(40)];
-    // Caret in the second column of the row.
-    const at = 41 + row;
-    await newDocument(page);
-    await page.locator('.cm-editor').click();
-    await page.getByRole('switch', { name: /Raw Markdown/ }).click();
-    await page.keyboard.insertText(lines.join('\n'));
-    await page.keyboard.press('Control+Home');
-    for (let i = 0; i < at; i++) await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('Home');
-    for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
-    await page.evaluate(() => {
-      const sc = document.querySelector('.cm-scroller')!;
-      const top = window.getSelection()!.getRangeAt(0).getBoundingClientRect().top - sc.getBoundingClientRect().top;
-      sc.scrollTop += top - 480;
+const TABLE_ROWS = ['| h1 | h2 | h3 |', '| --- | --- | --- |', '| x1 | y1 | z1 |', '| x2 | y2 | z2 |', '| x3 | y3 | z3 |', '| x4 | y4 | z4 |'];
+for (const [name, row] of [['header', 0], ['delimiter', 1], ['first body', 2], ['last body', 5]] as const) {
+  for (const target of [250, 440, 480]) {
+    test(`Raw -> Formatted focuses and shows the table cell for a caret in the ${name} row at ${target}px`, async ({ page }) => {
+      const lines = [...longDoc(40), '', ...TABLE_ROWS, '', ...longDoc(40)];
+      await newDocument(page);
+      await page.locator('.cm-editor').click();
+      await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+      await page.keyboard.insertText(lines.join('\n'));
+      await page.keyboard.press('Control+Home');
+      for (let i = 0; i < 41 + row; i++) await page.keyboard.press('ArrowDown');
+      // Caret in the second column of the row.
+      await page.keyboard.press('Home');
+      for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+      await placeCaret(page, target);
+      await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+      await page.waitForTimeout(500);
+      // The delimiter row has no cell of its own: the caret goes to the first body row (data-row 1).
+      const cell = await page.evaluate(() => {
+        const a = document.activeElement as HTMLElement;
+        return { tag: a.tagName, row: a.dataset.row, col: a.dataset.col };
+      });
+      expect(cell).toEqual({ tag: row === 0 ? 'TH' : 'TD', row: String(row < 2 ? row : row - 1), col: '1' });
+      const box = await page.evaluate(() => {
+        const sc = document.querySelector('.cm-scroller')!.getBoundingClientRect();
+        const r = document.activeElement!.getBoundingClientRect();
+        return { top: r.top - sc.top, bottom: r.bottom - sc.top, height: sc.height };
+      });
+      expect(box.top).toBeGreaterThanOrEqual(-1);
+      // Room for the table toolbar that takes height from the editor.
+      expect(box.bottom).toBeLessThanOrEqual(box.height - 37);
+      if (row !== 1) {
+        await page.keyboard.type('Q');
+        const col = TABLE_ROWS[row].split('|')[2];
+        const source = TABLE_ROWS[row].replace(col, ` Q${col.trim()} `);
+        await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+        await expect(page.locator('.cm-content')).toContainText(source);
+      }
     });
-    await page.getByRole('switch', { name: /Raw Markdown/ }).click();
-    await page.waitForTimeout(500);
-    expect(await page.evaluate(() => document.activeElement?.tagName)).toMatch(/^T[DH]$/);
-    expect(await visible(page, 'cell')).toBe(true);
-    if (row !== 1) {
-      await page.keyboard.type('Q');
-      await expect(page.locator('.cm-table-wrap').getByText(/Q/)).toHaveCount(1);
-    }
-  });
+  }
 }

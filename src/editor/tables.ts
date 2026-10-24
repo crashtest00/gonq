@@ -74,7 +74,8 @@ function parseDoc(doc: Text, from: number, to: number): TableModel {
 
 const escapeCell = (s: string) => s.replace(/\r?\n/g, ' ').replace(/\\?\|/g, '\\|').trim();
 
-function tableAt(view: EditorView, pos: number): { from: number; to: number } | undefined {
+/** The table around `pos`, if any (its source range). */
+export function tableAt(view: EditorView, pos: number): { from: number; to: number } | undefined {
   for (let n = syntaxTree(view.state).resolveInner(pos, 1); n; n = n.parent!) {
     if (n.name === 'Table') return { from: n.from, to: n.to };
     if (!n.parent) return undefined;
