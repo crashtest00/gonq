@@ -258,3 +258,27 @@ for (const tables of [1, 2]) {
     }
   });
 }
+
+test('Raw -> Formatted keeps the caret at the same height on screen, with no layout-read error', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  page.on('pageerror', (e) => errors.push(e.message));
+  await newDocument(page);
+  await page.locator('.cm-editor').click();
+  await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+  const lines = Array.from({ length: 60 }, (_, i) => (i % 5 === 0 ? `## Heading ${i}` : `Line ${i} with **bold** text`));
+  await page.keyboard.insertText(lines.join('\n'));
+  // Caret on a plain line a little way down the visible area.
+  await page.keyboard.press('Control+Home');
+  for (let i = 0; i < 27; i++) await page.keyboard.press('ArrowDown');
+  const offset = () => page.evaluate(() => {
+    const sc = document.querySelector('.cm-scroller')!.getBoundingClientRect();
+    return window.getSelection()!.getRangeAt(0).getBoundingClientRect().top - sc.top;
+  });
+  const before = await offset();
+  await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+  await page.waitForTimeout(300);
+  const after = await offset();
+  expect(Math.abs(after - before)).toBeLessThan(30);
+  expect(errors.filter((e) => /layout/i.test(e))).toEqual([]);
+});
