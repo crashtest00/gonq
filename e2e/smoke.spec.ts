@@ -309,3 +309,78 @@ for (const where of ['below', 'above'] as const) {
     expect(inView).toBe(true);
   });
 }
+
+/** Raw document of `lines`, caret put on line `at` (0-based) and that line scrolled to `target` px below the top of the editor, then Raw -> Formatted. */
+async function rawThenFormatted(page: Page, lines: string[], at: number, target: number) {
+  await newDocument(page);
+  await page.locator('.cm-editor').click();
+  await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+  await page.keyboard.insertText(lines.join('\n'));
+  await page.keyboard.press('Control+Home');
+  for (let i = 0; i < at; i++) await page.keyboard.press('ArrowDown');
+  await page.evaluate((t) => {
+    const sc = document.querySelector('.cm-scroller')!;
+    const top = window.getSelection()!.getRangeAt(0).getBoundingClientRect().top - sc.getBoundingClientRect().top;
+    sc.scrollTop += top - t;
+  }, target);
+  await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+  await page.waitForTimeout(500);
+}
+
+const visible = (page: Page, selector: string) =>
+  page.evaluate((sel) => {
+    const sc = document.querySelector('.cm-scroller')!.getBoundingClientRect();
+    const r = (sel === 'caret' ? window.getSelection()!.getRangeAt(0) : document.activeElement!).getBoundingClientRect();
+    return r.top >= sc.top - 1 && r.bottom <= sc.bottom + 1;
+  }, selector);
+
+const longDoc = (n: number) => Array.from({ length: n }, (_, i) => `Line ${i} with **bold** text`);
+
+test('Raw -> Formatted keeps a caret near the bottom of the view visible', async ({ page }) => {
+  await rawThenFormatted(page, longDoc(120), 60, 480);
+  expect(await visible(page, 'caret')).toBe(true);
+});
+
+test('Raw -> Formatted keeps the first and the last line visible', async ({ page }) => {
+  await rawThenFormatted(page, longDoc(120), 0, 5);
+  expect(await visible(page, 'caret')).toBe(true);
+  await rawThenFormatted(page, longDoc(120), 119, 480);
+  expect(await visible(page, 'caret')).toBe(true);
+});
+
+test('Raw -> Formatted keeps a caret on a hidden code fence line visible', async ({ page }) => {
+  const lines = longDoc(60);
+  lines.splice(30, 0, '```ts', 'const a = 1;', '```');
+  await rawThenFormatted(page, lines, 30, 300);
+  expect(await visible(page, 'caret')).toBe(true);
+});
+
+for (const [name, row] of [['header', 0], ['delimiter', 1], ['last body row', 5]] as const) {
+  test(`Raw -> Formatted focuses and shows the table cell for a caret in the ${name} row low on screen`, async ({ page }) => {
+    const table = ['| h1 | h2 | h3 |', '| --- | --- | --- |', '| x1 | y1 | z1 |', '| x2 | y2 | z2 |', '| x3 | y3 | z3 |', '| x4 | y4 | z4 |'];
+    const lines = [...longDoc(40), '', ...table, '', ...longDoc(40)];
+    // Caret in the second column of the row.
+    const at = 41 + row;
+    await newDocument(page);
+    await page.locator('.cm-editor').click();
+    await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+    await page.keyboard.insertText(lines.join('\n'));
+    await page.keyboard.press('Control+Home');
+    for (let i = 0; i < at; i++) await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Home');
+    for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+    await page.evaluate(() => {
+      const sc = document.querySelector('.cm-scroller')!;
+      const top = window.getSelection()!.getRangeAt(0).getBoundingClientRect().top - sc.getBoundingClientRect().top;
+      sc.scrollTop += top - 480;
+    });
+    await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => document.activeElement?.tagName)).toMatch(/^T[DH]$/);
+    expect(await visible(page, 'cell')).toBe(true);
+    if (row !== 1) {
+      await page.keyboard.type('Q');
+      await expect(page.locator('.cm-table-wrap').getByText(/Q/)).toHaveCount(1);
+    }
+  });
+}

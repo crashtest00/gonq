@@ -179,9 +179,8 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     // The switch button took focus with its click; give it back so the caret shows and keys edit.
     v.focus();
     // Line heights changed: the scroll effect above keeps the caret where it was on screen (centred if it
-    // was off-screen); re-measure, and enter the table cell the caret was in (Formatted only).
-    if (props.raw) v.requestMeasure();
-    else focusCaretCellAfterSwitch(v);
+    // was off-screen); in Formatted, enter the table cell the caret was in and scroll it into view.
+    if (!props.raw) focusCaretCellAfterSwitch(v);
   }, [props.raw, props.tabId]);
 
   // Closed tabs release their state.
