@@ -202,6 +202,24 @@ test('Up arrow below a table visits every line, one per press, and enters the la
   await expect(page.locator('.cm-table tr:last-child td').first()).toBeFocused();
 });
 
+test('Up and Down through a wrapped paragraph below a table move one visual line per press', async ({ page }) => {
+  await newDocument(page);
+  const long = Array.from({ length: 400 }, (_, i) => `word${i}`).join(' ');
+  await pasteText(page, `${TABLE}\n\n${long}\n\nlast line`);
+  await page.keyboard.press('Control+End');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  const top = () => page.evaluate(() => window.getSelection()!.getRangeAt(0).getBoundingClientRect().top);
+  const tops: number[] = [await top()];
+  for (let i = 0; i < 4; i++) { await page.keyboard.press('ArrowUp'); tops.push(await top()); }
+  // each press moves up exactly one visual line, and the caret stays in the paragraph
+  const step = tops[0] - tops[1];
+  expect(step).toBeGreaterThan(0);
+  expect(await caretLine(page)).toContain('word');
+  for (let i = 1; i < tops.length - 1; i++) expect(Math.abs(tops[i] - tops[i + 1])).toBeCloseTo(Math.abs(step), 0);
+  await expect(page.locator('.cm-table td:focus')).toHaveCount(0);
+});
+
 for (const tables of [1, 2]) {
   test(`clicking the middle of a paragraph line below ${tables} table(s) puts the caret on it`, async ({ page }) => {
     await newDocument(page);
