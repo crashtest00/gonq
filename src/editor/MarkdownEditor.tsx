@@ -2,7 +2,8 @@ import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/command
 import { EditorState, type Extension, type StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react';
-import { focusCaretCell, focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
+import { caretOffset, keepCaretOffsetAfterSwitch } from './caretAnchor';
+import { focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
 import { type Format } from '../components/formatting';
 import { diff, formatView } from './formatCommands';
 import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCommentThread, effectiveCommentCreationPosition, AGENT_GUIDANCE, hasAgentGuidance } from '../comment-threads';
@@ -173,17 +174,14 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     if (!v) return;
     const want = modeExtension(props.raw);
     if (modeCompartment.get(v.state) === want) return;
+    const before = caretOffset(v);
     v.dispatch({ effects: modeCompartment.reconfigure(want) });
     // The switch button took focus with its click; give it back so the caret shows and keys edit.
     v.focus();
-    // The fonts and line heights changed: re-measure so the caret takes the new line's height, then
-    // move into the table cell the caret was in (Raw showed the pipes; Formatted shows the cell).
-    v.requestMeasure({
-      read: () => null,
-      write: () => {
-        if (!props.raw) focusCaretCell(v);
-      },
-    });
+    // Line heights changed: re-measure for the caret height, enter the table cell the caret was in
+    // (Formatted only) and scroll so the caret stays where it was on screen.
+    if (props.raw) v.requestMeasure();
+    else keepCaretOffsetAfterSwitch(v, before);
   }, [props.raw, props.tabId]);
 
   // Closed tabs release their state.
