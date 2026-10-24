@@ -494,7 +494,11 @@ function enterTable(down: boolean) {
     const sel = view.state.selection.main;
     if (!sel.empty) return false;
     const doc = view.state.doc;
-    const no = doc.lineAt(sel.head).number + (down ? 1 : -1);
+    const cur = doc.lineAt(sel.head);
+    // A wrapped line is several visual lines: only leave it from its first (Up) or last (Down) one.
+    const moved = view.moveVertically(sel, down).head;
+    if (moved >= cur.from && moved <= cur.to) return false;
+    const no = cur.number + (down ? 1 : -1);
     if (no < 1 || no > doc.lines) return false;
     const t = tableBeside(view.state, no, down);
     if (!t) {
