@@ -220,6 +220,29 @@ test('Up and Down through a wrapped paragraph below a table move one visual line
   await expect(page.locator('.cm-table td:focus')).toHaveCount(0);
 });
 
+for (const gap of ['\n\n', '\n']) {
+  test(`Down through a wrapped paragraph above a table (${gap.length - 1} blank line) moves one visual line per press, then enters it`, async ({ page }) => {
+    await newDocument(page);
+    const long = Array.from({ length: 400 }, (_, i) => `word${i}`).join(' ');
+    await pasteText(page, `first\n\n${long}${gap}${TABLE}`);
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowRight');
+    const top = () => page.evaluate(() => window.getSelection()!.getRangeAt(0).getBoundingClientRect().top);
+    const tops: number[] = [await top()];
+    for (let i = 0; i < 3; i++) { await page.keyboard.press('ArrowDown'); tops.push(await top()); }
+    const step = tops[1] - tops[0];
+    expect(step).toBeGreaterThan(0);
+    for (let i = 1; i < tops.length - 1; i++) expect(tops[i + 1] - tops[i]).toBeCloseTo(step, 0);
+    expect(await caretLine(page)).toContain('word');
+    for (let i = 0; i < 60 && (await page.locator('.cm-table td:focus, .cm-table th:focus').count()) === 0; i++) {
+      await page.keyboard.press('ArrowDown');
+    }
+    await expect(page.locator('.cm-table th:focus, .cm-table td:focus')).toHaveCount(1);
+  });
+}
+
 for (const tables of [1, 2]) {
   test(`clicking the middle of a paragraph line below ${tables} table(s) puts the caret on it`, async ({ page }) => {
     await newDocument(page);
