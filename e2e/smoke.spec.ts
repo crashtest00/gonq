@@ -164,3 +164,56 @@ test('the table toolbar row follows undo/redo into the table and goes in Raw mod
   await page.getByRole('switch', { name: /Raw Markdown/ }).click();
   await expect(page.locator('.cm-table')).toBeVisible();
 });
+
+// The line the caret is on, read from the DOM selection.
+const caretLine = (page: Page) =>
+  page.evaluate(() => {
+    const n = window.getSelection()?.anchorNode;
+    const el = n instanceof Element ? n : n?.parentElement;
+    return el?.closest('.cm-line')?.textContent ?? null;
+  });
+
+// Typing a table key by key re-renders the widget mid-word; paste the document in one step instead.
+async function pasteText(page: Page, text: string) {
+  await page.locator('.cm-editor').click();
+  await page.evaluate((t) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', t);
+    document.querySelector('.cm-content')!.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  }, text);
+}
+
+const TABLE = '| h | i |\n| - | - |\n| a | b |';
+const section = (n: number) => `## Section ${n}\nbody ${n}a\nbody ${n}b`;
+
+test('Up arrow below a table visits every line, one per press, and enters the last row', async ({ page }) => {
+  await newDocument(page);
+  await pasteText(page, `${TABLE}\n\n${[1, 2, 3, 4].map(section).join('\n')}`);
+  await page.keyboard.press('Control+End');
+  expect(await caretLine(page)).toContain('body 4b');
+  for (const expected of ['body 4a', 'Section 4', 'body 3b', 'body 3a', 'Section 3', 'body 2b', 'body 2a', 'Section 2', 'body 1b', 'body 1a', 'Section 1', '']) {
+    await page.keyboard.press('ArrowUp');
+    const line = await caretLine(page);
+    if (expected === '') expect(line).toBe('');
+    else expect(line).toContain(expected);
+  }
+  // Up from the first line below the table enters its last row.
+  await page.keyboard.press('ArrowUp');
+  await expect(page.locator('.cm-table tr:last-child td').first()).toBeFocused();
+});
+
+for (const tables of [1, 2]) {
+  test(`clicking the middle of a paragraph line below ${tables} table(s) puts the caret on it`, async ({ page }) => {
+    await newDocument(page);
+    const parts = tables === 2 ? [TABLE, 'between', TABLE] : [TABLE];
+    await pasteText(page, `${parts.join('\n\n')}\n\n${[1, 2, 3].map(section).join('\n\n')}`);
+    await page.keyboard.press('Control+Home');
+    for (const text of ['body 1a', 'body 2b', 'body 3a', 'Section 3']) {
+      const line = page.locator('.cm-line', { hasText: text });
+      await line.scrollIntoViewIfNeeded();
+      const box = (await line.boundingBox())!;
+      await page.mouse.click(box.x + 20, box.y + box.height / 2);
+      expect(await caretLine(page)).toContain(text);
+    }
+  });
+}
