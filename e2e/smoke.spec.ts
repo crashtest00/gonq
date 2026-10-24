@@ -282,3 +282,30 @@ test('Raw -> Formatted keeps the caret at the same height on screen, with no lay
   expect(Math.abs(after - before)).toBeLessThan(30);
   expect(errors.filter((e) => /layout/i.test(e))).toEqual([]);
 });
+
+for (const where of ['below', 'above'] as const) {
+  test(`Raw -> Formatted brings a caret that was off-screen ${where} the view into view`, async ({ page }) => {
+    await newDocument(page);
+    await page.locator('.cm-editor').click();
+    await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+    const lines = Array.from({ length: 300 }, (_, i) => (i % 10 === 0 ? `## Section ${i}` : `Line ${i} with **bold** text`));
+    await page.keyboard.insertText(lines.join('\n'));
+    if (where === 'below') {
+      await page.keyboard.press('Control+Home');
+      for (let i = 0; i < 250; i++) await page.keyboard.press('ArrowDown');
+      await page.evaluate(() => (document.querySelector('.cm-scroller')!.scrollTop = 0));
+    } else {
+      await page.keyboard.press('Control+Home');
+      for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowDown');
+      await page.evaluate(() => (document.querySelector('.cm-scroller')!.scrollTop = 4000));
+    }
+    await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+    await page.waitForTimeout(500);
+    const inView = await page.evaluate(() => {
+      const sc = document.querySelector('.cm-scroller')!.getBoundingClientRect();
+      const top = window.getSelection()!.getRangeAt(0).getBoundingClientRect().top;
+      return top >= sc.top && top <= sc.bottom;
+    });
+    expect(inView).toBe(true);
+  });
+}
