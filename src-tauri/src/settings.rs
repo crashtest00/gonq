@@ -8,7 +8,13 @@ pub const DEFAULT_AUTHOR_NAME: &str = "User";
 struct Settings {
     #[serde(default)]
     author_name: Option<String>,
+    /// Kept as text so an unknown value never makes the whole file unreadable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    theme: Option<String>,
 }
+
+pub const DEFAULT_THEME: &str = "auto";
+const THEMES: [&str; 3] = ["light", "dark", "auto"];
 
 /// A missing or corrupt file is the default settings, never an error.
 fn load(file: &Path) -> Settings {
@@ -56,9 +62,71 @@ pub fn set_author_name(file: &Path, name: &str) -> Result<String, String> {
     Ok(name.to_string())
 }
 
+/// The saved theme ("light", "dark" or "auto"); "auto" when missing, unreadable or unknown. Never fails.
+pub fn get_theme(file: &Path) -> String {
+    load(file)
+        .theme
+        .filter(|t| THEMES.contains(&t.as_str()))
+        .unwrap_or_else(|| DEFAULT_THEME.to_string())
+}
+
+/// Saves the theme. Anything but "light", "dark" or "auto" is refused and nothing is written.
+/// Returns the stored value.
+pub fn set_theme(file: &Path, theme: &str) -> Result<String, String> {
+    if !THEMES.contains(&theme) {
+        return Err("theme must be \"light\", \"dark\" or \"auto\"".into());
+    }
+    let mut settings = load(file);
+    settings.theme = Some(theme.to_string());
+    store(file, &settings)?;
+    Ok(theme.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn theme_defaults_to_auto() {
+        assert_eq!(get_theme(&file("theme-missing")), "auto");
+    }
+
+    #[test]
+    fn theme_round_trips_and_keeps_author() {
+        let f = file("theme-roundtrip");
+        set_author_name(&f, "Ann").unwrap();
+        for t in ["light", "dark", "auto"] {
+            assert_eq!(set_theme(&f, t).unwrap(), t);
+            assert_eq!(get_theme(&f), t);
+        }
+        assert_eq!(get_author_name(&f), "Ann");
+        set_author_name(&f, "Bo").unwrap();
+        assert_eq!(get_theme(&f), "auto");
+        set_theme(&f, "dark").unwrap();
+        set_author_name(&f, "Cy").unwrap();
+        assert_eq!(get_theme(&f), "dark");
+    }
+
+    #[test]
+    fn invalid_theme_is_refused_without_writing() {
+        let f = file("theme-reject");
+        assert!(set_theme(&f, "Dark").is_err());
+        assert!(set_theme(&f, "").is_err());
+        assert!(!f.exists());
+        set_theme(&f, "dark").unwrap();
+        let before = fs::read(&f).unwrap();
+        assert!(set_theme(&f, "blue").is_err());
+        assert_eq!(fs::read(&f).unwrap(), before);
+    }
+
+    #[test]
+    fn unknown_stored_theme_gives_auto_and_keeps_author() {
+        let f = file("theme-unknown");
+        fs::create_dir_all(f.parent().unwrap()).unwrap();
+        fs::write(&f, r#"{"author_name":"Ann","theme":"blue"}"#).unwrap();
+        assert_eq!(get_theme(&f), "auto");
+        assert_eq!(get_author_name(&f), "Ann");
+    }
 
     fn file(label: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("gonq-settings-{label}-{}", std::process::id()));

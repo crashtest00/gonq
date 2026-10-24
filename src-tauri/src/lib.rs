@@ -58,6 +58,23 @@ fn set_author_name<R: Runtime>(app: AppHandle<R>, name: String) -> Result<String
     settings::set_author_name(&settings_file(&app)?, &name)
 }
 
+/// The saved theme ("light", "dark" or "auto"); "auto" when none is saved or it can't be read.
+#[tauri::command]
+fn get_theme<R: Runtime>(app: AppHandle<R>) -> String {
+    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    match settings_file(&app) {
+        Ok(file) => settings::get_theme(&file),
+        Err(_) => settings::DEFAULT_THEME.to_string(),
+    }
+}
+
+/// Saves the theme ("light", "dark" or "auto"; anything else is refused) and returns what is stored.
+#[tauri::command]
+fn set_theme<R: Runtime>(app: AppHandle<R>, theme: String) -> Result<String, String> {
+    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    settings::set_theme(&settings_file(&app)?, &theme)
+}
+
 /// Read-only listing of one folder. Only folders already in the fs scope (the folder of an
 /// opened document, or one chosen with Open Folder, and their subfolders) can be listed.
 #[tauri::command]
@@ -180,6 +197,8 @@ pub fn run() {
             allow_recent_document,
             get_author_name,
             set_author_name,
+            get_theme,
+            set_theme,
             take_launch_paths,
             ssh::ssh_list_hosts,
             ssh::ssh_connect,
