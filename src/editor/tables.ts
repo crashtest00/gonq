@@ -384,6 +384,16 @@ export function focusTableCell(view: EditorView) {
   view.plugin(trackerPlugin)?.target()?.td.focus();
 }
 
+/** Moves the focus into the table cell the caret lies in (after Raw -> Formatted); false when it is not in a table. */
+export function focusCaretCell(view: EditorView): boolean {
+  const pos = view.state.selection.main.head;
+  const t = tableAt(view, pos);
+  if (!t || pos < t.from || pos > t.to) return false;
+  const [r, c] = cellAtPos(view.state.doc, t, pos);
+  focusCell(view, t.from, r, c);
+  return true;
+}
+
 /** The caret left the table for somewhere outside the editor (the toolbar lost focus too). */
 export function releaseTable(view: EditorView) {
   view.plugin(trackerPlugin)?.release();
