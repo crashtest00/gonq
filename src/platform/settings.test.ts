@@ -5,7 +5,7 @@ const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
 vi.mock('./files', () => ({ isTauri: () => tauri }));
 
-import { AUTHOR_KEY, authorNameProblem, getAuthorName, setAuthorName } from './settings';
+import { AUTHOR_KEY, THEME_KEY, authorNameProblem, getAuthorName, getTheme, setAuthorName, setTheme } from './settings';
 
 beforeEach(() => {
   tauri = true;
@@ -69,5 +69,36 @@ describe('web', () => {
     localStorage.setItem(AUTHOR_KEY, 'Bo');
     expect(await getAuthorName()).toBe('Bo');
     expect(localStorage.getItem('gonq.showMarkersInActiveBlock')).toBe('false');
+  });
+});
+
+describe('theme', () => {
+  it('desktop: reads and saves through get_theme / set_theme', async () => {
+    invoke.mockResolvedValueOnce('dark');
+    expect(await getTheme()).toBe('dark');
+    expect(invoke).toHaveBeenCalledWith('get_theme');
+    invoke.mockResolvedValueOnce('light');
+    expect(await setTheme('light')).toBe('light');
+    expect(invoke).toHaveBeenCalledWith('set_theme', { theme: 'light' });
+  });
+  it('desktop: an invalid value or a failed read is auto, without an error', async () => {
+    invoke.mockResolvedValueOnce('purple');
+    expect(await getTheme()).toBe('auto');
+    invoke.mockRejectedValueOnce('boom');
+    expect(await getTheme()).toBe('auto');
+  });
+  it('desktop: a failed save rejects', async () => {
+    invoke.mockRejectedValueOnce('disk full');
+    await expect(setTheme('dark')).rejects.toBe('disk full');
+  });
+  it('web: uses localStorage; missing or invalid is auto', async () => {
+    tauri = false;
+    expect(await getTheme()).toBe('auto');
+    await setTheme('dark');
+    expect(localStorage.getItem(THEME_KEY)).toBe('dark');
+    expect(await getTheme()).toBe('dark');
+    localStorage.setItem(THEME_KEY, 'neon');
+    expect(await getTheme()).toBe('auto');
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

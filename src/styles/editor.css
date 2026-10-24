@@ -10,8 +10,8 @@
 }
 .gonq-editor .cm-line { padding: 0; overflow-wrap: anywhere; }
 .gonq-editor .cm-placeholder { color: var(--muted-foreground); font-size: 13px; }
-.gonq-editor .cm-selectionBackground, .gonq-editor .cm-editor .cm-selectionBackground { background: var(--accent); }
-.gonq-editor .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--accent); }
+.gonq-editor .cm-selectionBackground, .gonq-editor .cm-editor .cm-selectionBackground { background: var(--selection); }
+.gonq-editor .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--selection); }
 .gonq-editor .cm-cursor { border-left-color: var(--foreground); }
 
 .gonq-editor .cm-heading-1 { font-size: 32px; font-weight: 700; line-height: 1.2; padding-bottom: 12px; }
@@ -28,8 +28,8 @@
   font-family: var(--font-mono); font-size: 13px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px;
 }
-.gonq-editor .cm-link { color: var(--primary); }
-.gonq-editor .cm-link:hover { color: var(--primary-hover); text-decoration: underline; }
+.gonq-editor .cm-link { color: var(--primary-text); }
+.gonq-editor .cm-link:hover { color: var(--primary-text-hover); text-decoration: underline; }
 
 .gonq-editor .cm-quote { border-left: 3px solid var(--border); padding-left: 16px; color: var(--muted-foreground); }
 .gonq-editor .cm-hr { border-bottom: 1px solid var(--border); line-height: 1; padding: 8px 0; }
@@ -48,10 +48,13 @@
 /* Task checkbox: 18px, 4px radius, 1.5px primary border; a check in the primary stroke when done. */
 .gonq-editor .cm-task-box {
   display: inline-block; box-sizing: border-box; width: 18px; height: 18px; margin: 0 8px 0 0; vertical-align: -3px; cursor: pointer;
-  border: 1.5px solid var(--primary); border-radius: 4px; background: var(--surface) no-repeat center;
+  border: 1.5px solid var(--primary-text); border-radius: 4px; background: var(--surface) no-repeat center;
 }
-.gonq-editor .cm-task-box-checked {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23146872' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+.gonq-editor .cm-task-box-checked { position: relative; }
+.gonq-editor .cm-task-box-checked::after {
+  content: ''; position: absolute; inset: 0; background: var(--primary-text);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center;
 }
 
 /* Raw: the same editor showing plain source in the monospace face. */
@@ -66,7 +69,7 @@
 .gonq-editor .cm-table { border-collapse: collapse; min-width: 50%; }
 .gonq-editor .cm-table th, .gonq-editor .cm-table td { border: 1px solid var(--border); padding: 6px 12px; min-width: 4em; }
 .gonq-editor .cm-table th { background: var(--surface); font-weight: 600; text-align: left; }
-.gonq-editor .cm-table [contenteditable]:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
+.gonq-editor .cm-table [contenteditable]:focus { outline: 2px solid var(--primary-text); outline-offset: -2px; }
 
 /* Comment-thread markers: literal glyphs, clickable; the thread blocks themselves are hidden. */
 .gonq-editor .cm-thread-marker { cursor: pointer; font-size: 0.85em; padding: 0 2px; vertical-align: baseline; user-select: none; }
@@ -82,4 +85,4 @@
 .gonq-editor .cm-toc-first { padding-top: 0.5em; }
 .gonq-editor .cm-toc-header { font-weight: 600; user-select: none; }
 .gonq-editor .cm-toc-refresh { margin-left: 0.75em; padding: 0 0.5em; border: 1px solid var(--border); border-radius: 4px; font-size: 0.8em; font-weight: 400; cursor: pointer; }
-.gonq-editor .cm-toc-refresh:hover { background: var(--accent); }
+.gonq-editor .cm-toc-refresh:hover { background: var(--accent); color: var(--on-accent); }

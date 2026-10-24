@@ -12,7 +12,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && onClose()}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-foreground/30" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-scrim" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
           // The menu item that opened this is gone by now; hand focus back to the Help menu.
@@ -40,7 +40,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
                   }
                 : undefined
             }
-            className="mb-5 break-all text-[13px] text-primary underline outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="mb-5 break-all text-[13px] text-primary-text underline outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {REPO_URL}
           </a>

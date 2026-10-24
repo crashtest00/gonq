@@ -10,7 +10,7 @@ export function ConflictDialog({ name, deleted, onChoose }: { name: string; dele
   const cancelRef = useRef<HTMLButtonElement>(null);
   useEffect(() => cancelRef.current?.focus(), []);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim">
       <div
         role="dialog"
         aria-modal="true"

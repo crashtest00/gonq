@@ -116,7 +116,7 @@ describe('closing', () => {
     const user = userEvent.setup();
     render(<App files={files} />);
     await openAbout(user);
-    const overlay = document.querySelector('.bg-foreground\\/30') as HTMLElement;
+    const overlay = document.querySelector('.bg-scrim') as HTMLElement;
     await user.click(overlay);
     expect(screen.queryByRole('dialog')).toBeNull();
   });

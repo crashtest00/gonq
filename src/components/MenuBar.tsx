@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Table } from 'lucide-react';
 import type { TableOp, TableTarget } from '../editor/tables';
+import type { ThemeChoice } from '../platform/settings';
 import { askUrl } from '../editor/formatCommands';
 import { FORMATS } from './EditToolbar';
 import type { Format } from './formatting';
@@ -11,6 +12,8 @@ import {
   MenubarContent,
   MenubarItem,
   MenubarMenu,
+  MenubarRadioGroup,
+  MenubarRadioItem,
   MenubarSeparator,
   MenubarShortcut,
   MenubarSub,
@@ -38,6 +41,9 @@ export interface MenuActions {
   /** Raw/Formatted for the active tab; the View > Raw Markdown item is disabled without a tab. */
   raw?: boolean;
   onToggleRaw?: () => void;
+  /** The theme choice in effect and its setter; View > Theme shows one selected item. */
+  theme?: ThemeChoice;
+  onTheme?: (theme: ThemeChoice) => void;
   onPreferences?: () => void;
   onAgentSkill?: () => void;
   onAbout?: () => void;
@@ -68,6 +74,8 @@ export function MenuBar({
   onInsertToc,
   raw = false,
   onToggleRaw,
+  theme = 'auto',
+  onTheme,
   onPreferences,
   onAgentSkill,
   onAbout,
@@ -153,6 +161,16 @@ export function MenuBar({
             >
               Raw Markdown
             </MenubarCheckboxItem>
+            <MenubarSub>
+              <MenubarSubTrigger>Theme</MenubarSubTrigger>
+              <MenubarSubContent>
+                <MenubarRadioGroup value={theme} onValueChange={(v) => onTheme?.(v as ThemeChoice)}>
+                  <MenubarRadioItem value="light">Light</MenubarRadioItem>
+                  <MenubarRadioItem value="dark">Dark</MenubarRadioItem>
+                  <MenubarRadioItem value="auto">Auto</MenubarRadioItem>
+                </MenubarRadioGroup>
+              </MenubarSubContent>
+            </MenubarSub>
           </MenubarContent>
         </MenubarMenu>
         <MenubarMenu>

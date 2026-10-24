@@ -36,7 +36,7 @@ export function PreferencesDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim">
       <form
         role="dialog"
         aria-modal="true"
