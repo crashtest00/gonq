@@ -2,7 +2,7 @@ import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
 import { applyFormat } from '../components/formatting';
-import { focusTableCell, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
+import { focusCaretCell, focusTableCell, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
 
 /** A live-preview editor over `text` with the caret at `caret`; returns what is shown. */
 function show(text: string, caret = text.length) {
@@ -460,6 +460,21 @@ describe('tables', () => {
     e.view.dispatch({ effects: modeCompartment.reconfigure(modeExtension(true)) });
     expect(e.q('table')).toHaveLength(0);
     expect(e.shown()).toContain('| h1 | h2 |');
+    e.done();
+  });
+});
+
+describe('focusCaretCell (Raw -> Formatted)', () => {
+  const table = 'intro\n\n| a | b |\n| - | - |\n| c | d |\n';
+  test('focuses the cell the caret was in', () => {
+    const e = show(table, table.indexOf('d'));
+    expect(focusCaretCell(e.view)).toBe(true);
+    expect((document.activeElement as HTMLElement).dataset).toMatchObject({ row: '1', col: '1' });
+    e.done();
+  });
+  test('does nothing when the caret is outside a table', () => {
+    const e = show(table, 2);
+    expect(focusCaretCell(e.view)).toBe(false);
     e.done();
   });
 });
