@@ -162,6 +162,48 @@ pipeline {
 
     // ---- PR build only -------------------------------------------------
 
+    stage('Rust checks') {
+      when { changeRequest target: 'dev' }
+      options { timeout(time: 60, unit: 'MINUTES') }
+      steps {
+        // cargo test + clippy run on a GitHub-hosted runner (rust-checks.yml,
+        // workflow_dispatch only), not on this agent. Dispatch it for the PR's
+        // head commit, find the run by the correlation id embedded in its run
+        // name, and wait: `gh run watch --exit-status` fails this stage -- and
+        // so the PR build and its required status check -- when the run fails.
+        //
+        // Jenkins' checkout is a local merge commit GitHub has never seen, so
+        // the SHA comes from the PR itself. gh needs a token with Actions:
+        // write on the repo (the same one that dispatches build-desktop.yml).
+        sh '''
+          set -eu
+          # Bootstrap only: until rust-checks.yml has landed on dev (this
+          # change's own PR), there is nothing GitHub can dispatch by name.
+          if ! gh api "repos/{owner}/{repo}/contents/.github/workflows/rust-checks.yml?ref=dev" >/dev/null 2>&1; then
+            echo "WARN: rust-checks.yml is not on dev yet -- skipping Rust checks for this PR" >&2
+            exit 0
+          fi
+          SHA=$(gh pr view "$CHANGE_ID" --json headRefOid --jq .headRefOid)
+          REQUEST_ID="pr${CHANGE_ID}-b${BUILD_NUMBER}-$(date +%s)"
+          gh workflow run rust-checks.yml --ref "$CHANGE_BRANCH" -f sha="$SHA" -f request_id="$REQUEST_ID"
+          RUN_ID=""
+          for i in $(seq 1 30); do
+            RUN_ID=$(gh run list --workflow rust-checks.yml --event workflow_dispatch --limit 30 \\
+              --json databaseId,displayTitle \\
+              --jq "[.[] | select(.displayTitle | endswith(\\"$REQUEST_ID\\"))][0].databaseId // empty")
+            [ -n "$RUN_ID" ] && break
+            sleep 5
+          done
+          if [ -z "$RUN_ID" ]; then
+            echo "rust-checks run for $REQUEST_ID never appeared" >&2
+            exit 1
+          fi
+          echo "Waiting on rust-checks run $RUN_ID"
+          gh run watch "$RUN_ID" --exit-status --interval 20
+        '''
+      }
+    }
+
     stage('Queue merge to dev') {
       when {
         allOf {
