@@ -36,3 +36,31 @@ test('Tab out of an edited cell and undo do not throw while the focused cell is 
     parent.remove();
   }
 });
+
+test('Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y pressed in a cell undo and redo the document one edit at a time', () => {
+  const parent = document.body.appendChild(document.createElement('div'));
+  const view = new EditorView({ state: createEditorState('| h | i |\n| - | - |\n| a | b |', false), parent });
+  const cells = () => view.contentDOM.querySelectorAll<HTMLElement>('td');
+  const key = (k: string, o: KeyboardEventInit = {}) => {
+    cells()[1].focus();
+    cells()[1].dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...o }));
+  };
+  try {
+    cells()[0].focus();
+    cells()[0].textContent = 'xyz';
+    cells()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+    expect(view.state.doc.toString()).toContain('| xyz | b |');
+    key('z', { ctrlKey: true });
+    expect(view.state.doc.toString()).toContain('| a | b |');
+    key('z', { ctrlKey: true, shiftKey: true });
+    expect(view.state.doc.toString()).toContain('| xyz | b |');
+    key('z', { ctrlKey: true });
+    expect(view.state.doc.toString()).toContain('| a | b |');
+    key('y', { ctrlKey: true });
+    expect(view.state.doc.toString()).toContain('| xyz | b |');
+    expect(view.contentDOM.querySelectorAll('table').length).toBe(1);
+  } finally {
+    view.destroy();
+    parent.remove();
+  }
+});
