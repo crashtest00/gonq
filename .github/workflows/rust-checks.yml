@@ -1,0 +1,77 @@
+name: rust-checks
+run-name: rust-checks ${{ inputs.request_id }}
+
+# Rust tests + clippy for the PR build. Dispatched only by Jenkins (Jenkinsfile,
+# stage "Rust checks", PR builds against dev), which awaits the run and fails
+# the PR build when it fails. `request_id` is the correlation id Jenkins finds
+# the run by (it is in the run name). Never add pull_request/push/tag triggers.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full commit SHA to check
+        required: true
+        type: string
+      request_id:
+        description: Correlation id chosen by Jenkins to find this run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: cargo test + clippy
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out requested SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Verify checkout matches requested SHA
+        env:
+          REQUESTED_SHA: ${{ inputs.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$REQUESTED_SHA" ]; then
+            echo "::error::Checked out $actual but $REQUESTED_SHA was requested"
+            exit 1
+          fi
+
+      - name: Install Linux system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf build-essential curl wget file libssl-dev \
+            libxdo-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # tauri::generate_context! needs frontendDist (../dist) to exist.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Test (Rust)
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
