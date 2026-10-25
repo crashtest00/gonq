@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useTheme } from './lib/useTheme';
 import { MenuBar } from './components/MenuBar';
 import { AgentSkillDialog } from './components/AgentSkillDialog';
 import { AboutDialog } from './components/AboutDialog';
@@ -6,6 +7,7 @@ import { PreferencesDialog } from './components/PreferencesDialog';
 import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
 import { TabStrip } from './components/TabStrip';
 import { EditToolbar } from './components/EditToolbar';
+import { EditorContextMenu } from './components/EditorContextMenu';
 import { TableToolbar } from './components/TableToolbar';
 import type { TableTarget } from './editor/tables';
 import { OutlineSidebar } from './components/OutlineSidebar';
@@ -24,6 +26,8 @@ import { MarkdownEditor, type EditorHandle, type EditorSelection } from './edito
 import { useDocument } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
+import { pickImage } from './platform/images';
+import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
 import { pathExists, pickFolder } from './platform/folders';
 import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from './platform/recents';
@@ -66,6 +70,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [notice, setNotice] = useState<string | null>(null);
   const activeId = session.activeId;
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
+  const [theme, setThemeChoice] = useTheme(useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []));
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -95,13 +100,16 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     if (path !== null) addRecent(path).then(setRecents, () => {});
   }, []);
 
+  const launchError = useRef<string | null>(null);
   // Switching tabs: the comments sidebar goes back to All threads.
   useEffect(() => {
     setSelectedKey(null);
     setDraft(null);
     setSelection(null);
     setCaret(null);
-    setError(null);
+    // Errors from paths opened at launch outlive the tab switch they caused.
+    setError(launchError.current);
+    launchError.current = null;
   }, [activeId]);
 
   const textRef = useRef(text);
@@ -376,6 +384,76 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     [files, session.findByPath, session.activate, session.open, remember],
   );
 
+  /** Opens one path the OS delivered; resolves the reason it was not opened, else null. */
+  const openLaunchPath = useCallback(
+    async (path: string): Promise<string | null> => {
+      if (!/\.(md|markdown)$/i.test(path)) return `${path} is not a Markdown file (.md or .markdown), so it was not opened.`;
+      const existing = session.findByPath(path);
+      if (existing !== null) {
+        session.activate(existing);
+        return null;
+      }
+      try {
+        if (files.openPath === undefined) throw new Error(`${path} cannot be opened here.`);
+        const opened = await files.openPath(path);
+        session.open(opened);
+        remember(opened.path);
+        return null;
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+    },
+    [files, session.findByPath, session.activate, session.open, remember],
+  );
+
+  // Launch paths run one batch at a time, in order; one that fails does not stop the others.
+  const launchChain = useRef<Promise<void>>(Promise.resolve());
+  const openLaunchPaths = useCallback(
+    (paths: string[]) => {
+      launchChain.current = launchChain.current.then(async () => {
+        const errors: string[] = [];
+        for (const path of paths) {
+          const reason = await openLaunchPath(path);
+          if (reason !== null) errors.push(reason);
+        }
+        if (errors.length === 0) return;
+        const message = errors.join(' ');
+        // A tab switch from this batch clears the banner; hand the message to that effect instead.
+        launchError.current = message;
+        setError(message);
+        setTimeout(() => (launchError.current = null), 0);
+      });
+    },
+    [openLaunchPath],
+  );
+  const openLaunchPathsRef = useRef(openLaunchPaths);
+  openLaunchPathsRef.current = openLaunchPaths;
+  useEffect(() => {
+    // Subscribe first so a launch between the two steps is queued, not lost.
+    const early: string[][] = [];
+    let ready = false;
+    const deliver = (paths: string[]) => (ready ? openLaunchPathsRef.current(paths) : early.push(paths));
+    const stop = listenOpenPaths(deliver);
+    let live = true;
+    takePendingOpenPaths().then(
+      (pending) => {
+        if (!live) return;
+        ready = true;
+        if (pending.length > 0) openLaunchPathsRef.current(pending);
+        for (const paths of early) openLaunchPathsRef.current(paths);
+      },
+      (e) => {
+        ready = true;
+        for (const paths of early) openLaunchPathsRef.current(paths);
+        if (live) setError(e instanceof Error ? e.message : String(e));
+      },
+    );
+    return () => {
+      live = false;
+      stop();
+    };
+  }, []);
+
   const openFromFolder = useCallback((path: string) => void openKnownPath(path, false), [openKnownPath]);
 
   const openFolder = useCallback(async () => {
@@ -458,11 +536,42 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   }, []);
 
   // Keyboard shortcuts read the latest handlers through a ref, so the listener is added once.
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
+  const closeActive = useCallback(() => {
+    if (activeIdRef.current !== null) void closeTab(activeIdRef.current);
+  }, [closeTab]);
   const openPrefs = useCallback(() => setPrefsOpen(true), []);
   const undo = useCallback(() => editor.current?.undo(), []);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const clipboardOp = (op: 'cut' | 'copy' | 'paste') => () => {
+    editor.current?.[op]().then(
+      () => setError(null),
+      (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    );
+  };
   const redo = useCallback(() => editor.current?.redo(), []);
-  const actions = useRef({ newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect });
-  actions.current = { newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect };
+  const insertImage = () => {
+    pickImage(docPath).then(
+      (picked) => {
+        if (picked === null) return;
+        editor.current?.insertImage(picked.src, picked.alt);
+        setError(null);
+      },
+      (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    );
+  };
+  const insertToc = () => {
+    try {
+      editor.current?.insertToc();
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const actions = useRef({ closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect });
+  actions.current = { closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -476,6 +585,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       else if (key === 'k' && e.shiftKey) run = () => a.openConnect();
       else if (key === 'o') run = a.openFile;
       else if (key === 'n') run = a.newFile;
+      else if (key === 'w' && !e.shiftKey) run = a.closeActive;
       else if (key === 's') run = e.shiftKey ? a.saveAs : a.save;
       else if (!foreignField && key === 'z') run = e.shiftKey ? a.redo : a.undo;
       else if (!foreignField && key === 'y') run = a.redo;
@@ -500,11 +610,17 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background font-sans text-foreground">
       <MenuBar
+        theme={theme}
+        onTheme={setThemeChoice}
         hasDocument={meta !== null}
         canUndo={session.canUndo}
         canRedo={session.canRedo}
         onNew={newFile}
         onFocusEditor={() => editor.current?.focus()}
+        onFormat={(f, url) => editor.current?.format(f, url)}
+        onTableAction={(op) => editor.current?.tableAction(op)}
+        onFocusTableCell={() => editor.current?.focusTableCell()}
+        tableTarget={tableTarget}
         onCloseTab={activeId === null ? undefined : () => void closeTab(activeId)}
         onOpen={() => void openFile()}
         onOpenFolder={() => void openFolder()}
@@ -513,6 +629,10 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onSaveAs={() => void saveAs()}
         onUndo={undo}
         onRedo={redo}
+        onInsertImage={insertImage}
+        onInsertToc={insertToc}
+        raw={rawAll}
+        onToggleRaw={() => session.setRaw(!rawAll)}
         onPreferences={openPrefs}
         onAgentSkill={() => setSkillOpen(true)}
         onAbout={() => setAboutOpen(true)}
@@ -520,7 +640,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       <TabStrip tabs={session.tabs} activeId={activeId} onSelect={(id) => {
         session.activate(id);
         editor.current?.focus();
-      }} onClose={(id) => void closeTab(id)} onNew={newFile} outlineOpen={outlineOpen} onToggleOutline={() => {
+      }} onClose={(id) => void closeTab(id)} onNew={newFile} onMove={session.move} outlineOpen={outlineOpen} onToggleOutline={() => {
           setOutlineOpen((o) => !o);
           setFolderOpen(false);
         }} folderOpen={folderOpen} onToggleFolder={() => {
@@ -585,6 +705,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                 openThread(key);
               }}
               onTable={setTableTarget}
+              onContextMenu={(x, y) => setMenu({ x, y })}
               onChange={session.edited}
               onSelection={(sel, head) => {
                 setSelection(sel);
@@ -615,6 +736,22 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           />
         )}
       </div>
+      {menu !== null && (
+        <EditorContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={closeMenu}
+          items={[
+            { label: 'Add Comment', onSelect: addComment, disabled: liveSelection === null && !canAddAtCursor },
+            { label: 'Cut', onSelect: clipboardOp('cut'), disabled: selection === null, divider: true },
+            { label: 'Copy', onSelect: clipboardOp('copy'), disabled: selection === null },
+            { label: 'Paste', onSelect: clipboardOp('paste') },
+            { label: 'Select All', onSelect: () => editor.current?.selectAll(), divider: true },
+            { label: 'Bold', onSelect: () => editor.current?.format('bold'), divider: true },
+            { label: 'Italic', onSelect: () => editor.current?.format('italic') },
+          ]}
+        />
+      )}
       {liveSelection !== null && draft === null && (
         <button
           type="button"

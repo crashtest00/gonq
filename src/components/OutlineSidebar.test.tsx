@@ -60,10 +60,10 @@ const entries = async () => (await screen.findByRole('complementary', { name: 'O
 const texts = async (expected: string[]) =>
   waitFor(async () => expect(Array.from(await entries()).map((li) => li.textContent)).toEqual(expected));
 
-test('H3 is excluded, setext H1 and H2 are included', async () => {
+test('deep headings are included, setext H1 and H2 too', async () => {
   const user = await open({ ...doc, text: 'Setext One\n===\n\nSetext Two\n---\n\n### Deep\n\n## Atx\n' });
   await user.click(screen.getByRole('button', { name: 'Document outline' }));
-  await texts(['Setext One', 'Setext Two', 'Atx']);
+  await texts(['Setext One', 'Setext Two', 'Deep', 'Atx']);
 });
 
 test('a heading with a marker shows its text without the glyph', async () => {
@@ -119,4 +119,12 @@ test('a document with only H2s uses H2 styling', async () => {
   expect(btn).toHaveClass('text-[12.5px]', 'text-muted-foreground');
   expect(btn).not.toHaveClass('font-semibold');
   expect(btn.style.paddingLeft).toBe('22px');
+});
+
+test('deeper levels are indented progressively and a seven-hash line is not a heading', async () => {
+  const user = await open({ ...doc, text: '# A\n\n## B\n\n### C\n\n#### D\n\n##### E\n\n###### F\n\n####### G\n' });
+  await user.click(screen.getByRole('button', { name: 'Document outline' }));
+  await texts(['A', 'B', 'C', 'D', 'E', 'F']);
+  const pads = ['A', 'B', 'C', 'D', 'E', 'F'].map((n) => screen.getByRole('button', { name: n }).style.paddingLeft);
+  expect(pads).toEqual(['0px', '22px', '34px', '46px', '58px', '70px']);
 });

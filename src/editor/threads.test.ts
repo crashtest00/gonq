@@ -2,7 +2,7 @@ import { undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { vi } from 'vitest';
 import { AGENT_GUIDANCE, parseCommentThreads } from '../comment-threads';
-import { createEditorState } from './extensions';
+import { createEditorState, modeCompartment, modeExtension } from './extensions';
 import { editorHost, type EditorHost } from './host';
 import { threadEdit } from './threads';
 
@@ -226,5 +226,105 @@ describe('images', () => {
     expect(e.shown()).toBe('![a](one.png)');
     expect(e.q('.cm-image')).toHaveLength(0);
     e.done();
+  });
+});
+
+describe('typing next to the hidden toc end marker', () => {
+  const toc = 'Intro\n\n<!-- toc -->\n- [A](#a)\n<!-- /toc -->\n\n# A\n';
+  const marker = '<!-- /toc -->';
+
+  test('text typed at the end of the marker line goes on a line of its own', () => {
+    const e = show(toc);
+    const at = toc.indexOf(marker) + marker.length;
+    e.view.dispatch({ changes: { from: at, insert: 'x' }, selection: { anchor: at + 1 }, userEvent: 'input.type' });
+    expect(e.doc()).toBe(toc.replace(marker, `${marker}\nx`));
+    expect(e.view.state.sliceDoc(0, e.view.state.selection.main.head)).toMatch(/x$/);
+    e.done();
+  });
+
+  const type = (e: ReturnType<typeof show>, text: string) => {
+    for (const ch of text) {
+      const { from, to } = e.view.state.selection.main;
+      e.view.dispatch({ changes: { from, to, insert: ch }, selection: { anchor: from + 1 }, userEvent: 'input.type' });
+    }
+  };
+  const caretAt = (e: ReturnType<typeof show>, at: number) => e.view.dispatch({ selection: { anchor: at } });
+  const typed = toc.replace(marker, `${marker}\nQQ`);
+
+  test('typed text at the start of the marker line goes after the marker, not into the list', () => {
+    const e = show(toc);
+    caretAt(e, toc.indexOf(marker));
+    type(e, 'QQ');
+    expect(e.doc()).toBe(typed);
+    e.done();
+  });
+
+  test('typed text inside the marker line does not split the marker', () => {
+    for (const k of [1, 5, 12]) {
+      const e = show(toc);
+      caretAt(e, toc.indexOf(marker) + k);
+      type(e, 'QQ');
+      expect(e.doc()).toBe(typed);
+      e.done();
+    }
+  });
+
+  test('two characters at the end stay together, and one undo restores the document', () => {
+    const e = show(toc);
+    caretAt(e, toc.indexOf(marker) + marker.length);
+    type(e, 'QQ');
+    expect(e.doc()).toBe(typed);
+    undo(e.view);
+    expect(e.doc()).toBe(toc);
+    e.done();
+  });
+
+  test('Raw -> Formatted with the caret inside the marker moves it out, and QQ stays together', () => {
+    for (const k of [1, 5, 12]) {
+      const e = show(toc, true);
+      caretAt(e, toc.indexOf(marker) + k);
+      e.view.dispatch({ effects: modeCompartment.reconfigure(modeExtension(false)) });
+      type(e, 'QQ');
+      expect(e.doc()).toBe(typed);
+      undo(e.view);
+      expect(e.doc()).toBe(toc);
+      e.done();
+    }
+  });
+
+  test('QQ typed against a thread block stays together, off the block, and one undo restores', () => {
+    const doc = `Intro\n\n${block(A)}\n\nEnd`;
+    for (const at of [doc.indexOf('<!--'), doc.indexOf('-->') + 3]) {
+      const e = show(doc);
+      caretAt(e, at);
+      type(e, 'QQ');
+      expect(e.doc()).toMatch(/(^|\n)QQ(\n|$)/);
+      expect(e.doc().replace(/\nQQ|QQ\n/, '')).toBe(doc.replace(/\n\n/, '\n\n'));
+      undo(e.view);
+      expect(e.doc()).toBe(doc);
+      e.done();
+    }
+  });
+
+  test('a toc at the document end and one at the start behave the same', () => {
+    const end = `<!-- toc -->\n- [A](#a)\n${marker}`;
+    const e = show(end);
+    caretAt(e, end.length);
+    type(e, 'QQ');
+    expect(e.doc()).toBe(`${end}\nQQ`);
+    e.done();
+  });
+
+  test('Raw mode is left alone', () => {
+    const e = show(toc, true);
+    caretAt(e, toc.indexOf(marker) + marker.length);
+    type(e, 'QQ');
+    expect(e.doc()).toBe(toc.replace(marker, `${marker}QQ`));
+    e.done();
+    const s = show(toc, true);
+    caretAt(s, toc.indexOf(marker) + 5);
+    type(s, 'QQ');
+    expect(s.doc()).toBe(toc.replace(marker, '<!-- QQ/toc -->'));
+    s.done();
   });
 });

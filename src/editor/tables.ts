@@ -1,5 +1,6 @@
 import { syntaxTree } from '@codemirror/language';
 import { ChangeSet, type ChangeSpec, type EditorState, type Extension, Prec, type Range, StateField, type Text, Facet } from '@codemirror/state';
+import { redo, undo } from '@codemirror/commands';
 import { Decoration, type DecorationSet, EditorView, keymap, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view';
 
 /**
@@ -74,7 +75,8 @@ function parseDoc(doc: Text, from: number, to: number): TableModel {
 
 const escapeCell = (s: string) => s.replace(/\r?\n/g, ' ').replace(/\\?\|/g, '\\|').trim();
 
-function tableAt(view: EditorView, pos: number): { from: number; to: number } | undefined {
+/** The table around `pos`, if any (its source range). */
+export function tableAt(view: EditorView, pos: number): { from: number; to: number } | undefined {
   for (let n = syntaxTree(view.state).resolveInner(pos, 1); n; n = n.parent!) {
     if (n.name === 'Table') return { from: n.from, to: n.to };
     if (!n.parent) return undefined;
@@ -143,7 +145,15 @@ function cellEdit(doc: Text, t: { from: number; to: number }, td: HTMLElement): 
 /** Writes an edited cell back to the source as one change; a no-op when the text is unchanged. */
 function commit(view: EditorView, wrap: HTMLElement, td: HTMLElement): boolean {
   if (!wrap.isConnected) return false;
-  const t = tableAt(view, view.posAtDOM(wrap));
+  // A cell being removed by a redraw blurs while the view is mid-update and cannot locate it: its edit was
+  // already written by whatever caused the redraw.
+  let pos: number;
+  try {
+    pos = view.posAtDOM(wrap);
+  } catch {
+    return false;
+  }
+  const t = tableAt(view, pos);
   const change = t && cellEdit(view.state.doc, t, td);
   if (!change) return false;
   view.dispatch({ changes: change, userEvent: 'input.type' });
@@ -289,8 +299,8 @@ class TableTracker {
   };
   focusout = (e: FocusEvent) => {
     const to = e.relatedTarget as Element | null;
-    // Focus may go to the table toolbar and still target the same cell.
-    if (!to || (!this.view.dom.contains(to) && !to.closest('[data-table-toolbar]'))) this.release();
+    // Focus may go to the table toolbar or the Format menu and still target the same cell.
+    if (!to || (!this.view.dom.contains(to) && !to.closest('[data-table-toolbar], [data-format-menu]'))) this.release();
   };
   release() {
     this.focused = null;
@@ -384,6 +394,16 @@ export function focusTableCell(view: EditorView) {
   view.plugin(trackerPlugin)?.target()?.td.focus();
 }
 
+/** Moves the focus into the table cell the caret lies in (after Raw -> Formatted); false when it is not in a table. */
+export function focusCaretCell(view: EditorView): boolean {
+  const pos = view.state.selection.main.head;
+  const t = tableAt(view, pos);
+  if (!t || pos < t.from || pos > t.to) return false;
+  const [r, c] = cellAtPos(view.state.doc, t, pos);
+  focusCell(view, t.from, r, c);
+  return true;
+}
+
 /** The caret left the table for somewhere outside the editor (the toolbar lost focus too). */
 export function releaseTable(view: EditorView) {
   view.plugin(trackerPlugin)?.release();
@@ -407,6 +427,17 @@ function cellKey(view: EditorView, wrap: HTMLElement, td: HTMLElement, e: Keyboa
   const c = Number(td.dataset.col);
   let tr = r;
   let tc = c;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && (k === 'z' || k === 'y')) {
+    // The cell is a separate editing surface: history belongs to the document. Write the pending edit
+    // first so it is its own undo step, then hand focus back to the editor.
+    e.preventDefault();
+    e.stopPropagation();
+    commit(view, wrap, td);
+    (k === 'y' || e.shiftKey ? redo : undo)(view);
+    view.focus();
+    return;
+  }
   if (e.key === 'Enter') tr = r + 1;
   else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -484,7 +515,13 @@ function enterTable(down: boolean) {
     const sel = view.state.selection.main;
     if (!sel.empty) return false;
     const doc = view.state.doc;
-    const no = doc.lineAt(sel.head).number + (down ? 1 : -1);
+    const cur = doc.lineAt(sel.head);
+    // A wrapped line is several visual lines: only leave it from its first (Up) or last (Down) one.
+    // Measured by position, not by moving: at the end of a line before a table the native move clamps inside the line.
+    const here = view.coordsAtPos(sel.head, sel.assoc < 0 ? -1 : 1);
+    const edge = down ? view.coordsAtPos(cur.to, -1) : view.coordsAtPos(cur.from, 1);
+    if (here && edge && Math.abs(here.top - edge.top) > 1) return false;
+    const no = cur.number + (down ? 1 : -1);
     if (no < 1 || no > doc.lines) return false;
     const t = tableBeside(view.state, no, down);
     if (!t) {
@@ -495,6 +532,9 @@ function enterTable(down: boolean) {
       return true;
     }
     const rows = parseTable(view.state, t.from, t.to).rows.length;
+    // Put the caret on the table's edge first: with it on the line next to the table, CodeMirror writes it back
+    // to the DOM selection after the cell took the focus, which pulls the focus out of the cell again.
+    view.dispatch({ selection: { anchor: down ? t.from : t.to }, userEvent: 'select' });
     focusCell(view, t.from, down ? 0 : rows - 1, 0);
     return true;
   };

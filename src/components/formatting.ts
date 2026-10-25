@@ -73,7 +73,60 @@ function clampToMarkers(value: string, start: number, end: number): [number, num
   return [start, end];
 }
 
-function wrap(value: string, start: number, end: number, [open, close]: [string, string]): Edit {
+/** Leading indentation, quote, list, task or heading marks of a line: not part of its text. */
+const BLOCK_PREFIX = /^(?:[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?)?|[ \t]*#{1,6}[ \t]+)/;
+
+/** Whether `[start, end)` is already wrapped in the marks, outside it or included in it. */
+function wrapped(value: string, start: number, end: number, [open, close]: [string, string]): boolean {
+  const inner = value.slice(start, end);
+  return (
+    (start >= open.length && value.slice(start - open.length, start) === open && value.slice(end, end + close.length) === close) ||
+    (inner.length >= open.length + close.length && inner.startsWith(open) && inner.endsWith(close))
+  );
+}
+
+/** A selection over several lines is wrapped line by line: marks never span a line break, a blank line or a list/heading prefix. */
+function wrapLines(value: string, start: number, end: number, marks: [string, string]): Edit {
+  const segs: [number, number][] = [];
+  let at = value.lastIndexOf('\n', start - 1) + 1;
+  while (at <= end) {
+    const nl = value.indexOf('\n', at);
+    const lineEnd = nl < 0 ? value.length : nl;
+    let from = Math.max(at, start);
+    let to = Math.min(lineEnd, end);
+    if (from <= at) from = at + BLOCK_PREFIX.exec(value.slice(at, lineEnd))![0].length;
+    const text = value.slice(from, to);
+    from += text.length - text.trimStart().length;
+    to -= text.length - text.trimEnd().length;
+    if (to > from) segs.push([from, to]);
+    if (nl < 0) break;
+    at = nl + 1;
+  }
+  if (segs.length === 0) return { value, start, end };
+  const off = segs.every(([f, t]) => wrapped(value, f, t, marks));
+  // Forward pass with a running shift; the selection ends up covering the text of the first to the last line.
+  let out = value;
+  let shift = 0;
+  let newStart = -1;
+  let newEnd = end;
+  for (const [f, t] of segs) {
+    if (off || !wrapped(value, f, t, marks)) {
+      const r = wrap(out, f + shift, t + shift, marks, true);
+      shift += r.value.length - out.length;
+      out = r.value;
+      if (newStart < 0) newStart = r.start;
+      newEnd = r.end;
+    } else {
+      if (newStart < 0) newStart = f + shift;
+      newEnd = t + shift;
+    }
+  }
+  return { value: out, start: newStart, end: newEnd };
+}
+
+function wrap(value: string, start: number, end: number, marks: [string, string], single = false): Edit {
+  const [open, close] = marks;
+  if (!single && value.slice(start, end).includes('\n')) return wrapLines(value, start, end, marks);
   // Selection already wrapped (marks just outside it, or included in it): unwrap.
   if (start >= open.length && value.slice(start - open.length, start) === open && value.slice(end, end + close.length) === close) {
     return {
@@ -92,6 +145,7 @@ function wrap(value: string, start: number, end: number, [open, close]: [string,
 }
 
 const PREFIX = { bullet: /^([-*+]) /, numbered: /^\d+[.)] /, task: /^[-*+] \[[ xX]\] / } as const;
+const INDENT = /^[ \t]*/;
 
 function lines(value: string, start: number, end: number, kind: 'bullet' | 'numbered' | 'task'): Edit {
   const from = value.lastIndexOf('\n', start - 1) + 1;
@@ -99,19 +153,25 @@ function lines(value: string, start: number, end: number, kind: 'bullet' | 'numb
   const to = nl < 0 ? value.length : nl;
   const rows = value.slice(from, to).split('\n');
   // A task line is also a bullet line, so check the more specific pattern first.
-  const has = (r: string) => (kind === 'bullet' ? PREFIX.bullet.test(r) && !PREFIX.task.test(r) : PREFIX[kind].test(r));
+  const unindented = (r: string) => r.replace(INDENT, '');
+  const has = (r: string) => (kind === 'bullet' ? PREFIX.bullet.test(unindented(r)) && !PREFIX.task.test(unindented(r)) : PREFIX[kind].test(unindented(r)));
   const content = rows.filter((r) => r.trim() !== '');
   const off = content.length > 0 && content.every(has);
+  // Blank lines are skipped within a multi-line selection, but a selection of only blank lines (e.g. the caret on an empty line) is prefixed.
+  const onlyBlank = content.length === 0;
   let n = 0;
   const out = rows.map((r) => {
-    if (r.trim() === '') return r;
-    const bare = r.replace(PREFIX.task, '').replace(PREFIX.bullet, '').replace(PREFIX.numbered, '');
-    if (off) return bare;
+    if (r.trim() === '' && !onlyBlank) return r;
+    const indent = r.match(INDENT)![0];
+    const bare = unindented(r).replace(PREFIX.task, '').replace(PREFIX.bullet, '').replace(PREFIX.numbered, '');
+    if (off) return indent + bare;
     n++;
-    return (kind === 'bullet' ? '- ' : kind === 'task' ? '- [ ] ' : `${n}. `) + bare;
+    return indent + (kind === 'bullet' ? '- ' : kind === 'task' ? '- [ ] ' : `${n}. `) + bare;
   });
   const text = out.join('\n');
-  return { value: value.slice(0, from) + text + value.slice(to), start: from, end: from + text.length };
+  // A caret on a blank line lands after the new marker, ready to type.
+  const caret = onlyBlank && start === end ? from + text.length : null;
+  return { value: value.slice(0, from) + text + value.slice(to), start: caret ?? from, end: caret ?? from + text.length };
 }
 
 const TABLE = '| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |';
@@ -135,13 +195,15 @@ export function applyFormat(format: Format, value: string, start: number, end: n
       return { value: value.slice(0, start) + link + value.slice(end), start: at, end: at };
     }
     case 'table': {
-      // A table is its own block: separate it from text on the same line.
+      // A table is its own block: separate it from text on the same line, and leave a blank line after it
+      // with the caret there, so typing continues below the table.
       const before = value.slice(0, end);
       const lead = before === '' || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
       const rest = value.slice(end);
-      const trail = rest === '' || rest.startsWith('\n\n') ? '' : rest.startsWith('\n') ? '\n' : '\n\n';
-      const at = before.length + lead.length;
-      return { value: before + lead + TABLE + trail + rest, start: at + 2, end: at + 10 };
+      // Whatever already follows (text, or another table) stays a separate block from the caret's line.
+      const tail = rest.startsWith('\n') && !rest.startsWith('\n\n') ? '\n' : '';
+      const at = before.length + lead.length + TABLE.length + 2;
+      return { value: before + lead + TABLE + '\n\n' + tail + rest, start: at, end: at };
     }
     default:
       return lines(value, start, end, format);

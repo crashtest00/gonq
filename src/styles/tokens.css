@@ -16,6 +16,10 @@
 --border:var(--line);--muted-foreground:var(--muted);--destructive:var(--rust);--destructive-foreground:#ffffff;
 --brass-start:var(--brass-start-light);--brass-mid:var(--brass-mid-light);--brass-end:var(--brass-end-light);
 --ring:var(--turquoise-accent);
+/* Where the primary colour is text or a stroke on the page (links, task check, focus outline) and what sits on an accent fill. */
+--primary-text:var(--primary);--primary-text-hover:var(--primary-hover);--on-accent:var(--accent-foreground);
+--selection:var(--accent);--selection-foreground:var(--accent-foreground);
+--tab-shadow:rgba(20,23,31,.06);--scrim:rgba(20,23,31,.3);
 }
 :root{
 --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;--space-8:64px;
@@ -37,4 +41,43 @@
 --text-ui-heading:22px;--text-ui-body:15px;--text-caption:12.5px;--text-code:13.5px;
 --weight-regular:400;--weight-medium:500;--weight-semibold:600;
 --leading-code:1.6;
+}
+
+/* Dark theme, from the design handoff (tokens/gonq-dark.css). Applied by .dark on <html>. */
+.dark,[data-theme="dark"]{
+/* raw palette */
+--emerald-fill:#177A59;--emerald-hover:#0F5A41;--emerald-text-icon:#2FA079;
+--burgundy-fill:#9C3B4F;
+--bg-dark:#14171F;--surface-dark:#1D2229;--line-dark:#2A2F38;--muted-dark:#8A8F98;--foreground-dark:#F1EEE6;
+--rust-bright:#D66A52;
+--non-photo-blue:#A4DDED;--npb-ink-dark:#7FCBDE;
+--brass-start-dark:#C9A227;--brass-mid-dark:#F2DFA0;--brass-end-dark:#E8C77A;
+
+/* semantic (shadcn/ui names) */
+--background:#14171F;--foreground:#F1EEE6;
+--surface:#1D2229;--card:#1D2229;--card-foreground:#F1EEE6;--popover:#1D2229;--popover-foreground:#F1EEE6;
+--primary:#177A59;--primary-hover:#0F5A41;--primary-foreground:#FFFFFF;
+--secondary:#9C3B4F;--secondary-foreground:#FFFFFF;
+--accent:#A4DDED;--accent-foreground:#7FCBDE;
+--muted:#1D2229;--muted-foreground:#8A8F98;
+--border:#2A2F38;--input:#2A2F38;--ring:#2FA079;
+--destructive:#D66A52;--destructive-foreground:#14171F;
+--icon-active:#2FA079;--icon-default:#8A8F98;
+
+/* brass — hairlines/strokes only, never a fill */
+--brass-start:#C9A227;--brass-mid:#F2DFA0;--brass-end:#E8C77A;
+--brass-hairline:linear-gradient(90deg,#C9A227,#F2DFA0 50%,#C9A227);
+--brass-hairline-v:linear-gradient(180deg,#C9A227,#F2DFA0 50%,#C9A227);
+
+/* elevation (dark-specific) */
+--shadow-sm:0 1px 2px rgba(0,0,0,.35);
+--shadow-md:0 4px 14px rgba(0,0,0,.4);
+--shadow-dialog:0 16px 40px rgba(0,0,0,.55);
+--scrim:rgba(20,23,31,.45);
+
+/* roles that differ from the light mapping (see :root) */
+--primary-text:#2FA079;--primary-text-hover:#F1EEE6;--on-accent:#14171F;
+--selection:rgba(164,221,237,.3);--selection-foreground:#F1EEE6;
+--tab-shadow:rgba(0,0,0,.35);
+color-scheme:dark;
 }

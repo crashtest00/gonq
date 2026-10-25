@@ -183,6 +183,17 @@ test('lang-markdown continues a list on Enter', async () => {
   expect(docText()).toBe('- one\n- two');
 });
 
+test('Tab and Shift+Tab indent and outdent list lines, including an empty item', async () => {
+  const { user } = setup('- one\n- ');
+  await openDoc(user);
+  select(8);
+  editorView().focus();
+  await user.keyboard('{Tab}');
+  expect(docText()).toBe('- one\n    - ');
+  await user.keyboard('{Shift>}{Tab}{/Shift}');
+  expect(docText()).toBe('- one\n- ');
+});
+
 describe('Edit menu and shortcuts', () => {
   async function edited() {
     const ctx = setup();
@@ -210,6 +221,16 @@ describe('Edit menu and shortcuts', () => {
     expect(docText()).toBe(ORIGINAL + '!');
     await user.keyboard('{Control>}z{/Control}');
     expect(docText()).toBe(ORIGINAL);
+  });
+
+  test('Ctrl+S in the editor saves and Ctrl+Shift+Z redoes', async () => {
+    const { user, saveDocument } = await edited();
+    editorView().focus();
+    await user.keyboard('{Control>}z{/Control}');
+    await user.keyboard('{Control>}{Shift>}z{/Shift}{/Control}');
+    expect(docText()).toBe(ORIGINAL + '!');
+    await user.keyboard('{Control>}s{/Control}');
+    expect(saveDocument).toHaveBeenCalledTimes(1);
   });
 
   test('Ctrl+Z outside the editor undoes the editor too', async () => {

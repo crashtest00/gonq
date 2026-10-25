@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FolderTree, ListTree, MessageSquare, Plus, Server, X } from 'lucide-react';
 import type { TabInfo } from '../document/useDocument';
 import { isSshPath } from '../platform/remote';
@@ -31,6 +31,7 @@ export function TabStrip({
   onSelect,
   onClose,
   onNew,
+  onMove,
   outlineOpen = false,
   onToggleOutline,
   folderOpen = false,
@@ -43,6 +44,7 @@ export function TabStrip({
   onSelect: (id: number) => void;
   onClose: (id: number) => void;
   onNew: () => void;
+  onMove?: (id: number, to: number) => void;
   outlineOpen?: boolean;
   onToggleOutline?: () => void;
   folderOpen?: boolean;
@@ -52,6 +54,8 @@ export function TabStrip({
 }) {
   const labels = tabLabels(tabs);
   const activeRef = useRef<HTMLDivElement>(null);
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overId, setOverId] = useState<number | null>(null);
   // The strip scrolls sideways when tabs overflow; the active tab is always brought into view.
   useEffect(() => {
     activeRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
@@ -84,7 +88,12 @@ export function TabStrip({
         >
           <FolderTree size={18} aria-hidden />
         </button>
-        <div role="tablist" aria-label="Open documents" className="flex min-w-0 flex-1 items-end self-end overflow-x-auto">
+        <div role="tablist" aria-label="Open documents" className="flex min-w-0 flex-1 items-end self-end overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onWheel={(e) => {
+            // No visible scrollbar (it would cover the tabs): the wheel scrolls the strip sideways.
+            if (e.deltaY !== 0 && e.deltaX === 0) e.currentTarget.scrollLeft += e.deltaY;
+          }}
+        >
           {tabs.map((tab, i) => {
             const active = tab.id === activeId;
             return (
@@ -94,6 +103,29 @@ export function TabStrip({
                 role="tab"
                 aria-selected={active}
                 tabIndex={active ? 0 : -1}
+                draggable={onMove !== undefined}
+                onDragStart={(e) => {
+                  setDragId(tab.id);
+                  if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', String(tab.id));
+                  }
+                }}
+                onDragOver={(e) => {
+                  if (dragId === null) return;
+                  e.preventDefault();
+                  if (overId !== tab.id) setOverId(tab.id);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragId !== null && dragId !== tab.id) onMove?.(dragId, i);
+                  setDragId(null);
+                  setOverId(null);
+                }}
+                onDragEnd={() => {
+                  setDragId(null);
+                  setOverId(null);
+                }}
                 title={tab.path ?? tab.name}
                 onClick={() => onSelect(tab.id)}
                 onKeyDown={(e) => {
@@ -105,7 +137,7 @@ export function TabStrip({
                 }}
                 className={`flex h-[34px] max-w-[320px] shrink-0 cursor-pointer items-center whitespace-nowrap bg-surface pl-[22px] pr-3 text-[13px] ${
                   active
-                    ? 'font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(20,23,31,.06)]'
+                    ? 'font-semibold text-foreground [filter:drop-shadow(0_1px_2px_var(--tab-shadow))]'
                     : 'text-muted-foreground opacity-45'
                 }`}
                 style={{ clipPath: 'polygon(10px 0, calc(100% - 10px) 0, 100% 100%, 0 100%)' }}

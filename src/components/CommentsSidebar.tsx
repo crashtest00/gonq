@@ -15,7 +15,7 @@ function Badge({ status }: { status: 'open' | 'resolved' }) {
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-        status === 'open' ? 'bg-accent text-accent-foreground' : 'bg-border text-muted-foreground'
+        status === 'open' ? 'bg-accent text-on-accent' : 'bg-border text-muted-foreground'
       }`}
     >
       {status === 'open' ? 'Open' : 'Resolved'}
@@ -46,7 +46,7 @@ function ThreadList({
           type="button"
           disabled={!canAdd}
           onClick={onAdd}
-          className="w-full cursor-pointer rounded-control border-0 bg-accent px-3.5 py-2.5 font-sans text-[13.5px] font-semibold text-accent-foreground disabled:cursor-default disabled:opacity-50"
+          className="w-full cursor-pointer rounded-control border-0 bg-accent px-3.5 py-2.5 font-sans text-[13.5px] font-semibold text-on-accent disabled:cursor-default disabled:opacity-50"
         >
           Add comment
         </button>

@@ -164,3 +164,283 @@ test('the table toolbar row follows undo/redo into the table and goes in Raw mod
   await page.getByRole('switch', { name: /Raw Markdown/ }).click();
   await expect(page.locator('.cm-table')).toBeVisible();
 });
+
+// The line the caret is on, read from the DOM selection.
+const caretLine = (page: Page) =>
+  page.evaluate(() => {
+    const n = window.getSelection()?.anchorNode;
+    const el = n instanceof Element ? n : n?.parentElement;
+    return el?.closest('.cm-line')?.textContent ?? null;
+  });
+
+// Typing a table key by key re-renders the widget mid-word; paste the document in one step instead.
+async function pasteText(page: Page, text: string) {
+  await page.locator('.cm-editor').click();
+  await page.evaluate((t) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', t);
+    document.querySelector('.cm-content')!.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  }, text);
+}
+
+const TABLE = '| h | i |\n| - | - |\n| a | b |';
+const section = (n: number) => `## Section ${n}\nbody ${n}a\nbody ${n}b`;
+
+test('Up arrow below a table visits every line, one per press, and enters the last row', async ({ page }) => {
+  await newDocument(page);
+  await pasteText(page, `${TABLE}\n\n${[1, 2, 3, 4].map(section).join('\n')}`);
+  await page.keyboard.press('Control+End');
+  expect(await caretLine(page)).toContain('body 4b');
+  for (const expected of ['body 4a', 'Section 4', 'body 3b', 'body 3a', 'Section 3', 'body 2b', 'body 2a', 'Section 2', 'body 1b', 'body 1a', 'Section 1', '']) {
+    await page.keyboard.press('ArrowUp');
+    const line = await caretLine(page);
+    if (expected === '') expect(line).toBe('');
+    else expect(line).toContain(expected);
+  }
+  // Up from the first line below the table enters its last row.
+  await page.keyboard.press('ArrowUp');
+  await expect(page.locator('.cm-table tr:last-child td').first()).toBeFocused();
+});
+
+test('Up and Down through a wrapped paragraph below a table move one visual line per press', async ({ page }) => {
+  await newDocument(page);
+  const long = Array.from({ length: 400 }, (_, i) => `word${i}`).join(' ');
+  await pasteText(page, `${TABLE}\n\n${long}\n\nlast line`);
+  await page.keyboard.press('Control+End');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  const top = () => page.evaluate(() => window.getSelection()!.getRangeAt(0).getBoundingClientRect().top);
+  const tops: number[] = [await top()];
+  for (let i = 0; i < 4; i++) { await page.keyboard.press('ArrowUp'); tops.push(await top()); }
+  // each press moves up exactly one visual line, and the caret stays in the paragraph
+  const step = tops[0] - tops[1];
+  expect(step).toBeGreaterThan(0);
+  expect(await caretLine(page)).toContain('word');
+  for (let i = 1; i < tops.length - 1; i++) expect(Math.abs(tops[i] - tops[i + 1])).toBeCloseTo(Math.abs(step), 0);
+  await expect(page.locator('.cm-table td:focus')).toHaveCount(0);
+});
+
+for (const gap of ['\n\n', '\n']) {
+  test(`Down through a wrapped paragraph above a table (${gap.length - 1} blank line) moves one visual line per press, then enters it`, async ({ page }) => {
+    await newDocument(page);
+    const long = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ');
+    await pasteText(page, `first\n\n${long}${gap}${TABLE}`);
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowLeft');
+    expect(await caretLine(page)).toContain('word');
+    const cell = page.locator('.cm-table th:focus, .cm-table td:focus');
+    for (let i = 0; i < 60 && (await cell.count()) === 0; i++) {
+      await page.keyboard.press('ArrowDown');
+      await page.waitForTimeout(150);
+    }
+    // focus stays in the table cell, it does not bounce back to the editor
+    await expect(cell).toHaveCount(1);
+    await page.waitForTimeout(300);
+    await expect(cell).toHaveCount(1);
+  });
+}
+
+for (const tables of [1, 2]) {
+  test(`clicking the middle of a paragraph line below ${tables} table(s) puts the caret on it`, async ({ page }) => {
+    await newDocument(page);
+    const parts = tables === 2 ? [TABLE, 'between', TABLE] : [TABLE];
+    await pasteText(page, `${parts.join('\n\n')}\n\n${[1, 2, 3].map(section).join('\n\n')}`);
+    await page.keyboard.press('Control+Home');
+    for (const text of ['body 1a', 'body 2b', 'body 3a', 'Section 3']) {
+      const line = page.locator('.cm-line', { hasText: text });
+      await line.scrollIntoViewIfNeeded();
+      const box = (await line.boundingBox())!;
+      await page.mouse.click(box.x + 20, box.y + box.height / 2);
+      expect(await caretLine(page)).toContain(text);
+    }
+  });
+}
+
+test('Raw -> Formatted keeps the caret at the same height on screen, with no layout-read error', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  page.on('pageerror', (e) => errors.push(e.message));
+  await newDocument(page);
+  await page.locator('.cm-editor').click();
+  await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+  const lines = Array.from({ length: 60 }, (_, i) => (i % 5 === 0 ? `## Heading ${i}` : `Line ${i} with **bold** text`));
+  await page.keyboard.insertText(lines.join('\n'));
+  // Caret on a plain line a little way down the visible area.
+  await page.keyboard.press('Control+Home');
+  for (let i = 0; i < 27; i++) await page.keyboard.press('ArrowDown');
+  const offset = () => page.evaluate(() => {
+    const sc = document.querySelector('.cm-scroller')!.getBoundingClientRect();
+    return window.getSelection()!.getRangeAt(0).getBoundingClientRect().top - sc.top;
+  });
+  const before = await offset();
+  await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+  await page.waitForTimeout(300);
+  const after = await offset();
+  expect(Math.abs(after - before)).toBeLessThan(24);
+  expect(errors.filter((e) => /layout/i.test(e))).toEqual([]);
+});
+
+for (const where of ['below', 'above'] as const) {
+  test(`Raw -> Formatted brings a caret that was off-screen ${where} the view into view`, async ({ page }) => {
+    await newDocument(page);
+    await page.locator('.cm-editor').click();
+    await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+    const lines = Array.from({ length: 300 }, (_, i) => (i % 10 === 0 ? `## Section ${i}` : `Line ${i} with **bold** text`));
+    await page.keyboard.insertText(lines.join('\n'));
+    if (where === 'below') {
+      await page.keyboard.press('Control+Home');
+      for (let i = 0; i < 250; i++) await page.keyboard.press('ArrowDown');
+      await page.evaluate(() => (document.querySelector('.cm-scroller')!.scrollTop = 0));
+    } else {
+      await page.keyboard.press('Control+Home');
+      for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowDown');
+      await page.evaluate(() => (document.querySelector('.cm-scroller')!.scrollTop = 4000));
+    }
+    await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+    await page.waitForTimeout(500);
+    const inView = await page.evaluate(() => {
+      const sc = document.querySelector('.cm-scroller')!.getBoundingClientRect();
+      const top = window.getSelection()!.getRangeAt(0).getBoundingClientRect().top;
+      return top >= sc.top && top <= sc.bottom;
+    });
+    expect(inView).toBe(true);
+  });
+}
+
+/** The caret's (or focused cell's) px below the top of the editor's scroll area. */
+const offsetOf = (page: Page, what: 'caret' | 'cell') =>
+  page.evaluate((w) => {
+    const sc = document.querySelector('.cm-scroller')!.getBoundingClientRect();
+    const r = (w === 'caret' ? window.getSelection()!.getRangeAt(0) : document.activeElement!).getBoundingClientRect();
+    return r.top - sc.top;
+  }, what);
+
+/** Puts the caret (as it is) `target` px below the top of the editor and returns where it really sits. */
+async function placeCaret(page: Page, target: number) {
+  await page.evaluate((t) => {
+    const sc = document.querySelector('.cm-scroller')!;
+    const top = window.getSelection()!.getRangeAt(0).getBoundingClientRect().top - sc.getBoundingClientRect().top;
+    sc.scrollTop += top - t;
+  }, target);
+  return offsetOf(page, 'caret');
+}
+
+/** Raw document of `lines`, caret put on line `at` (0-based) and that line scrolled to `target` px below the top of the editor, then Raw -> Formatted. Returns the caret's offset before the switch. */
+async function rawThenFormatted(page: Page, lines: string[], at: number, target: number) {
+  await newDocument(page);
+  await page.locator('.cm-editor').click();
+  await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+  await page.keyboard.insertText(lines.join('\n'));
+  await page.keyboard.press('Control+Home');
+  for (let i = 0; i < at; i++) await page.keyboard.press('ArrowDown');
+  const before = await placeCaret(page, target);
+  await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+  await page.waitForTimeout(500);
+  return before;
+}
+
+const LINE = 24;
+const longDoc = (n: number) => Array.from({ length: n }, (_, i) => `Line ${i} with **bold** text`);
+
+test('Raw -> Formatted keeps a caret near the bottom of the view where it was', async ({ page }) => {
+  const before = await rawThenFormatted(page, longDoc(120), 60, 480);
+  expect(Math.abs((await offsetOf(page, 'caret')) - before)).toBeLessThan(LINE);
+});
+
+test('Raw -> Formatted keeps the first and the last line as close to where they were as the document allows', async ({ page }) => {
+  let before = await rawThenFormatted(page, longDoc(120), 0, 5);
+  // The document top clamps the first line: it can only move down, to the editor padding.
+  expect(await offsetOf(page, 'caret')).toBeGreaterThanOrEqual(0);
+  expect(Math.abs((await offsetOf(page, 'caret')) - before)).toBeLessThan(40);
+  before = await rawThenFormatted(page, longDoc(120), 119, 480);
+  // The last line cannot be scrolled above the document end.
+  expect(Math.abs((await offsetOf(page, 'caret')) - before)).toBeLessThan(40);
+});
+
+test('Raw -> Formatted keeps a caret on a hidden code fence line where it was', async ({ page }) => {
+  const lines = longDoc(60);
+  lines.splice(30, 0, '```ts', 'const a = 1;', '```');
+  const before = await rawThenFormatted(page, lines, 30, 300);
+  expect(Math.abs((await offsetOf(page, 'caret')) - before)).toBeLessThan(LINE);
+});
+
+const TABLE_ROWS = ['| h1 | h2 | h3 |', '| --- | --- | --- |', '| x1 | y1 | z1 |', '| x2 | y2 | z2 |', '| x3 | y3 | z3 |', '| x4 | y4 | z4 |'];
+for (const [name, row] of [['header', 0], ['delimiter', 1], ['first body', 2], ['last body', 5]] as const) {
+  for (const target of [250, 440, 480]) {
+    test(`Raw -> Formatted focuses and shows the table cell for a caret in the ${name} row at ${target}px`, async ({ page }) => {
+      const lines = [...longDoc(40), '', ...TABLE_ROWS, '', ...longDoc(40)];
+      await newDocument(page);
+      await page.locator('.cm-editor').click();
+      await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+      await page.keyboard.insertText(lines.join('\n'));
+      await page.keyboard.press('Control+Home');
+      for (let i = 0; i < 41 + row; i++) await page.keyboard.press('ArrowDown');
+      // Caret in the second column of the row.
+      await page.keyboard.press('Home');
+      for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+      await placeCaret(page, target);
+      await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+      await page.waitForTimeout(500);
+      // The delimiter row has no cell of its own: the caret goes to the first body row (data-row 1).
+      const cell = await page.evaluate(() => {
+        const a = document.activeElement as HTMLElement;
+        return { tag: a.tagName, row: a.dataset.row, col: a.dataset.col };
+      });
+      expect(cell).toEqual({ tag: row === 0 ? 'TH' : 'TD', row: String(row < 2 ? row : row - 1), col: '1' });
+      const box = await page.evaluate(() => {
+        const sc = document.querySelector('.cm-scroller')!.getBoundingClientRect();
+        const r = document.activeElement!.getBoundingClientRect();
+        return { top: r.top - sc.top, bottom: r.bottom - sc.top, height: sc.height };
+      });
+      expect(box.top).toBeGreaterThanOrEqual(-1);
+      // Room for the table toolbar that takes height from the editor.
+      expect(box.bottom).toBeLessThanOrEqual(box.height - 37);
+      if (row !== 1) {
+        await page.keyboard.type('Q');
+        const col = TABLE_ROWS[row].split('|')[2];
+        const source = TABLE_ROWS[row].replace(col, ` Q${col.trim()} `);
+        await page.getByRole('switch', { name: /Raw Markdown/ }).click();
+        await expect(page.locator('.cm-content')).toContainText(source);
+      }
+    });
+  }
+}
+
+test('Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y in a table cell is exactly one undo/redo step', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await newDocument(page);
+  const toggle = page.getByRole('switch', { name: 'Raw Markdown' });
+  await toggle.click();
+  await page.locator('.cm-editor').click();
+  await page.keyboard.type('| a | b |\n| - | - |\n| c | d |');
+  await toggle.click();
+  const cell = (t: string) => page.locator('.cm-content td, .cm-content th').filter({ hasText: new RegExp(`^${t}$`) });
+  const cells = () => page.locator('.cm-content td, .cm-content th').allInnerTexts();
+  await cell('a').click();
+  await page.keyboard.type('X');
+  await page.keyboard.press('Escape');
+  await cell('d').click();
+  await page.keyboard.type('Y');
+  await page.keyboard.press('Escape');
+  await cell('b').click();
+  await page.keyboard.type('Z');
+  await page.keyboard.press('Tab');
+  expect(await cells()).toEqual(['aX', 'bZ', 'c', 'dY']);
+  await page.keyboard.press('Control+Z');
+  expect(await cells()).toEqual(['aX', 'b', 'c', 'dY']);
+  await page.keyboard.press('Control+Shift+Z');
+  expect(await cells()).toEqual(['aX', 'bZ', 'c', 'dY']);
+  await page.keyboard.press('Control+Z');
+  await page.keyboard.press('Control+Y');
+  expect(await cells()).toEqual(['aX', 'bZ', 'c', 'dY']);
+  // Ctrl+Z while still typing in a cell: only that edit is lost.
+  await cell('c').click();
+  await page.keyboard.type('Q');
+  await page.keyboard.press('Control+Z');
+  expect(await cells()).toEqual(['aX', 'bZ', 'c', 'dY']);
+  expect(errors).toEqual([]);
+});

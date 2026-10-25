@@ -87,6 +87,65 @@ const MenubarCheckboxItem = React.forwardRef<
 ));
 MenubarCheckboxItem.displayName = MenubarPrimitive.CheckboxItem.displayName;
 
+const MenubarRadioGroup = MenubarPrimitive.RadioGroup;
+
+const MenubarRadioItem = React.forwardRef<
+  React.ElementRef<typeof MenubarPrimitive.RadioItem>,
+  React.ComponentPropsWithoutRef<typeof MenubarPrimitive.RadioItem>
+>(({ className, children, ...props }, ref) => (
+  <MenubarPrimitive.RadioItem
+    ref={ref}
+    className={cn(
+      'relative flex cursor-default select-none items-center rounded-[4px] py-1.5 pl-7 pr-2 outline-none',
+      'focus:bg-background data-[disabled]:pointer-events-none data-[disabled]:text-muted-foreground',
+      className,
+    )}
+    {...props}
+  >
+    <MenubarPrimitive.ItemIndicator className="absolute left-2 inline-flex items-center">●</MenubarPrimitive.ItemIndicator>
+    {children}
+  </MenubarPrimitive.RadioItem>
+));
+MenubarRadioItem.displayName = MenubarPrimitive.RadioItem.displayName;
+
+const MenubarSub = MenubarPrimitive.Sub;
+
+const MenubarSubTrigger = React.forwardRef<
+  React.ElementRef<typeof MenubarPrimitive.SubTrigger>,
+  React.ComponentPropsWithoutRef<typeof MenubarPrimitive.SubTrigger>
+>(({ className, children, ...props }, ref) => (
+  <MenubarPrimitive.SubTrigger
+    ref={ref}
+    className={cn(
+      'relative flex cursor-default select-none items-center rounded-[4px] px-2 py-1.5 outline-none',
+      'focus:bg-background data-[state=open]:bg-background data-[disabled]:pointer-events-none data-[disabled]:text-muted-foreground',
+      className,
+    )}
+    {...props}
+  >
+    {children}
+    <span aria-hidden className="ml-auto pl-6 text-muted-foreground">›</span>
+  </MenubarPrimitive.SubTrigger>
+));
+MenubarSubTrigger.displayName = MenubarPrimitive.SubTrigger.displayName;
+
+const MenubarSubContent = React.forwardRef<
+  React.ElementRef<typeof MenubarPrimitive.SubContent>,
+  React.ComponentPropsWithoutRef<typeof MenubarPrimitive.SubContent>
+>(({ className, ...props }, ref) => (
+  <MenubarPrimitive.Portal>
+    <MenubarPrimitive.SubContent
+      ref={ref}
+      className={cn(
+        'z-50 min-w-[180px] rounded-control border border-border bg-surface p-1 text-[13px] text-foreground shadow-[var(--shadow-md)]',
+        className,
+      )}
+      {...props}
+    />
+  </MenubarPrimitive.Portal>
+));
+MenubarSubContent.displayName = MenubarPrimitive.SubContent.displayName;
+
 const MenubarSeparator = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof MenubarPrimitive.Separator>
@@ -100,4 +159,4 @@ const MenubarShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanE
 );
 MenubarShortcut.displayName = 'MenubarShortcut';
 
-export { Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarCheckboxItem, MenubarSeparator, MenubarShortcut };
+export { Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarCheckboxItem, MenubarRadioGroup, MenubarRadioItem, MenubarSeparator, MenubarShortcut, MenubarSub, MenubarSubTrigger, MenubarSubContent };

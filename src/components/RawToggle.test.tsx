@@ -111,3 +111,29 @@ test('Undo and Redo work across the switch', async () => {
   await save(user);
   expect(saveDocument).toHaveBeenCalledWith({ name: 'a.md', path: '/d/a.md', text: `!${DOC}` });
 });
+
+test('the editor keeps focus (and so its caret and keys) after the switch is clicked', async () => {
+  const { user } = setup('a **b** c\n');
+  await openDoc(user);
+  await user.click(sw());
+  expect(editorView().hasFocus).toBe(true);
+  await user.click(sw());
+  expect(editorView().hasFocus).toBe(true);
+  await user.keyboard('{Control>}{End}{/Control}{Backspace}');
+  expect(docText()).toBe('a **b** c');
+});
+
+test('View > Raw Markdown toggles the same mode as the footer switch', async () => {
+  const { user } = setup();
+  await openDoc(user);
+  expect(raw()).toBe(false);
+  await user.click(screen.getByRole('menuitem', { name: 'View' }));
+  await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Raw Markdown' }));
+  expect(raw()).toBe(true);
+  expect(sw().getAttribute('aria-checked')).toBe('true');
+  await user.click(sw());
+  expect(raw()).toBe(false);
+  await user.click(screen.getByRole('menuitem', { name: 'View' }));
+  await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Raw Markdown' }));
+  expect(raw()).toBe(true);
+});

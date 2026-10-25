@@ -1,14 +1,18 @@
-import { redo, redoDepth, undo, undoDepth } from '@codemirror/commands';
+import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands';
 import { EditorState, type Extension, type StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react';
-import { focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
-import { applyFormat, type Format } from '../components/formatting';
+import { caretOffset, keepCaretVisible } from './caretAnchor';
+import { focusCaretCell, focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
+import { type Format } from '../components/formatting';
+import { diff, formatView } from './formatCommands';
 import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCommentThread, effectiveCommentCreationPosition, AGENT_GUIDANCE, hasAgentGuidance } from '../comment-threads';
 import { commentThreadCreationChanges } from '../comment-threads/editor/codemirror';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
 import { editorHost } from './host';
 import { threadEdit } from './threads';
+import { refreshToc } from './toc';
+import { tocChange } from '../components/toc';
 
 export interface EditorChange {
   text: string;
@@ -39,6 +43,17 @@ export interface EditorHandle {
    * Returns the new document text, or throws (e.g. an author name the format cannot hold).
    */
   createThread(target: { from: number; to: number } | number, author: string, body: string): string;
+  /** Inserts `![alt](src)` at the caret (replacing the selection) as one undoable change. */
+  insertImage(src: string, alt: string): void;
+  /** Inserts a table of contents at the caret, or rebuilds the existing one; one undoable change. Returns whether it refreshed one. */
+  insertToc(): 'inserted' | 'refreshed';
+  /** Copies the selection to the clipboard (throws a clear error when the browser refuses). */
+  copy(): Promise<void>;
+  /** Copies the selection to the clipboard and deletes it. */
+  cut(): Promise<void>;
+  /** Replaces the selection with the clipboard text. */
+  paste(): Promise<void>;
+  selectAll(): void;
   /** Collapses the selection to its end. */
   collapse(): void;
   focus(): void;
@@ -66,6 +81,8 @@ interface Props {
   onOpenThread: (id: string, ordinal: number) => void;
   /** The focused table cell changed: null when the caret is not in a table. */
   onTable: (target: TableTarget | null) => void;
+  /** Right-click in the text; the caret has already moved there unless it hit the selection. */
+  onContextMenu: (x: number, y: number) => void;
 }
 
 interface Saved {
@@ -79,14 +96,13 @@ const summary = (state: EditorState): EditorChange => ({
   canRedo: redoDepth(state) > 0,
 });
 
-/** The single smallest replacement that turns `a` into `b`. */
-function diff(a: string, b: string): { from: number; to: number; insert: string } {
-  let start = 0;
-  const max = Math.min(a.length, b.length);
-  while (start < max && a[start] === b[start]) start++;
-  let end = 0;
-  while (end < max - start && a[a.length - 1 - end] === b[b.length - 1 - end]) end++;
-  return { from: start, to: a.length - end, insert: b.slice(start, b.length - end) };
+async function writeClipboard(text: string): Promise<void> {
+  if (!navigator.clipboard?.writeText) throw new Error('This browser does not allow writing the clipboard; use Ctrl+C.');
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    throw new Error('Clipboard access was denied; use Ctrl+C.');
+  }
 }
 
 /**
@@ -157,7 +173,14 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     const v = view.current;
     if (!v) return;
     const want = modeExtension(props.raw);
-    if (modeCompartment.get(v.state) !== want) v.dispatch({ effects: modeCompartment.reconfigure(want) });
+    if (modeCompartment.get(v.state) === want) return;
+    const before = caretOffset(v);
+    v.dispatch({ effects: [modeCompartment.reconfigure(want), keepCaretVisible(v, before, !props.raw)] });
+    // The switch button took focus with its click; give it back so the caret shows and keys edit.
+    v.focus();
+    // Line heights changed: the scroll effect above keeps the caret where it was on screen (centred if it
+    // was off-screen; a table in full when the caret is in one); in Formatted, enter the table cell the caret was in.
+    if (!props.raw) focusCaretCell(v);
   }, [props.raw, props.tabId]);
 
   // Closed tabs release their state.
@@ -176,16 +199,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       format(format, url = '') {
         const v = view.current;
         if (!v) return;
-        const value = v.state.doc.toString();
-        const sel = v.state.selection.main;
-        const next = applyFormat(format, value, sel.from, sel.to, url);
-        const change = diff(value, next.value);
-        v.dispatch({
-          ...(next.value === value ? {} : { changes: change }),
-          selection: { anchor: next.start, head: next.end },
-          userEvent: 'input.format',
-          scrollIntoView: true,
-        });
+        formatView(v, format, url);
         v.focus();
       },
       setText(next) {
@@ -222,6 +236,61 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         });
         return v.state.doc.toString();
       },
+      insertImage(src, alt) {
+        const v = view.current;
+        if (!v) throw new Error('No document is open.');
+        v.dispatch(v.state.replaceSelection(`![${alt}](${src})`), { userEvent: 'input.image', scrollIntoView: true });
+        v.focus();
+      },
+      insertToc() {
+        const v = view.current;
+        if (!v) throw new Error('No document is open.');
+        const text = v.state.doc.toString();
+        if (refreshToc(v)) {
+          v.focus();
+          return 'refreshed';
+        }
+        const { insert, from, to } = tocChange(text, v.state.selection.main.head);
+        v.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length }, userEvent: 'input.toc', scrollIntoView: true });
+        v.focus();
+        return 'inserted';
+      },
+      async copy() {
+        const v = view.current;
+        if (!v) return;
+        const { from, to } = v.state.selection.main;
+        if (from === to) return;
+        await writeClipboard(v.state.sliceDoc(from, to));
+        v.focus();
+      },
+      async cut() {
+        const v = view.current;
+        if (!v) return;
+        const { from, to } = v.state.selection.main;
+        if (from === to) return;
+        await writeClipboard(v.state.sliceDoc(from, to));
+        v.dispatch({ changes: { from, to }, userEvent: 'delete.cut', scrollIntoView: true });
+        v.focus();
+      },
+      async paste() {
+        const v = view.current;
+        if (!v) return;
+        if (!navigator.clipboard?.readText) throw new Error('This browser does not allow reading the clipboard; use Ctrl+V.');
+        let clip: string;
+        try {
+          clip = await navigator.clipboard.readText();
+        } catch {
+          throw new Error('Clipboard access was denied; use Ctrl+V to paste.');
+        }
+        v.dispatch(v.state.replaceSelection(clip.replace(/\r\n?/g, '\n')), { userEvent: 'input.paste', scrollIntoView: true });
+        v.focus();
+      },
+      selectAll() {
+        const v = view.current;
+        if (!v) return;
+        selectAll(v);
+        v.focus();
+      },
       collapse() {
         const v = view.current;
         if (v) v.dispatch({ selection: { anchor: v.state.selection.main.head } });
@@ -248,5 +317,21 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     v.dispatch({ selection: { anchor: at }, scrollIntoView: true });
   };
 
-  return <div ref={host} data-testid="editor" onMouseDown={onMouseDown} className="gonq-editor min-h-0 flex-1" />;
+  const onContextMenu = (e: React.MouseEvent) => {
+    const v = view.current;
+    if (!v || !(e.target instanceof Node) || !v.contentDOM.contains(e.target)) return;
+    e.preventDefault();
+    let at: number | null = null;
+    try {
+      at = v.posAtCoords({ x: e.clientX, y: e.clientY }, false);
+    } catch {
+      /* no layout: leave the selection as it is */
+    }
+    const { from, to } = v.state.selection.main;
+    if (at !== null && (at < from || at > to || from === to)) v.dispatch({ selection: { anchor: at } });
+    v.focus();
+    latest.current.onContextMenu(e.clientX, e.clientY);
+  };
+
+  return <div ref={host} data-testid="editor" onMouseDown={onMouseDown} onContextMenu={onContextMenu} className="gonq-editor min-h-0 flex-1" />;
 });
