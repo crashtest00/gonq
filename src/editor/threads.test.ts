@@ -228,3 +228,25 @@ describe('images', () => {
     e.done();
   });
 });
+
+describe('typing next to the hidden toc end marker', () => {
+  const toc = 'Intro\n\n<!-- toc -->\n- [A](#a)\n<!-- /toc -->\n\n# A\n';
+  const marker = '<!-- /toc -->';
+
+  test('text typed at the end of the marker line goes on a line of its own', () => {
+    const e = show(toc);
+    const at = toc.indexOf(marker) + marker.length;
+    e.view.dispatch({ changes: { from: at, insert: 'x' }, selection: { anchor: at + 1 }, userEvent: 'input.type' });
+    expect(e.doc()).toBe(toc.replace(marker, `${marker}\nx`));
+    expect(e.view.state.sliceDoc(0, e.view.state.selection.main.head)).toMatch(/x$/);
+    e.done();
+  });
+
+  test('text typed at the start of the marker line goes on a line of its own', () => {
+    const e = show(toc);
+    const at = toc.indexOf(marker);
+    e.view.dispatch({ changes: { from: at, insert: 'x' }, selection: { anchor: at + 1 }, userEvent: 'input.type' });
+    expect(e.doc()).toBe(toc.replace(marker, `x\n${marker}`));
+    e.done();
+  });
+});
