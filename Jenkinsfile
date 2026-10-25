@@ -177,15 +177,37 @@ pipeline {
         // write on the repo (the same one that dispatches build-desktop.yml).
         sh '''
           set -eu
-          # Bootstrap only: until rust-checks.yml has landed on dev (this
-          # change's own PR), there is nothing GitHub can dispatch by name.
-          if ! gh api "repos/{owner}/{repo}/contents/.github/workflows/rust-checks.yml?ref=dev" >/dev/null 2>&1; then
-            echo "WARN: rust-checks.yml is not on dev yet -- skipping Rust checks for this PR" >&2
+          ERR=$(mktemp)
+          # Only PRs that touch src-tauri/ (Rust sources, Cargo.toml, Cargo.lock)
+          # need the Rust checks. Frontend-only PRs skip, loudly.
+          if ! FILES=$(gh api --paginate "repos/{owner}/{repo}/pulls/$CHANGE_ID/files" --jq '.[] | .filename, (.previous_filename // empty)' 2>"$ERR"); then
+            echo "ERROR: could not list the files changed by PR #$CHANGE_ID: $(cat "$ERR")" >&2
+            exit 1
+          fi
+          if ! printf '%s\\n' "$FILES" | grep -q '^src-tauri/'; then
+            echo "SKIP: PR #$CHANGE_ID changes nothing under src-tauri/ -- Rust checks (cargo test + clippy) not needed" >&2
             exit 0
           fi
-          SHA=$(gh pr view "$CHANGE_ID" --json headRefOid --jq .headRefOid)
+          # Bootstrap only: until rust-checks.yml has landed on dev there is
+          # nothing GitHub can dispatch by name. Only a confirmed 404 skips;
+          # any other API failure (outage, auth) fails the build.
+          if ! gh api "repos/{owner}/{repo}/contents/.github/workflows/rust-checks.yml?ref=dev" >/dev/null 2>"$ERR"; then
+            if grep -q "HTTP 404" "$ERR"; then
+              echo "WARN: rust-checks.yml is not on dev yet -- skipping Rust checks for this PR" >&2
+              exit 0
+            fi
+            echo "ERROR: could not check whether rust-checks.yml is on dev: $(cat "$ERR")" >&2
+            exit 1
+          fi
+          if ! SHA=$(gh pr view "$CHANGE_ID" --json headRefOid --jq .headRefOid 2>"$ERR"); then
+            echo "ERROR: could not look up the head commit of PR #$CHANGE_ID: $(cat "$ERR")" >&2
+            exit 1
+          fi
           REQUEST_ID="pr${CHANGE_ID}-b${BUILD_NUMBER}-$(date +%s)"
-          gh workflow run rust-checks.yml --ref "$CHANGE_BRANCH" -f sha="$SHA" -f request_id="$REQUEST_ID"
+          if ! gh workflow run rust-checks.yml --ref "$CHANGE_BRANCH" -f sha="$SHA" -f request_id="$REQUEST_ID" 2>"$ERR"; then
+            echo "ERROR: could not dispatch rust-checks.yml for $SHA (the gh token needs Actions: write): $(cat "$ERR")" >&2
+            exit 1
+          fi
           RUN_ID=""
           for i in $(seq 1 30); do
             RUN_ID=$(gh run list --workflow rust-checks.yml --event workflow_dispatch --limit 30 \\
