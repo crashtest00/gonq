@@ -2,6 +2,7 @@ import { defaultKeymap, history, historyKeymap, indentLess, indentMore, redo } f
 import { markdown } from '@codemirror/lang-markdown';
 import { commonmarkLanguage } from '@codemirror/lang-markdown';
 import { search, searchKeymap } from '@codemirror/search';
+import { indentUnit } from '@codemirror/language';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder, type Command } from '@codemirror/view';
 import { Strikethrough, Table, TaskList, type MarkdownConfig } from '@lezer/markdown';
@@ -17,6 +18,14 @@ export const PLACEHOLDER = 'Click here to start writing.';
 const LIST_START = /^(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 const THEMATIC_BREAK = /^(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,})$/;
 
+const TABLE_DELIMITER = /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/;
+
+/** The open leaf (public `LeafBlock.content`) is a GFM table: a piped header row, then a delimiter row. lezer's own TableParser is not exported. */
+function isTableLeaf(content: string): boolean {
+  const [header, delimiter] = content.split('\n');
+  return delimiter !== undefined && header.includes('|') && delimiter.includes('-') && TABLE_DELIMITER.test(delimiter);
+}
+
 /**
  * A list item right under a table row ends the table instead of turning the table into a Setext heading
  * (`| 1 | 2 |` then `- ` would otherwise read as an H2). Uses lezer's `endLeaf` block-parser hook, the same
@@ -27,8 +36,7 @@ const ListEndsTable: MarkdownConfig = {
     {
       name: 'ListEndsTable',
       endLeaf(_cx, line, leaf) {
-        // The table's leaf parser is not exported: it is the one with `rows` (null, false or the parsed rows).
-        if (!leaf.parsers.some((p) => 'rows' in p && Array.isArray((p as { rows: unknown }).rows))) return false;
+        if (!isTableLeaf(leaf.content)) return false;
         const text = line.text.slice(line.pos);
         return LIST_START.test(text) && !THEMATIC_BREAK.test(text.trim());
       },
@@ -60,13 +68,30 @@ const listIndent = (command: Command): Command => (view) => {
     }
     return false;
   });
-  return inList && command(view);
+  if (!inList) return false;
+  // A list's first item has no parent to nest in: one step in at most (four spaces would make it a code block).
+  if (command === indentMore && state.selection.ranges.every((r) => !hasListAbove(state, r.from))) {
+    const line = state.doc.lineAt(state.selection.main.from);
+    if (!/^[ \t]/.test(line.text)) view.dispatch({ changes: { from: line.from, insert: '  ' }, userEvent: 'input.indent' });
+    return true;
+  }
+  return command(view);
 };
+
+/** Some earlier non-blank line is a list line or an indented continuation of one, so there is an item to nest under. */
+function hasListAbove(state: EditorState, pos: number): boolean {
+  const first = state.doc.lineAt(pos).number;
+  if (first === 1) return false;
+  const above = state.doc.line(first - 1).text;
+  return LIST_LINE.test(above) || (/^[ \t]+\S/.test(above));
+}
 
 /** Every text-editing behaviour (typing, history, keys, list continuation) is CodeMirror's or lang-markdown's own. */
 export function editorExtensions(raw: boolean, extra: Extension = []): Extension {
   return [
     history(),
+    // Four spaces, so Tab nests every list marker up to "99. ": a child must start at or past its parent's content column.
+    indentUnit.of('    '),
     protectThreadBlocks,
     separateThreadBlocks,
     formatKeymap,
