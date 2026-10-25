@@ -432,6 +432,7 @@ function cellKey(view: EditorView, wrap: HTMLElement, td: HTMLElement, e: Keyboa
     // The cell is a separate editing surface: history belongs to the document. Write the pending edit
     // first so it is its own undo step, then hand focus back to the editor.
     e.preventDefault();
+    e.stopPropagation();
     commit(view, wrap, td);
     (k === 'y' || e.shiftKey ? redo : undo)(view);
     view.focus();
