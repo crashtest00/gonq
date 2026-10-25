@@ -242,11 +242,63 @@ describe('typing next to the hidden toc end marker', () => {
     e.done();
   });
 
-  test('text typed at the start of the marker line goes on a line of its own', () => {
+  const type = (e: ReturnType<typeof show>, text: string) => {
+    for (const ch of text) {
+      const { from, to } = e.view.state.selection.main;
+      e.view.dispatch({ changes: { from, to, insert: ch }, selection: { anchor: from + 1 }, userEvent: 'input.type' });
+    }
+  };
+  const caretAt = (e: ReturnType<typeof show>, at: number) => e.view.dispatch({ selection: { anchor: at } });
+  const typed = toc.replace(marker, `${marker}\nQQ`);
+
+  test('typed text at the start of the marker line goes after the marker, not into the list', () => {
     const e = show(toc);
-    const at = toc.indexOf(marker);
-    e.view.dispatch({ changes: { from: at, insert: 'x' }, selection: { anchor: at + 1 }, userEvent: 'input.type' });
-    expect(e.doc()).toBe(toc.replace(marker, `x\n${marker}`));
+    caretAt(e, toc.indexOf(marker));
+    type(e, 'QQ');
+    expect(e.doc()).toBe(typed);
     e.done();
+  });
+
+  test('typed text inside the marker line does not split the marker', () => {
+    for (const k of [1, 5, 12]) {
+      const e = show(toc);
+      caretAt(e, toc.indexOf(marker) + k);
+      type(e, 'QQ');
+      expect(e.doc()).toBe(typed);
+      e.done();
+    }
+  });
+
+  test('two characters at the end stay together, and one undo restores the document', () => {
+    const e = show(toc);
+    caretAt(e, toc.indexOf(marker) + marker.length);
+    type(e, 'QQ');
+    expect(e.doc()).toBe(typed);
+    undo(e.view);
+    undo(e.view);
+    expect(e.doc()).toBe(toc);
+    e.done();
+  });
+
+  test('a toc at the document end and one at the start behave the same', () => {
+    const end = `<!-- toc -->\n- [A](#a)\n${marker}`;
+    const e = show(end);
+    caretAt(e, end.length);
+    type(e, 'QQ');
+    expect(e.doc()).toBe(`${end}\nQQ`);
+    e.done();
+  });
+
+  test('Raw mode is left alone', () => {
+    const e = show(toc, true);
+    caretAt(e, toc.indexOf(marker) + marker.length);
+    type(e, 'QQ');
+    expect(e.doc()).toBe(toc.replace(marker, `${marker}QQ`));
+    e.done();
+    const s = show(toc, true);
+    caretAt(s, toc.indexOf(marker) + 5);
+    type(s, 'QQ');
+    expect(s.doc()).toBe(toc.replace(marker, '<!-- QQ/toc -->'));
+    s.done();
   });
 });

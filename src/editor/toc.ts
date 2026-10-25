@@ -64,3 +64,6 @@ const tocField = StateField.define<DecorationSet>({
 });
 
 export const tocWidgets: Extension = tocField;
+
+/** True while the end marker is hidden, i.e. in Formatted mode (Raw has no such widgets). */
+export const tocMarkerHidden = (state: EditorState): boolean => state.field(tocField, false) !== undefined;
