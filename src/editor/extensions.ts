@@ -10,7 +10,7 @@ import { formatKeymap } from './formatCommands';
 import { livePreview } from './livePreview';
 import { openLink } from './openLink';
 import { tocWidgets } from './toc';
-import { protectThreadBlocks, separateThreadBlocks } from './threads';
+import { keepCaretOutOfTocMarker, protectThreadBlocks, separateThreadBlocks } from './threads';
 
 export const PLACEHOLDER = 'Click here to start writing.';
 
@@ -94,6 +94,7 @@ export function editorExtensions(raw: boolean, extra: Extension = []): Extension
     indentUnit.of('    '),
     protectThreadBlocks,
     separateThreadBlocks,
+    keepCaretOutOfTocMarker,
     formatKeymap,
     keymap.of([
       { key: 'Tab', run: listIndent(indentMore), shift: listIndent(indentLess) },
