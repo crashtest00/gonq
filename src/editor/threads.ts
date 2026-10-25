@@ -1,8 +1,9 @@
 import { ensureSyntaxTree } from '@codemirror/language';
-import { Annotation, EditorState, type Extension, StateField, type Text } from '@codemirror/state';
+import { Annotation, EditorState, type Extension, StateField, type Text, Transaction, type TransactionSpec } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view';
 import { AGENT_GUIDANCE, OPEN_COMMENT_LABEL, parseCommentMarkers, parseCommentThreads } from '../comment-threads';
 import { findToc } from '../components/toc';
+import { tocMarkerHidden } from './toc';
 import { editorHost } from './host';
 
 /** Comment-thread markers as glyphs, and the thread blocks at the end of the file kept out of sight and out of harm's way. */
@@ -128,9 +129,14 @@ export const protectThreadBlocks: Extension = EditorState.changeFilter.of((tr) =
 export const separateThreadBlocks: Extension = EditorState.transactionFilter.of((tr) => {
   if (!tr.docChanged || tr.annotation(threadEdit) || tr.isUserEvent('undo') || tr.isUserEvent('redo')) return tr;
   const blocks = [...threadBlockRanges(tr.startState)];
-  // The table of contents' end marker is hidden too, and text glued to it would unmake the table of contents.
-  const toc = tr.startState.doc.length > 0 ? findToc(tr.startState.doc.toString()) : null;
-  if (toc) blocks.push(tr.startState.doc.lineAt(toc.to));
+  // The table of contents' end marker is hidden in Formatted mode only, and text glued to it would unmake the table of contents.
+  const toc = tocMarkerHidden(tr.startState) ? findToc(tr.startState.doc.toString()) : null;
+  if (toc) {
+    const marker = tr.startState.doc.lineAt(toc.to);
+    const moved = relocatedPastMarker(tr, marker);
+    if (moved) return moved;
+    blocks.push(marker);
+  }
   if (blocks.length === 0) return tr;
   const before: number[] = [];
   const after: number[] = [];
@@ -149,3 +155,27 @@ export const separateThreadBlocks: Extension = EditorState.transactionFilter.of(
     ...(after.length > 0 ? [{ changes: after.map((at) => ({ from: at, insert: '\n' })) }] : []),
   ];
 });
+
+/**
+ * Text typed at the start of, or inside, the hidden toc end marker must neither split the marker nor land in the list above it:
+ * it goes after the marker, on a line of its own, and the caret follows it.
+ */
+function relocatedPastMarker(tr: Transaction, marker: Range): TransactionSpec | null {
+  let only: { from: number; to: number; text: string } | null = null;
+  let count = 0;
+  tr.changes.iterChanges((from, to, _f, _t, inserted) => {
+    count++;
+    only = { from, to, text: inserted.toString() };
+  });
+  const change = only as { from: number; to: number; text: string } | null;
+  if (count !== 1 || !change || change.text === '' || change.from < marker.from || change.to >= marker.to) return null;
+  if (change.from === marker.from && /^\n*$/.test(change.text)) return null;
+  const insert = change.text.startsWith('\n') ? change.text : `\n${change.text}`;
+  const caret = tr.selection?.main;
+  return {
+    changes: { from: marker.to, insert },
+    selection: !caret || caret.empty ? { anchor: marker.to + insert.length } : undefined,
+    userEvent: tr.annotation(Transaction.userEvent),
+    scrollIntoView: true,
+  };
+}
