@@ -179,3 +179,19 @@ function relocatedPastMarker(tr: Transaction, marker: Range): TransactionSpec | 
     scrollIntoView: true,
   };
 }
+
+/**
+ * The hidden toc end marker can't hold a caret: when one lands inside it (Raw -> Formatted with the caret in the marker, a click, an arrow key)
+ * it moves to the marker's end, so typing starts together after the marker.
+ */
+export const keepCaretOutOfTocMarker: Extension = EditorState.transactionFilter.of((tr) => {
+  if (tr.docChanged || tr.annotation(threadEdit)) return tr;
+  const state = tr.state;
+  if (!tocMarkerHidden(state)) return tr;
+  const toc = findToc(state.doc.toString());
+  if (!toc) return tr;
+  const sel = state.selection.main;
+  const marker = state.doc.lineAt(toc.to);
+  if (!sel.empty || sel.head <= marker.from || sel.head >= marker.to) return tr;
+  return [tr, { selection: { anchor: marker.to }, sequential: true }];
+});

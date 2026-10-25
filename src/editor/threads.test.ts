@@ -2,7 +2,7 @@ import { undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { vi } from 'vitest';
 import { AGENT_GUIDANCE, parseCommentThreads } from '../comment-threads';
-import { createEditorState } from './extensions';
+import { createEditorState, modeCompartment, modeExtension } from './extensions';
 import { editorHost, type EditorHost } from './host';
 import { threadEdit } from './threads';
 
@@ -275,9 +275,35 @@ describe('typing next to the hidden toc end marker', () => {
     type(e, 'QQ');
     expect(e.doc()).toBe(typed);
     undo(e.view);
-    undo(e.view);
     expect(e.doc()).toBe(toc);
     e.done();
+  });
+
+  test('Raw -> Formatted with the caret inside the marker moves it out, and QQ stays together', () => {
+    for (const k of [1, 5, 12]) {
+      const e = show(toc, true);
+      caretAt(e, toc.indexOf(marker) + k);
+      e.view.dispatch({ effects: modeCompartment.reconfigure(modeExtension(false)) });
+      type(e, 'QQ');
+      expect(e.doc()).toBe(typed);
+      undo(e.view);
+      expect(e.doc()).toBe(toc);
+      e.done();
+    }
+  });
+
+  test('QQ typed against a thread block stays together, off the block, and one undo restores', () => {
+    const doc = `Intro\n\n${block(A)}\n\nEnd`;
+    for (const at of [doc.indexOf('<!--'), doc.indexOf('-->') + 3]) {
+      const e = show(doc);
+      caretAt(e, at);
+      type(e, 'QQ');
+      expect(e.doc()).toMatch(/(^|\n)QQ(\n|$)/);
+      expect(e.doc().replace(/\nQQ|QQ\n/, '')).toBe(doc.replace(/\n\n/, '\n\n'));
+      undo(e.view);
+      expect(e.doc()).toBe(doc);
+      e.done();
+    }
   });
 
   test('a toc at the document end and one at the start behave the same', () => {
