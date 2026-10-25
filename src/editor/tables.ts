@@ -144,7 +144,15 @@ function cellEdit(doc: Text, t: { from: number; to: number }, td: HTMLElement): 
 /** Writes an edited cell back to the source as one change; a no-op when the text is unchanged. */
 function commit(view: EditorView, wrap: HTMLElement, td: HTMLElement): boolean {
   if (!wrap.isConnected) return false;
-  const t = tableAt(view, view.posAtDOM(wrap));
+  // A cell being removed by a redraw blurs while the view is mid-update and cannot locate it: its edit was
+  // already written by whatever caused the redraw.
+  let pos: number;
+  try {
+    pos = view.posAtDOM(wrap);
+  } catch {
+    return false;
+  }
+  const t = tableAt(view, pos);
   const change = t && cellEdit(view.state.doc, t, td);
   if (!change) return false;
   view.dispatch({ changes: change, userEvent: 'input.type' });
