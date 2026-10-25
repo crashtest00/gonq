@@ -210,3 +210,7 @@ mod tests {
         assert!(!fs::read_to_string(&f).unwrap().contains("show_markers"));
     }
 }
+
+pub fn throwaway_clippy_probe(v: &Vec<i32>) -> usize {
+    return v.len();
+}
