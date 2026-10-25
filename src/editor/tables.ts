@@ -1,5 +1,6 @@
 import { syntaxTree } from '@codemirror/language';
 import { ChangeSet, type ChangeSpec, type EditorState, type Extension, Prec, type Range, StateField, type Text, Facet } from '@codemirror/state';
+import { redo, undo } from '@codemirror/commands';
 import { Decoration, type DecorationSet, EditorView, keymap, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view';
 
 /**
@@ -426,6 +427,16 @@ function cellKey(view: EditorView, wrap: HTMLElement, td: HTMLElement, e: Keyboa
   const c = Number(td.dataset.col);
   let tr = r;
   let tc = c;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && (k === 'z' || k === 'y')) {
+    // The cell is a separate editing surface: history belongs to the document. Write the pending edit
+    // first so it is its own undo step, then hand focus back to the editor.
+    e.preventDefault();
+    commit(view, wrap, td);
+    (k === 'y' || e.shiftKey ? redo : undo)(view);
+    view.focus();
+    return;
+  }
   if (e.key === 'Enter') tr = r + 1;
   else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
