@@ -189,7 +189,7 @@ test('Tab and Shift+Tab indent and outdent list lines, including an empty item',
   select(8);
   editorView().focus();
   await user.keyboard('{Tab}');
-  expect(docText()).toBe('- one\n  - ');
+  expect(docText()).toBe('- one\n    - ');
   await user.keyboard('{Shift>}{Tab}{/Shift}');
   expect(docText()).toBe('- one\n- ');
 });

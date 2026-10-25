@@ -1,4 +1,4 @@
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree } from '@codemirror/language';
 import { EditorView } from '@codemirror/view';
 import { createEditorState } from './extensions';
 
@@ -6,6 +6,8 @@ function open(text: string, caret = text.length) {
   const parent = document.body.appendChild(document.createElement('div'));
   const view = new EditorView({ state: createEditorState(text, false), parent });
   view.dispatch({ selection: { anchor: caret } });
+  ensureSyntaxTree(view.state, view.state.doc.length, 5000);
+  view.dispatch({ selection: { anchor: caret } }); // rebuild the decorations from the complete tree
   const q = (sel: string) => Array.from(view.contentDOM.querySelectorAll<HTMLElement>(sel));
   const depths = () => q('.cm-li').map((l) => l.style.getPropertyValue('--depth').trim());
   const key = (k: string, shiftKey = false) => view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: k, shiftKey, bubbles: true, cancelable: true }));
@@ -14,7 +16,8 @@ function open(text: string, caret = text.length) {
 
 const names = (text: string) => {
   const out: string[] = [];
-  syntaxTree(createEditorState(text, false)).iterate({ enter: (n) => void (/^(Table$|Setext|Bullet|Ordered|Horizontal|Blockquote|ListItem)/.test(n.name) && out.push(n.name)) });
+  const state = createEditorState(text, false);
+  ensureSyntaxTree(state, state.doc.length, 5000)!.iterate({ enter: (n) => void (/^(Table$|Setext|Bullet|Ordered|Horizontal|Blockquote|ListItem)/.test(n.name) && out.push(n.name)) });
   return out;
 };
 
@@ -89,12 +92,6 @@ describe('list layout', () => {
     expect(e.depths()).toEqual(['0', '1']);
     e.key('Tab', true);
     expect(e.depths()).toEqual(['0', '0']);
-    e.key('Tab');
-    e.key('Tab');
-    expect(e.depths()).toEqual(['0', '1']); // two indent units: still one nested level
-    e.key('Tab', true);
-    e.key('Tab', true);
-    expect(e.depths()).toEqual(['0', '0']);
     expect(e.doc()).toBe(text);
     e.done();
   });
@@ -102,6 +99,38 @@ describe('list layout', () => {
     const e = open('- a', 3);
     e.key('Tab');
     expect(e.depths()).toEqual(['1']);
+    e.done();
+  });
+  test.each([
+    ['numbered', ['1. one', '1. two', '1. three', '1. four'], ['0', '1', '2', '3']],
+    ['bullet', ['- one', '- two', '- three', '- four'], ['0', '1', '2', '3']],
+    ['task', ['- [ ] one', '- [ ] two', '- [ ] three', '- [ ] four'], ['0', '1', '2', '3']],
+    ['mixed bullet/numbered', ['- one', '1. two', '- three', '1. four'], ['0', '1', '2', '3']],
+    ['mixed numbered/bullet', ['1. one', '- two', '1. three', '- four'], ['0', '1', '2', '3']],
+    ['ten and up', ['10. one', '10. two', '10. three'], ['0', '1', '2']],
+  ])('Tab nests %s lists three levels, the parse tree agrees, Shift+Tab walks back', (_n, lines, expected) => {
+    const e = open(lines[0]);
+    const levels: string[][] = [];
+    lines.slice(1).forEach((l, i) => {
+      e.view.dispatch({ changes: { from: e.view.state.doc.length, insert: `\n${l}` }, selection: { anchor: e.view.state.doc.length + l.length + 1 } });
+      for (let t = 0; t <= i; t++) e.key('Tab');
+      levels.push(e.depths());
+    });
+    expect(e.depths()).toEqual(expected);
+    expect(e.q('.cm-li-first')).toHaveLength(lines.length); // every line is an item, none fell out as text
+    expect(e.q('.cm-list-box').length + e.q('.cm-task-box').length).toBe(lines.length);
+    // Shift+Tab on the last line steps it back out, one level per press.
+    for (let d = lines.length - 1; d > 0; d--) {
+      e.key('Tab', true);
+      expect(e.depths()[lines.length - 1]).toBe(String(d - 1));
+    }
+    e.done();
+  });
+  test('Shift+Tab on a selection of several items outdents them all', () => {
+    const e = open('- a\n    - b\n    - c', 0);
+    e.view.dispatch({ selection: { anchor: 0, head: e.view.state.doc.length } });
+    e.key('Tab', true);
+    expect(e.depths()).toEqual(['0', '0', '0']);
     e.done();
   });
 });
