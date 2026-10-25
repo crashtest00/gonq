@@ -5,13 +5,21 @@ import { createEditorState } from './extensions';
 function open(text: string, caret = text.length) {
   const parent = document.body.appendChild(document.createElement('div'));
   const view = new EditorView({ state: createEditorState(text, false), parent });
+  // Complete the parse and rebuild the decorations from the full tree. CodeMirror parses each edit
+  // with a 20 ms budget, so on a loaded machine the tree after an edit can be partial.
+  const settle = () => {
+    ensureSyntaxTree(view.state, view.state.doc.length, 5000);
+    view.dispatch({ selection: view.state.selection });
+  };
   view.dispatch({ selection: { anchor: caret } });
-  ensureSyntaxTree(view.state, view.state.doc.length, 5000);
-  view.dispatch({ selection: { anchor: caret } }); // rebuild the decorations from the complete tree
-  const q = (sel: string) => Array.from(view.contentDOM.querySelectorAll<HTMLElement>(sel));
+  settle();
+  const q = (sel: string) => (settle(), Array.from(view.contentDOM.querySelectorAll<HTMLElement>(sel)));
   const depths = () => q('.cm-li').map((l) => l.style.getPropertyValue('--depth').trim());
-  const key = (k: string, shiftKey = false) => view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: k, shiftKey, bubbles: true, cancelable: true }));
-  return { view, q, depths, key, doc: () => view.state.doc.toString(), done: () => (view.destroy(), parent.remove()) };
+  const key = (k: string, shiftKey = false) => {
+    view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: k, shiftKey, bubbles: true, cancelable: true }));
+    settle();
+  };
+  return { view, settle, q, depths, key, doc: () => view.state.doc.toString(), done: () => (view.destroy(), parent.remove()) };
 }
 
 const names = (text: string) => {
@@ -113,6 +121,7 @@ describe('list layout', () => {
     const levels: string[][] = [];
     lines.slice(1).forEach((l, i) => {
       e.view.dispatch({ changes: { from: e.view.state.doc.length, insert: `\n${l}` }, selection: { anchor: e.view.state.doc.length + l.length + 1 } });
+      e.settle();
       for (let t = 0; t <= i; t++) e.key('Tab');
       levels.push(e.depths());
     });
