@@ -210,3 +210,11 @@ mod tests {
         assert!(!fs::read_to_string(&f).unwrap().contains("show_markers"));
     }
 }
+
+#[cfg(test)]
+mod throwaway_ci_probe {
+    #[test]
+    fn throwaway_ci_probe_fails_on_purpose() {
+        assert_eq!(1 + 1, 3, "throwaway PR: deliberate failing test");
+    }
+}
