@@ -2,6 +2,7 @@ import { ensureSyntaxTree } from '@codemirror/language';
 import { Annotation, EditorState, type Extension, StateField, type Text } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view';
 import { AGENT_GUIDANCE, OPEN_COMMENT_LABEL, parseCommentMarkers, parseCommentThreads } from '../comment-threads';
+import { findToc } from '../components/toc';
 import { editorHost } from './host';
 
 /** Comment-thread markers as glyphs, and the thread blocks at the end of the file kept out of sight and out of harm's way. */
@@ -121,12 +122,15 @@ export const protectThreadBlocks: Extension = EditorState.changeFilter.of((tr) =
 });
 
 /**
- * Text typed straight against a hidden block would glue itself to the block's first or last line and break
+ * Text typed straight against a hidden block or the hidden toc end marker would glue itself to the block's first or last line and break
  * it ("Hello<!--"). Keep the block on lines of its own: a newline goes between them.
  */
 export const separateThreadBlocks: Extension = EditorState.transactionFilter.of((tr) => {
   if (!tr.docChanged || tr.annotation(threadEdit) || tr.isUserEvent('undo') || tr.isUserEvent('redo')) return tr;
-  const blocks = threadBlockRanges(tr.startState);
+  const blocks = [...threadBlockRanges(tr.startState)];
+  // The table of contents' end marker is hidden too, and text glued to it would unmake the table of contents.
+  const toc = tr.startState.doc.length > 0 ? findToc(tr.startState.doc.toString()) : null;
+  if (toc) blocks.push(tr.startState.doc.lineAt(toc.to));
   if (blocks.length === 0) return tr;
   const before: number[] = [];
   const after: number[] = [];
