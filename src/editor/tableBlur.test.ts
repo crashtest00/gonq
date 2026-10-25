@@ -64,3 +64,49 @@ test('Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y pressed in a cell undo and redo the documen
     parent.remove();
   }
 });
+
+test('one Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y in a cell is exactly one step with earlier edits in history', () => {
+  const parent = document.body.appendChild(document.createElement('div'));
+  const view = new EditorView({ state: createEditorState('| a | b |\n| - | - |\n| c | d |', false), parent });
+  const errors: unknown[] = [];
+  const onErr = (e: ErrorEvent) => errors.push(e.error);
+  window.addEventListener('error', onErr);
+  const cells = () => view.contentDOM.querySelectorAll<HTMLElement>('th, td');
+  const doc = () => view.state.doc.toString();
+  const keyOn = (td: HTMLElement, k: string, o: KeyboardEventInit = {}) => {
+    td.focus();
+    td.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...o }));
+  };
+  try {
+    cells()[0].focus();
+    cells()[0].textContent = 'aX';
+    keyOn(cells()[0], 'Escape');
+    cells()[3].focus();
+    cells()[3].textContent = 'dY';
+    keyOn(cells()[3], 'Escape');
+    cells()[1].focus();
+    cells()[1].textContent = 'bZ';
+    keyOn(cells()[1], 'Tab');
+    expect(doc()).toContain('| aX | bZ |');
+    keyOn(cells()[2], 'z', { ctrlKey: true });
+    expect(doc()).toContain('| aX | b |');
+    expect(doc()).toContain('| c | dY |');
+    keyOn(cells()[2], 'z', { ctrlKey: true, shiftKey: true });
+    expect(doc()).toContain('| aX | bZ |');
+    keyOn(cells()[2], 'z', { ctrlKey: true });
+    keyOn(cells()[2], 'y', { ctrlKey: true });
+    expect(doc()).toContain('| aX | bZ |');
+    expect(doc()).toContain('| c | dY |');
+    // Ctrl+Z while still typing: only the typed edit is lost.
+    cells()[2].focus();
+    cells()[2].textContent = 'cQ';
+    keyOn(cells()[2], 'z', { ctrlKey: true });
+    expect(doc()).toContain('| c | dY |');
+    expect(doc()).toContain('| aX | bZ |');
+    expect(errors).toEqual([]);
+  } finally {
+    window.removeEventListener('error', onErr);
+    view.destroy();
+    parent.remove();
+  }
+});

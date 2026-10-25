@@ -408,3 +408,39 @@ for (const [name, row] of [['header', 0], ['delimiter', 1], ['first body', 2], [
     });
   }
 }
+
+test('Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y in a table cell is exactly one undo/redo step', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await newDocument(page);
+  const toggle = page.getByRole('switch', { name: 'Raw Markdown' });
+  await toggle.click();
+  await page.locator('.cm-editor').click();
+  await page.keyboard.type('| a | b |\n| - | - |\n| c | d |');
+  await toggle.click();
+  const cell = (t: string) => page.locator('.cm-content td, .cm-content th').filter({ hasText: new RegExp(`^${t}$`) });
+  const cells = () => page.locator('.cm-content td, .cm-content th').allInnerTexts();
+  await cell('a').click();
+  await page.keyboard.type('X');
+  await page.keyboard.press('Escape');
+  await cell('d').click();
+  await page.keyboard.type('Y');
+  await page.keyboard.press('Escape');
+  await cell('b').click();
+  await page.keyboard.type('Z');
+  await page.keyboard.press('Tab');
+  expect(await cells()).toEqual(['aX', 'bZ', 'c', 'dY']);
+  await page.keyboard.press('Control+Z');
+  expect(await cells()).toEqual(['aX', 'b', 'c', 'dY']);
+  await page.keyboard.press('Control+Shift+Z');
+  expect(await cells()).toEqual(['aX', 'bZ', 'c', 'dY']);
+  await page.keyboard.press('Control+Z');
+  await page.keyboard.press('Control+Y');
+  expect(await cells()).toEqual(['aX', 'bZ', 'c', 'dY']);
+  // Ctrl+Z while still typing in a cell: only that edit is lost.
+  await cell('c').click();
+  await page.keyboard.type('Q');
+  await page.keyboard.press('Control+Z');
+  expect(await cells()).toEqual(['aX', 'bZ', 'c', 'dY']);
+  expect(errors).toEqual([]);
+});
