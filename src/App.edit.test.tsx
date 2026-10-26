@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import App from './App';
 import type { FileAccess, OpenedDocument } from './platform/files';
-import { at, caretAt, docText, editorView, queryEditor, select, selectText, shownText, type as typeText } from './testing/editor';
+import { at, settleEditors, caretAt, docText, editorView, queryEditor, select, selectText, shownText, type as typeText } from './testing/editor';
 
 // Each test drives the whole app through user-event; on slow CI they run close to the 5s default.
 vi.setConfig({ testTimeout: 30000 });
@@ -71,11 +71,11 @@ test('a new document: click the canvas, type a heading and bold text; ** shows o
   await user.keyboard('{Enter}');
   typeText('Some **bold** text');
   expect(docText()).toBe('# Title\nSome **bold** text');
-  expect(document.querySelector('.cm-heading-1')).not.toBeNull();
+  expect(settleEditors().querySelector('.cm-heading-1')).not.toBeNull();
   // Caret at the end of the line, outside **bold**: the stars are hidden.
   select(at('text', true));
   expect(shownText()).toContain('Some bold text');
-  expect(document.querySelector('.cm-strong')?.textContent).toBe('bold');
+  expect(settleEditors().querySelector('.cm-strong')?.textContent).toBe('bold');
   // Caret inside **bold**: the stars are shown.
   select(at('bold') + 2);
   expect(shownText()).toContain('Some **bold** text');
@@ -281,7 +281,7 @@ describe('closing the window with unsaved changes', () => {
 });
 
 describe('task checkboxes', () => {
-  const boxes = () => Array.from(document.querySelectorAll<HTMLElement>('.cm-task-box'));
+  const boxes = () => Array.from(settleEditors().querySelectorAll<HTMLElement>('.cm-task-box'));
   const click = (el: HTMLElement) => fireEvent.mouseDown(el);
 
   test('clicking a checkbox flips only its marker in the text and can be undone', async () => {
@@ -302,7 +302,7 @@ describe('task checkboxes', () => {
     setup('- [x] done thing\n');
     await menu(userEvent.setup(), 'File', /^Open…/);
     await screen.findByTestId('editor');
-    expect(document.querySelector('.cm-task-done')?.textContent).toBe(' done thing');
+    expect(settleEditors().querySelector('.cm-task-done')?.textContent).toBe(' done thing');
   });
 });
 
@@ -346,7 +346,7 @@ describe('toolbar actions', () => {
     expect(docText()).toBe('plain words');
     await press(user, 'Underline');
     select(0);
-    expect(document.querySelector('.cm-ins')?.textContent).toBe('words');
+    expect(settleEditors().querySelector('.cm-ins')?.textContent).toBe('words');
     expect(shownText()).toBe('plain words');
   });
 
@@ -396,7 +396,7 @@ test('a large document stays responsive: only the visible part is rendered', asy
   typeText('!');
   await save(user);
   expect(lastSaved(saveDocument)).toBe(lines + '!');
-  expect(document.querySelectorAll('.cm-line').length).toBeLessThan(2000);
+  expect(settleEditors().querySelectorAll('.cm-line').length).toBeLessThan(2000);
   expect(performance.now() - t0).toBeLessThan(10_000);
   expect(queryEditor()).not.toBeNull();
 });
