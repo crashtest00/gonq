@@ -14,6 +14,7 @@ function open(text: string, caret = text.length) {
   const q = (sel: string) => (settle(), Array.from(view.contentDOM.querySelectorAll<HTMLElement>(sel)));
   const depths = () => q('.cm-li').map((l) => l.style.getPropertyValue('--depth').trim());
   const key = (k: string, shiftKey = false) => {
+    settle(); // Tab reads the syntax tree: a test's own dispatch must be fully parsed before the key goes in
     view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: k, shiftKey, bubbles: true, cancelable: true }));
     settle();
   };
