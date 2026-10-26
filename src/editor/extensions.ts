@@ -8,6 +8,7 @@ import { EditorView, keymap, placeholder, type Command } from '@codemirror/view'
 import { Strikethrough, Table, TaskList, type MarkdownConfig } from '@lezer/markdown';
 import { formatKeymap } from './formatCommands';
 import { livePreview } from './livePreview';
+import { renumberAfter } from './renumber';
 import { openLink } from './openLink';
 import { tocWidgets } from './toc';
 import { keepCaretOutOfTocMarker, protectThreadBlocks, separateThreadBlocks } from './threads';
@@ -100,7 +101,7 @@ export function editorExtensions(raw: boolean, extra: Extension = []): Extension
     keepCaretOutOfTocMarker,
     formatKeymap,
     keymap.of([
-      { key: 'Tab', run: listIndent(indentMore), shift: listIndent(indentLess) },
+      { key: 'Tab', run: renumberAfter(listIndent(indentMore)), shift: renumberAfter(listIndent(indentLess)) },
       // historyKeymap binds Ctrl+Shift+Z only on Linux; Windows would otherwise have just Ctrl+Y.
       { key: 'Mod-Shift-z', run: redo, preventDefault: true },
       ...searchKeymap,

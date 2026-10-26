@@ -1,4 +1,5 @@
 import { ensureSyntaxTree } from '@codemirror/language';
+import { undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState } from './extensions';
 import { settleView } from '../testing/editor';
@@ -136,6 +137,38 @@ describe('list layout', () => {
     e.view.dispatch({ selection: { anchor: 0, head: e.view.state.doc.length } });
     e.key('Tab', true);
     expect(e.depths()).toEqual(['0', '0', '0']);
+    e.done();
+  });
+});
+
+describe('Tab / Shift+Tab renumber ordered lists in the source', () => {
+  test('indenting restarts the nested list and closes the gap', () => {
+    const e = open('1. a\n2. b\n3. c', 8);
+    e.key('Tab');
+    expect(e.doc()).toBe('1. a\n    1. b\n2. c');
+    e.key('Tab', true);
+    expect(e.doc()).toBe('1. a\n2. b\n3. c');
+    e.done();
+  });
+  test('a second indented item continues the nested count', () => {
+    const e = open('1. a\n    1. b\n2. c', 18);
+    e.key('Tab');
+    expect(e.doc()).toBe('1. a\n    1. b\n    2. c');
+    e.done();
+  });
+  test('outdenting a middle item joins the parent count and restarts the items it adopts', () => {
+    const e = open('1. a\n    1. b\n    2. c\n    3. d', 15);
+    e.key('Tab', true);
+    expect(e.doc()).toBe('1. a\n    1. b\n2. c\n    1. d');
+    e.done();
+  });
+  test('one undo step, caret kept, a loose list stays one list', () => {
+    const e = open('5. x\n7. y\n\n9. z', 9);
+    e.key('Tab');
+    expect(e.doc()).toBe('5. x\n    1. y\n\n6. z');
+    expect(e.view.state.selection.main.head).toBe(e.doc().indexOf('y') + 1);
+    undo(e.view);
+    expect(e.doc()).toBe('5. x\n7. y\n\n9. z');
     e.done();
   });
 });
