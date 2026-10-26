@@ -206,4 +206,35 @@ describe('Tab / Shift+Tab renumber ordered lists in the source', () => {
     expect(e.doc()).toBe('1. a\n    1. b\n2. c');
     e.done();
   });
+  describe('a selection that ends at the start of a line leaves that line alone', () => {
+    const run = (text: string, from: string, to: string, shift = false) => {
+      const e = open(text);
+      e.view.dispatch({ selection: { anchor: text.indexOf(from), head: text.indexOf(to) } });
+      e.key('Tab', shift);
+      const out = e.doc();
+      e.done();
+      return out;
+    };
+    test('numbered', () => {
+      expect(run('1. a\n2. b\n3. c\n4. d\n5. e', '2. b', '4. d')).toBe('1. a\n    1. b\n    2. c\n2. d\n3. e');
+    });
+    test('bullet', () => {
+      expect(run('- a\n- b\n- c\n- d\n- e', '- b', '- d')).toBe('- a\n    - b\n    - c\n- d\n- e');
+    });
+    test('task', () => {
+      expect(run('- [ ] a\n- [ ] b\n- [ ] c\n- [ ] d', '- [ ] b', '- [ ] d')).toBe('- [ ] a\n    - [ ] b\n    - [ ] c\n- [ ] d');
+    });
+    test('triple-click style selection indents one item', () => {
+      expect(run('1. a\n2. b\n3. c', '2. b', '3. c')).toBe('1. a\n    1. b\n2. c');
+      expect(run('- a\n- b\n- c', '- b', '- c')).toBe('- a\n    - b\n- c');
+    });
+    test.each([
+      ['depth 0', '1. a\n    1. b\n    2. c\n2. d', '    1. b', '    2. c', '1. a\n2. b\n    1. c\n3. d'],
+      ['depth 2', '1. p\n    1. q\n        1. a\n        2. b\n    2. d', '        1. a', '        2. b', '1. p\n    1. q\n    2. a\n        1. b\n    3. d'],
+      ['depth 3', '1. p\n    1. q\n        1. r\n            1. a\n            2. b\n        2. d', '            1. a', '            2. b', '1. p\n    1. q\n        1. r\n        2. a\n            1. b\n        3. d'],
+      ['bullet', '- a\n    - b\n    - c\n- d', '    - b', '    - c', '- a\n- b\n    - c\n- d'],
+    ])('Shift+Tab, %s', (_n, text, from, to, expected) => {
+      expect(run(text, from, to, true)).toBe(expected);
+    });
+  });
 });
