@@ -27,7 +27,7 @@ function isTableLeaf(content: string): boolean {
 }
 
 /**
- * A list item right under a table row ends the table instead of turning the table into a Setext heading
+ * A list item, or a line without a pipe, right under a table row ends the table instead of turning the table into a Setext heading
  * (`| 1 | 2 |` then `- ` would otherwise read as an H2). Uses lezer's `endLeaf` block-parser hook, the same
  * one its own Table, list and HR parsers use; a `---` line still underlines as before.
  */
@@ -38,6 +38,9 @@ const ListEndsTable: MarkdownConfig = {
       endLeaf(_cx, line, leaf) {
         if (!isTableLeaf(leaf.content)) return false;
         const text = line.text.slice(line.pos);
+        // A line without a pipe under the table is the text being typed after it, not another row: GFM would
+        // absorb it, and the table widget would swallow the line the caret is on.
+        if (!text.replace(/\\./g, '').includes('|') && !THEMATIC_BREAK.test(text.trim())) return true;
         return LIST_START.test(text) && !THEMATIC_BREAK.test(text.trim());
       },
       before: 'SetextHeading',
