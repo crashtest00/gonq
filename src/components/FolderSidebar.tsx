@@ -1,11 +1,12 @@
 /**
- * The folder navigator sidebar: Project folder tree (local or ssh://, listed lazily in chunks) and Recent documents.
- * Exports basename, relativeTime and the row-chunk/spinner constants.
+ * The folder navigator sidebar: Project folder tree (local or ssh://, listed lazily in chunks; or the GitHub
+ * repo navigator when `repo` is set) and Recent documents. Exports basename, relativeTime and the row-chunk/spinner constants.
  */
 import { memo, useCallback, useEffect, useState } from 'react';
 import { ChevronRight, File, Folder, Loader2, X } from 'lucide-react';
 import { ListDirectoryError, listDirectory, type FolderEntry } from '../platform/folders';
 import type { RecentDocument } from '../platform/recents';
+import { RepoNavigator, type RepoState } from './RepoNavigator';
 import { isSshPath, remoteAccount, remoteFileName } from '../platform/remote';
 
 export function basename(path: string): string {
@@ -216,6 +217,8 @@ function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string;
 
 export function FolderSidebar({
   folder,
+  repo = null,
+  onBranchChange,
   recents,
   currentPath,
   onOpenFolder,
@@ -225,6 +228,9 @@ export function FolderSidebar({
   onRemoveRecent,
 }: {
   folder: string | null;
+  /** An open GitHub repository; it takes the Project folder section from `folder`. */
+  repo?: RepoState | null;
+  onBranchChange?: (branch: string) => void;
   recents: RecentDocument[];
   currentPath: string | null;
   onOpenFolder: () => void;
@@ -243,7 +249,9 @@ export function FolderSidebar({
         <section className="mb-4">
           <SectionHeader label="Project folder" open={projectOpen} onToggle={() => setProjectOpen((o) => !o)} />
           {projectOpen &&
-            (folder !== null ? (
+            (repo !== null ? (
+              <RepoNavigator repo={repo} currentPath={currentPath} onBranchChange={onBranchChange ?? (() => {})} onOpenFile={onOpenFile} />
+            ) : folder !== null ? (
               <>
                 <div title={folder} className="mb-1 min-w-0">
                   <div className="truncate text-[12.5px] font-semibold text-foreground">{isSshPath(folder) ? remoteFolderName(folder) : basename(folder)}</div>
