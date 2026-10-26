@@ -1,0 +1,67 @@
+import { syntaxTree } from '@codemirror/language';
+import { ChangeSet, EditorState, Transaction, type ChangeSpec, type TransactionSpec } from '@codemirror/state';
+import type { EditorView, Command } from '@codemirror/view';
+
+/**
+ * Number edits that keep the ordered lists touched by `changed` (ranges of the new document) consecutive:
+ * each list counts up from its first item, and a list that starts on a changed line, or sits under a changed
+ * item, starts again at 1 (an item that was just nested, or the items it adopted when it moved out).
+ * Only the digits are rewritten; the delimiter and everything else stay as typed.
+ */
+function renumberChanges(state: EditorState, changed: { from: number; to: number }[]): ChangeSpec[] {
+  const hit = (from: number, to: number) => changed.some((c) => c.from <= to && c.to >= from);
+  const out: ChangeSpec[] = [];
+  syntaxTree(state).iterate({
+    enter(node) {
+      if (node.name !== 'OrderedList') return;
+      const list = node.node;
+      const parent = list.parent;
+      const underChanged = parent?.name === 'ListItem' && hit(state.doc.lineAt(parent.from).from, state.doc.lineAt(parent.from).to);
+      if (!hit(list.from, list.to) && !underChanged) return;
+      const items = [];
+      for (let c = list.firstChild; c; c = c.nextSibling) if (c.name === 'ListItem') items.push(c);
+      const marks = items.map((i) => i.getChild('ListMark')).filter((m) => m !== null);
+      if (!marks.length) return;
+      const firstLine = state.doc.lineAt(marks[0].from);
+      const restart = parent !== null && parent.name === 'ListItem' && (underChanged || hit(firstLine.from, firstLine.to));
+      const firstText = state.doc.sliceString(marks[0].from, marks[0].to);
+      let n = restart ? 1 : parseInt(firstText, 10);
+      for (const m of marks) {
+        const text = state.doc.sliceString(m.from, m.to);
+        const digits = /^\d+/.exec(text);
+        if (digits && digits[0] !== String(n)) out.push({ from: m.from, to: m.from + digits[0].length, insert: String(n) });
+        n++;
+      }
+    },
+  });
+  return out;
+}
+
+/** Wraps an indent command so the ordered lists it touches are renumbered in the same transaction (one undo step). */
+export const renumberAfter = (command: Command): Command => (view) => {
+  const { state } = view;
+  const got: { tr?: TransactionSpec | Transaction } = {};
+  const probe = { state, dispatch: (tr: TransactionSpec | Transaction) => void (got.tr = tr) } as unknown as EditorView;
+  if (!command(probe)) return false;
+  if (!got.tr) return true;
+  const tr1 = got.tr instanceof Transaction ? got.tr : state.update(got.tr);
+  if (!tr1.docChanged) {
+    view.dispatch(tr1);
+    return true;
+  }
+  const changed: { from: number; to: number }[] = [];
+  tr1.changes.iterChangedRanges((_a, _b, from, to) => void changed.push({ from, to }));
+  const specs = renumberChanges(tr1.state, changed);
+  if (!specs.length) {
+    view.dispatch(tr1);
+    return true;
+  }
+  const rc = ChangeSet.of(specs, tr1.newDoc.length);
+  view.dispatch({
+    changes: tr1.changes.compose(rc),
+    selection: tr1.newSelection.map(rc),
+    userEvent: tr1.annotation(Transaction.userEvent),
+    scrollIntoView: true,
+  });
+  return true;
+};
