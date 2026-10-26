@@ -1,3 +1,4 @@
+/** Table of contents building/refresh, and image reference/alt helpers from platform/images.ts. */
 import { buildToc, findToc, tocChange } from './toc';
 import { imageAlt, imageReference } from '../platform/images';
 

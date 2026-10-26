@@ -1,3 +1,4 @@
+/** Save / Don't save / Cancel dialog for closing a tab or window with unsaved changes. */
 import { useEffect, useRef } from 'react';
 
 export type UnsavedChoice = 'save' | 'discard' | 'cancel';

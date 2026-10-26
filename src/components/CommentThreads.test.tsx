@@ -1,3 +1,4 @@
+/** Comment threads in the app: marker glyphs, hidden blocks, the comments sidebar list, opening and scrolling to a thread. */
 import { settleEditors } from '../testing/editor';
 import { EditorView } from '@codemirror/view';
 import { render, screen, waitFor, within } from '@testing-library/react';

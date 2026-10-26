@@ -1,3 +1,4 @@
+/** renumberAfter: wraps the Tab/Shift+Tab list indent so touched ordered lists are renumbered in the same undo step. */
 import { syntaxTree } from '@codemirror/language';
 import { ChangeSet, EditorSelection, EditorState, Transaction, type ChangeSpec, type TransactionSpec } from '@codemirror/state';
 import type { EditorView, Command } from '@codemirror/view';

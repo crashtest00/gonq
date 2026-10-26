@@ -1,3 +1,4 @@
+/** Editor keyboard shortcuts: formatting, undo/redo, select all, Home/End, word delete, Ctrl+F find. */
 import { EditorView, runScopeHandlers } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { settleView } from '../testing/editor';

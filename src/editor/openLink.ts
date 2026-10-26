@@ -1,3 +1,4 @@
+/** openLink: Ctrl/Cmd+click on a link opens it in the default browser (desktop) or a new tab (web). */
 import { openExternal, opensExternallyNatively } from '../platform/external';
 
 /** Ctrl/Cmd+click on a link: the default browser on desktop, a new tab on the web. */

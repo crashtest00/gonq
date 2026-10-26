@@ -1,3 +1,7 @@
+/**
+ * The folder navigator sidebar: Project folder tree (local or ssh://, listed lazily in chunks) and Recent documents.
+ * Exports basename, relativeTime and the row-chunk/spinner constants.
+ */
 import { memo, useCallback, useEffect, useState } from 'react';
 import { ChevronRight, File, Folder, Loader2, X } from 'lucide-react';
 import { ListDirectoryError, listDirectory, type FolderEntry } from '../platform/folders';

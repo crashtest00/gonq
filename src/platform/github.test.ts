@@ -1,3 +1,4 @@
+/** github.ts: command wrappers, error mapping and ensureSignedIn. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const invoke = vi.fn();

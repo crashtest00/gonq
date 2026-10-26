@@ -1,3 +1,4 @@
+/** EditToolbar: each text-format button carries its own visual effect. */
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { EditToolbar } from './EditToolbar';

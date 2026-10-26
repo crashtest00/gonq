@@ -1,3 +1,4 @@
+/** Help > Agent skill…: the bundled SKILL.md and its rules, the read-only preview, Copy (with clipboard fallback) and Save. */
 import { settleEditors } from '../testing/editor';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

@@ -1,3 +1,7 @@
+/**
+ * Comment markers in the text (`[💬](#md-thread-<id>)` / ✅): formatting, parsing and the creation position,
+ * plus appendThreadBlock for adding a block at the end of a document.
+ */
 import type { CommentMarker, CommentThreadStatus } from './types'
 
 /**

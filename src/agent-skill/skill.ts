@@ -1,3 +1,7 @@
+/**
+ * The bundled agent skill (SKILL.md, imported ?raw): AGENT_SKILL, its file name, and AGENT_SKILL_BODY without
+ * front matter for Help > Agent skill….
+ */
 import skillText from './SKILL.md?raw';
 
 /** The agent skill bundled with Gonq: shown under Help and offered for copying or saving. */

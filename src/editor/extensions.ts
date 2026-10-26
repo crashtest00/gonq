@@ -1,3 +1,7 @@
+/**
+ * The editor's extension set: lang-markdown with GFM pieces (gonqMarkdown, incl. the ListEndsTable fix), history
+ * and keymaps, and the Raw/Formatted mode compartment. createEditorState builds a tab's state.
+ */
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore, redo } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { commonmarkLanguage } from '@codemirror/lang-markdown';

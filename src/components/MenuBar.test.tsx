@@ -1,3 +1,4 @@
+/** MenuBar: Format mirrors the toolbar, link prompt, the Table sub-menu and its disabled state. */
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

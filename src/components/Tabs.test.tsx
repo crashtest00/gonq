@@ -1,3 +1,4 @@
+/** Document tabs: several open documents, per-tab undo/caret/raw state, dedupe, new tab, sidebars per tab. */
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

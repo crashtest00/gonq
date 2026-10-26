@@ -1,3 +1,4 @@
+/** File > Sign in to GitHub…: device code display, browser opening, approval, session-only note, cancel and sign out. */
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';

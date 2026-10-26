@@ -1,3 +1,4 @@
+/** decodeUtf8: BOM/CRLF round trip and rejecting invalid UTF-8. */
 import { NotUtf8Error, decodeUtf8 } from './files';
 
 test('decodeUtf8 round-trips text, keeping a BOM and CRLFs', () => {

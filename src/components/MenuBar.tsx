@@ -1,3 +1,7 @@
+/**
+ * The menu bar (File, Edit, View, Insert, Format, Help) on shadcn menubar; Format mirrors EditToolbar's FORMATS
+ * and has a Table sub-menu mirroring TableToolbar's TOOLS. Actions come from App.tsx via MenuActions.
+ */
 import { useRef } from 'react';
 import { Table } from 'lucide-react';
 import type { TableOp, TableTarget } from '../editor/tables';

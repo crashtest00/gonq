@@ -1,3 +1,4 @@
+/** Edit > Preferences…: author name dialog, shortcut, validation and use on new messages. */
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

@@ -1,5 +1,5 @@
-// The author name written on new messages, persisted outside any document: settings.json in the
-// app config dir on desktop, localStorage in the browser.
+// The author name written on new messages and the theme choice (light|dark|auto), persisted outside any
+// document: settings.json in the app config dir on desktop, localStorage in the browser.
 import { invoke } from '@tauri-apps/api/core';
 import { isTauri } from './files';
 

@@ -1,3 +1,4 @@
+/** View > Theme: Light/Dark/Auto choices, persistence, following the OS, and keeping the editor state. */
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

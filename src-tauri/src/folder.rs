@@ -1,3 +1,6 @@
+//! Local folder listing for the folder navigator: `list_directory` returns one directory's folders and
+//! Markdown files (no dotfiles, folders first, case-insensitive order) as `FolderEntry` rows, or a typed
+//! `ListError`. The `list_directory` command in lib.rs wraps it.
 use serde::Serialize;
 use std::fs;
 use std::path::Path;

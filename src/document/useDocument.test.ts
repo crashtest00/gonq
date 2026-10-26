@@ -1,3 +1,4 @@
+/** useDocument: closing tabs, untitled names, dirty tracking and line-ending fidelity on save. */
 import { act, renderHook } from '@testing-library/react';
 import { useDocument } from './useDocument';
 

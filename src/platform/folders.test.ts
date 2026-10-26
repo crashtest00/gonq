@@ -1,3 +1,4 @@
+/** folders.ts: pickFolder and listDirectory on desktop and web. */
 import { vi } from 'vitest';
 
 let tauri = true;

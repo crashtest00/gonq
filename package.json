@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run && npm run map:check",
     "test:e2e": "playwright test",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "map": "node scripts/project-map.mjs",
+    "map:check": "node scripts/project-map.mjs --check"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

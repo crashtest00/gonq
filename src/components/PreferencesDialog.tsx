@@ -1,3 +1,4 @@
+/** Edit > Preferences… dialog: the comment author name, validated with platform/settings.ts. */
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_AUTHOR, MAX_AUTHOR_CHARS, authorNameProblem } from '../platform/settings';
 

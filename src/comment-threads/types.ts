@@ -1,3 +1,4 @@
+/** Types of the comment-threads format: CommentThread, CommentMessage, CommentMarker, status and author. */
 export type CommentThreadStatus = 'open'|'resolved'
 /**
  * Open vocabulary. People write under their preference name (default "User")

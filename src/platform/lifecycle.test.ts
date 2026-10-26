@@ -1,3 +1,4 @@
+/** guardClose: clean close, cancel, and confirmed close. */
 import { vi } from 'vitest';
 
 type CloseEvent = { preventDefault: () => void };

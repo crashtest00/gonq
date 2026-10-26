@@ -1,3 +1,4 @@
+/** The formatting keyboard shortcuts (Ctrl+B/I/U/Shift+X). */
 import { EditorState } from '@codemirror/state';
 import { EditorView, runScopeHandlers } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';

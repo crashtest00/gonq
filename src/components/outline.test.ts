@@ -1,3 +1,4 @@
+/** outlineOf: ATX and setext headings, levels, code fences and thread markers. */
 import { outlineOf } from './outline';
 
 test('lists ATX headings with level and file offset', () => {

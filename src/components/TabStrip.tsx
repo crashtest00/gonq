@@ -1,3 +1,4 @@
+/** The tab strip of open documents (unsaved and remote marks, close, +, sidebar toggles); exports tabLabels. */
 import { useEffect, useRef, useState } from 'react';
 import { FolderTree, ListTree, MessageSquare, Plus, Server, X } from 'lucide-react';
 import type { TabInfo } from '../document/useDocument';

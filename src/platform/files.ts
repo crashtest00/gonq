@@ -1,5 +1,6 @@
 // Native file access lives behind this boundary so the web beta stays usable:
-// in a browser, File > Open falls back to an <input type="file">.
+// in a browser, File > Open falls back to an <input type="file">. Exports FileAccess and `files`
+// (desktop or web); ssh:// paths are routed to remote.ts.
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readFile, writeTextFile } from '@tauri-apps/plugin-fs';

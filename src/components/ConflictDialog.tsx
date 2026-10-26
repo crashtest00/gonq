@@ -1,3 +1,4 @@
+/** Overwrite-or-cancel dialog for a remote save whose file changed (or was deleted) on the server. */
 import { useEffect, useRef } from 'react';
 
 export type ConflictChoice = 'overwrite' | 'cancel';

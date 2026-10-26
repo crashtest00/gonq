@@ -1,3 +1,4 @@
+/** Vitest setup: jest-dom matchers and the jsdom Range layout stubs CodeMirror needs. */
 import '@testing-library/jest-dom/vitest';
 
 // jsdom has no layout; CodeMirror measures text through these.

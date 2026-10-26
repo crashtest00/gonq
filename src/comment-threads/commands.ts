@@ -1,3 +1,7 @@
+/**
+ * Thread-object operations: id and timestamp minting, createCommentThread, appendReply, editCommentMessage,
+ * resolveThread and anchor normalisation. Pure; no document assembly (that is document.ts).
+ */
 import type { CommentThread, SerializableCommentThread } from './types'
 
 function pad (value: number): string {

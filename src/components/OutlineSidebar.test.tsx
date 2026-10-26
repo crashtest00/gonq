@@ -1,3 +1,4 @@
+/** The outline sidebar: toggle, jump to heading, empty state, setext/deep headings and markers. */
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';

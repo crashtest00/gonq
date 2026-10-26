@@ -1,4 +1,7 @@
-//! Branches and folder listings of a repository, for the repo navigator.
+//! Branches and folder listings of a repository, for the repo navigator: `list_branches` (the default
+//! branch first on page 1, 100 per page) and `list_folder` (folders and Markdown files like
+//! `folder::list_directory`, truncated at 1000 entries), behind the github_list_branches and
+//! github_list_folder commands in mod.rs.
 
 use super::error::GithubError;
 use super::repos::page_of;

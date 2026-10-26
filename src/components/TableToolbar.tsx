@@ -1,3 +1,7 @@
+/**
+ * The table toolbar row under EditToolbar, shown while the editor reports a table target: insert/delete
+ * row/column, alignment, delete table. Exports TOOLS, mirrored by MenuBar's Table sub-menu.
+ */
 import { AlignCenter, AlignLeft, AlignRight, BetweenHorizontalEnd, BetweenHorizontalStart, BetweenVerticalEnd, BetweenVerticalStart, Columns3, Minus, Rows3, Trash2, type LucideIcon } from 'lucide-react';
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import type { TableOp, TableTarget } from '../editor/tables';

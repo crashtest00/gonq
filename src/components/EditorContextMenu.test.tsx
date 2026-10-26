@@ -1,3 +1,4 @@
+/** The editor right-click menu: Add Comment, Cut/Copy/Paste, Select All, Bold/Italic. */
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

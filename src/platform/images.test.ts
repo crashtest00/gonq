@@ -1,3 +1,4 @@
+/** resolveImagePath: relative, absolute, remote and URL image sources. */
 import { resolveImagePath } from './images';
 
 describe('resolveImagePath', () => {

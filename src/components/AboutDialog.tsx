@@ -1,3 +1,4 @@
+/** Help > About Gonq dialog (logo, APP_VERSION, repository link); exports APP_VERSION. */
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import logo from '../assets/gonq-logo-OUTLINE.svg';
 import { REPO_URL, openExternal, opensExternallyNatively } from '../platform/external';

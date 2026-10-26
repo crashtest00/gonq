@@ -1,3 +1,4 @@
+/** TableToolbar: actions, disabled/pressed state from the target, and keyboard navigation. */
 import { fireEvent, render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { TableToolbar } from './TableToolbar';

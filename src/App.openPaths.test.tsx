@@ -1,3 +1,4 @@
+/** App tests for paths the OS hands to Gonq: queued and live launch paths open in tabs, dedupe, and errors. */
 import { act, render, screen, waitFor } from '@testing-library/react';
 import App from './App';
 import { NotUtf8Error, type FileAccess, type OpenedDocument } from './platform/files';

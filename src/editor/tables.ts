@@ -1,3 +1,7 @@
+/**
+ * GFM tables as a block widget with editable cells that write back to the source (Raw shows the pipes). Reports
+ * the target cell (tableTargetListener) and runs table operations on it (runTableOp), each one undo step.
+ */
 import { syntaxTree } from '@codemirror/language';
 import { ChangeSet, type ChangeSpec, type EditorState, type Extension, Prec, type Range, StateField, type Text, Facet } from '@codemirror/state';
 import { redo, undo } from '@codemirror/commands';

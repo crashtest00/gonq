@@ -1,3 +1,4 @@
+/** Help > Agent skill… dialog: shows the bundled skill in MarkdownPreview with Copy and Save as SKILL.md. */
 import { useEffect, useRef, useState } from 'react';
 import { AGENT_SKILL, AGENT_SKILL_BODY, AGENT_SKILL_FILENAME } from '../agent-skill/skill';
 import { copyText } from '../platform/clipboard';
