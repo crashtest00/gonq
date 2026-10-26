@@ -234,7 +234,10 @@ function build(view: EditorView): Built {
           const near = touches(l.from, l.to);
           const bullet = /^[-*+]$/.test(doc.sliceString(n.from, n.to));
           if (task) {
-            if (!near) hide(n.from, Math.min(task.from, n.to + 1));
+            const end = Math.min(task.from, n.to + 1);
+            if (!near) hide(n.from, end);
+            // Shown source takes no width, so the checkbox keeps the marker box and the text stays aligned.
+            else out.push(mark('cm-task-src').range(n.from, end));
           } else {
             // Marker and its space share one box, so bullets and numbers have the same width and gap.
             const gap = /[ \t]/.test(doc.sliceString(n.to, n.to + 1)) ? 1 : 0;

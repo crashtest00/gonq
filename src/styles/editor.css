@@ -51,6 +51,7 @@
 .gonq-editor .cm-list-box { display: inline-block; min-width: var(--list-marker); text-indent: 0; text-align: right; }
 .gonq-editor .cm-bullet { padding-right: 3px; font-size: 1.3em; line-height: 1; color: var(--muted-foreground); }
 .gonq-editor .cm-list-number { color: var(--muted-foreground); }
+.gonq-editor .cm-task-src { position: absolute; transform: translateX(-100%); color: var(--muted-foreground); }
 .gonq-editor .cm-task-done { color: var(--muted-foreground); text-decoration: line-through; }
 /* Task checkbox: 18px, 4px radius, 1.5px primary border; a check in the primary stroke when done. */
 .gonq-editor .cm-task-box {
