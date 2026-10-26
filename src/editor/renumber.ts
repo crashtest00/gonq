@@ -1,7 +1,10 @@
 /** renumberAfter: wraps the Tab/Shift+Tab list indent so touched ordered lists are renumbered in the same undo step. */
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { ChangeSet, EditorSelection, EditorState, Transaction, type ChangeSpec, type TransactionSpec } from '@codemirror/state';
 import type { EditorView, Command } from '@codemirror/view';
+
+/** The syntax tree of `state` parsed to its end (bounded at 5 s), so list structure is never read from a partial parse. */
+const fullTree = (state: EditorState) => ensureSyntaxTree(state, state.doc.length, 5000) ?? syntaxTree(state);
 
 /**
  * Number edits that keep the ordered lists touched by `changed` (ranges of the new document) consecutive:
@@ -17,7 +20,7 @@ function renumberChanges(state: EditorState, changed: { from: number; to: number
     return changed.some((c) => c.from <= b && c.to >= a);
   };
   const out: ChangeSpec[] = [];
-  syntaxTree(state).iterate({
+  fullTree(state).iterate({
     enter(node) {
       if (node.name !== 'OrderedList') return;
       const list = node.node;
@@ -51,7 +54,7 @@ function withChildren(state: EditorState): EditorSelection {
       // Like indentMore/indentLess: a non-empty range that ends at a line's start does not include that line.
       const last = state.doc.lineAt(!r.empty && r.to === state.doc.lineAt(r.to).from ? r.to - 1 : r.to);
       let to = r.to;
-      syntaxTree(state).iterate({
+      fullTree(state).iterate({
         from: first.from,
         to: last.to,
         enter(node) {
