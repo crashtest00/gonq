@@ -13,7 +13,7 @@
     "core:window:allow-destroy",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://github.com/crashtest00/gonq" }]
+      "allow": [{ "url": "https://github.com/crashtest00/gonq" }, { "url": "https://github.com/login/device" }]
     }
   ]
 }
