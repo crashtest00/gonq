@@ -1,4 +1,5 @@
 mod folder;
+mod github;
 mod launch;
 mod ssh;
 mod recents;
@@ -183,6 +184,7 @@ pub fn run() {
             Ok(())
         })
         .manage(ssh::new_pool())
+        .manage(github::Github::production())
         .manage(ssh::fs::Remote::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -200,6 +202,10 @@ pub fn run() {
             get_theme,
             set_theme,
             take_launch_paths,
+            github::github_start,
+            github::github_poll,
+            github::github_status,
+            github::github_sign_out,
             ssh::ssh_list_hosts,
             ssh::ssh_connect,
             ssh::ssh_disconnect,
