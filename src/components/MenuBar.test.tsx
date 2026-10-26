@@ -3,29 +3,22 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { MenuBar } from './MenuBar';
+import type { CommandContext } from '../commands';
 import { EditToolbar } from './EditToolbar';
 import { TableToolbar } from './TableToolbar';
 
 const noop = () => {};
 
-function setup(over: Partial<Parameters<typeof MenuBar>[0]> = {}) {
+/** A CommandContext whose actions are all spies; `over` may carry hasDocument and onOpenRepo. */
+const ctx = (over: { hasDocument?: boolean; onOpenRepo?: () => void }) =>
+  ({ hasDocument: over.hasDocument ?? true, canUndo: false, canRedo: false, openRepo: over.onOpenRepo ?? noop }) as unknown as CommandContext;
+
+function setup({ onOpenRepo, ...over }: Partial<Parameters<typeof MenuBar>[0]> & { onOpenRepo?: () => void } = {}) {
   const props = { onFormat: vi.fn(), onTableAction: vi.fn(), onFocusTableCell: vi.fn(), onFocusEditor: vi.fn() };
   render(
     <MenuBar
       hasDocument
-      canUndo={false}
-      canRedo={false}
-      onNew={noop}
-      onOpen={noop}
-      onOpenFolder={noop}
-      onConnect={noop}
-      onOpenRepo={noop}
-      onGithubSignIn={noop}
-      onGithubSignOut={noop}
-      onSave={noop}
-      onSaveAs={noop}
-      onUndo={noop}
-      onRedo={noop}
+      ctx={ctx({ hasDocument: over.hasDocument, onOpenRepo })}
       onInsertImage={noop}
       onInsertToc={noop}
       {...props}

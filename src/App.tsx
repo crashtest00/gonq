@@ -1,11 +1,12 @@
 /**
  * The app shell: owns the open tabs (useDocument), the one MarkdownEditor, the menu bar and toolbars, the
- * folder/outline/comments sidebars and <DialogHost/> (every dialog is opened with openDialog, see dialogs/), and wires menu actions to platform/ calls (open, save,
+ * folder/outline/comments sidebars and <DialogHost/> (every dialog is opened with openDialog, see dialogs/), builds the CommandContext the command registry's menus and shortcuts run against, and wires its actions to platform/ calls (open, save,
  * connect, GitHub sign-in, repo picker and its open repo/branch, launch paths). Errors land in its banner.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from './lib/useTheme';
 import { MenuBar } from './components/MenuBar';
+import { registry, type CommandContext } from './commands';
 import { DialogHost, openDialog, type DialogRef } from './dialogs/DialogHost';
 import {
   aboutDialog,
@@ -589,7 +590,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   }, []);
   openedRemoteFolderRef.current = openedRemoteFolder;
 
-  // Keyboard shortcuts read the latest handlers through a ref, so the listener is added once.
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
   const closeActive = useCallback(() => {
@@ -607,6 +607,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     [openSingle, authorName],
   );
   const undo = useCallback(() => editor.current?.undo(), []);
+  const redo = useCallback(() => editor.current?.redo(), []);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const clipboardOp = (op: 'cut' | 'copy' | 'paste') => () => {
@@ -615,7 +616,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
   };
-  const redo = useCallback(() => editor.current?.redo(), []);
   const insertImage = () => {
     pickImage(docPath).then(
       (picked) => {
@@ -634,32 +634,34 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       setError(e instanceof Error ? e.message : String(e));
     }
   };
-  const actions = useRef({ closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect });
-  actions.current = { closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect };
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-      const a = actions.current;
-      const key = e.key.toLowerCase();
-      const target = e.target as HTMLElement | null;
-      // Undo in the editor is CodeMirror's own, as it is in any other text field.
-      const foreignField = target?.closest('input, textarea, .cm-editor');
-      let run: (() => unknown) | null = null;
-      if (e.key === ',' && !e.shiftKey) run = a.openPrefs;
-      else if (key === 'k' && e.shiftKey) run = () => a.openConnect();
-      else if (key === 'o') run = a.openFile;
-      else if (key === 'n') run = a.newFile;
-      else if (key === 'w' && !e.shiftKey) run = a.closeActive;
-      else if (key === 's') run = e.shiftKey ? a.saveAs : a.save;
-      else if (!foreignField && key === 'z') run = e.shiftKey ? a.redo : a.undo;
-      else if (!foreignField && key === 'y') run = a.redo;
-      if (run === null) return;
-      e.preventDefault();
-      void run();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  const commandContext: CommandContext = {
+    hasDocument: meta !== null,
+    canUndo: session.canUndo,
+    canRedo: session.canRedo,
+    raw: rawAll,
+    theme,
+    tableTarget,
+    editor,
+    session,
+    files,
+    setError,
+    openDialog,
+    save: () => void save(),
+    saveAs: () => void saveAs(),
+    newFile,
+    openFile: () => void openFile(),
+    closeTab: closeActive,
+    openFolder: () => void openFolder(),
+    openConnect: () => void openConnect(),
+    openRepo: () => void openRepo(),
+    openPreferences: openPrefs,
+    githubSignIn: () => void openGithubSignIn(),
+    githubSignOut: () => void doGithubSignOut(),
+  };
+  // The one keydown handler is generated from the registered shortcuts and reads the latest context.
+  const commandContextRef = useRef(commandContext);
+  commandContextRef.current = commandContext;
+  useEffect(() => registry.installShortcuts(() => commandContextRef.current), []);
 
   // Closing the window with unsaved changes asks first.
   // Every unsaved tab is asked about in turn; Cancel on any of them keeps the window open.
@@ -674,33 +676,19 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background font-sans text-foreground">
       <MenuBar
+        ctx={commandContext}
         theme={theme}
         onTheme={setThemeChoice}
         hasDocument={meta !== null}
-        canUndo={session.canUndo}
-        canRedo={session.canRedo}
-        onNew={newFile}
         onFocusEditor={() => editor.current?.focus()}
         onFormat={(f, url) => editor.current?.format(f, url)}
         onTableAction={(op) => editor.current?.tableAction(op)}
         onFocusTableCell={() => editor.current?.focusTableCell()}
         tableTarget={tableTarget}
-        onCloseTab={activeId === null ? undefined : () => void closeTab(activeId)}
-        onOpen={() => void openFile()}
-        onOpenFolder={() => void openFolder()}
-        onConnect={() => void openConnect()}
-        onOpenRepo={() => void openRepo()}
-        onGithubSignIn={() => void openGithubSignIn()}
-        onGithubSignOut={() => void doGithubSignOut()}
-        onSave={() => void save()}
-        onSaveAs={() => void saveAs()}
-        onUndo={undo}
-        onRedo={redo}
         onInsertImage={insertImage}
         onInsertToc={insertToc}
         raw={rawAll}
         onToggleRaw={() => session.setRaw(!rawAll)}
-        onPreferences={openPrefs}
         onAgentSkill={() => openSingle(agentSkillDialog, { files })}
         onAbout={() => openSingle(aboutDialog, {})}
       />
