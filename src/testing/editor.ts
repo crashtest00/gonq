@@ -44,9 +44,6 @@ export function caretAt(needle: string, offset?: number) {
   select(at(needle) + (offset ?? needle.length));
 }
 
-/** The text on screen: the document with the syntax the live preview hides left out. */
-export const shownText = () => screen.getByTestId('editor').querySelector('.cm-content')?.textContent ?? '';
-
 /**
  * Completes the parse and rebuilds the decorations from the full syntax tree. CodeMirror parses each
  * edit with a 20 ms budget, so on a loaded machine the tree (and the DOM built from it) can be
@@ -56,3 +53,20 @@ export function settleView(view: EditorView) {
   ensureSyntaxTree(view.state, view.state.doc.length, 5000);
   view.dispatch({ selection: view.state.selection });
 }
+
+/**
+ * `settleView` for every editor mounted under `root` (default: the whole document), for tests of the
+ * mounted app or dialogs that read the DOM after an edit. Returns `root`.
+ */
+export function settleEditors<T extends ParentNode>(root: T = document as unknown as T): T {
+  act(() => {
+    for (const dom of root.querySelectorAll<HTMLElement>('.cm-editor')) {
+      const view = EditorView.findFromDOM(dom);
+      if (view) settleView(view);
+    }
+  });
+  return root;
+}
+
+/** The text on screen: the document with the syntax the live preview hides left out. */
+export const shownText = () => settleEditors(screen.getByTestId('editor')).querySelector('.cm-content')?.textContent ?? '';

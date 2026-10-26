@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { docText, editorView, select, type as typeText, shownText } from '../testing/editor';
+import { docText, editorView, select, settleEditors, type as typeText, shownText } from '../testing/editor';
 import App from '../App';
 import type { FileAccess, OpenedDocument } from '../platform/files';
 
@@ -43,7 +43,7 @@ async function save(user: ReturnType<typeof userEvent.setup>) {
 }
 
 const sw = () => screen.getByRole('switch', { name: /Raw Markdown/ });
-const raw = () => document.querySelector('.cm-raw') !== null;
+const raw = () => settleEditors().querySelector('.cm-raw') !== null;
 
 test('Raw shows the exact source in the same editor, Formatted hides the syntax again', async () => {
   const { user } = setup();
@@ -59,7 +59,7 @@ test('Raw shows the exact source in the same editor, Formatted hides the syntax 
   expect(raw()).toBe(true);
   expect(editorView()).toBe(view); // one editor, not another one
   expect(shownText()).toBe(DOC.replace(/\n$/, '').replace(/\n/g, ''));
-  expect(document.querySelectorAll('.cm-heading, .cm-strong, .cm-codeblock')).toHaveLength(0);
+  expect(settleEditors().querySelectorAll('.cm-heading, .cm-strong, .cm-codeblock')).toHaveLength(0);
 
   await user.click(sw());
   expect(raw()).toBe(false);
@@ -84,7 +84,7 @@ test('raw view shows thread markers literally, as Unicode glyphs', async () => {
   await openDoc(user);
   await user.click(sw());
   expect(shownText()).toContain(`Resolved [✅](#md-thread-${ID}) text.`);
-  expect(document.querySelector('.cm-content svg, .cm-content img')).toBeNull();
+  expect(settleEditors().querySelector('.cm-content svg, .cm-content img')).toBeNull();
 });
 
 test('toggling without editing leaves the document byte-identical and clean', async () => {

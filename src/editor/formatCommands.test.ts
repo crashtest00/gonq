@@ -1,11 +1,13 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView, runScopeHandlers } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
+import { settleView } from '../testing/editor';
 import { createEditorState } from './extensions';
 
 function press(doc: string, init: { key: string; ctrlKey?: boolean; shiftKey?: boolean }, from: number, to: number) {
   const view = new EditorView({ state: EditorState.create({ doc }) });
   view.setState(createEditorState(doc, false));
+  settleView(view);
   view.dispatch({ selection: { anchor: from, head: to } });
   runScopeHandlers(view, new KeyboardEvent('keydown', init), 'editor');
   return view.state.doc.toString();
