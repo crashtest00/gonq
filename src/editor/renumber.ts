@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language';
-import { ChangeSet, EditorState, Transaction, type ChangeSpec, type TransactionSpec } from '@codemirror/state';
+import { ChangeSet, EditorSelection, EditorState, Transaction, type ChangeSpec, type TransactionSpec } from '@codemirror/state';
 import type { EditorView, Command } from '@codemirror/view';
 
 /**
@@ -9,7 +9,12 @@ import type { EditorView, Command } from '@codemirror/view';
  * Only the digits are rewritten; the delimiter and everything else stay as typed.
  */
 function renumberChanges(state: EditorState, changed: { from: number; to: number }[]): ChangeSpec[] {
-  const hit = (from: number, to: number) => changed.some((c) => c.from <= to && c.to >= from);
+  // Compared by whole lines: a list's range starts after its indent, but an indent edit lives in that indent.
+  const hit = (from: number, to: number) => {
+    const a = state.doc.lineAt(from).from;
+    const b = state.doc.lineAt(to).to;
+    return changed.some((c) => c.from <= b && c.to >= a);
+  };
   const out: ChangeSpec[] = [];
   syntaxTree(state).iterate({
     enter(node) {
@@ -37,29 +42,52 @@ function renumberChanges(state: EditorState, changed: { from: number; to: number
   return out;
 }
 
+/** The selection widened to cover the whole of every list item that starts on a selected line, so its children move with it. */
+function withChildren(state: EditorState): EditorSelection {
+  return EditorSelection.create(
+    state.selection.ranges.map((r) => {
+      const first = state.doc.lineAt(r.from);
+      const last = state.doc.lineAt(r.to);
+      let to = r.to;
+      syntaxTree(state).iterate({
+        from: first.from,
+        to: last.to,
+        enter(node) {
+          if (node.name === 'ListItem' && node.from >= first.from && node.from <= last.to) to = Math.max(to, node.to);
+        },
+      });
+      return EditorSelection.range(r.from, to, r.goalColumn);
+    }),
+    state.selection.mainIndex,
+  );
+}
+
 /** Wraps an indent command so the ordered lists it touches are renumbered in the same transaction (one undo step). */
 export const renumberAfter = (command: Command): Command => (view) => {
   const { state } = view;
+  const wide = withChildren(state);
+  const probeState = wide.eq(state.selection) ? state : state.update({ selection: wide }).state;
   const got: { tr?: TransactionSpec | Transaction } = {};
-  const probe = { state, dispatch: (tr: TransactionSpec | Transaction) => void (got.tr = tr) } as unknown as EditorView;
+  const probe = { state: probeState, dispatch: (tr: TransactionSpec | Transaction) => void (got.tr = tr) } as unknown as EditorView;
   if (!command(probe)) return false;
   if (!got.tr) return true;
-  const tr1 = got.tr instanceof Transaction ? got.tr : state.update(got.tr);
+  const tr1 = got.tr instanceof Transaction ? got.tr : probeState.update(got.tr);
   if (!tr1.docChanged) {
-    view.dispatch(tr1);
+    if (probeState === state) view.dispatch(tr1);
     return true;
   }
+  const selection = state.selection.map(tr1.changes, 1);
   const changed: { from: number; to: number }[] = [];
   tr1.changes.iterChangedRanges((_a, _b, from, to) => void changed.push({ from, to }));
   const specs = renumberChanges(tr1.state, changed);
   if (!specs.length) {
-    view.dispatch(tr1);
+    view.dispatch({ changes: tr1.changes, selection, userEvent: tr1.annotation(Transaction.userEvent), scrollIntoView: true });
     return true;
   }
   const rc = ChangeSet.of(specs, tr1.newDoc.length);
   view.dispatch({
     changes: tr1.changes.compose(rc),
-    selection: tr1.newSelection.map(rc),
+    selection: selection.map(rc, 1),
     userEvent: tr1.annotation(Transaction.userEvent),
     scrollIntoView: true,
   });

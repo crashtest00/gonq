@@ -1,5 +1,5 @@
 import { ensureSyntaxTree } from '@codemirror/language';
-import { undo } from '@codemirror/commands';
+import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState } from './extensions';
 import { settleView } from '../testing/editor';
@@ -169,6 +169,41 @@ describe('Tab / Shift+Tab renumber ordered lists in the source', () => {
     expect(e.view.state.selection.main.head).toBe(e.doc().indexOf('y') + 1);
     undo(e.view);
     expect(e.doc()).toBe('5. x\n7. y\n\n9. z');
+    e.done();
+  });
+
+  const tabAt = (text: string, needle: string, shift = false) => {
+    const e = open(text, text.indexOf(needle) + needle.length);
+    e.key('Tab', shift);
+    const out = e.doc();
+    e.done();
+    return out;
+  };
+  test.each([
+    ['depth 0', '1. a\n2. b\n3. c', '2. b', '1. a\n    1. b\n2. c'],
+    ['depth 1', '1. p0\n    1. a\n    2. b\n    3. c', '2. b', '1. p0\n    1. a\n        1. b\n    2. c'],
+    ['depth 2', '1. p0\n    1. p1\n        1. a\n        2. b\n        3. c', '2. b', '1. p0\n    1. p1\n        1. a\n            1. b\n        2. c'],
+    ['depth 3', '1. p0\n    1. p1\n        1. p2\n            1. a\n            2. b\n            3. c', '2. b', '1. p0\n    1. p1\n        1. p2\n            1. a\n                1. b\n            2. c'],
+    ['the criterion-1 example', '1. a\n2. b\n3. c\n4. d', '3. c', '1. a\n2. b\n    1. c\n3. d'],
+    ['a ")" list', '1) a\n2) b\n3) c', '2) b', '1) a\n    1) b\n2) c'],
+    ['a bullet list', '- a\n- b\n- c', '- b', '- a\n    - b\n- c'],
+    ['a task list', '- [ ] a\n- [x] b\n- [ ] c', '[x] b', '- [ ] a\n    - [x] b\n- [ ] c'],
+    ['an item with a nested bullet list', '1. a\n2. b\n   - x\n   - y\n3. c', '2. b', '1. a\n    1. b\n       - x\n       - y\n2. c'],
+  ])('Tab renumbers: %s', (_n, text, at, expected) => {
+    expect(tabAt(text, at)).toBe(expected);
+  });
+  test.each([
+    ['depth 1', '1. p0\n    1. a\n        1. b\n    2. c', '1. b', '1. p0\n    1. a\n    2. b\n    3. c'],
+    ['an item with children', '1. a\n    1. b\n       - x\n       - y\n2. c', '1. b', '1. a\n2. b\n   - x\n   - y\n3. c'],
+  ])('Shift+Tab reverses: %s', (_n, text, at, expected) => {
+    expect(tabAt(text, at, true)).toBe(expected);
+  });
+  test('redo reapplies the indent and the renumbering together', () => {
+    const e = open('1. a\n2. b\n3. c', 8);
+    e.key('Tab');
+    undo(e.view);
+    redo(e.view);
+    expect(e.doc()).toBe('1. a\n    1. b\n2. c');
     e.done();
   });
 });
