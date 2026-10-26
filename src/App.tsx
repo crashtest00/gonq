@@ -1,7 +1,7 @@
 /**
  * The app shell: owns the open tabs (useDocument), the one MarkdownEditor, the menu bar and toolbars, the
  * folder/outline/comments sidebars and every dialog, and wires menu actions to platform/ calls (open, save,
- * connect, GitHub sign-in, repo picker, launch paths). Errors land in its banner.
+ * connect, GitHub sign-in, repo picker and its open repo/branch, launch paths). Errors land in its banner.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from './lib/useTheme';
@@ -24,6 +24,7 @@ import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteH
 import { ConnectDialog } from './components/ConnectDialog';
 import { GitHubSignInDialog } from './components/GitHubSignInDialog';
 import { RepoPickerDialog, type RepoChoice } from './components/RepoPickerDialog';
+import type { RepoState } from './components/RepoNavigator';
 import { ensureSignedIn, setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus } from './platform/github';
 import { assertConnectAvailable } from './platform/connect';
 import { listThreads, threadKey } from './components/threads';
@@ -37,7 +38,7 @@ import { guardClose } from './platform/lifecycle';
 import { pickImage } from './platform/images';
 import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
-import { pathExists, pickFolder } from './platform/folders';
+import { isGithubPath, pathExists, pickFolder } from './platform/folders';
 import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from './platform/recents';
 
 function parentDir(path: string): string | null {
@@ -465,7 +466,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     };
   }, []);
 
-  const openFromFolder = useCallback((path: string) => void openKnownPath(path, false), [openKnownPath]);
+  const openFromFolder = useCallback(
+    (path: string) => {
+      // TODO(story 5): open a GitHub file (github:// path) in a tab. Until then clicking one does nothing.
+      if (isGithubPath(path)) return;
+      void openKnownPath(path, false);
+    },
+    [openKnownPath],
+  );
 
   const openFolder = useCallback(async () => {
     try {
@@ -473,6 +481,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       if (picked === null) return;
       folderChosen.current = true;
       setFolder(picked);
+      setRepo(null);
       setError(null);
       setOutlineOpen(false);
       setFolderOpen(true);
@@ -549,7 +558,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   }, [requestGithubSignIn]);
   // File > Open Repo…: sign in first if needed, then the picker. The navigator (a later story) takes the choice.
   const [repoPicker, setRepoPicker] = useState(false);
-  const openedRepo = useRef<RepoChoice | null>(null);
+  const [repo, setRepo] = useState<RepoState | null>(null);
   const openRepo = useCallback(async () => {
     try {
       if (await ensureSignedIn()) setRepoPicker(true);
@@ -558,7 +567,12 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     }
   }, []);
   const repoChosen = (choice: RepoChoice) => {
-    openedRepo.current = choice;
+    // The navigator opens on the default branch; a document or folder chosen later replaces the repository.
+    folderChosen.current = true;
+    setRepo({ owner: choice.owner, repo: choice.repo, branch: choice.defaultBranch });
+    setError(null);
+    setOutlineOpen(false);
+    setFolderOpen(true);
     setRepoPicker(false);
   };
   const repoSignedOut = () => {
@@ -590,6 +604,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const openedRemoteFolder = useCallback((uri: string) => {
     folderChosen.current = true;
     setFolder(uri);
+    setRepo(null);
     setError(null);
     setOutlineOpen(false);
     setFolderOpen(true);
@@ -715,6 +730,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         {folderOpen && (
           <FolderSidebar
             folder={folder}
+            repo={repo}
+            onBranchChange={(branch) => setRepo((r) => (r === null ? r : { ...r, branch }))}
             recents={recents}
             currentPath={meta?.path ?? null}
             onOpenFolder={() => void openFolder()}
