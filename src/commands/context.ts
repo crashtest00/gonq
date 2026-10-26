@@ -1,0 +1,39 @@
+/**
+ * CommandContext: what a registered command reads (document, editor, theme state) and calls (the app's own
+ * actions). App.tsx builds one per render; the logic behind each action stays in App.tsx.
+ */
+import type { RefObject } from 'react';
+import type { EditorHandle } from '../editor/MarkdownEditor';
+import type { TableTarget } from '../editor/tables';
+import type { openDialog } from '../dialogs/DialogHost';
+import type { useDocument } from '../document/useDocument';
+import type { FileAccess } from '../platform/files';
+import type { ThemeChoice } from '../platform/settings';
+
+type Action = () => unknown;
+
+export interface CommandContext {
+  hasDocument: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  raw: boolean;
+  theme: ThemeChoice;
+  tableTarget: TableTarget | null;
+  editor: RefObject<EditorHandle>;
+  session: ReturnType<typeof useDocument>;
+  files: FileAccess;
+  setError: (message: string | null) => void;
+  openDialog: typeof openDialog;
+  save: Action;
+  saveAs: Action;
+  newFile: Action;
+  openFile: Action;
+  /** Closes the active tab (asking about unsaved changes); does nothing without one. */
+  closeTab: Action;
+  openFolder: Action;
+  openConnect: Action;
+  openRepo: Action;
+  openPreferences: Action;
+  githubSignIn: Action;
+  githubSignOut: Action;
+}

@@ -1,8 +1,11 @@
 /**
- * The menu bar (File, Edit, View, Insert, Format, Help) on shadcn menubar; Format mirrors EditToolbar's FORMATS
- * and has a Table sub-menu mirroring TableToolbar's TOOLS. Actions come from App.tsx via MenuActions.
+ * The menu bar on shadcn menubar. File and Edit (and any menu a feature registers) are rendered from the command
+ * registry with the CommandContext App.tsx passes; View, Insert, Format and Help are still props-based (MenuActions).
+ * Format mirrors EditToolbar's FORMATS and has a Table sub-menu mirroring TableToolbar's TOOLS.
  */
 import { useRef } from 'react';
+import { registry, type CommandContext } from '../commands';
+import type { MenuEntry } from '../commands/registry';
 import { Table } from 'lucide-react';
 import type { TableOp, TableTarget } from '../editor/tables';
 import type { ThemeChoice } from '../platform/settings';
@@ -31,18 +34,6 @@ const TEXT_FORMATS = FORMATS.filter((f) => f.format !== 'table');
 const TABLE_FORMAT = FORMATS.find((f) => f.format === 'table')!;
 
 export interface MenuActions {
-  onNew: () => void;
-  onCloseTab?: () => void;
-  onOpen: () => void;
-  onOpenFolder: () => void;
-  onConnect: () => void;
-  onOpenRepo: () => void;
-  onGithubSignIn: () => void;
-  onGithubSignOut: () => void;
-  onSave: () => void;
-  onSaveAs: () => void;
-  onUndo: () => void;
-  onRedo: () => void;
   onInsertImage: () => void;
   onInsertToc: () => void;
   /** Raw/Formatted for the active tab; the View > Raw Markdown item is disabled without a tab. */
@@ -51,7 +42,6 @@ export interface MenuActions {
   /** The theme choice in effect and its setter; View > Theme shows one selected item. */
   theme?: ThemeChoice;
   onTheme?: (theme: ThemeChoice) => void;
-  onPreferences?: () => void;
   onAgentSkill?: () => void;
   onAbout?: () => void;
   /** Puts focus in the editor; used instead of returning it to the File menu after New. */
@@ -64,29 +54,88 @@ export interface MenuActions {
   onFocusTableCell?: () => void;
 }
 
+/** The entries of a registry menu; a run of radio items shares one radio group. */
+function RegistryEntries({ entries, ctx, onPick }: { entries: MenuEntry[]; ctx: CommandContext; onPick: (focusEditor: boolean) => void }) {
+  const out: JSX.Element[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (entry.type === 'separator') {
+      out.push(<MenubarSeparator key={`sep${i}`} />);
+    } else if (entry.type === 'submenu') {
+      out.push(
+        <MenubarSub key={entry.command.id}>
+          <MenubarSubTrigger disabled={!entry.enabled}>{entry.command.label}</MenubarSubTrigger>
+          <MenubarSubContent>
+            <RegistryEntries entries={entry.items} ctx={ctx} onPick={onPick} />
+          </MenubarSubContent>
+        </MenubarSub>,
+      );
+    } else if (entry.command.kind === 'radio') {
+      const run: Extract<MenuEntry, { type: 'item' }>[] = [];
+      for (; i < entries.length; i++) {
+        const next = entries[i];
+        if (next.type !== 'item' || next.command.kind !== 'radio') break;
+        run.push(next);
+      }
+      i--;
+      out.push(
+        <MenubarRadioGroup
+          key={run[0].command.id}
+          value={run.find((r) => r.checked)?.command.id ?? ''}
+          onValueChange={(id) => {
+            const picked = run.find((r) => r.command.id === id);
+            if (picked !== undefined) void picked.command.run?.(ctx);
+          }}
+        >
+          {run.map((r) => (
+            <MenubarRadioItem key={r.command.id} value={r.command.id} disabled={!r.enabled}>
+              {r.command.label}
+            </MenubarRadioItem>
+          ))}
+        </MenubarRadioGroup>,
+      );
+    } else {
+      const { command, enabled, checked, shortcut } = entry;
+      const label = (
+        <>
+          {command.label}
+          {shortcut !== undefined && <MenubarShortcut>{shortcut}</MenubarShortcut>}
+        </>
+      );
+      if (command.kind === 'checkbox') {
+        out.push(
+          <MenubarCheckboxItem key={command.id} checked={checked} disabled={!enabled} onCheckedChange={() => void command.run?.(ctx)}>
+            {label}
+          </MenubarCheckboxItem>,
+        );
+      } else {
+        out.push(
+          <MenubarItem
+            key={command.id}
+            disabled={!enabled}
+            onSelect={() => {
+              onPick(command.focusEditor === true);
+              void command.run?.(ctx);
+            }}
+          >
+            {label}
+          </MenubarItem>,
+        );
+      }
+    }
+  }
+  return <>{out}</>;
+}
+
 export function MenuBar({
+  ctx,
   hasDocument,
-  canUndo,
-  canRedo,
-  onNew,
-  onCloseTab,
-  onOpen,
-  onOpenFolder,
-  onConnect,
-  onOpenRepo,
-  onGithubSignIn,
-  onGithubSignOut,
-  onSave,
-  onSaveAs,
-  onUndo,
-  onRedo,
   onInsertImage,
   onInsertToc,
   raw = false,
   onToggleRaw,
   theme = 'auto',
   onTheme,
-  onPreferences,
   onAgentSkill,
   onAbout,
   onFocusEditor,
@@ -94,76 +143,26 @@ export function MenuBar({
   onTableAction,
   onFocusTableCell,
   tableTarget = null,
-}: MenuActions & { hasDocument: boolean; canUndo: boolean; canRedo: boolean; tableTarget?: TableTarget | null }) {
+}: MenuActions & { ctx: CommandContext; hasDocument: boolean; tableTarget?: TableTarget | null }) {
   const focusEditor = useRef(false);
   return (
     <>
       <Menubar>
-        <MenubarMenu>
-          <MenubarTrigger>File</MenubarTrigger>
-          <MenubarContent
-            onCloseAutoFocus={(e) => {
-              if (!focusEditor.current) return;
-              focusEditor.current = false;
-              e.preventDefault();
-              onFocusEditor?.();
-            }}
-          >
-            <MenubarItem
-              onSelect={() => {
-                focusEditor.current = true;
-                onNew();
+        {registry.resolveMenus(ctx).map(({ menu, enabled, entries }) => (
+          <MenubarMenu key={menu.id}>
+            <MenubarTrigger disabled={!enabled}>{menu.label}</MenubarTrigger>
+            <MenubarContent
+              onCloseAutoFocus={(e) => {
+                if (!focusEditor.current) return;
+                focusEditor.current = false;
+                e.preventDefault();
+                onFocusEditor?.();
               }}
             >
-              New<MenubarShortcut>Ctrl+N</MenubarShortcut>
-            </MenubarItem>
-            <MenubarItem
-              onSelect={() => {
-                focusEditor.current = true;
-                onOpen();
-              }}
-            >
-              Open…<MenubarShortcut>Ctrl+O</MenubarShortcut>
-            </MenubarItem>
-            <MenubarItem onSelect={onOpenFolder}>Open Folder…</MenubarItem>
-            <MenubarItem onSelect={onConnect}>
-              Connect to Server…<MenubarShortcut>Ctrl+Shift+K</MenubarShortcut>
-            </MenubarItem>
-            <MenubarItem onSelect={onOpenRepo}>Open Repo…</MenubarItem>
-            <MenubarItem onSelect={onGithubSignIn}>Sign in to GitHub…</MenubarItem>
-            <MenubarItem onSelect={onGithubSignOut}>Sign out of GitHub</MenubarItem>
-            <MenubarSeparator />
-            <MenubarItem disabled={!hasDocument} onSelect={onSave}>
-              Save<MenubarShortcut>Ctrl+S</MenubarShortcut>
-            </MenubarItem>
-            <MenubarItem disabled={!hasDocument} onSelect={onSaveAs}>
-              Save As…<MenubarShortcut>Ctrl+Shift+S</MenubarShortcut>
-            </MenubarItem>
-            <MenubarSeparator />
-            <MenubarItem disabled={!hasDocument || !onCloseTab} onSelect={onCloseTab}>
-              Close Tab
-            </MenubarItem>
-          </MenubarContent>
-        </MenubarMenu>
-        <MenubarMenu>
-          <MenubarTrigger>Edit</MenubarTrigger>
-          <MenubarContent>
-            <MenubarItem disabled={!canUndo} onSelect={onUndo}>
-              Undo<MenubarShortcut>Ctrl+Z</MenubarShortcut>
-            </MenubarItem>
-            <MenubarItem disabled={!canRedo} onSelect={onRedo}>
-              Redo<MenubarShortcut>Ctrl+Y</MenubarShortcut>
-            </MenubarItem>
-            {onPreferences && (
-              <>
-                <MenubarSeparator />
-                <MenubarItem onSelect={onPreferences}>
-                  Preferences…<MenubarShortcut>Ctrl+,</MenubarShortcut>
-                </MenubarItem>
-              </>
-            )}
-          </MenubarContent>
-        </MenubarMenu>
+              <RegistryEntries entries={entries} ctx={ctx} onPick={(focus) => (focusEditor.current = focus)} />
+            </MenubarContent>
+          </MenubarMenu>
+        ))}
         <MenubarMenu>
           <MenubarTrigger>View</MenubarTrigger>
           <MenubarContent>
