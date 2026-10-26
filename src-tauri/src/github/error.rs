@@ -34,8 +34,14 @@ pub enum GithubError {
     PathNotFound,
     /// The path is a file, not a folder.
     NotAFolder,
-    /// The path is a folder (or other non-file), not a file.
+    /// The path is a folder (or anything else that is not a file, symlink or submodule), not a file.
     NotAFile,
+    /// The path is a symbolic link.
+    Symlink,
+    /// The path is a submodule.
+    Submodule,
+    /// GitHub refused access (403 that is not a rate limit): no permission for this repository or path.
+    NoAccess { message: String },
     /// The file is too big for the contents API to return inline (over 1 MB).
     FileTooLarge,
     /// The repository has no commits.
@@ -61,10 +67,13 @@ impl std::fmt::Display for GithubError {
                 write!(f, "GitHub rate limit reached (resets at Unix time {t}): {message}")
             }
             Self::RateLimited { reset_at: None, message } => write!(f, "GitHub rate limit reached: {message}"),
-            Self::BranchNotFound => write!(f, "that branch was not found"),
+            Self::BranchNotFound => write!(f, "that branch was not found (or the repository is private or inaccessible)"),
             Self::PathNotFound => write!(f, "that path was not found on the branch"),
             Self::NotAFolder => write!(f, "that path is a file, not a folder"),
             Self::NotAFile => write!(f, "that path is not a file"),
+            Self::Symlink => write!(f, "that path is a symbolic link, not a file"),
+            Self::Submodule => write!(f, "that path is a submodule, not a file"),
+            Self::NoAccess { message } => write!(f, "no access to that repository or path: {message}"),
             Self::FileTooLarge => write!(f, "that file is too large to open from GitHub"),
             Self::EmptyRepo => write!(f, "the repository is empty"),
             Self::Unexpected { message } => write!(f, "unexpected GitHub reply: {message}"),
