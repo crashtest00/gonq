@@ -442,44 +442,92 @@ fn repo(full: &str, push: bool) -> serde_json::Value {
         "permissions": { "admin": false, "push": push, "pull": true }, "extra": 1 })
 }
 
+const REPOS_QUERY: &str = "/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member";
+
+fn names(p: &super::repos::RepoPage) -> Vec<&str> {
+    p.repos.iter().map(|r| r.full_name.as_str()).collect()
+}
+
 #[tokio::test]
-async fn list_repos_follows_pages_and_maps_fields() {
+async fn list_repos_round_trips_pages_via_next_page() {
     let (fake, gh, _s) = signed_in().await;
-    let next = format!("<{}/user/repos?page=2>; rel=\"next\"", fake.base);
+    let next = |n: u32| format!("<{}/user/repos?per_page=100&page={n}>; rel=\"next\"", fake.base);
     fake.script("/user/repos", vec![
-        Reply::json(200, json!([repo("a/one", true)])).header("link", &next),
-        Reply::json(200, json!([repo("b/two", false), { "name": "bare", "full_name": "c/bare", "owner": { "login": "c" } }])),
+        Reply::json(200, json!([repo("a/one", true), repo("a/two", true)])).header("link", &next(2)),
+        Reply::json(200, json!([repo("b/three", false)])).header("link", &next(3)),
+        Reply::json(200, json!([repo("c/four", true)])),
     ]);
-    let repos = gh.list_repos().await.unwrap();
-    assert_eq!(repos.iter().map(|r| r.full_name.as_str()).collect::<Vec<_>>(), ["a/one", "b/two", "c/bare"]);
-    assert_eq!((repos[0].owner.as_str(), repos[0].name.as_str(), repos[0].default_branch.as_str()), ("a", "one", "dev"));
-    assert!(repos[0].private && repos[0].can_push && !repos[1].can_push);
-    assert_eq!(repos[2].default_branch, "main");
-    assert!(!repos[2].can_push && !repos[2].private);
-    let first = &fake.hits("/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member")[0];
-    assert_eq!(first.header("authorization"), Some(format!("Bearer {TOKEN}").as_str()));
-    assert_eq!(fake.hits("/user/repos?page=2").len(), 1);
+
+    let first = gh.list_repos(None).await.unwrap();
+    assert_eq!(names(&first), ["a/one", "a/two"]);
+    assert_eq!(first.next_page, Some(2));
+    let second = gh.list_repos(first.next_page).await.unwrap();
+    assert_eq!(names(&second), ["b/three"]);
+    assert_eq!(second.next_page, Some(3));
+    let last = gh.list_repos(second.next_page).await.unwrap();
+    assert_eq!(names(&last), ["c/four"]);
+    assert_eq!(last.next_page, None);
+    // Exactly one request per call: nothing is fetched ahead.
+    let paths: Vec<_> = fake.requests.lock().unwrap().iter().map(|r| r.path.clone()).filter(|p| p.starts_with("/user/repos")).collect();
+    assert_eq!(paths, [REPOS_QUERY.to_string(), format!("{REPOS_QUERY}&page=2"), format!("{REPOS_QUERY}&page=3")]);
+}
+
+#[tokio::test]
+async fn list_repos_sends_the_three_query_params() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script("/user/repos", vec![Reply::json(200, json!([]))]);
+    gh.list_repos(None).await.unwrap();
+    let hit = &fake.hits(REPOS_QUERY)[0];
+    assert_eq!(hit.header("authorization"), Some(format!("Bearer {TOKEN}").as_str()));
+    let url = url::Url::parse(&format!("http://x{}", hit.path)).unwrap();
+    let q: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
+    assert_eq!(q["per_page"], "100");
+    assert_eq!(q["affiliation"], "owner,collaborator,organization_member");
+    assert_eq!(q["sort"], "pushed");
+}
+
+#[tokio::test]
+async fn list_repos_maps_fields_and_pushed_at() {
+    let (fake, gh, _s) = signed_in().await;
+    let mut pushed = repo("a/one", true);
+    pushed["pushed_at"] = json!("2026-03-04T05:06:07Z");
+    let bare = json!({ "name": "bare", "full_name": "c/bare", "owner": { "login": "c" }, "pushed_at": null });
+    fake.script("/user/repos", vec![Reply::json(200, json!([pushed, repo("b/two", false), bare]))]);
+    let page = gh.list_repos(None).await.unwrap();
+    let r = &page.repos;
+    assert_eq!(names(&page), ["a/one", "b/two", "c/bare"]);
+    assert_eq!((r[0].owner.as_str(), r[0].name.as_str(), r[0].default_branch.as_str()), ("a", "one", "dev"));
+    assert_eq!(r[0].pushed_at.as_deref(), Some("2026-03-04T05:06:07Z"));
+    assert!(r[0].private && r[0].can_push && !r[1].can_push);
+    // A repository with no commits has no pushed_at (null or absent).
+    assert_eq!(r[1].pushed_at, None);
+    assert_eq!(r[2].pushed_at, None);
+    assert_eq!(r[2].default_branch, "main");
+    assert!(!r[2].can_push && !r[2].private);
+    let v = serde_json::to_value(&page).unwrap();
+    assert_eq!(v["repos"][0]["pushed_at"], "2026-03-04T05:06:07Z");
+    assert!(v["repos"][0].get("updated_at").is_none() && v["next_page"].is_null());
 }
 
 #[tokio::test]
 async fn list_repos_empty_and_errors() {
     let (fake, gh, store) = signed_in().await;
     fake.script("/user/repos", vec![Reply::json(200, json!([]))]);
-    assert!(gh.list_repos().await.unwrap().is_empty());
+    let empty = gh.list_repos(None).await.unwrap();
+    assert!(empty.repos.is_empty() && empty.next_page.is_none());
 
     fake.script("/user/repos", vec![Reply::json(403, json!({"message": "API rate limit exceeded"})).header("x-ratelimit-reset", "1700000000")]);
-    assert!(matches!(gh.list_repos().await, Err(GithubError::RateLimited { reset_at: Some(1700000000), .. })));
+    assert!(matches!(gh.list_repos(None).await, Err(GithubError::RateLimited { reset_at: Some(1700000000), .. })));
 
     fake.script("/user/repos", vec![Reply::json(401, json!({"message": "Bad credentials"}))]);
-    assert_eq!(gh.list_repos().await.unwrap_err(), GithubError::NotSignedIn);
+    assert_eq!(gh.list_repos(None).await.unwrap_err(), GithubError::NotSignedIn);
     assert_eq!(store.saved(), None);
-    assert_eq!(gh.list_repos().await.unwrap_err(), GithubError::NotSignedIn);
+    assert_eq!(gh.list_repos(None).await.unwrap_err(), GithubError::NotSignedIn);
 }
 
 #[tokio::test]
-async fn list_repos_stops_at_the_page_cap() {
+async fn list_repos_reports_a_network_error() {
     let (fake, gh, _s) = signed_in().await;
-    let next = format!("<{}/user/repos?page=2>; rel=\"next\"", fake.base);
-    fake.script("/user/repos", vec![Reply::json(200, json!([repo("a/one", true)])).header("link", &next)]);
-    assert_eq!(gh.list_repos().await.unwrap().len(), super::repos::MAX_PAGES);
+    fake.script("/user/repos", vec![Reply::drop_connection()]);
+    assert!(matches!(gh.list_repos(None).await, Err(GithubError::Network { .. })));
 }

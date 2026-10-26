@@ -84,6 +84,14 @@ impl Github {
         self.get(path).await?.json().await.map_err(|_| unexpected("the reply was not the expected JSON"))
     }
 
+    /// GETs one page of a list: its items and the `rel="next"` link, if any.
+    pub async fn get_page<T: DeserializeOwned>(&self, path: &str) -> Result<(Vec<T>, Option<String>), GithubError> {
+        let resp = self.get(path).await?;
+        let next = resp.headers().get("link").and_then(|v| v.to_str().ok()).and_then(next_link);
+        let items = resp.json().await.map_err(|_| unexpected("the page was not the expected JSON"))?;
+        Ok((items, next))
+    }
+
     /// GETs each page of a list, following `Link: rel="next"`. `on_page` returns `false` to stop
     /// early (no further request is made).
     pub async fn get_paginated<T, F>(&self, path: &str, mut on_page: F) -> Result<(), GithubError>
