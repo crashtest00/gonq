@@ -238,3 +238,42 @@ describe('Tab / Shift+Tab renumber ordered lists in the source', () => {
     });
   });
 });
+
+describe('an empty line directly under a list item', () => {
+  // The line the caret is on, as the editor draws it: [class, --depth].
+  const caretLine = (text: string, caret = text.length) => {
+    const e = open(text, caret);
+    const l = e.q('.cm-line').find((el) => el.classList.contains('cm-activeLine')) ?? e.q('.cm-line')[e.view.state.doc.lineAt(caret).number - 1];
+    const r = { li: l.classList.contains('cm-li'), first: l.classList.contains('cm-li-first'), depth: l.style.getPropertyValue('--depth').trim(), doc: e.doc() };
+    e.done();
+    return r;
+  };
+
+  test.each([
+    ['ordered', '1. a\n2. b\n', '0'],
+    ['bullet', '- a\n- b\n', '0'],
+    ['task', '- [ ] a\n- [ ] b\n', '0'],
+    ['depth 1', '- a\n    - b\n', '1'],
+    ['depth 2', '- a\n    - b\n        - c\n', '2'],
+  ])('%s: takes the item\'s padding, like the lazy line typed text becomes', (_n, text, depth) => {
+    const r = caretLine(text);
+    expect(r).toMatchObject({ li: true, first: false, depth, doc: text });
+    // Typing keeps the same decoration (same x for the caret and the first character).
+    expect(caretLine(text + 'hello')).toMatchObject({ li: true, first: false, depth });
+  });
+
+  test('same when the caret is moved onto it', () => {
+    const text = '1. a\n2. b\n';
+    expect(caretLine(text, 0).li).toBe(true);
+    expect(caretLine(text, text.length)).toMatchObject({ li: true, depth: '0' });
+  });
+
+  test('a blank line between keeps the left edge', () => {
+    expect(caretLine('1. a\n2. b\n\n').li).toBe(false);
+    expect(caretLine('1. a\n2. b\n\nhello').li).toBe(false);
+  });
+
+  test('an empty list item is not a text line to continue', () => {
+    expect(caretLine('1. a\n2. \n').li).toBe(false);
+  });
+});

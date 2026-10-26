@@ -257,6 +257,15 @@ function build(view: EditorView): Built {
     },
   });
 
+  // An empty line directly under an item's text is where a lazy continuation would start: it gets the item's padding too,
+  // so the caret is drawn at the text column the first typed character will use. A blank line between does not count.
+  const itemEmpty = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]*(?:\[[ xX]\][ \t]*)?$/;
+  for (const [no, info] of Array.from(listLines)) {
+    if (no >= doc.lines || listLines.has(no + 1)) continue;
+    const next = doc.line(no + 1);
+    if (next.length === 0 && !itemEmpty.test(doc.line(no).text)) listLines.set(no + 1, { depth: info.depth, first: false });
+  }
+
   for (const [no, { depth, first }] of listLines) {
     out.push(Decoration.line({ class: first ? 'cm-li cm-li-first' : 'cm-li', attributes: { style: `--depth: ${depth}` } }).range(doc.line(no).from));
   }
