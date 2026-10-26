@@ -657,6 +657,12 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     openPreferences: openPrefs,
     githubSignIn: () => void openGithubSignIn(),
     githubSignOut: () => void doGithubSignOut(),
+    insertImage,
+    insertToc,
+    setRaw: session.setRaw,
+    setTheme: setThemeChoice,
+    openAgentSkill: () => openSingle(agentSkillDialog, { files }),
+    openAbout: () => openSingle(aboutDialog, {}),
   };
   // The one keydown handler is generated from the registered shortcuts and reads the latest context.
   const commandContextRef = useRef(commandContext);
@@ -675,23 +681,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background font-sans text-foreground">
-      <MenuBar
-        ctx={commandContext}
-        theme={theme}
-        onTheme={setThemeChoice}
-        hasDocument={meta !== null}
-        onFocusEditor={() => editor.current?.focus()}
-        onFormat={(f, url) => editor.current?.format(f, url)}
-        onTableAction={(op) => editor.current?.tableAction(op)}
-        onFocusTableCell={() => editor.current?.focusTableCell()}
-        tableTarget={tableTarget}
-        onInsertImage={insertImage}
-        onInsertToc={insertToc}
-        raw={rawAll}
-        onToggleRaw={() => session.setRaw(!rawAll)}
-        onAgentSkill={() => openSingle(agentSkillDialog, { files })}
-        onAbout={() => openSingle(aboutDialog, {})}
-      />
+      <MenuBar ctx={commandContext} />
       <TabStrip tabs={session.tabs} activeId={activeId} onSelect={(id) => {
         session.activate(id);
         editor.current?.focus();

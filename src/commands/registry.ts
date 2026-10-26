@@ -4,6 +4,7 @@
  * resolveMenus (the ordered menu tree for a CommandContext), matchShortcut/installShortcuts (the one keydown
  * handler) and createRegistry for isolated registries in tests.
  */
+import type { LucideIcon } from 'lucide-react';
 import type { CommandContext } from './context';
 
 export type CommandKind = 'item' | 'checkbox' | 'radio' | 'submenu';
@@ -17,6 +18,10 @@ export interface CommandSpec<C = CommandContext> {
   /** Position inside the group; ties are broken by id. */
   order: number;
   label: string;
+  /** Drawn before the label (a lucide icon); it is decoration, so the item's name stays the label. */
+  icon?: LucideIcon;
+  /** Classes for the label text only (the Bold item shows its label bold). */
+  labelClass?: string;
   /** Binds the key ("Ctrl+N", "Ctrl+Shift+S", "Ctrl+,"; Cmd counts as Ctrl) and is the text shown in the menu. */
   shortcut?: string;
   /** Further keys that run the command; not shown. */
@@ -42,6 +47,8 @@ export interface MenuSpec<C = CommandContext> {
   label: string;
   order: number;
   enabled?(ctx: C): boolean;
+  /** When the menu closes the focus goes here (and not back to the menu button), whichever item was picked. */
+  closeFocus?(ctx: C): void;
 }
 
 export type MenuEntry<C = CommandContext> =

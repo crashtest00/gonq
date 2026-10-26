@@ -18,7 +18,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
           aria-describedby={undefined}
           // The menu item that opened this is gone by now; hand focus back to the Help menu.
           onCloseAutoFocus={(e) => {
-            const help = document.querySelector<HTMLElement>('[data-help-menu]');
+            const help = document.querySelector<HTMLElement>('[data-menu="help"]');
             if (help) {
               e.preventDefault();
               help.focus();

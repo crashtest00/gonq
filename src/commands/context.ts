@@ -36,4 +36,12 @@ export interface CommandContext {
   openPreferences: Action;
   githubSignIn: Action;
   githubSignOut: Action;
+  /** Picks an image and inserts it at the caret. */
+  insertImage: Action;
+  insertToc: Action;
+  /** Switches the active tab between Raw and Formatted. */
+  setRaw: (raw: boolean) => void;
+  setTheme: (theme: ThemeChoice) => void;
+  openAgentSkill: Action;
+  openAbout: Action;
 }

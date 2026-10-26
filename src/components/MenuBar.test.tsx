@@ -1,31 +1,28 @@
-/** MenuBar: Format mirrors the toolbar, link prompt, the Table sub-menu and its disabled state. */
+/** MenuBar: Format mirrors the toolbar, link prompt, the Table sub-menu and its disabled state; View, Insert and Help run their registered commands. */
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { MenuBar } from './MenuBar';
 import type { CommandContext } from '../commands';
+import type { TableTarget } from '../editor/tables';
 import { EditToolbar } from './EditToolbar';
 import { TableToolbar } from './TableToolbar';
 
 const noop = () => {};
 
-/** A CommandContext whose actions are all spies; `over` may carry hasDocument and onOpenRepo. */
-const ctx = (over: { hasDocument?: boolean; onOpenRepo?: () => void }) =>
-  ({ hasDocument: over.hasDocument ?? true, canUndo: false, canRedo: false, openRepo: over.onOpenRepo ?? noop }) as unknown as CommandContext;
-
-function setup({ onOpenRepo, ...over }: Partial<Parameters<typeof MenuBar>[0]> & { onOpenRepo?: () => void } = {}) {
-  const props = { onFormat: vi.fn(), onTableAction: vi.fn(), onFocusTableCell: vi.fn(), onFocusEditor: vi.fn() };
-  render(
-    <MenuBar
-      hasDocument
-      ctx={ctx({ hasDocument: over.hasDocument, onOpenRepo })}
-      onInsertImage={noop}
-      onInsertToc={noop}
-      {...props}
-      {...over}
-    />,
-  );
-  return props;
+/** A CommandContext whose editor and actions are spies. */
+function setup(over: { hasDocument?: boolean; onOpenRepo?: () => void; tableTarget?: TableTarget | null } = {}) {
+  const editor = { format: vi.fn(), tableAction: vi.fn(), focusTableCell: vi.fn(), focus: vi.fn() };
+  const ctx = {
+    hasDocument: over.hasDocument ?? true,
+    canUndo: false,
+    canRedo: false,
+    tableTarget: over.tableTarget ?? null,
+    editor: { current: editor },
+    openRepo: over.onOpenRepo ?? noop,
+  } as unknown as CommandContext;
+  render(<MenuBar ctx={ctx} />);
+  return { onFormat: editor.format, onTableAction: editor.tableAction, onFocusTableCell: editor.focusTableCell, onFocusEditor: editor.focus };
 }
 
 const openFormat = async (user = userEvent.setup()) => {
