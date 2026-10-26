@@ -14,6 +14,7 @@
 pub mod api;
 pub mod error;
 pub mod flow;
+pub mod repos;
 pub mod store;
 
 #[cfg(test)]
@@ -226,6 +227,11 @@ pub async fn github_poll(gh: State<'_, Github>) -> Result<AuthStatus, GithubErro
 #[tauri::command]
 pub async fn github_status(gh: State<'_, Github>) -> Result<AuthStatus, GithubError> {
     gh.status().await
+}
+
+#[tauri::command]
+pub async fn github_list_repos(gh: State<'_, Github>) -> Result<Vec<repos::Repo>, GithubError> {
+    gh.list_repos().await
 }
 
 #[tauri::command]

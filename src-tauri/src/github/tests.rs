@@ -434,3 +434,52 @@ async fn live_device_flow() {
     println!("AFTER SIGN OUT: {:?}", gh.status().await.unwrap());
     assert_eq!(store.saved(), None);
 }
+
+fn repo(full: &str, push: bool) -> serde_json::Value {
+    let (owner, name) = full.split_once('/').unwrap();
+    json!({ "name": name, "full_name": full, "owner": { "login": owner }, "private": true,
+        "default_branch": "dev", "description": null, "updated_at": "2026-01-01T00:00:00Z",
+        "permissions": { "admin": false, "push": push, "pull": true }, "extra": 1 })
+}
+
+#[tokio::test]
+async fn list_repos_follows_pages_and_maps_fields() {
+    let (fake, gh, _s) = signed_in().await;
+    let next = format!("<{}/user/repos?page=2>; rel=\"next\"", fake.base);
+    fake.script("/user/repos", vec![
+        Reply::json(200, json!([repo("a/one", true)])).header("link", &next),
+        Reply::json(200, json!([repo("b/two", false), { "name": "bare", "full_name": "c/bare", "owner": { "login": "c" } }])),
+    ]);
+    let repos = gh.list_repos().await.unwrap();
+    assert_eq!(repos.iter().map(|r| r.full_name.as_str()).collect::<Vec<_>>(), ["a/one", "b/two", "c/bare"]);
+    assert_eq!((repos[0].owner.as_str(), repos[0].name.as_str(), repos[0].default_branch.as_str()), ("a", "one", "dev"));
+    assert!(repos[0].private && repos[0].can_push && !repos[1].can_push);
+    assert_eq!(repos[2].default_branch, "main");
+    assert!(!repos[2].can_push && !repos[2].private);
+    let first = &fake.hits("/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member")[0];
+    assert_eq!(first.header("authorization"), Some(format!("Bearer {TOKEN}").as_str()));
+    assert_eq!(fake.hits("/user/repos?page=2").len(), 1);
+}
+
+#[tokio::test]
+async fn list_repos_empty_and_errors() {
+    let (fake, gh, store) = signed_in().await;
+    fake.script("/user/repos", vec![Reply::json(200, json!([]))]);
+    assert!(gh.list_repos().await.unwrap().is_empty());
+
+    fake.script("/user/repos", vec![Reply::json(403, json!({"message": "API rate limit exceeded"})).header("x-ratelimit-reset", "1700000000")]);
+    assert!(matches!(gh.list_repos().await, Err(GithubError::RateLimited { reset_at: Some(1700000000), .. })));
+
+    fake.script("/user/repos", vec![Reply::json(401, json!({"message": "Bad credentials"}))]);
+    assert_eq!(gh.list_repos().await.unwrap_err(), GithubError::NotSignedIn);
+    assert_eq!(store.saved(), None);
+    assert_eq!(gh.list_repos().await.unwrap_err(), GithubError::NotSignedIn);
+}
+
+#[tokio::test]
+async fn list_repos_stops_at_the_page_cap() {
+    let (fake, gh, _s) = signed_in().await;
+    let next = format!("<{}/user/repos?page=2>; rel=\"next\"", fake.base);
+    fake.script("/user/repos", vec![Reply::json(200, json!([repo("a/one", true)])).header("link", &next)]);
+    assert_eq!(gh.list_repos().await.unwrap().len(), super::repos::MAX_PAGES);
+}

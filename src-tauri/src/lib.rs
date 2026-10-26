@@ -206,6 +206,7 @@ pub fn run() {
             github::github_poll,
             github::github_status,
             github::github_sign_out,
+            github::github_list_repos,
             ssh::ssh_list_hosts,
             ssh::ssh_connect,
             ssh::ssh_disconnect,
