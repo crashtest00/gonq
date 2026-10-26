@@ -34,6 +34,10 @@ pub enum GithubError {
     PathNotFound,
     /// The path is a file, not a folder.
     NotAFolder,
+    /// The path is a folder (or other non-file), not a file.
+    NotAFile,
+    /// The file is too big for the contents API to return inline (over 1 MB).
+    FileTooLarge,
     /// The repository has no commits.
     EmptyRepo,
     /// A reply we cannot interpret, or a URL we refuse to send the token to.
@@ -60,6 +64,8 @@ impl std::fmt::Display for GithubError {
             Self::BranchNotFound => write!(f, "that branch was not found"),
             Self::PathNotFound => write!(f, "that path was not found on the branch"),
             Self::NotAFolder => write!(f, "that path is a file, not a folder"),
+            Self::NotAFile => write!(f, "that path is not a file"),
+            Self::FileTooLarge => write!(f, "that file is too large to open from GitHub"),
             Self::EmptyRepo => write!(f, "the repository is empty"),
             Self::Unexpected { message } => write!(f, "unexpected GitHub reply: {message}"),
         }
