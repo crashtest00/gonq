@@ -230,8 +230,8 @@ pub async fn github_status(gh: State<'_, Github>) -> Result<AuthStatus, GithubEr
 }
 
 #[tauri::command]
-pub async fn github_list_repos(gh: State<'_, Github>) -> Result<Vec<repos::Repo>, GithubError> {
-    gh.list_repos().await
+pub async fn github_list_repos(gh: State<'_, Github>, page: Option<u32>) -> Result<repos::RepoPage, GithubError> {
+    gh.list_repos(page).await
 }
 
 #[tauri::command]

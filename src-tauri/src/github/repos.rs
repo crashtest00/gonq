@@ -1,12 +1,10 @@
-//! The signed-in user's repositories (`GET /user/repos`), all pages.
+//! The signed-in user's repositories (`GET /user/repos`), one page per call.
 
 use super::error::GithubError;
 use super::Github;
 use serde::{Deserialize, Serialize};
 
-/// Safety stop: 100 per page, so this is at most 5000 repositories.
-pub(super) const MAX_PAGES: usize = 50;
-const FIRST_PAGE: &str = "/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member";
+const QUERY: &str = "/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Repo {
@@ -15,8 +13,8 @@ pub struct Repo {
     pub full_name: String,
     pub private: bool,
     pub default_branch: String,
-    pub description: Option<String>,
-    pub updated_at: Option<String>,
+    /// Last push; `None` for a repository with no commits.
+    pub pushed_at: Option<String>,
     /// Whether the user can push (false when GitHub omits permissions).
     pub can_push: bool,
 }
@@ -41,8 +39,7 @@ struct RawRepo {
     private: bool,
     #[serde(default)]
     default_branch: Option<String>,
-    description: Option<String>,
-    updated_at: Option<String>,
+    pushed_at: Option<String>,
     permissions: Option<Permissions>,
 }
 
@@ -54,24 +51,33 @@ impl From<RawRepo> for Repo {
             full_name: r.full_name,
             private: r.private,
             default_branch: r.default_branch.unwrap_or_else(|| "main".into()),
-            description: r.description,
-            updated_at: r.updated_at,
+            pushed_at: r.pushed_at,
             can_push: r.permissions.is_some_and(|p| p.push),
         }
     }
 }
 
+/// One page of repositories; `next_page` is `None` on the last page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RepoPage {
+    pub repos: Vec<Repo>,
+    pub next_page: Option<u32>,
+}
+
+/// The `page` query value of a `Link` target.
+fn page_of(link: &str) -> Option<u32> {
+    url::Url::parse(link).ok()?.query_pairs().find(|(k, _)| k == "page")?.1.parse().ok()
+}
+
 impl Github {
-    /// Every repository the user can access, most recently updated first.
-    pub async fn list_repos(&self) -> Result<Vec<Repo>, GithubError> {
-        let mut repos = Vec::new();
-        let mut pages = 0;
-        self.get_paginated::<RawRepo, _>(FIRST_PAGE, |page| {
-            repos.extend(page.into_iter().map(Repo::from));
-            pages += 1;
-            pages < MAX_PAGES
-        })
-        .await?;
-        Ok(repos)
+    /// One page (1-based, default first) of the repositories the user can access, most recently
+    /// pushed first. The caller follows `next_page` until it is `None`.
+    pub async fn list_repos(&self, page: Option<u32>) -> Result<RepoPage, GithubError> {
+        let path = match page {
+            Some(n) => format!("{QUERY}&page={n}"),
+            None => QUERY.to_string(),
+        };
+        let (raw, next) = self.get_page::<RawRepo>(&path).await?;
+        Ok(RepoPage { repos: raw.into_iter().map(Repo::from).collect(), next_page: next.as_deref().and_then(page_of) })
     }
 }
