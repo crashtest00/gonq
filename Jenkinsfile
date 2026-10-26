@@ -15,15 +15,17 @@
 // has to live in the build the merge itself triggers:
 //
 //   1. PR build  (BRANCH_NAME = PR-N, CHANGE_ID set)
-//      Install -> Test -> Build, then `gh pr merge --auto`. GitHub squash-
+//      Install -> Test -> Build (beside the Rust checks, in parallel), then
+//      records the tested tree and runs `gh pr merge --auto`. GitHub squash-
 //      merges the PR into `dev` once this build reports success. Nothing
 //      beta- or review-status-related happens here. The work item stays In
 //      Progress.
 //
 //   2. dev build (BRANCH_NAME = dev), triggered by the push that merge makes
 //      Install -> Test -> Build again on the merged tip (the only build that
-//      ever sees the real post-merge `dev`), then fast-forward `beta` to
-//      exactly this commit, deploy it to the Beta VM, and publish ONE
+//      ever sees the real post-merge `dev`) -- skipped when the PR build
+//      already tested this exact tree (`gonq/tested-tree`, see Resolve) --
+//      then fast-forward `beta` to exactly this commit, deploy it to the Beta VM, and publish ONE
 //      canonical `beta_deployed` event naming the pull requests that landed
 //      since `beta` was last promoted. The platform decides what follows
 //      from it -- the evidence comment and the move into review are made by
@@ -93,6 +95,8 @@ pipeline {
             // dev build takes from GitHub's commit -> PR association, so
             // both builds name work the same way.
             env.PROMOTE_PRS = env.CHANGE_URL ?: ''
+            // A PR build is the test gate: it always runs Install/Test/Build.
+            env.RUN_TESTS = 'true'
             echo "PR #${env.CHANGE_ID}: ${env.CHANGE_BRANCH} -> ${env.CHANGE_TARGET}, ${env.PROMOTE_PRS ?: '(no PR url)'}"
           } else if (env.BRANCH_NAME == 'dev') {
             env.PIPELINE_KIND = 'dev'
@@ -133,95 +137,235 @@ pipeline {
             } else {
               echo "Promoting origin/beta..${env.PROMOTE_SHA} (pull requests: ${env.PROMOTE_PRS ?: '(none)'})"
             }
+
+            // Skip the re-test when this exact tree was already tested.
+            // The PR build tests Jenkins' local merge of the PR head with
+            // dev, and records that merge's tree SHA as the `gonq/tested-tree`
+            // status on the PR head (stage 'Record tested tree', below). When
+            // dev has not moved between that build and the squash merge, the
+            // squash commit's tree is byte-for-byte the tree already tested,
+            // so Install/Test/Build here would re-test an identical tree.
+            //
+            // Skipped ONLY when all of these hold: exactly one merged PR into
+            // dev for $PROMOTE_SHA; that PR head's latest `gonq/tested-tree`
+            // is success with description == this commit's tree; its latest
+            // `continuous-integration/jenkins/pr-merge` is success; and both
+            // were posted by the same PR build (the pr-merge target_url
+            // starts with the tested-tree target_url, which is that build's
+            // BUILD_URL). Anything else -- mismatch, missing status, several
+            // PRs, no PR, any API or git failure -- runs the full re-test.
+            // The check itself never fails the build. Promote / deploy /
+            // publish below are unchanged either way.
+            env.SKIP_RETEST = 'false'
+            def verdict = ''
+            try {
+              verdict = sh(returnStdout: true, script: '''
+                set +e
+                run() { echo "RUN: $*"; exit 0; }
+                T=$(git rev-parse "$PROMOTE_SHA^{tree}" 2>/dev/null) || run "could not read the tree of $PROMOTE_SHA"
+                [ -n "$T" ] || run "could not read the tree of $PROMOTE_SHA"
+                PRS=$(gh api "repos/{owner}/{repo}/commits/$PROMOTE_SHA/pulls" \
+                  --jq '.[] | select(.merged_at != null and .base.ref == "dev") | "\\(.number) \\(.head.sha)"' 2>&1) \
+                  || run "PR lookup failed for $PROMOTE_SHA: $PRS"
+                N=$(printf '%s\\n' "$PRS" | grep -c .)
+                [ "$N" -eq 1 ] || run "$N merged PRs for $PROMOTE_SHA (need exactly 1)"
+                PR=${PRS%% *}
+                HEAD_SHA=${PRS#* }
+                ST=$(gh api "repos/{owner}/{repo}/commits/$HEAD_SHA/status" \
+                  --jq '.statuses[] | select(.context == "gonq/tested-tree" or .context == "continuous-integration/jenkins/pr-merge") | [.context, .state, (.description // ""), (.target_url // "")] | @tsv' 2>&1) \
+                  || run "status lookup failed for PR #$PR head $HEAD_SHA: $ST"
+                TT=$(printf '%s\\n' "$ST" | awk -F '\\t' '$1 == "gonq/tested-tree"')
+                PM=$(printf '%s\\n' "$ST" | awk -F '\\t' '$1 == "continuous-integration/jenkins/pr-merge"')
+                [ -n "$TT" ] || run "no gonq/tested-tree status on PR #$PR head $HEAD_SHA"
+                [ -n "$PM" ] || run "no pr-merge status on PR #$PR head $HEAD_SHA"
+                TT_STATE=$(printf '%s' "$TT" | cut -f2); TT_TREE=$(printf '%s' "$TT" | cut -f3); TT_URL=$(printf '%s' "$TT" | cut -f4)
+                PM_STATE=$(printf '%s' "$PM" | cut -f2); PM_URL=$(printf '%s' "$PM" | cut -f4)
+                [ "$TT_STATE" = success ] || run "gonq/tested-tree on PR #$PR head is $TT_STATE"
+                [ "$PM_STATE" = success ] || run "pr-merge on PR #$PR head is $PM_STATE"
+                [ "$TT_TREE" = "$T" ] || run "tree mismatch: $PROMOTE_SHA has tree $T, PR #$PR build tested $TT_TREE"
+                [ -n "$TT_URL" ] || run "gonq/tested-tree on PR #$PR head has no build url"
+                case "$PM_URL" in
+                  "$TT_URL"*) ;;
+                  *) run "pr-merge ($PM_URL) and gonq/tested-tree ($TT_URL) came from different PR builds" ;;
+                esac
+                echo "SKIP re-test: tree $T tested by $TT_URL"
+              ''').trim()
+            } catch (err) {
+              verdict = "RUN: tree check errored (${err})"
+            }
+            def lines = verdict.split('\n').findAll { it }
+            verdict = lines ? lines[lines.size() - 1] : 'RUN: tree check printed nothing'
+            if (verdict.startsWith('SKIP re-test: ')) {
+              env.SKIP_RETEST = 'true'
+              echo verdict
+            } else {
+              echo "Re-testing ${env.PROMOTE_SHA} in full -- ${verdict}"
+            }
+            env.RUN_TESTS = env.SKIP_RETEST == 'true' ? 'false' : 'true'
           } else {
-            // beta / prod / anything else: build-verify only.
+            // beta / prod / release/<sha> / leftover merged branches: no
+            // Install/Test/Build. Nothing downstream consumes this build's
+            // outputs: beta only ever moves to a dev commit whose tree a dev
+            // or PR build tested (stage 'Promote to beta and deploy');
+            // release/<sha> is cut from beta's HEAD and prod is the squash of
+            // that release PR (jenkins/jenkins.yaml release-candidate,
+            // production-promote), which deploy the image the Beta VM already
+            // built for that SHA or tag the SHA -- never this workspace's
+            // build output -- and no branch protection requires this build's
+            // `continuous-integration/jenkins/branch` status. The
+            // release/<sha> -> prod PR still gets a full PR build.
             env.PIPELINE_KIND = 'other'
+            env.RUN_TESTS = 'false'
+            echo "SKIP: ${env.BRANCH_NAME} is not a PR or dev build -- Install/Test/Build not run " +
+                 "(its tree was tested before it got here, and nothing reads this build's output)"
           }
         }
       }
     }
 
-    stage('Install') {
-      steps {
-        sh 'npm ci'
-      }
-    }
+    // Install -> Test -> Build and the Rust checks run side by side. The
+    // Rust checks are a GitHub-hosted run this build only dispatches and
+    // waits on, so waiting in parallel holds the executor for the longer of
+    // the two instead of their sum. Both branches run on this build's one
+    // executor (the top-level `agent any`); failFast aborts the other branch
+    // as soon as either fails, and either failure fails the build -- and so,
+    // for a PR, its required status check.
+    //
+    // RUN_TESTS (set in Resolve) gates Install/Test/Build: true for every
+    // PR build, true for a dev build unless its exact tree was already
+    // tested (SKIP_RETEST), false for every other branch.
+    stage('Verify') {
+      failFast true
+      parallel {
+        stage('Install, test and build') {
+          stages {
+            stage('Install') {
+              when { expression { env.RUN_TESTS == 'true' } }
+              steps {
+                sh 'npm ci'
+              }
+            }
 
-    stage('Test') {
-      steps {
-        sh 'npm test'
-      }
-    }
+            stage('Test') {
+              when { expression { env.RUN_TESTS == 'true' } }
+              steps {
+                sh 'npm test'
+              }
+            }
 
-    stage('Build') {
-      steps {
-        // Web build only; native Tauri builds run in GitHub Actions (build-desktop.yml).
-        sh 'npm run build'
+            stage('Build') {
+              when { expression { env.RUN_TESTS == 'true' } }
+              steps {
+                // Web build only; native Tauri builds run in GitHub Actions (build-desktop.yml).
+                sh 'npm run build'
+              }
+            }
+          }
+        }
+
+        // ---- PR build only -----------------------------------------------
+        stage('Rust checks') {
+          when { changeRequest target: 'dev' }
+          options { timeout(time: 60, unit: 'MINUTES') }
+          steps {
+            // cargo test + clippy run on a GitHub-hosted runner (rust-checks.yml,
+            // workflow_dispatch only), not on this agent. Dispatch it for the PR's
+            // head commit, find the run by the correlation id embedded in its run
+            // name, and wait: `gh run watch --exit-status` fails this stage -- and
+            // so the PR build and its required status check -- when the run fails.
+            //
+            // Jenkins' checkout is a local merge commit GitHub has never seen, so
+            // the SHA comes from the PR itself. gh needs a token with Actions:
+            // write on the repo (the same one that dispatches build-desktop.yml).
+            sh '''
+              set -eu
+              ERR=$(mktemp)
+              # Only PRs that touch src-tauri/ (Rust sources, Cargo.toml, Cargo.lock)
+              # need the Rust checks. Frontend-only PRs skip, loudly.
+              if ! FILES=$(gh api --paginate "repos/{owner}/{repo}/pulls/$CHANGE_ID/files" --jq '.[] | .filename, (.previous_filename // empty)' 2>"$ERR"); then
+                echo "ERROR: could not list the files changed by PR #$CHANGE_ID: $(cat "$ERR")" >&2
+                exit 1
+              fi
+              if ! printf '%s\\n' "$FILES" | grep -q '^src-tauri/'; then
+                echo "SKIP: PR #$CHANGE_ID changes nothing under src-tauri/ -- Rust checks (cargo test + clippy) not needed" >&2
+                exit 0
+              fi
+              # Bootstrap only: until rust-checks.yml has landed on dev there is
+              # nothing GitHub can dispatch by name. Only a confirmed 404 skips;
+              # any other API failure (outage, auth) fails the build.
+              if ! gh api "repos/{owner}/{repo}/contents/.github/workflows/rust-checks.yml?ref=dev" >/dev/null 2>"$ERR"; then
+                if grep -q "HTTP 404" "$ERR"; then
+                  echo "WARN: rust-checks.yml is not on dev yet -- skipping Rust checks for this PR" >&2
+                  exit 0
+                fi
+                echo "ERROR: could not check whether rust-checks.yml is on dev: $(cat "$ERR")" >&2
+                exit 1
+              fi
+              if ! SHA=$(gh pr view "$CHANGE_ID" --json headRefOid --jq .headRefOid 2>"$ERR"); then
+                echo "ERROR: could not look up the head commit of PR #$CHANGE_ID: $(cat "$ERR")" >&2
+                exit 1
+              fi
+              REQUEST_ID="pr${CHANGE_ID}-b${BUILD_NUMBER}-$(date +%s)"
+              if ! gh workflow run rust-checks.yml --ref "$CHANGE_BRANCH" -f sha="$SHA" -f request_id="$REQUEST_ID" 2>"$ERR"; then
+                echo "ERROR: could not dispatch rust-checks.yml for $SHA (the gh token needs Actions: write): $(cat "$ERR")" >&2
+                exit 1
+              fi
+              RUN_ID=""
+              for i in $(seq 1 30); do
+                RUN_ID=$(gh run list --workflow rust-checks.yml --event workflow_dispatch --limit 30 \\
+                  --json databaseId,displayTitle \\
+                  --jq "[.[] | select(.displayTitle | endswith(\\"$REQUEST_ID\\"))][0].databaseId // empty")
+                [ -n "$RUN_ID" ] && break
+                sleep 5
+              done
+              if [ -z "$RUN_ID" ]; then
+                echo "rust-checks run for $REQUEST_ID never appeared" >&2
+                exit 1
+              fi
+              echo "Waiting on rust-checks run $RUN_ID"
+              gh run watch "$RUN_ID" --exit-status --interval 20
+            '''
+          }
+        }
       }
     }
 
     // ---- PR build only -------------------------------------------------
 
-    stage('Rust checks') {
+    stage('Record tested tree') {
       when { changeRequest target: 'dev' }
-      options { timeout(time: 60, unit: 'MINUTES') }
       steps {
-        // cargo test + clippy run on a GitHub-hosted runner (rust-checks.yml,
-        // workflow_dispatch only), not on this agent. Dispatch it for the PR's
-        // head commit, find the run by the correlation id embedded in its run
-        // name, and wait: `gh run watch --exit-status` fails this stage -- and
-        // so the PR build and its required status check -- when the run fails.
+        // Everything above passed on this checkout -- Jenkins' local merge
+        // of the PR head with dev -- so record that merge's tree SHA as the
+        // `gonq/tested-tree` commit status on the PR head. The dev build
+        // reads it back (Resolve) and skips its Install/Test/Build when the
+        // squash commit it builds has exactly this tree, i.e. dev did not
+        // move in between. A tree SHA names the content, so a match means
+        // the dev build would re-test byte-for-byte what passed here.
         //
-        // Jenkins' checkout is a local merge commit GitHub has never seen, so
-        // the SHA comes from the PR itself. gh needs a token with Actions:
-        // write on the repo (the same one that dispatches build-desktop.yml).
+        // Never fails the build: without the status the dev build simply
+        // re-tests in full. The checkout is either the head itself (dev
+        // already in it) or a merge whose first parent is the head; if the
+        // PR head has moved since this build started, nothing is posted.
         sh '''
-          set -eu
-          ERR=$(mktemp)
-          # Only PRs that touch src-tauri/ (Rust sources, Cargo.toml, Cargo.lock)
-          # need the Rust checks. Frontend-only PRs skip, loudly.
-          if ! FILES=$(gh api --paginate "repos/{owner}/{repo}/pulls/$CHANGE_ID/files" --jq '.[] | .filename, (.previous_filename // empty)' 2>"$ERR"); then
-            echo "ERROR: could not list the files changed by PR #$CHANGE_ID: $(cat "$ERR")" >&2
-            exit 1
-          fi
-          if ! printf '%s\\n' "$FILES" | grep -q '^src-tauri/'; then
-            echo "SKIP: PR #$CHANGE_ID changes nothing under src-tauri/ -- Rust checks (cargo test + clippy) not needed" >&2
+          set +e
+          TREE=$(git rev-parse 'HEAD^{tree}')
+          HEAD_SHA=$(gh pr view "$CHANGE_ID" --json headRefOid --jq .headRefOid)
+          if [ -z "$TREE" ] || [ -z "$HEAD_SHA" ]; then
+            echo "WARN: could not resolve the tested tree or PR #$CHANGE_ID's head -- gonq/tested-tree not posted; the dev build will re-test in full" >&2
             exit 0
           fi
-          # Bootstrap only: until rust-checks.yml has landed on dev there is
-          # nothing GitHub can dispatch by name. Only a confirmed 404 skips;
-          # any other API failure (outage, auth) fails the build.
-          if ! gh api "repos/{owner}/{repo}/contents/.github/workflows/rust-checks.yml?ref=dev" >/dev/null 2>"$ERR"; then
-            if grep -q "HTTP 404" "$ERR"; then
-              echo "WARN: rust-checks.yml is not on dev yet -- skipping Rust checks for this PR" >&2
-              exit 0
-            fi
-            echo "ERROR: could not check whether rust-checks.yml is on dev: $(cat "$ERR")" >&2
-            exit 1
+          if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ] && [ "$(git rev-parse -q --verify 'HEAD^1')" != "$HEAD_SHA" ]; then
+            echo "WARN: PR #$CHANGE_ID's head is now $HEAD_SHA, not the commit this build tested -- gonq/tested-tree not posted" >&2
+            exit 0
           fi
-          if ! SHA=$(gh pr view "$CHANGE_ID" --json headRefOid --jq .headRefOid 2>"$ERR"); then
-            echo "ERROR: could not look up the head commit of PR #$CHANGE_ID: $(cat "$ERR")" >&2
-            exit 1
+          if gh api -X POST "repos/{owner}/{repo}/statuses/$HEAD_SHA" \
+              -f state=success -f context=gonq/tested-tree \
+              -f description="$TREE" -f target_url="$BUILD_URL" >/dev/null; then
+            echo "gonq/tested-tree: $HEAD_SHA tested tree $TREE ($BUILD_URL)"
+          else
+            echo "WARN: could not post gonq/tested-tree on $HEAD_SHA -- the dev build will re-test in full" >&2
           fi
-          REQUEST_ID="pr${CHANGE_ID}-b${BUILD_NUMBER}-$(date +%s)"
-          if ! gh workflow run rust-checks.yml --ref "$CHANGE_BRANCH" -f sha="$SHA" -f request_id="$REQUEST_ID" 2>"$ERR"; then
-            echo "ERROR: could not dispatch rust-checks.yml for $SHA (the gh token needs Actions: write): $(cat "$ERR")" >&2
-            exit 1
-          fi
-          RUN_ID=""
-          for i in $(seq 1 30); do
-            RUN_ID=$(gh run list --workflow rust-checks.yml --event workflow_dispatch --limit 30 \\
-              --json databaseId,displayTitle \\
-              --jq "[.[] | select(.displayTitle | endswith(\\"$REQUEST_ID\\"))][0].databaseId // empty")
-            [ -n "$RUN_ID" ] && break
-            sleep 5
-          done
-          if [ -z "$RUN_ID" ]; then
-            echo "rust-checks run for $REQUEST_ID never appeared" >&2
-            exit 1
-          fi
-          echo "Waiting on rust-checks run $RUN_ID"
-          gh run watch "$RUN_ID" --exit-status --interval 20
         '''
       }
     }
@@ -358,9 +502,16 @@ pipeline {
       script {
         // PR build: this PR. dev build: every pull request whose merge this
         // build was supposed to promote (resolved up front, so even a test
-        // failure on the merged tip is attributed). Other builds (beta/prod
-        // verification) have nobody to tell.
+        // failure on the merged tip is attributed). Other builds (beta,
+        // prod, release/<sha>, leftover branches) have nobody to tell, so
+        // their failure is logged loudly instead -- they run no
+        // Install/Test/Build, so a failure there is the pipeline itself.
         def promotedPrs = (env.PROMOTE_PRS ?: '').tokenize(' ').findAll { it }
+        if (!promotedPrs) {
+          echo "PIPELINE FAILURE with nobody to notify: ${env.BRANCH_NAME} build ${env.BUILD_NUMBER} " +
+               "(kind ${env.PIPELINE_KIND ?: 'unresolved'}) names no pull request, so no pipeline_retry " +
+               "is published. See the failing step above: ${env.BUILD_URL}"
+        }
         if (promotedPrs) {
           def what = "Pipeline failed on the post-merge dev build (beta promotion / deploy for ${env.PROMOTE_SHA})."
           if (env.PIPELINE_KIND == 'pr') {
