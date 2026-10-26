@@ -65,7 +65,7 @@ pub struct RepoPage {
 }
 
 /// The `page` query value of a `Link` target.
-fn page_of(link: &str) -> Option<u32> {
+pub(super) fn page_of(link: &str) -> Option<u32> {
     url::Url::parse(link).ok()?.query_pairs().find(|(k, _)| k == "page")?.1.parse().ok()
 }
 

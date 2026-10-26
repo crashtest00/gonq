@@ -28,6 +28,14 @@ pub enum GithubError {
     Http { status: u16, message: String },
     /// Primary or secondary rate limit; `reset_at` is Unix seconds when known.
     RateLimited { reset_at: Option<u64>, message: String },
+    /// The branch (ref) does not exist, or was deleted.
+    BranchNotFound,
+    /// The path does not exist on that branch.
+    PathNotFound,
+    /// The path is a file, not a folder.
+    NotAFolder,
+    /// The repository has no commits.
+    EmptyRepo,
     /// A reply we cannot interpret, or a URL we refuse to send the token to.
     Unexpected { message: String },
 }
@@ -49,6 +57,10 @@ impl std::fmt::Display for GithubError {
                 write!(f, "GitHub rate limit reached (resets at Unix time {t}): {message}")
             }
             Self::RateLimited { reset_at: None, message } => write!(f, "GitHub rate limit reached: {message}"),
+            Self::BranchNotFound => write!(f, "that branch was not found"),
+            Self::PathNotFound => write!(f, "that path was not found on the branch"),
+            Self::NotAFolder => write!(f, "that path is a file, not a folder"),
+            Self::EmptyRepo => write!(f, "the repository is empty"),
             Self::Unexpected { message } => write!(f, "unexpected GitHub reply: {message}"),
         }
     }

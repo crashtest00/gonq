@@ -207,6 +207,8 @@ pub fn run() {
             github::github_status,
             github::github_sign_out,
             github::github_list_repos,
+            github::github_list_branches,
+            github::github_list_folder,
             ssh::ssh_list_hosts,
             ssh::ssh_connect,
             ssh::ssh_disconnect,
