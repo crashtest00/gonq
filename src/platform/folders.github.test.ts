@@ -6,6 +6,7 @@ const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
 vi.mock('./files', () => ({ isTauri: () => tauri }));
+vi.mock('./tauri', () => ({ isTauri: () => tauri }));
 
 import { ListDirectoryError, listDirectory, listFolderPage, pathExists } from './folders';
 

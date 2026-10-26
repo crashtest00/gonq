@@ -18,6 +18,7 @@ vi.mock('../platform/github', async (orig) => ({
 }));
 // The platform boundary is exercised for real: folders.ts routes github:// paths to the mocked github.ts.
 vi.mock('../platform/files', () => ({ isTauri: () => true }));
+vi.mock('../platform/tauri', () => ({ isTauri: () => true }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
 

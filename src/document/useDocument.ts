@@ -4,6 +4,7 @@
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { OpenedDocument } from '../platform/files';
+import type { GithubDocument } from '../platform/github';
 import type { RemoteStat } from '../platform/remote';
 import { normalizeEol, toFileText } from './eol';
 
@@ -13,6 +14,8 @@ export interface DocumentMeta {
   path: string | null;
   /** ssh:// documents: the server's version at the last read or save, sent back as `expected` on save. */
   remote?: RemoteStat;
+  /** github:// documents: owner, repo, path, branch, blob sha and branch-tip commit sha, all from the API response. */
+  github?: GithubDocument;
 }
 
 /**
@@ -41,6 +44,7 @@ export interface TabInfo {
   name: string;
   path: string | null;
   dirty: boolean;
+  github?: GithubDocument;
 }
 
 const NO_TABS: Tabs = { tabs: [], activeId: null };
@@ -107,7 +111,7 @@ export function useDocument() {
     (doc: OpenedDocument) => {
       const existing = findByPath(doc.path);
       if (existing !== null) return activate(existing);
-      add({ name: doc.name, path: doc.path, remote: doc.remote }, doc.text);
+      add({ name: doc.name, path: doc.path, remote: doc.remote, github: doc.github }, doc.text);
     },
     [findByPath, activate, add],
   );
@@ -167,7 +171,7 @@ export function useDocument() {
     return t ? { meta: t.meta, text: toFileText(t.text, t.original), dirty: isDirty(t) } : null;
   }, []);
   const peekTabs = useCallback(
-    (): TabInfo[] => stateRef.current.tabs.map((t) => ({ id: t.id, name: t.meta.name, path: t.meta.path, dirty: isDirty(t) })),
+    (): TabInfo[] => stateRef.current.tabs.map((t) => ({ id: t.id, name: t.meta.name, path: t.meta.path, dirty: isDirty(t), github: t.meta.github })),
     [],
   );
   const dirtyIds = useCallback(() => stateRef.current.tabs.filter(isDirty).map((t) => t.id), []);
@@ -178,7 +182,7 @@ export function useDocument() {
     [patch],
   );
 
-  const tabInfos = useMemo(() => state.tabs.map((t): TabInfo => ({ id: t.id, name: t.meta.name, path: t.meta.path, dirty: isDirty(t) })), [state.tabs]);
+  const tabInfos = useMemo(() => state.tabs.map((t): TabInfo => ({ id: t.id, name: t.meta.name, path: t.meta.path, dirty: isDirty(t), github: t.meta.github })), [state.tabs]);
   const tabIds = useMemo(() => state.tabs.map((t) => t.id), [state.tabs]);
 
   return useMemo(
