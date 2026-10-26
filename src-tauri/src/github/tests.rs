@@ -677,3 +677,50 @@ async fn folder_other_errors_stay_typed() {
     fake.script(CONTENTS, vec![Reply::json(401, json!({"message": "Bad credentials"}))]);
     assert_eq!(gh.list_folder("o", "r", "dev", "docs").await.unwrap_err(), GithubError::NotSignedIn);
 }
+
+const TIP: &str = "/repos/o/r/branches/dev";
+const FILE: &str = "/repos/o/r/contents/docs/a.md";
+
+fn script_tip(fake: &Fake) {
+    fake.script(TIP, vec![Reply::json(200, json!({ "name": "dev", "commit": { "sha": "c0ffee" } }))]);
+}
+
+#[tokio::test]
+async fn read_file_returns_text_blob_sha_and_tip_commit() {
+    let (fake, gh, _s) = signed_in().await;
+    script_tip(&fake);
+    // GitHub wraps base64 in newlines; "héllo\n" is encoded here.
+    fake.script(FILE, vec![Reply::json(200, json!({
+        "type": "file", "encoding": "base64", "sha": "b10b", "size": 7, "content": "aMOpbGxv\nCg==\n"
+    }))]);
+    let f = gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap();
+    assert_eq!((f.content.as_str(), f.sha.as_str(), f.commit_sha.as_str()), ("héllo\n", "b10b", "c0ffee"));
+    // The file is read at the tip commit, not at the moving branch.
+    assert_eq!(fake.hits("/repos/o/r/contents/docs/a.md?ref=c0ffee").len(), 1);
+}
+
+#[tokio::test]
+async fn read_file_errors_are_typed() {
+    let (fake, gh, _s) = signed_in().await;
+    // Unknown branch.
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::BranchNotFound);
+    script_tip(&fake);
+    // Missing path.
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::PathNotFound);
+    // A folder.
+    fake.script(FILE, vec![Reply::json(200, json!([{ "name": "x", "type": "file" }]))]);
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::NotAFile);
+    // Over 1 MB: no content.
+    fake.script(FILE, vec![Reply::json(200, json!({ "type": "file", "encoding": "none", "sha": "b", "content": "" }))]);
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::FileTooLarge);
+    // Not UTF-8 (0xFF).
+    fake.script(FILE, vec![Reply::json(200, json!({ "type": "file", "encoding": "base64", "sha": "b", "content": "/w==" }))]);
+    assert!(matches!(gh.read_file("o", "r", "dev", "docs/a.md").await, Err(GithubError::Unexpected { .. })));
+    // Empty repository, rate limit, sign-in lost.
+    fake.script(TIP, vec![Reply::json(409, json!({"message": "Git Repository is empty."}))]);
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::EmptyRepo);
+    fake.script(TIP, vec![Reply::json(429, json!({"message": "slow"}))]);
+    assert!(matches!(gh.read_file("o", "r", "dev", "docs/a.md").await, Err(GithubError::RateLimited { .. })));
+    fake.script(TIP, vec![Reply::json(401, json!({"message": "Bad credentials"}))]);
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::NotSignedIn);
+}

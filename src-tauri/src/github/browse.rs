@@ -1,11 +1,13 @@
 //! Branches and folder listings of a repository, for the repo navigator: `list_branches` (the default
 //! branch first on page 1, 100 per page) and `list_folder` (folders and Markdown files like
 //! `folder::list_directory`, truncated at 1000 entries), behind the github_list_branches and
-//! github_list_folder commands in mod.rs.
+//! github_list_folder commands in mod.rs; and `read_file` (a Markdown file's text with its blob sha and
+//! the branch-tip commit sha it was read at), behind github_read_file.
 
 use super::error::GithubError;
 use super::repos::page_of;
 use super::Github;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -97,6 +99,30 @@ fn shown(raw: Vec<RawEntry>) -> Vec<RepoEntry> {
     entries
 }
 
+/// A file read from a branch: its text, the blob sha (for a later update) and the commit it was read at.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RepoFile {
+    pub content: String,
+    /// The blob sha of the file, which the contents API wants back when updating it.
+    pub sha: String,
+    /// The branch tip when read; the file is exactly as of this commit.
+    pub commit_sha: String,
+}
+
+#[derive(Deserialize)]
+struct RawFile {
+    #[serde(default)]
+    sha: String,
+    #[serde(default)]
+    encoding: Option<String>,
+    #[serde(default)]
+    content: Option<String>,
+}
+
+fn unexpected(m: &str) -> GithubError {
+    GithubError::Unexpected { message: m.into() }
+}
+
 fn mentions(message: &str, needle: &str) -> bool {
     message.to_lowercase().contains(needle)
 }
@@ -138,6 +164,48 @@ impl Github {
             .filter_map(|v| serde_json::from_value(v).ok())
             .collect();
         Ok(FolderListing { entries: shown(raw), truncated })
+    }
+
+    /// The text of the file at `path` on `branch`. The branch tip is looked up first and the file is
+    /// then read at that exact commit, so `sha` and `commit_sha` always belong together.
+    pub async fn read_file(&self, owner: &str, repo: &str, branch: &str, path: &str) -> Result<RepoFile, GithubError> {
+        let base = format!("/repos/{}/{}", encode(owner), encode(repo));
+        let tip_url = format!("{base}/branches/{}", encode_path(branch));
+        let tip: Value = match self.get_json(&tip_url).await {
+            Ok(v) => v,
+            Err(GithubError::Http { status, message }) if status == 404 || status == 409 => {
+                return Err(if mentions(&message, "repository is empty") { GithubError::EmptyRepo } else { GithubError::BranchNotFound });
+            }
+            Err(e) => return Err(e),
+        };
+        let commit_sha = tip
+            .pointer("/commit/sha")
+            .and_then(Value::as_str)
+            .ok_or_else(|| GithubError::Unexpected { message: "the branch has no commit".into() })?
+            .to_string();
+        let url = format!("{base}/contents/{}?ref={}", encode_path(path), encode(&commit_sha));
+        let reply: Value = match self.get_json(&url).await {
+            Ok(v) => v,
+            Err(GithubError::Http { status: 404, .. }) => return Err(GithubError::PathNotFound),
+            Err(e) => return Err(e),
+        };
+        if reply.get("type").and_then(Value::as_str) != Some("file") {
+            return Err(GithubError::NotAFile);
+        }
+        let raw: RawFile = serde_json::from_value(reply).map_err(|_| unexpected("the file reply was malformed"))?;
+        let text = match (raw.encoding.as_deref(), raw.content) {
+            (Some("base64"), Some(c)) => {
+                let packed: String = c.chars().filter(|ch| !ch.is_whitespace()).collect();
+                let bytes = STANDARD.decode(packed).map_err(|_| unexpected("the file content was not valid base64"))?;
+                String::from_utf8(bytes).map_err(|_| unexpected("the file is not UTF-8 text"))?
+            }
+            // Over 1 MB the contents API sends no content at all.
+            _ => return Err(GithubError::FileTooLarge),
+        };
+        if raw.sha.is_empty() {
+            return Err(unexpected("the file reply has no sha"));
+        }
+        Ok(RepoFile { content: text, sha: raw.sha, commit_sha })
     }
 
     /// Which typed error a failed contents request is.

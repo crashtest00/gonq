@@ -257,6 +257,17 @@ pub async fn github_list_folder(
 }
 
 #[tauri::command]
+pub async fn github_read_file(
+    gh: State<'_, Github>,
+    owner: String,
+    repo: String,
+    branch: String,
+    path: String,
+) -> Result<browse::RepoFile, GithubError> {
+    gh.read_file(&owner, &repo, &branch, &path).await
+}
+
+#[tauri::command]
 pub async fn github_sign_out(gh: State<'_, Github>) -> Result<(), GithubError> {
     gh.sign_out().await
 }
