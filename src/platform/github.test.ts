@@ -7,6 +7,7 @@ import {
   GITHUB_UNAVAILABLE,
   GitHubError,
   ensureSignedIn,
+  listRepos,
   pollSignIn,
   setSignInHandler,
   signInStatus,
@@ -100,5 +101,30 @@ describe('ensureSignedIn', () => {
   it('throws when no dialog is registered', async () => {
     invoke.mockResolvedValue(out);
     await expect(ensureSignedIn()).rejects.toBeInstanceOf(GitHubError);
+  });
+});
+
+describe('listRepos', () => {
+  it('asks for the page and maps the reply to camelCase', async () => {
+    invoke.mockResolvedValue({
+      repos: [{ owner: 'o', name: 'r', full_name: 'o/r', private: true, default_branch: 'dev', can_push: false, pushed_at: null }],
+      next_page: 3,
+    });
+    await expect(listRepos(2)).resolves.toEqual({
+      repos: [{ owner: 'o', name: 'r', fullName: 'o/r', private: true, defaultBranch: 'dev', canPush: false, pushedAt: null }],
+      nextPage: 3,
+    });
+    expect(invoke).toHaveBeenCalledWith('github_list_repos', { page: 2 });
+  });
+
+  it('maps a revoked token to not_signed_in', async () => {
+    invoke.mockRejectedValue({ kind: 'not_signed_in' });
+    await expect(listRepos(1)).rejects.toMatchObject({ kind: 'not_signed_in' });
+  });
+
+  it('throws unavailable_on_web on the web', async () => {
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+    await expect(listRepos(1)).rejects.toMatchObject({ kind: 'unavailable_on_web' });
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

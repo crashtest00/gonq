@@ -18,7 +18,8 @@ import { ConflictDialog, type ConflictChoice } from './components/ConflictDialog
 import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
 import { ConnectDialog } from './components/ConnectDialog';
 import { GitHubSignInDialog } from './components/GitHubSignInDialog';
-import { setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus } from './platform/github';
+import { RepoPickerDialog, type RepoChoice } from './components/RepoPickerDialog';
+import { ensureSignedIn, setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus } from './platform/github';
 import { assertConnectAvailable } from './platform/connect';
 import { listThreads, threadKey } from './components/threads';
 import { isCommentableAt, selectionRange, type ThreadTarget } from './components/newThread';
@@ -541,6 +542,24 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       failed(e);
     }
   }, [requestGithubSignIn]);
+  // File > Open Repo…: sign in first if needed, then the picker. The navigator (a later story) takes the choice.
+  const [repoPicker, setRepoPicker] = useState(false);
+  const openedRepo = useRef<RepoChoice | null>(null);
+  const openRepo = useCallback(async () => {
+    try {
+      if (await ensureSignedIn()) setRepoPicker(true);
+    } catch (e) {
+      failed(e);
+    }
+  }, []);
+  const repoChosen = (choice: RepoChoice) => {
+    openedRepo.current = choice;
+    setRepoPicker(false);
+  };
+  const repoSignedOut = () => {
+    setRepoPicker(false);
+    setNotice('GitHub sign-in is no longer valid. Sign in again to open a repository.');
+  };
   const doGithubSignOut = useCallback(async () => {
     try {
       await githubSignOut();
@@ -661,6 +680,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onOpen={() => void openFile()}
         onOpenFolder={() => void openFolder()}
         onConnect={() => void openConnect()}
+        onOpenRepo={() => void openRepo()}
         onGithubSignIn={() => void openGithubSignIn()}
         onGithubSignOut={() => void doGithubSignOut()}
         onSave={() => void save()}
@@ -822,6 +842,9 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           onOpened={openedRemoteFolder}
           onClose={connectClosed}
         />
+      )}
+      {repoPicker && (
+        <RepoPickerDialog onChoose={repoChosen} onClose={() => setRepoPicker(false)} onSignedOut={repoSignedOut} />
       )}
       {githubSignIn !== null && <GitHubSignInDialog status={githubSignIn.status} onClose={githubClosed} />}
       {conflict !== null && <ConflictDialog name={conflict.name} deleted={conflict.deleted} onChoose={conflict.resolve} />}

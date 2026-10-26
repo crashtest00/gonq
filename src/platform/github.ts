@@ -81,10 +81,10 @@ export function toGitHubError(e: unknown): GitHubError {
   return new GitHubError('other', typeof e === 'string' ? e : e instanceof Error ? e.message : String(e));
 }
 
-async function call<T>(cmd: string): Promise<T> {
+async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_UNAVAILABLE);
   try {
-    return await invoke<T>(cmd);
+    return await (args === undefined ? invoke<T>(cmd) : invoke<T>(cmd, args));
   } catch (e) {
     throw toGitHubError(e);
   }
@@ -100,6 +100,56 @@ export const signInStatus = (): Promise<GitHubStatus> => call('github_status');
 
 /** Deletes the stored token (and stops a sign-in being polled). Fine when already signed out. */
 export const signOut = (): Promise<void> => call('github_sign_out');
+
+export interface RepoSummary {
+  owner: string;
+  name: string;
+  fullName: string;
+  private: boolean;
+  defaultBranch: string;
+  canPush: boolean;
+  /** Null for a repository with no commits. */
+  pushedAt: string | null;
+}
+
+export interface RepoPage {
+  repos: RepoSummary[];
+  /** The page to ask for next; null on the last page. */
+  nextPage: number | null;
+}
+
+interface RawRepoPage {
+  repos: {
+    owner: string;
+    name: string;
+    full_name: string;
+    private: boolean;
+    default_branch: string;
+    can_push: boolean;
+    pushed_at: string | null;
+  }[];
+  next_page: number | null;
+}
+
+/**
+ * One page (1-based) of the repositories the signed-in user can access, most recently pushed first; the
+ * caller follows `nextPage` until it is null. A revoked token rejects with kind not_signed_in.
+ */
+export async function listRepos(page: number): Promise<RepoPage> {
+  const raw = await call<RawRepoPage>('github_list_repos', { page });
+  return {
+    repos: raw.repos.map((r) => ({
+      owner: r.owner,
+      name: r.name,
+      fullName: r.full_name,
+      private: r.private,
+      defaultBranch: r.default_branch,
+      canPush: r.can_push,
+      pushedAt: r.pushed_at ?? null,
+    })),
+    nextPage: raw.next_page ?? null,
+  };
+}
 
 type SignInHandler = () => Promise<boolean>;
 let signInHandler: SignInHandler | null = null;
