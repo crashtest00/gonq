@@ -691,10 +691,11 @@ async fn read_file_returns_text_blob_sha_and_tip_commit() {
     script_tip(&fake);
     // GitHub wraps base64 in newlines; "héllo\n" is encoded here.
     fake.script(FILE, vec![Reply::json(200, json!({
-        "type": "file", "encoding": "base64", "sha": "b10b", "size": 7, "content": "aMOpbGxv\nCg==\n"
+        "type": "file", "encoding": "base64", "sha": "b10b", "size": 7, "path": "docs/a.md", "name": "a.md", "content": "aMOpbGxv\nCg==\n"
     }))]);
     let f = gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap();
     assert_eq!((f.content.as_str(), f.sha.as_str(), f.commit_sha.as_str()), ("héllo\n", "b10b", "c0ffee"));
+    assert_eq!((f.path.as_str(), f.name.as_str()), ("docs/a.md", "a.md"));
     // The file is read at the tip commit, not at the moving branch.
     assert_eq!(fake.hits("/repos/o/r/contents/docs/a.md?ref=c0ffee").len(), 1);
 }
@@ -719,8 +720,69 @@ async fn read_file_errors_are_typed() {
     // Empty repository, rate limit, sign-in lost.
     fake.script(TIP, vec![Reply::json(409, json!({"message": "Git Repository is empty."}))]);
     assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::EmptyRepo);
-    fake.script(TIP, vec![Reply::json(429, json!({"message": "slow"}))]);
-    assert!(matches!(gh.read_file("o", "r", "dev", "docs/a.md").await, Err(GithubError::RateLimited { .. })));
+    fake.script(TIP, vec![Reply::json(429, json!({"message": "slow"})).header("x-ratelimit-reset", "1700000000")]);
+    assert!(matches!(gh.read_file("o", "r", "dev", "docs/a.md").await, Err(GithubError::RateLimited { reset_at: Some(1700000000), .. })));
     fake.script(TIP, vec![Reply::json(401, json!({"message": "Bad credentials"}))]);
     assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::NotSignedIn);
+}
+
+fn file_reply(path: &str, name: &str, bytes: &[u8]) -> Reply {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    Reply::json(200, json!({
+        "type": "file", "encoding": "base64", "sha": "b10b", "path": path, "name": name, "content": STANDARD.encode(bytes)
+    }))
+}
+
+#[tokio::test]
+async fn read_file_keeps_crlf_bom_and_empty_content() {
+    let (fake, gh, _s) = signed_in().await;
+    script_tip(&fake);
+    fake.script(FILE, vec![file_reply("docs/a.md", "a.md", b"a\r\nb\r\n")]);
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap().content, "a\r\nb\r\n");
+    fake.script(FILE, vec![file_reply("docs/a.md", "a.md", b"\xEF\xBB\xBFhi")]);
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap().content, "\u{feff}hi");
+    fake.script(FILE, vec![file_reply("docs/a.md", "a.md", b"")]);
+    let f = gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap();
+    assert_eq!((f.content.as_str(), f.sha.as_str()), ("", "b10b"));
+}
+
+#[tokio::test]
+async fn read_file_encodes_space_unicode_and_slash_branch() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script("/repos/o/r/branches/feat/x", vec![Reply::json(200, json!({ "commit": { "sha": "c0ffee" } }))]);
+    fake.script(
+        "/repos/o/r/contents/my%20docs/caf%C3%A9.md",
+        vec![file_reply("my docs/café.md", "café.md", b"x")],
+    );
+    let f = gh.read_file("o", "r", "feat/x", "my docs/café.md").await.unwrap();
+    assert_eq!((f.path.as_str(), f.name.as_str()), ("my docs/café.md", "café.md"));
+    assert_eq!(fake.hits("/repos/o/r/contents/my%20docs/caf%C3%A9.md?ref=c0ffee").len(), 1);
+}
+
+#[tokio::test]
+async fn read_file_tells_symlink_submodule_folder_apart() {
+    let (fake, gh, _s) = signed_in().await;
+    script_tip(&fake);
+    fake.script(FILE, vec![Reply::json(200, json!({ "type": "symlink", "target": "b.md" }))]);
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::Symlink);
+    fake.script(FILE, vec![Reply::json(200, json!({ "type": "submodule", "submodule_git_url": "u" }))]);
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::Submodule);
+    fake.script(FILE, vec![Reply::json(200, json!({ "type": "dir" }))]);
+    assert_eq!(gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(), GithubError::NotAFile);
+}
+
+#[tokio::test]
+async fn read_file_403_without_rate_limit_is_no_access() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(TIP, vec![Reply::json(403, json!({"message": "Resource not accessible"}))]);
+    assert!(matches!(gh.read_file("o", "r", "dev", "docs/a.md").await, Err(GithubError::NoAccess { .. })));
+    script_tip(&fake);
+    fake.script(FILE, vec![Reply::json(403, json!({"message": "Forbidden"}))]);
+    assert_eq!(
+        gh.read_file("o", "r", "dev", "docs/a.md").await.unwrap_err(),
+        GithubError::NoAccess { message: "Forbidden".into() }
+    );
+    // A 403 that is a rate limit stays one.
+    fake.script(FILE, vec![Reply::json(403, json!({"message": "API rate limit exceeded"})).header("x-ratelimit-remaining", "0")]);
+    assert!(matches!(gh.read_file("o", "r", "dev", "docs/a.md").await, Err(GithubError::RateLimited { .. })));
 }

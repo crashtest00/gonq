@@ -3,6 +3,11 @@
 //! `folder::list_directory`, truncated at 1000 entries), behind the github_list_branches and
 //! github_list_folder commands in mod.rs; and `read_file` (a Markdown file's text with its blob sha and
 //! the branch-tip commit sha it was read at), behind github_read_file.
+//!
+//! `read_file` fails with a typed `GithubError`: `NotSignedIn` (401), `NoAccess` (403 that is not a rate
+//! limit), `RateLimited { reset_at }`, `BranchNotFound` (also what a private repository's 404 looks like),
+//! `EmptyRepo`, `PathNotFound`, `NotAFile` (a folder), `Symlink`, `Submodule`, `FileTooLarge` (over 1 MB),
+//! and `Unexpected` (malformed reply, not UTF-8); other statuses are `Http`, transport failures `Network`.
 
 use super::error::GithubError;
 use super::repos::page_of;
@@ -102,6 +107,10 @@ fn shown(raw: Vec<RawEntry>) -> Vec<RepoEntry> {
 /// A file read from a branch: its text, the blob sha (for a later update) and the commit it was read at.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RepoFile {
+    /// The path of the file in the repository, as GitHub reports it.
+    pub path: String,
+    /// The file's name (the last segment of `path`).
+    pub name: String,
     pub content: String,
     /// The blob sha of the file, which the contents API wants back when updating it.
     pub sha: String,
@@ -111,6 +120,10 @@ pub struct RepoFile {
 
 #[derive(Deserialize)]
 struct RawFile {
+    #[serde(default)]
+    path: String,
+    #[serde(default)]
+    name: String,
     #[serde(default)]
     sha: String,
     #[serde(default)]
@@ -176,6 +189,7 @@ impl Github {
             Err(GithubError::Http { status, message }) if status == 404 || status == 409 => {
                 return Err(if mentions(&message, "repository is empty") { GithubError::EmptyRepo } else { GithubError::BranchNotFound });
             }
+            Err(GithubError::Http { status: 403, message }) => return Err(GithubError::NoAccess { message }),
             Err(e) => return Err(e),
         };
         let commit_sha = tip
@@ -187,10 +201,14 @@ impl Github {
         let reply: Value = match self.get_json(&url).await {
             Ok(v) => v,
             Err(GithubError::Http { status: 404, .. }) => return Err(GithubError::PathNotFound),
+            Err(GithubError::Http { status: 403, message }) => return Err(GithubError::NoAccess { message }),
             Err(e) => return Err(e),
         };
-        if reply.get("type").and_then(Value::as_str) != Some("file") {
-            return Err(GithubError::NotAFile);
+        match reply.get("type").and_then(Value::as_str) {
+            Some("file") => {}
+            Some("symlink") => return Err(GithubError::Symlink),
+            Some("submodule") => return Err(GithubError::Submodule),
+            _ => return Err(GithubError::NotAFile),
         }
         let raw: RawFile = serde_json::from_value(reply).map_err(|_| unexpected("the file reply was malformed"))?;
         let text = match (raw.encoding.as_deref(), raw.content) {
@@ -205,7 +223,7 @@ impl Github {
         if raw.sha.is_empty() {
             return Err(unexpected("the file reply has no sha"));
         }
-        Ok(RepoFile { content: text, sha: raw.sha, commit_sha })
+        Ok(RepoFile { path: raw.path, name: raw.name, content: text, sha: raw.sha, commit_sha })
     }
 
     /// Which typed error a failed contents request is.
