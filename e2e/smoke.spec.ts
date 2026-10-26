@@ -444,3 +444,59 @@ test('Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y in a table cell is exactly one undo/redo st
   expect(await cells()).toEqual(['aX', 'bZ', 'c', 'dY']);
   expect(errors).toEqual([]);
 });
+
+for (const depth of [0, 1, 2, 3]) {
+  test(`wrapped task item at depth ${depth}: first line text aligns with wrapped lines, caret in or out`, async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 800 });
+    await newDocument(page);
+    await page.locator('.cm-editor').click();
+    const words = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ');
+    // Each parent item is a short task; Enter continues the list and Tab nests the new item one level.
+    await page.keyboard.type('- [ ] parent');
+    for (let d = 0; d < depth; d++) {
+      await page.keyboard.press('Enter');
+      await page.keyboard.press('Tab');
+      if (d < depth - 1) await page.keyboard.type('parent');
+    }
+    if (depth === 0) await page.keyboard.press('Control+a'), await page.keyboard.press('Delete'), await page.keyboard.type('- [ ] ');
+    await page.keyboard.type(words);
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('outside');
+    // Left edge of the first visual line and of the other visual lines of the item's text.
+    const edges = () =>
+      page.evaluate(() => {
+        const line = Array.from(document.querySelectorAll('.cm-line')).find((l) => l.textContent!.includes('word0'))!;
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        const lefts = new Map<number, number>();
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          if ((n as Text).parentElement?.closest('.cm-task-src')) continue;
+          const r = document.createRange();
+          // Skip leading blanks: the gap after the checkbox is not text.
+          r.setStart(n, /^\s*/.exec(n.textContent!)![0].length);
+          r.setEnd(n, n.textContent!.length);
+          for (const c of Array.from(r.getClientRects())) lefts.set(Math.round(c.top), Math.min(lefts.get(Math.round(c.top)) ?? Infinity, c.left));
+        }
+        const tops = [...lefts.keys()].sort((a, b) => a - b);
+        const box = line.querySelector('.cm-task-box')!.getBoundingClientRect().left;
+        return { first: lefts.get(tops[0])!, rest: tops.slice(1).map((t) => lefts.get(t)!), lines: tops.length, box };
+      });
+    const out = await edges();
+    expect(out.lines).toBeGreaterThan(2);
+    expect(out.first).toBeCloseTo(out.rest[0], 0);
+    // Caret in the item (after its text, then on the first line): the shown "- " must not move anything.
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
+    await expect(page.locator('.cm-task-src')).toHaveCount(1);
+    const inside = await edges();
+    expect(inside.first).toBeCloseTo(inside.rest[0], 0);
+    expect(inside.first).toBeCloseTo(out.first, 0);
+    expect(inside.box).toBeCloseTo(out.box, 0);
+    await page.keyboard.press('Control+Home');
+    await expect(page.locator('.cm-task-src')).toHaveCount(1);
+    const before = await edges();
+    expect(before.first).toBeCloseTo(before.rest[0], 0);
+    expect(before.box).toBeCloseTo(out.box, 0);
+  });
+}

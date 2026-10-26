@@ -119,13 +119,26 @@ describe('block constructs', () => {
     e.done();
   });
 
-  test('task item with the caret in it: the shown "- " takes no width, so the text stays aligned', () => {
-    const e = show('- [ ] a\n\ntext', 3);
+  // jsdom has no layout, so the x alignment itself is measured in a real browser (e2e/smoke.spec.ts, "wrapped task item").
+  // Here: the shown "- " is a separate mark that is gone with the caret out, and the item keeps its depth line and checkbox.
+  test.each([0, 1, 2, 3])('wrapped task item at depth %i: the shown "- " is a mark that comes and goes with the caret, the checkbox stays', (depth) => {
+    const words = Array.from({ length: 40 }, (_, i) => `word${i}`).join(' ');
+    const lines = Array.from({ length: depth }, (_, d) => `${'  '.repeat(d)}- [ ] parent`);
+    const text = [...lines, `${'  '.repeat(depth)}- [ ] ${words}`, '', 'outside'].join('\n');
+    const item = text.indexOf('word0');
+    const e = show(text, item + 2);
+    const itemLine = () => e.q('.cm-line').find((l) => l.textContent?.includes('word0'))!;
     expect(e.q('.cm-task-src')).toHaveLength(1);
-    e.move(12);
+    expect(e.q('.cm-task-src')[0].textContent).toBe('- ');
+    expect(itemLine().getAttribute('style')).toContain(`--depth: ${depth}`);
+    expect(itemLine().querySelectorAll('.cm-task-box')).toHaveLength(1);
+    e.move(text.length);
     expect(e.q('.cm-task-src')).toHaveLength(0);
+    expect(itemLine().querySelectorAll('.cm-task-box')).toHaveLength(1);
+    expect(itemLine().textContent).not.toContain('- ');
     e.done();
   });
+
 });
 
 describe('what stays source', () => {
