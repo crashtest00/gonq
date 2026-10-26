@@ -118,6 +118,14 @@ describe('block constructs', () => {
     expect(e.view.state.doc.toString()).toBe('- [x] a\n- [ ] b\n\ntext');
     e.done();
   });
+
+  test('task item with the caret in it: the shown "- " takes no width, so the text stays aligned', () => {
+    const e = show('- [ ] a\n\ntext', 3);
+    expect(e.q('.cm-task-src')).toHaveLength(1);
+    e.move(12);
+    expect(e.q('.cm-task-src')).toHaveLength(0);
+    e.done();
+  });
 });
 
 describe('what stays source', () => {
