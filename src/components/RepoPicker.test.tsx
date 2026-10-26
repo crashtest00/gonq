@@ -73,8 +73,8 @@ it('loads pages in order, shows rows as each arrives, and a loading indicator un
     (a as { page: number }).page === 1 ? { repos: [raw('octo', 'one')], next_page: 2 } : second.p;
   renderPicker();
   expect(await screen.findByText('octo/one')).toBeInTheDocument();
+  await waitFor(() => expect(calls('github_list_repos').map((c) => c[1])).toEqual([{ page: 1 }, { page: 2 }]));
   expect(screen.getByText('Loading more…')).toBeInTheDocument();
-  expect(calls('github_list_repos').map((c) => c[1])).toEqual([{ page: 1 }, { page: 2 }]);
   await act(async () => second.resolve({ repos: [raw('acme', 'two')], next_page: null }));
   expect(await screen.findByText('acme/two')).toBeInTheDocument();
   expect(rows()).toHaveLength(2);
