@@ -6,8 +6,8 @@ import type { CommandContext } from '../commands';
 import { fixtureRun } from '../commands/fixtureFeature';
 
 test('a fixture feature registering one command appears in the rendered File menu and runs', async () => {
-  const ctx = { hasDocument: true, canUndo: false, canRedo: false } as unknown as CommandContext;
-  render(<MenuBar ctx={ctx} hasDocument onInsertImage={() => {}} onInsertToc={() => {}} />);
+  const ctx = { hasDocument: true, canUndo: false, canRedo: false, raw: false, theme: 'auto', tableTarget: null } as unknown as CommandContext;
+  render(<MenuBar ctx={ctx} />);
   await userEvent.setup().click(screen.getByRole('menuitem', { name: 'File' }));
   const item = await screen.findByRole('menuitem', { name: /^Fixture Hello/ });
   expect(item).toHaveTextContent('Ctrl+Shift+H');
