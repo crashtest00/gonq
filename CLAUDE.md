@@ -7,7 +7,7 @@ Tauri 2 desktop app (Rust) with a React 18 + TypeScript + Vite 5 frontend and a 
 The per-file map is generated, not written here: run `npm run map` and read PROJECT_MAP.md (gitignored, one line per
 source file, taken from each file's header comment). `npm run map -- --json` prints the same as JSON.
 
-- src/            — React + TypeScript frontend: App.tsx shell, components/ (ui/ = shadcn/ui primitives themed by CSS vars in styles/tokens.css), editor/ (the one CodeMirror 6 editor), document/ (open tabs), platform/ (native/web boundary), comment-threads/ (Markdown comment-threads library, barrel in index.ts), agent-skill/ (bundled SKILL.md), lib/ (theme, utils), testing/ (test helpers), styles/
+- src/            — React + TypeScript frontend: App.tsx shell, components/ (ui/ = shadcn/ui primitives themed by CSS vars in styles/tokens.css), editor/ (the one CodeMirror 6 editor), document/ (open tabs), dialogs/ (DialogHost: registerDialog/openDialog/<DialogHost/> mount every app dialog; dialogs.tsx registers them), platform/ (native/web boundary), comment-threads/ (Markdown comment-threads library, barrel in index.ts), agent-skill/ (bundled SKILL.md), lib/ (theme, utils), testing/ (test helpers), styles/
 - src-tauri/      — Rust crate (src/: commands in lib.rs, github/ sign-in, ssh/ remote files), tauri.conf.json, capabilities, icons
 - e2e/            — opt-in Playwright Chromium tests against the web build (`npm run test:e2e`; playwright.config.ts builds + serves via vite preview; needs `npx playwright install chromium`; excluded from vitest, not run by Jenkins)
 - scripts/        — repo tooling (project-map.mjs: `npm run map` / `npm run map:check`)

@@ -1,0 +1,1650 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`menu tree > document open, formatted, theme auto 1`] = `
+"[
+  {
+    "menu": "File",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "New",
+        "shortcut": "Ctrl+N",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open…",
+        "shortcut": "Ctrl+O",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Folder…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Connect to Server…",
+        "shortcut": "Ctrl+Shift+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign in to GitHub…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign out of GitHub",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Save",
+        "shortcut": "Ctrl+S",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Save As…",
+        "shortcut": "Ctrl+Shift+S",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Close Tab",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "Edit",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Undo",
+        "shortcut": "Ctrl+Z",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Redo",
+        "shortcut": "Ctrl+Y",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Preferences…",
+        "shortcut": "Ctrl+,",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "View",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "checkbox",
+        "label": "Raw Markdown",
+        "disabled": false,
+        "checked": false
+      },
+      {
+        "kind": "submenu",
+        "label": "Theme",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "radio",
+            "label": "Light",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Dark",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Auto",
+            "disabled": false,
+            "checked": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Insert",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Image…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Table of Contents",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "Format",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Bold",
+        "shortcut": "Ctrl+B",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Italic",
+        "shortcut": "Ctrl+I",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Underline",
+        "shortcut": "Ctrl+U",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Strikethrough",
+        "shortcut": "Ctrl+Shift+X",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Insert link",
+        "shortcut": "Ctrl+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Bullet list",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Numbered list",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Checkbox list",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "submenu",
+        "label": "Table",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "item",
+            "label": "Insert table",
+            "disabled": false
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Insert row above",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert row below",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert column left",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert column right",
+            "disabled": true
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Align column left",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Align column center",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Align column right",
+            "disabled": true
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Delete row",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Delete column",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Delete table",
+            "disabled": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Help",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Agent skill…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "About Gonq",
+        "disabled": false
+      }
+    ]
+  }
+]"
+`;
+
+exports[`menu tree > no document 1`] = `
+"[
+  {
+    "menu": "File",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "New",
+        "shortcut": "Ctrl+N",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open…",
+        "shortcut": "Ctrl+O",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Folder…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Connect to Server…",
+        "shortcut": "Ctrl+Shift+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign in to GitHub…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign out of GitHub",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Save",
+        "shortcut": "Ctrl+S",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Save As…",
+        "shortcut": "Ctrl+Shift+S",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Close Tab",
+        "disabled": true
+      }
+    ]
+  },
+  {
+    "menu": "Edit",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Undo",
+        "shortcut": "Ctrl+Z",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Redo",
+        "shortcut": "Ctrl+Y",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Preferences…",
+        "shortcut": "Ctrl+,",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "View",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "checkbox",
+        "label": "Raw Markdown",
+        "disabled": true,
+        "checked": false
+      },
+      {
+        "kind": "submenu",
+        "label": "Theme",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "radio",
+            "label": "Light",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Dark",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Auto",
+            "disabled": false,
+            "checked": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Insert",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Image…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Table of Contents",
+        "disabled": true
+      }
+    ]
+  },
+  {
+    "menu": "Format",
+    "disabled": true,
+    "items": null
+  },
+  {
+    "menu": "Help",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Agent skill…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "About Gonq",
+        "disabled": false
+      }
+    ]
+  }
+]"
+`;
+
+exports[`menu tree > raw mode on 1`] = `
+"[
+  {
+    "menu": "File",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "New",
+        "shortcut": "Ctrl+N",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open…",
+        "shortcut": "Ctrl+O",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Folder…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Connect to Server…",
+        "shortcut": "Ctrl+Shift+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign in to GitHub…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign out of GitHub",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Save",
+        "shortcut": "Ctrl+S",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Save As…",
+        "shortcut": "Ctrl+Shift+S",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Close Tab",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "Edit",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Undo",
+        "shortcut": "Ctrl+Z",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Redo",
+        "shortcut": "Ctrl+Y",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Preferences…",
+        "shortcut": "Ctrl+,",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "View",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "checkbox",
+        "label": "✓Raw Markdown",
+        "disabled": false,
+        "checked": true
+      },
+      {
+        "kind": "submenu",
+        "label": "Theme",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "radio",
+            "label": "Light",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Dark",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Auto",
+            "disabled": false,
+            "checked": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Insert",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Image…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Table of Contents",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "Format",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Bold",
+        "shortcut": "Ctrl+B",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Italic",
+        "shortcut": "Ctrl+I",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Underline",
+        "shortcut": "Ctrl+U",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Strikethrough",
+        "shortcut": "Ctrl+Shift+X",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Insert link",
+        "shortcut": "Ctrl+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Bullet list",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Numbered list",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Checkbox list",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "submenu",
+        "label": "Table",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "item",
+            "label": "Insert table",
+            "disabled": false
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Insert row above",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert row below",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert column left",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert column right",
+            "disabled": true
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Align column left",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Align column center",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Align column right",
+            "disabled": true
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Delete row",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Delete column",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Delete table",
+            "disabled": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Help",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Agent skill…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "About Gonq",
+        "disabled": false
+      }
+    ]
+  }
+]"
+`;
+
+exports[`menu tree > table cell targeted 1`] = `
+"[
+  {
+    "menu": "File",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "New",
+        "shortcut": "Ctrl+N",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open…",
+        "shortcut": "Ctrl+O",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Folder…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Connect to Server…",
+        "shortcut": "Ctrl+Shift+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign in to GitHub…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign out of GitHub",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Save",
+        "shortcut": "Ctrl+S",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Save As…",
+        "shortcut": "Ctrl+Shift+S",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Close Tab",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "Edit",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Undo",
+        "shortcut": "Ctrl+Z",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Redo",
+        "shortcut": "Ctrl+Y",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Preferences…",
+        "shortcut": "Ctrl+,",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "View",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "checkbox",
+        "label": "Raw Markdown",
+        "disabled": false,
+        "checked": false
+      },
+      {
+        "kind": "submenu",
+        "label": "Theme",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "radio",
+            "label": "Light",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Dark",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Auto",
+            "disabled": false,
+            "checked": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Insert",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Image…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Table of Contents",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "Format",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Bold",
+        "shortcut": "Ctrl+B",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Italic",
+        "shortcut": "Ctrl+I",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Underline",
+        "shortcut": "Ctrl+U",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Strikethrough",
+        "shortcut": "Ctrl+Shift+X",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Insert link",
+        "shortcut": "Ctrl+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Bullet list",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Numbered list",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Checkbox list",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "submenu",
+        "label": "Table",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "item",
+            "label": "Insert table",
+            "disabled": false
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Insert row above",
+            "disabled": false
+          },
+          {
+            "kind": "item",
+            "label": "Insert row below",
+            "disabled": false
+          },
+          {
+            "kind": "item",
+            "label": "Insert column left",
+            "disabled": false
+          },
+          {
+            "kind": "item",
+            "label": "Insert column right",
+            "disabled": false
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Align column left",
+            "disabled": false
+          },
+          {
+            "kind": "item",
+            "label": "Align column center",
+            "disabled": false
+          },
+          {
+            "kind": "item",
+            "label": "Align column right",
+            "disabled": false
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Delete row",
+            "disabled": false
+          },
+          {
+            "kind": "item",
+            "label": "Delete column",
+            "disabled": false
+          },
+          {
+            "kind": "item",
+            "label": "Delete table",
+            "disabled": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Help",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Agent skill…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "About Gonq",
+        "disabled": false
+      }
+    ]
+  }
+]"
+`;
+
+exports[`menu tree > theme dark 1`] = `
+"[
+  {
+    "menu": "File",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "New",
+        "shortcut": "Ctrl+N",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open…",
+        "shortcut": "Ctrl+O",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Folder…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Connect to Server…",
+        "shortcut": "Ctrl+Shift+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign in to GitHub…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign out of GitHub",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Save",
+        "shortcut": "Ctrl+S",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Save As…",
+        "shortcut": "Ctrl+Shift+S",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Close Tab",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "Edit",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Undo",
+        "shortcut": "Ctrl+Z",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Redo",
+        "shortcut": "Ctrl+Y",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Preferences…",
+        "shortcut": "Ctrl+,",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "View",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "checkbox",
+        "label": "Raw Markdown",
+        "disabled": false,
+        "checked": false
+      },
+      {
+        "kind": "submenu",
+        "label": "Theme",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "radio",
+            "label": "Light",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Dark",
+            "disabled": false,
+            "checked": true
+          },
+          {
+            "kind": "radio",
+            "label": "Auto",
+            "disabled": false,
+            "checked": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Insert",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Image…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Table of Contents",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "Format",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Bold",
+        "shortcut": "Ctrl+B",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Italic",
+        "shortcut": "Ctrl+I",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Underline",
+        "shortcut": "Ctrl+U",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Strikethrough",
+        "shortcut": "Ctrl+Shift+X",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Insert link",
+        "shortcut": "Ctrl+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Bullet list",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Numbered list",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Checkbox list",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "submenu",
+        "label": "Table",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "item",
+            "label": "Insert table",
+            "disabled": false
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Insert row above",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert row below",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert column left",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert column right",
+            "disabled": true
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Align column left",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Align column center",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Align column right",
+            "disabled": true
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Delete row",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Delete column",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Delete table",
+            "disabled": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Help",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Agent skill…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "About Gonq",
+        "disabled": false
+      }
+    ]
+  }
+]"
+`;
+
+exports[`menu tree > undo and redo available 1`] = `
+"[
+  {
+    "menu": "File",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "New",
+        "shortcut": "Ctrl+N",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open…",
+        "shortcut": "Ctrl+O",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Folder…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Connect to Server…",
+        "shortcut": "Ctrl+Shift+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign in to GitHub…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign out of GitHub",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Save",
+        "shortcut": "Ctrl+S",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Save As…",
+        "shortcut": "Ctrl+Shift+S",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Close Tab",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "Edit",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Undo",
+        "shortcut": "Ctrl+Z",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Redo",
+        "shortcut": "Ctrl+Y",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Preferences…",
+        "shortcut": "Ctrl+,",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "View",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "checkbox",
+        "label": "Raw Markdown",
+        "disabled": false,
+        "checked": false
+      },
+      {
+        "kind": "submenu",
+        "label": "Theme",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "radio",
+            "label": "Light",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Dark",
+            "disabled": false,
+            "checked": false
+          },
+          {
+            "kind": "radio",
+            "label": "Auto",
+            "disabled": false,
+            "checked": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Insert",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Image…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Table of Contents",
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "Format",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Bold",
+        "shortcut": "Ctrl+B",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Italic",
+        "shortcut": "Ctrl+I",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Underline",
+        "shortcut": "Ctrl+U",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Strikethrough",
+        "shortcut": "Ctrl+Shift+X",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Insert link",
+        "shortcut": "Ctrl+K",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Bullet list",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Numbered list",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Checkbox list",
+        "disabled": false
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "submenu",
+        "label": "Table",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "item",
+            "label": "Insert table",
+            "disabled": false
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Insert row above",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert row below",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert column left",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Insert column right",
+            "disabled": true
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Align column left",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Align column center",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Align column right",
+            "disabled": true
+          },
+          {
+            "kind": "separator"
+          },
+          {
+            "kind": "item",
+            "label": "Delete row",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Delete column",
+            "disabled": true
+          },
+          {
+            "kind": "item",
+            "label": "Delete table",
+            "disabled": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "menu": "Help",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Agent skill…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "About Gonq",
+        "disabled": false
+      }
+    ]
+  }
+]"
+`;
