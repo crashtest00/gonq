@@ -1,6 +1,7 @@
 import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
+import { settleView } from '../testing/editor';
 import { applyFormat } from '../components/formatting';
 import { focusCaretCell, focusTableCell, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
 
@@ -10,8 +11,8 @@ function show(text: string, caret = text.length) {
   const targets: (TableTarget | null)[] = [];
   const view = new EditorView({ state: createEditorState(text, false, tableTargetListener.of((t) => targets.push(t))), parent });
   view.dispatch({ selection: { anchor: caret } });
-  const shown = () => view.contentDOM.textContent ?? '';
-  const q = (sel: string) => Array.from(view.contentDOM.querySelectorAll(sel));
+  const shown = () => (settleView(view), view.contentDOM.textContent ?? '');
+  const q = (sel: string) => (settleView(view), Array.from(view.contentDOM.querySelectorAll(sel)));
   return { view, shown, q, targets, target: () => targets[targets.length - 1] ?? null, move: (to: number) => view.dispatch({ selection: { anchor: to } }), done: () => (view.destroy(), parent.remove()) };
 }
 

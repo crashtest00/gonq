@@ -1,16 +1,12 @@
 import { ensureSyntaxTree } from '@codemirror/language';
 import { EditorView } from '@codemirror/view';
 import { createEditorState } from './extensions';
+import { settleView } from '../testing/editor';
 
 function open(text: string, caret = text.length) {
   const parent = document.body.appendChild(document.createElement('div'));
   const view = new EditorView({ state: createEditorState(text, false), parent });
-  // Complete the parse and rebuild the decorations from the full tree. CodeMirror parses each edit
-  // with a 20 ms budget, so on a loaded machine the tree after an edit can be partial.
-  const settle = () => {
-    ensureSyntaxTree(view.state, view.state.doc.length, 5000);
-    view.dispatch({ selection: view.state.selection });
-  };
+  const settle = () => settleView(view);
   view.dispatch({ selection: { anchor: caret } });
   settle();
   const q = (sel: string) => (settle(), Array.from(view.contentDOM.querySelectorAll<HTMLElement>(sel)));

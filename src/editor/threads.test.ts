@@ -2,6 +2,7 @@ import { undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { vi } from 'vitest';
 import { AGENT_GUIDANCE, parseCommentThreads } from '../comment-threads';
+import { settleView } from '../testing/editor';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
 import { editorHost, type EditorHost } from './host';
 import { threadEdit } from './threads';
@@ -25,8 +26,8 @@ function show(text: string, raw = false, host: Partial<EditorHost> = {}) {
   const view = new EditorView({ state: createEditorState(text, raw, hostExt), parent });
   return {
     view,
-    shown: () => view.contentDOM.textContent ?? '',
-    q: (sel: string) => Array.from(view.contentDOM.querySelectorAll<HTMLElement>(sel)),
+    shown: () => (settleView(view), view.contentDOM.textContent ?? ''),
+    q: (sel: string) => (settleView(view), Array.from(view.contentDOM.querySelectorAll<HTMLElement>(sel))),
     doc: () => view.state.doc.toString(),
     done: () => (view.destroy(), parent.remove()),
   };
