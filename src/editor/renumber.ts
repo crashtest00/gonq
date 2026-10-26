@@ -47,7 +47,8 @@ function withChildren(state: EditorState): EditorSelection {
   return EditorSelection.create(
     state.selection.ranges.map((r) => {
       const first = state.doc.lineAt(r.from);
-      const last = state.doc.lineAt(r.to);
+      // Like indentMore/indentLess: a non-empty range that ends at a line's start does not include that line.
+      const last = state.doc.lineAt(!r.empty && r.to === state.doc.lineAt(r.to).from ? r.to - 1 : r.to);
       let to = r.to;
       syntaxTree(state).iterate({
         from: first.from,
