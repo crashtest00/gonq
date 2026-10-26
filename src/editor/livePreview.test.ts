@@ -1,3 +1,4 @@
+/** Live preview and the table widget: hidden syntax, block constructs, task checkboxes, table cells, arrow keys and table ops. */
 import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';

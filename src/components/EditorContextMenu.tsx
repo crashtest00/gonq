@@ -1,3 +1,4 @@
+/** The editor's right-click popup menu (items supplied by App.tsx, opened from MarkdownEditor's onContextMenu). */
 import { useEffect, useRef } from 'react';
 
 export interface ContextMenuItem {

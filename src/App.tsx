@@ -1,3 +1,8 @@
+/**
+ * The app shell: owns the open tabs (useDocument), the one MarkdownEditor, the menu bar and toolbars, the
+ * folder/outline/comments sidebars and every dialog, and wires menu actions to platform/ calls (open, save,
+ * connect, GitHub sign-in, repo picker, launch paths). Errors land in its banner.
+ */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from './lib/useTheme';
 import { MenuBar } from './components/MenuBar';

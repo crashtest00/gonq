@@ -1,3 +1,4 @@
+/** Help > About Gonq: version matches package.json/tauri.conf.json, logo, repo link via the opener, opener scope. */
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

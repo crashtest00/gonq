@@ -1,3 +1,7 @@
+/**
+ * The main formatting toolbar (undo/redo, inline and block formats, table); exports FORMATS, which MenuBar's
+ * Format menu mirrors.
+ */
 import { Bold, Italic, Link, List, ListChecks, ListOrdered, Redo2, Strikethrough, Table, Underline, Undo2, type LucideIcon } from 'lucide-react';
 import { askUrl } from '../editor/formatCommands';
 import type { Format } from './formatting';

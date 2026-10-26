@@ -1,3 +1,8 @@
+/**
+ * The one CodeMirror 6 editor for the document: one EditorView whose state is swapped per tab. Exposes
+ * EditorHandle (format, replace text, threads, images, TOC, clipboard, scroll) and reports changes,
+ * selection and table target to App.tsx.
+ */
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands';
 import { EditorState, type Extension, type StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';

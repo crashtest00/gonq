@@ -1,3 +1,4 @@
+/** Comment-threads library on CRLF documents: parsing, offsets and every document operation. */
 import { describe, it, expect } from 'vitest'
 import * as lib from './index'
 import { AGENT_SKILL, AGENT_SKILL_BODY, stripFrontMatter } from '../agent-skill/skill'

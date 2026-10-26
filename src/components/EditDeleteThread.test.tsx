@@ -1,3 +1,4 @@
+/** Editing a thread's first message and deleting a thread (block and marker) from the sidebar. */
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

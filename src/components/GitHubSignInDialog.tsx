@@ -1,3 +1,7 @@
+/**
+ * The GitHub device-flow sign-in dialog (copyable code, open github.com/login/device, waiting/approved/denied/
+ * expired states, signed-in view with Sign out). App.tsx registers it as the ensureSignedIn handler.
+ */
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Loader2 } from 'lucide-react';
 import { copyText } from '../platform/clipboard';

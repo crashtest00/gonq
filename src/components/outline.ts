@@ -1,3 +1,4 @@
+/** outlineOf: the document's headings (level, text without syntax or thread markers, offset) from the Markdown parser. */
 import { markdownLanguage } from '@codemirror/lang-markdown';
 import { parseCommentMarkerFragment } from '../comment-threads';
 

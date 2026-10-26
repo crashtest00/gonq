@@ -1,3 +1,4 @@
+/** Typing on the line under a table keeps the text out of the table. */
 import { EditorView } from '@codemirror/view';
 import { settleView } from '../testing/editor';
 import { createEditorState } from './extensions';

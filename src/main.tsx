@@ -1,3 +1,4 @@
+/** Web entry point (index.html): applies the saved theme before first paint, then renders <App/>. */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';

@@ -1,3 +1,7 @@
+/**
+ * Comment threads in the editor: marker glyph widgets (click opens the thread via editorHost), thread blocks
+ * hidden in Formatted mode and protected from edits that cover them.
+ */
 import { ensureSyntaxTree } from '@codemirror/language';
 import { Annotation, EditorState, type Extension, StateField, type Text, Transaction, type TransactionSpec } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view';

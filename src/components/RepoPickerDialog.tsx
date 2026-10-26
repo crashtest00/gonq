@@ -1,3 +1,7 @@
+/**
+ * File > Open Repo… dialog: loads the user's GitHub repositories page by page (platform/github.ts listRepos),
+ * filters them, and reports the chosen RepoChoice to App.tsx.
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { listRepos, toGitHubError, type RepoSummary } from '../platform/github';

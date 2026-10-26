@@ -3,9 +3,8 @@
  * from the module barrel -- it is the only file here that needs an editor, and
  * importing the barrel must not drag CodeMirror in.
  *
- * Requires @codemirror/state, which is not bundled with this module. Nothing
- * builds this today; it is a starting point for the desktop work rather than
- * something to reconstruct.
+ * Requires @codemirror/state, which is not bundled with this module.
+ * editor/MarkdownEditor.tsx uses commentThreadCreationChanges for new threads.
  *
  * Marker placement is NOT decided here. `safeMarkerPosition` in
  * ../positions.ts is normative on every surface, so the same document gets the

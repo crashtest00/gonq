@@ -1,3 +1,6 @@
+//! The Tauri app (`run`): declares the modules, defines the local commands (document-folder fs grant,
+//! list_directory/path_exists, recent documents, author name and theme, take_launch_paths), registers them
+//! with the github_* and ssh_*/remote_* commands, and installs the single-instance, dialog, fs and opener plugins.
 mod folder;
 mod github;
 mod launch;

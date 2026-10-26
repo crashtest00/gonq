@@ -1,3 +1,7 @@
+/**
+ * Thread blocks (HTML comments at the end of the file): parseCommentThreads, serializeCommentThread,
+ * replaceCommentThreadBlock and danglingMarkers. Defines the on-disk block format and its escaping.
+ */
 import type { CommentMarker, CommentMessage, CommentThread, CommentThreadAuthor, CommentThreadStatus, SerializableCommentThread } from './types'
 import { parseCommentMarkers } from './markers'
 

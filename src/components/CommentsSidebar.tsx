@@ -1,3 +1,7 @@
+/**
+ * The comments sidebar: the thread list, one thread with reply/resolve/edit/delete, and the new-thread draft.
+ * It only reports intents; App.tsx writes the document.
+ */
 import { useState } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
 import {

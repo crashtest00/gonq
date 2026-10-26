@@ -1,3 +1,4 @@
+/** shadcn/ui AlertDialog primitives (Radix), styled with the theme tokens. */
 import * as React from 'react';
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
 import { cn } from '../../lib/utils';

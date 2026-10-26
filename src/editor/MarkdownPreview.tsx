@@ -1,3 +1,4 @@
+/** MarkdownPreview: the live-preview editor, read-only, for showing bundled Markdown (Help > Agent skill…). */
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { useEffect, useRef } from 'react';

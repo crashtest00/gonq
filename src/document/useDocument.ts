@@ -1,3 +1,7 @@
+/**
+ * useDocument: the open tabs (text as the editor holds it, the file as last read/saved, dirty, undo/redo
+ * availability, raw mode, remote stat) and the active one. The editor keeps each tab's caret, scroll and history.
+ */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { OpenedDocument } from '../platform/files';
 import type { RemoteStat } from '../platform/remote';

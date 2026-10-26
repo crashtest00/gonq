@@ -1,3 +1,4 @@
+/** The Raw / Formatted switch: same editor, exact source, edits kept, undo across the switch, focus kept. */
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

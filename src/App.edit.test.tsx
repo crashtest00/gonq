@@ -1,3 +1,4 @@
+/** App-level editing tests (frozen except for fixes): typing, undo, save fidelity and line endings, lists, through the whole app. */
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

@@ -1,3 +1,4 @@
+/** ssh:// routing in files.ts/folders.ts: open/save with server stats, conflicts, Connect on auth_required, error wording. */
 import { vi } from 'vitest';
 
 const invoke = vi.fn();

@@ -1,3 +1,7 @@
+/**
+ * Live preview: syntax-tree decorations for the visible range that style Markdown in place and hide its syntax
+ * until the caret touches it; list depth lines, bullets, task checkbox, images and thread-marker glyphs.
+ */
 import { syntaxTree } from '@codemirror/language';
 import { type Extension, type Range, RangeSet } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view';

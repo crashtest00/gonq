@@ -1,3 +1,4 @@
+/** Table widget spacing rules in styles/editor.css. */
 import { describe, expect, it } from 'vitest';
 import css from '../styles/editor.css?raw';
 

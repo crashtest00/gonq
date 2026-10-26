@@ -1,3 +1,4 @@
+/** External links: REPO_URL and openExternal, which opens a URL in the default browser through the opener plugin (desktop). */
 import { isTauri } from './files';
 
 /** The one place the project repository URL is written down (the Tauri capability scopes to the same URL). */

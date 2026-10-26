@@ -1,3 +1,4 @@
+/** Editor widgets: thread marker glyphs and hidden/protected thread blocks, image widgets, and typing by the hidden TOC end marker. */
 import { undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { vi } from 'vitest';

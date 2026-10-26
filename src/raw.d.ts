@@ -1,3 +1,4 @@
+/** Ambient types for Vite imports: `*?raw` text, `*.svg` URLs, and the build-time `__APP_VERSION__`. */
 declare module '*?raw' {
   const content: string;
   export default content;

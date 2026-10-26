@@ -1,3 +1,4 @@
+/** Lists next to tables (ListEndsTable), list depth decorations and Tab/Shift+Tab renumbering. */
 import { ensureSyntaxTree } from '@codemirror/language';
 import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';

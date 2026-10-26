@@ -1,3 +1,4 @@
+/** Table cells: leaving an edited cell and undo/redo from inside a cell. */
 import { undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { settleView } from '../testing/editor';

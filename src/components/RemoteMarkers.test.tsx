@@ -1,3 +1,4 @@
+/** Remote (ssh://) documents in the UI: tab markers, save conflicts, dropped connections and remote recents. */
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

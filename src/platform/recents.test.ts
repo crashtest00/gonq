@@ -1,3 +1,4 @@
+/** recents.ts: localStorage fallback and the desktop commands. */
 import { vi } from 'vitest';
 
 let tauri = false;

@@ -1,3 +1,7 @@
+/**
+ * Test helpers that drive the mounted editor through transactions (type, select, caretAt, docText, shownText).
+ * settleView/settleEditors complete the parse before reading the DOM (CodeMirror parses on a 20 ms budget).
+ */
 import { act, screen } from '@testing-library/react';
 import { ensureSyntaxTree } from '@codemirror/language';
 import { EditorView } from '@codemirror/view';

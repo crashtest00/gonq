@@ -1,3 +1,4 @@
+/** Creating comment threads: on a selection or at the caret, where commenting is allowed, and what is written. */
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';

@@ -1,3 +1,4 @@
+/** Toolbar formats applied to an EditorView (formatView, diff) and the formatting keymap (Ctrl+B/I/U/K/Shift+X). */
 import { keymap, type Command, type EditorView } from '@codemirror/view';
 import { applyFormat, type Format } from '../components/formatting';
 

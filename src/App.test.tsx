@@ -1,3 +1,4 @@
+/** App-level tests for the empty shell, File > Open, cancel, non-UTF-8 errors and the web build. */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';

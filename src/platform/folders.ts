@@ -1,4 +1,5 @@
-// Folder navigator access: native calls stay behind this boundary; the web beta degrades gracefully.
+// Folder navigator access (pickFolder, listDirectory, pathExists): native calls stay behind this boundary;
+// the web beta degrades gracefully. ssh:// paths are routed to remote.ts.
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { isTauri } from './files';
