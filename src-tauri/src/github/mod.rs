@@ -12,6 +12,7 @@
 #![allow(dead_code)]
 
 pub mod api;
+pub mod browse;
 pub mod error;
 pub mod flow;
 pub mod repos;
@@ -232,6 +233,27 @@ pub async fn github_status(gh: State<'_, Github>) -> Result<AuthStatus, GithubEr
 #[tauri::command]
 pub async fn github_list_repos(gh: State<'_, Github>, page: Option<u32>) -> Result<repos::RepoPage, GithubError> {
     gh.list_repos(page).await
+}
+
+#[tauri::command]
+pub async fn github_list_branches(
+    gh: State<'_, Github>,
+    owner: String,
+    repo: String,
+    page: Option<u32>,
+) -> Result<browse::BranchPage, GithubError> {
+    gh.list_branches(&owner, &repo, page).await
+}
+
+#[tauri::command]
+pub async fn github_list_folder(
+    gh: State<'_, Github>,
+    owner: String,
+    repo: String,
+    branch: String,
+    path: String,
+) -> Result<browse::FolderListing, GithubError> {
+    gh.list_folder(&owner, &repo, &branch, &path).await
 }
 
 #[tauri::command]

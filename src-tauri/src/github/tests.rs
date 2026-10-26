@@ -531,3 +531,149 @@ async fn list_repos_reports_a_network_error() {
     fake.script("/user/repos", vec![Reply::drop_connection()]);
     assert!(matches!(gh.list_repos(None).await, Err(GithubError::Network { .. })));
 }
+
+// ---- branches and folders ----
+
+const BRANCHES: &str = "/repos/o/r/branches";
+
+fn branch_page(names: &[&str]) -> serde_json::Value {
+    json!(names.iter().map(|n| json!({ "name": n, "commit": { "sha": "x" }, "protected": false })).collect::<Vec<_>>())
+}
+
+fn script_repo(fake: &Fake, default: &str) {
+    fake.script("/repos/o/r", vec![Reply::json(200, json!({ "name": "r", "default_branch": default }))]);
+}
+
+#[tokio::test]
+async fn branches_paginate_with_the_default_first_and_once() {
+    let (fake, gh, _s) = signed_in().await;
+    script_repo(&fake, "dev");
+    let next = format!("<{}{BRANCHES}?per_page=100&page=2>; rel=\"next\"", fake.base);
+    fake.script(BRANCHES, vec![
+        Reply::json(200, branch_page(&["a", "feature/ü-ß", "dev"])).header("link", &next),
+        Reply::json(200, branch_page(&["x/y/z", "dev", "zz"])),
+    ]);
+    let first = gh.list_branches("o", "r", None).await.unwrap();
+    assert_eq!(first.default_branch, "dev");
+    assert_eq!(first.branches, ["dev", "a", "feature/ü-ß"]);
+    assert_eq!(first.next_page, Some(2));
+    let last = gh.list_branches("o", "r", first.next_page).await.unwrap();
+    assert_eq!(last.branches, ["x/y/z", "zz"]);
+    assert_eq!(last.next_page, None);
+    assert_eq!(fake.hits("/repos/o/r/branches?per_page=100&page=2").len(), 1);
+}
+
+#[tokio::test]
+async fn branches_default_branch_is_listed_even_when_not_on_page_one() {
+    let (fake, gh, _s) = signed_in().await;
+    script_repo(&fake, "trunk");
+    fake.script(BRANCHES, vec![Reply::json(200, branch_page(&["a", "b"]))]);
+    assert_eq!(gh.list_branches("o", "r", None).await.unwrap().branches, ["trunk", "a", "b"]);
+}
+
+#[tokio::test]
+async fn branches_of_an_empty_repo_are_empty() {
+    let (fake, gh, _s) = signed_in().await;
+    script_repo(&fake, "main");
+    fake.script(BRANCHES, vec![Reply::json(200, json!([]))]);
+    let p = gh.list_branches("o", "r", None).await.unwrap();
+    assert!(p.branches.is_empty());
+    assert_eq!(p.default_branch, "main");
+}
+
+#[tokio::test]
+async fn branches_errors_are_typed() {
+    let (fake, gh, _s) = signed_in().await;
+    script_repo(&fake, "main");
+    fake.script(BRANCHES, vec![Reply::json(403, json!({"message": "API rate limit exceeded"}))
+        .header("x-ratelimit-remaining", "0").header("x-ratelimit-reset", "1700000000")]);
+    assert!(matches!(gh.list_branches("o", "r", None).await, Err(GithubError::RateLimited { reset_at: Some(1700000000), .. })));
+    fake.script("/repos/o/r", vec![Reply::json(401, json!({"message": "Bad credentials"}))]);
+    assert_eq!(gh.list_branches("o", "r", None).await.unwrap_err(), GithubError::NotSignedIn);
+}
+
+fn item(name: &str, kind: &str) -> serde_json::Value {
+    json!({ "name": name, "path": format!("docs/{name}"), "type": kind, "sha": "s", "size": 1 })
+}
+
+const CONTENTS: &str = "/repos/o/r/contents/docs";
+
+async fn folder(items: serde_json::Value) -> Result<super::browse::FolderListing, GithubError> {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(CONTENTS, vec![Reply::json(200, items)]);
+    gh.list_folder("o", "r", "dev", "docs").await
+}
+
+#[tokio::test]
+async fn folder_applies_the_local_navigator_rule() {
+    let items = json!([
+        item("b.MARKDOWN", "file"), item("a.md", "file"), item("c.txt", "file"), item(".hidden.md", "file"),
+        item("noext", "file"), item(".md", "file"), item("sub", "dir"), item(".git", "dir"),
+        item("Alpha", "dir"), item("zeta", "dir"), item("link.md", "symlink"), item("vendor", "submodule"),
+        item("B.md", "file"),
+    ]);
+    let l = folder(items).await.unwrap();
+    let got: Vec<_> = l.entries.iter().map(|e| (e.name.as_str(), e.kind)).collect();
+    use super::browse::EntryKind::{File, Folder};
+    assert_eq!(got, [("Alpha", Folder), ("sub", Folder), ("zeta", Folder), ("a.md", File), ("b.MARKDOWN", File), ("B.md", File)]);
+    assert_eq!(l.entries[0].path, "docs/Alpha");
+    assert!(!l.truncated);
+    assert_eq!(serde_json::to_value(&l.entries[0]).unwrap()["kind"], "folder");
+}
+
+#[tokio::test]
+async fn folder_flags_a_possibly_truncated_listing() {
+    let many: Vec<_> = (0..1000).map(|i| item(&format!("n{i}.md"), "file")).collect();
+    let l = folder(json!(many)).await.unwrap();
+    assert!(l.truncated);
+    assert_eq!(l.entries.len(), 1000);
+}
+
+#[tokio::test]
+async fn folder_encodes_path_segments_and_ref() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script("/repos/o/r/contents/my%20docs/%C3%BCber/a%23b", vec![Reply::json(200, json!([]))]);
+    gh.list_folder("o", "r", "feat/ü x", "/my docs/über/a#b/").await.unwrap();
+    let hits = fake.hits("/repos/o/r/contents/my%20docs/%C3%BCber/a%23b?ref=feat%2F%C3%BC%20x");
+    assert_eq!(hits.len(), 1);
+    fake.script("/repos/o/r/contents/", vec![Reply::json(200, json!([]))]);
+    gh.list_folder("o", "r", "dev", "").await.unwrap();
+    assert_eq!(fake.hits("/repos/o/r/contents/?ref=dev").len(), 1);
+}
+
+#[tokio::test]
+async fn folder_that_is_a_file_is_not_a_folder() {
+    assert_eq!(folder(item("a.md", "file")).await.unwrap_err(), GithubError::NotAFolder);
+}
+
+#[tokio::test]
+async fn folder_404_tells_branch_from_path() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(CONTENTS, vec![Reply::json(404, json!({"message": "Not Found"}))]);
+    // The branch exists: the path is what is missing.
+    fake.script("/repos/o/r/branches/dev", vec![Reply::json(200, json!({"name": "dev"}))]);
+    assert_eq!(gh.list_folder("o", "r", "dev", "docs").await.unwrap_err(), GithubError::PathNotFound);
+    // The branch is gone (slashes stay separators in the branch lookup).
+    assert_eq!(gh.list_folder("o", "r", "gone/b", "docs").await.unwrap_err(), GithubError::BranchNotFound);
+    // GitHub says so itself for a bad ref.
+    fake.script(CONTENTS, vec![Reply::json(404, json!({"message": "No commit found for the ref nope"}))]);
+    assert_eq!(gh.list_folder("o", "r", "nope", "docs").await.unwrap_err(), GithubError::BranchNotFound);
+}
+
+#[tokio::test]
+async fn folder_of_an_empty_repo() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(CONTENTS, vec![Reply::json(409, json!({"message": "Git Repository is empty."}))]);
+    assert_eq!(gh.list_folder("o", "r", "main", "docs").await.unwrap_err(), GithubError::EmptyRepo);
+}
+
+#[tokio::test]
+async fn folder_other_errors_stay_typed() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(CONTENTS, vec![Reply::json(429, json!({"message": "slow down"})).header("x-ratelimit-reset", "1700000000")]);
+    assert!(matches!(gh.list_folder("o", "r", "dev", "docs").await, Err(GithubError::RateLimited { reset_at: Some(1700000000), .. })));
+    fake.script(CONTENTS, vec![Reply::json(500, json!({"message": "boom"}))]);
+    assert!(matches!(gh.list_folder("o", "r", "dev", "docs").await, Err(GithubError::Http { status: 500, .. })));
+    fake.script(CONTENTS, vec![Reply::json(401, json!({"message": "Bad credentials"}))]);
+    assert_eq!(gh.list_folder("o", "r", "dev", "docs").await.unwrap_err(), GithubError::NotSignedIn);
+}
