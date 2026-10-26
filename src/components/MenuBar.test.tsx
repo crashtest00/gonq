@@ -18,6 +18,7 @@ function setup(over: Partial<Parameters<typeof MenuBar>[0]> = {}) {
       onOpen={noop}
       onOpenFolder={noop}
       onConnect={noop}
+      onOpenRepo={noop}
       onGithubSignIn={noop}
       onGithubSignOut={noop}
       onSave={noop}
@@ -137,4 +138,15 @@ test('actions the target cannot use are disabled', async () => {
 test('Format is disabled with no document open', () => {
   setup({ hasDocument: false });
   expect(screen.getByRole('menuitem', { name: 'Format' })).toBeDisabled();
+});
+
+test('File > Open Repo… is always enabled and calls onOpenRepo', async () => {
+  const onOpenRepo = vi.fn();
+  setup({ onOpenRepo, hasDocument: false });
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('menuitem', { name: 'File' }));
+  const item = screen.getByRole('menuitem', { name: 'Open Repo…' });
+  expect(item).not.toHaveAttribute('data-disabled');
+  await user.click(item);
+  expect(onOpenRepo).toHaveBeenCalledTimes(1);
 });
