@@ -103,7 +103,8 @@ it('puts the default branch first and loads every page sequentially, with a load
   await screen.findByText('README.md');
   await openMenu(user);
   await waitFor(() => expect(optionNames()).toEqual(['trunk', 'a']));
-  expect(screen.getByRole('status')).toHaveTextContent('Loading more…');
+  await waitFor(() => expect(listBranches.mock.calls.map((c) => c[2])).toEqual([1, 2]));
+  expect(await screen.findByRole('status')).toHaveTextContent('Loading more…');
   release();
   await waitFor(() => expect(optionNames()).toEqual(['trunk', 'a', 'b', 'c']));
   expect(screen.queryByText('Loading more…')).not.toBeInTheDocument();
