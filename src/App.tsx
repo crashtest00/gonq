@@ -17,6 +17,8 @@ import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedCh
 import { ConflictDialog, type ConflictChoice } from './components/ConflictDialog';
 import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
 import { ConnectDialog } from './components/ConnectDialog';
+import { GitHubSignInDialog } from './components/GitHubSignInDialog';
+import { setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus } from './platform/github';
 import { assertConnectAvailable } from './platform/connect';
 import { listThreads, threadKey } from './components/threads';
 import { isCommentableAt, selectionRange, type ThreadTarget } from './components/newThread';
@@ -75,6 +77,9 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [skillOpen, setSkillOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   // The Connect dialog: from File > Connect to Server, from a login a save or expand needs, or from an error row.
+  // The GitHub sign-in dialog: from File > Sign in to GitHub… or ensureSignedIn (platform/github.ts).
+  const [githubSignIn, setGithubSignIn] = useState<{ status: GitHubStatus; resolve: (signedIn: boolean) => void } | null>(null);
+  const githubOpen = useRef<Promise<boolean> | null>(null);
   const [connecting, setConnecting] = useState<ConnectRequest | null>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
@@ -514,6 +519,37 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     if (connectingNow.current !== null) return Promise.resolve(false);
     return requestConnect(host, false);
   }, [requestConnect]);
+  const requestGithubSignIn = useCallback((status: GitHubStatus): Promise<boolean> => {
+    if (githubOpen.current !== null) return githubOpen.current;
+    const asked = new Promise<boolean>((resolve) => setGithubSignIn({ status, resolve }));
+    githubOpen.current = asked;
+    void asked.then(() => {
+      githubOpen.current = null;
+    });
+    return asked;
+  }, []);
+  const githubClosed = (signedIn: boolean) => {
+    githubSignIn?.resolve(signedIn);
+    setGithubSignIn(null);
+  };
+  useEffect(() => setSignInHandler(() => requestGithubSignIn({ signed_in: false, login: null, storage: null })), [requestGithubSignIn]);
+  /** File > Sign in to GitHub…; on the web the status call throws and the banner says why. */
+  const openGithubSignIn = useCallback(async () => {
+    try {
+      await requestGithubSignIn(await signInStatus());
+    } catch (e) {
+      failed(e);
+    }
+  }, [requestGithubSignIn]);
+  const doGithubSignOut = useCallback(async () => {
+    try {
+      await githubSignOut();
+      setError(null);
+      setNotice('Signed out of GitHub.');
+    } catch (e) {
+      failed(e);
+    }
+  }, []);
   // A save or a folder expand that needs a login waits on the Connect dialog, then runs again.
   const connectPending = useRef(new Map<string, Promise<boolean>>());
   useEffect(() => {
@@ -625,6 +661,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         onOpen={() => void openFile()}
         onOpenFolder={() => void openFolder()}
         onConnect={() => void openConnect()}
+        onGithubSignIn={() => void openGithubSignIn()}
+        onGithubSignOut={() => void doGithubSignOut()}
         onSave={() => void save()}
         onSaveAs={() => void saveAs()}
         onUndo={undo}
@@ -785,6 +823,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           onClose={connectClosed}
         />
       )}
+      {githubSignIn !== null && <GitHubSignInDialog status={githubSignIn.status} onClose={githubClosed} />}
       {conflict !== null && <ConflictDialog name={conflict.name} deleted={conflict.deleted} onChoose={conflict.resolve} />}
       {asking !== null && <UnsavedChangesDialog name={asking.name} onChoose={asking.resolve} />}
     </div>

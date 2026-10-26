@@ -32,6 +32,8 @@ export interface MenuActions {
   onOpen: () => void;
   onOpenFolder: () => void;
   onConnect: () => void;
+  onGithubSignIn: () => void;
+  onGithubSignOut: () => void;
   onSave: () => void;
   onSaveAs: () => void;
   onUndo: () => void;
@@ -66,6 +68,8 @@ export function MenuBar({
   onOpen,
   onOpenFolder,
   onConnect,
+  onGithubSignIn,
+  onGithubSignOut,
   onSave,
   onSaveAs,
   onUndo,
@@ -119,6 +123,8 @@ export function MenuBar({
             <MenubarItem onSelect={onConnect}>
               Connect to Server…<MenubarShortcut>Ctrl+Shift+K</MenubarShortcut>
             </MenubarItem>
+            <MenubarItem onSelect={onGithubSignIn}>Sign in to GitHub…</MenubarItem>
+            <MenubarItem onSelect={onGithubSignOut}>Sign out of GitHub</MenubarItem>
             <MenubarSeparator />
             <MenubarItem disabled={!hasDocument} onSelect={onSave}>
               Save<MenubarShortcut>Ctrl+S</MenubarShortcut>
