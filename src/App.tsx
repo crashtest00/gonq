@@ -1,14 +1,22 @@
 /**
  * The app shell: owns the open tabs (useDocument), the one MarkdownEditor, the menu bar and toolbars, the
- * folder/outline/comments sidebars and every dialog, and wires menu actions to platform/ calls (open, save,
+ * folder/outline/comments sidebars and <DialogHost/> (every dialog is opened with openDialog, see dialogs/), and wires menu actions to platform/ calls (open, save,
  * connect, GitHub sign-in, repo picker and its open repo/branch, launch paths). Errors land in its banner.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from './lib/useTheme';
 import { MenuBar } from './components/MenuBar';
-import { AgentSkillDialog } from './components/AgentSkillDialog';
-import { AboutDialog } from './components/AboutDialog';
-import { PreferencesDialog } from './components/PreferencesDialog';
+import { DialogHost, openDialog, type DialogRef } from './dialogs/DialogHost';
+import {
+  aboutDialog,
+  agentSkillDialog,
+  conflictDialog,
+  connectDialog,
+  githubSignInDialog,
+  preferencesDialog,
+  repoPickerDialog,
+  unsavedChangesDialog,
+} from './dialogs/dialogs';
 import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
 import { TabStrip } from './components/TabStrip';
 import { EditToolbar } from './components/EditToolbar';
@@ -18,14 +26,10 @@ import type { TableTarget } from './editor/tables';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
-import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
-import { ConflictDialog, type ConflictChoice } from './components/ConflictDialog';
 import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
-import { ConnectDialog } from './components/ConnectDialog';
-import { GitHubSignInDialog } from './components/GitHubSignInDialog';
-import { RepoPickerDialog, type RepoChoice } from './components/RepoPickerDialog';
 import type { RepoState } from './components/RepoNavigator';
 import { ensureSignedIn, setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus } from './platform/github';
+import type { RepoChoice } from './components/RepoPickerDialog';
 import { assertConnectAvailable } from './platform/connect';
 import { listThreads, threadKey } from './components/threads';
 import { isCommentableAt, selectionRange, type ThreadTarget } from './components/newThread';
@@ -47,13 +51,6 @@ function parentDir(path: string): string | null {
   return i === 0 ? path.slice(0, 1) : path.slice(0, i);
 }
 
-interface ConnectRequest {
-  id: number;
-  host?: string;
-  reconnect: boolean;
-  resolve: (connected: boolean) => void;
-}
-
 export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const session = useDocument();
   const { meta, text } = session;
@@ -72,22 +69,15 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [selection, setSelection] = useState<EditorSelection | null>(null);
   const [caret, setCaret] = useState<number | null>(null);
   const editor = useRef<EditorHandle>(null);
-  const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
-  const [conflict, setConflict] = useState<{ name: string; deleted: boolean; resolve: (c: ConflictChoice) => void } | null>(null);
   // A remote save slower than a second says where it is going; an in-place save says it was not atomic.
   const [savingTo, setSavingTo] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const activeId = session.activeId;
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
   const [theme, setThemeChoice] = useTheme(useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []));
-  const [prefsOpen, setPrefsOpen] = useState(false);
-  const [skillOpen, setSkillOpen] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
-  // The Connect dialog: from File > Connect to Server, from a login a save or expand needs, or from an error row.
+  // Dialogs are opened through openDialog and shown by <DialogHost/>; see dialogs/dialogs.tsx.
   // The GitHub sign-in dialog: from File > Sign in to GitHub… or ensureSignedIn (platform/github.ts).
-  const [githubSignIn, setGithubSignIn] = useState<{ status: GitHubStatus; resolve: (signedIn: boolean) => void } | null>(null);
   const githubOpen = useRef<Promise<boolean> | null>(null);
-  const [connecting, setConnecting] = useState<ConnectRequest | null>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
 
@@ -281,8 +271,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             if (!(e instanceof RemoteConflictError)) throw e;
             if (slow !== null) clearTimeout(slow);
             setSavingTo(null);
-            const choice = await new Promise<ConflictChoice>((resolve) => setConflict({ name: e.name_, deleted: e.deleted, resolve }));
-            setConflict(null);
+            const choice = await openDialog(conflictDialog, { name: e.name_, deleted: e.deleted });
             // Cancel leaves the tab unsaved, text intact.
             if (choice === 'cancel') return false;
             saved = await files.saveDocument(doc, undefined, { force: true });
@@ -334,8 +323,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const tab = session.peek(id);
       if (tab === null || !tab.dirty) return true;
       session.activate(id);
-      const choice = await new Promise<UnsavedChoice>((resolve) => setAsking({ name: tab.meta.name, resolve }));
-      setAsking(null);
+      const choice = await openDialog(unsavedChangesDialog, { name: tab.meta.name });
       if (choice === 'save') return write(id, false);
       return choice === 'discard';
     },
@@ -503,25 +491,19 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     },
     [session.peekTabs, folder],
   );
-  // One Connect dialog at a time. Each request gets its own key so its dialog starts fresh; requests that
-  // arrive while one is open wait their turn and start only after it closes.
-  const connectingNow = useRef<ConnectRequest | null>(null);
-  const connectQueue = useRef<ConnectRequest[]>([]);
-  const connectSeq = useRef(0);
+  // Each Connect request is its own dialog; DialogHost shows them one at a time, in the order they were asked.
+  const hostInUseRef = useRef(hostInUse);
+  hostInUseRef.current = hostInUse;
+  const openedRemoteFolderRef = useRef<(uri: string) => void>(() => {});
+  const connectsOpen = useRef(0);
   const requestConnect = useCallback((host: string | undefined, reconnect: boolean): Promise<boolean> => {
-    return new Promise<boolean>((resolve) => {
-      const req: ConnectRequest = { id: ++connectSeq.current, host, reconnect, resolve };
-      if (connectingNow.current === null) {
-        connectingNow.current = req;
-        setConnecting(req);
-      } else connectQueue.current.push(req);
-    });
-  }, []);
-  const connectClosed = useCallback((connected: boolean) => {
-    connectingNow.current?.resolve(connected);
-    const next = connectQueue.current.shift() ?? null;
-    connectingNow.current = next;
-    setConnecting(next);
+    connectsOpen.current++;
+    return openDialog(connectDialog, {
+      host,
+      reconnect,
+      inUse: (name: string) => hostInUseRef.current(name),
+      onOpened: (uri: string) => openedRemoteFolderRef.current(uri),
+    }).finally(() => connectsOpen.current--);
   }, []);
   /** File > Connect to Server; does nothing while a Connect dialog is already open. */
   const openConnect = useCallback((host?: string): Promise<boolean> => {
@@ -531,22 +513,18 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       failed(e);
       return Promise.resolve(false);
     }
-    if (connectingNow.current !== null) return Promise.resolve(false);
+    if (connectsOpen.current > 0) return Promise.resolve(false);
     return requestConnect(host, false);
   }, [requestConnect]);
   const requestGithubSignIn = useCallback((status: GitHubStatus): Promise<boolean> => {
     if (githubOpen.current !== null) return githubOpen.current;
-    const asked = new Promise<boolean>((resolve) => setGithubSignIn({ status, resolve }));
+    const asked = openDialog(githubSignInDialog, { status });
     githubOpen.current = asked;
     void asked.then(() => {
       githubOpen.current = null;
     });
     return asked;
   }, []);
-  const githubClosed = (signedIn: boolean) => {
-    githubSignIn?.resolve(signedIn);
-    setGithubSignIn(null);
-  };
   useEffect(() => setSignInHandler(() => requestGithubSignIn({ signed_in: false, login: null, storage: null })), [requestGithubSignIn]);
   /** File > Sign in to GitHub…; on the web the status call throws and the banner says why. */
   const openGithubSignIn = useCallback(async () => {
@@ -557,11 +535,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     }
   }, [requestGithubSignIn]);
   // File > Open Repo…: sign in first if needed, then the picker. The navigator (a later story) takes the choice.
-  const [repoPicker, setRepoPicker] = useState(false);
   const [repo, setRepo] = useState<RepoState | null>(null);
   const openRepo = useCallback(async () => {
     try {
-      if (await ensureSignedIn()) setRepoPicker(true);
+      if (!(await ensureSignedIn())) return;
+      const result = await openDialog(repoPickerDialog, {});
+      if (result.kind === 'chosen') repoChosen(result.choice);
+      else if (result.kind === 'signed-out') repoSignedOut();
     } catch (e) {
       failed(e);
     }
@@ -573,10 +553,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     setError(null);
     setOutlineOpen(false);
     setFolderOpen(true);
-    setRepoPicker(false);
   };
   const repoSignedOut = () => {
-    setRepoPicker(false);
     setNotice('GitHub sign-in is no longer valid. Sign in again to open a repository.');
   };
   const doGithubSignOut = useCallback(async () => {
@@ -609,6 +587,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     setOutlineOpen(false);
     setFolderOpen(true);
   }, []);
+  openedRemoteFolderRef.current = openedRemoteFolder;
 
   // Keyboard shortcuts read the latest handlers through a ref, so the listener is added once.
   const activeIdRef = useRef(activeId);
@@ -616,7 +595,17 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const closeActive = useCallback(() => {
     if (activeIdRef.current !== null) void closeTab(activeIdRef.current);
   }, [closeTab]);
-  const openPrefs = useCallback(() => setPrefsOpen(true), []);
+  // Preferences, Agent skill and About are single dialogs: asking again while one is open does nothing.
+  const singles = useRef(new Set<string>());
+  const openSingle = useCallback(<P,>(dialog: DialogRef<P, void>, props: P) => {
+    if (singles.current.has(dialog.id)) return;
+    singles.current.add(dialog.id);
+    void openDialog(dialog, props).finally(() => singles.current.delete(dialog.id));
+  }, []);
+  const openPrefs = useCallback(
+    () => openSingle(preferencesDialog, { authorName, onSave: async (n: string) => setAuthor(await setAuthorName(n)) }),
+    [openSingle, authorName],
+  );
   const undo = useCallback(() => editor.current?.undo(), []);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -712,8 +701,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         raw={rawAll}
         onToggleRaw={() => session.setRaw(!rawAll)}
         onPreferences={openPrefs}
-        onAgentSkill={() => setSkillOpen(true)}
-        onAbout={() => setAboutOpen(true)}
+        onAgentSkill={() => openSingle(agentSkillDialog, { files })}
+        onAbout={() => openSingle(aboutDialog, {})}
       />
       <TabStrip tabs={session.tabs} activeId={activeId} onSelect={(id) => {
         session.activate(id);
@@ -846,31 +835,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           💬
         </button>
       )}
-      {prefsOpen && (
-        <PreferencesDialog
-          authorName={authorName}
-          onSave={async (n) => setAuthor(await setAuthorName(n))}
-          onClose={() => setPrefsOpen(false)}
-        />
-      )}
-      {skillOpen && <AgentSkillDialog files={files} onClose={() => setSkillOpen(false)} />}
-      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
-      {connecting !== null && (
-        <ConnectDialog
-          key={connecting.id}
-          host={connecting.host}
-          reconnect={connecting.reconnect}
-          inUse={hostInUse}
-          onOpened={openedRemoteFolder}
-          onClose={connectClosed}
-        />
-      )}
-      {repoPicker && (
-        <RepoPickerDialog onChoose={repoChosen} onClose={() => setRepoPicker(false)} onSignedOut={repoSignedOut} />
-      )}
-      {githubSignIn !== null && <GitHubSignInDialog status={githubSignIn.status} onClose={githubClosed} />}
-      {conflict !== null && <ConflictDialog name={conflict.name} deleted={conflict.deleted} onChoose={conflict.resolve} />}
-      {asking !== null && <UnsavedChangesDialog name={asking.name} onChoose={asking.resolve} />}
+      <DialogHost />
     </div>
   );
 }
