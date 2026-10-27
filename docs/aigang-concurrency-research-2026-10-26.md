@@ -120,3 +120,10 @@ Observed in two earlier builds; verified from logs, PR history and the session l
 6. **QE as part of the platform.** QE caught real regressions (a document-wiping undo, wrong numbering at depth 1+, missing paging). How should verification be scheduled so it stays off the critical path but still gates the next dependent story?
 7. **Executor budget.** With CI waste removed, is the PR build or the agent now the bottleneck, and does a second Jenkins executor or a separate test runner change the optimum N?
 8. **Flake management.** Should the pipeline automatically re-run a single failing test file once under lower load before failing a PR, and record flake statistics?
+9. **FE/BE contracts across Tauri IPC.** Tonight's mismatches were command names, Tauri's automatic snake_case→camelCase argument conversion, nested vs flat reply shapes and serde enum tags. Compare (a) contract-first prose in the story, (b) a JSON-Schema/OpenAPI-style contract hosted in an API tool with fixture-based tests on both sides, and (c) TypeScript bindings generated from the Rust commands (tauri-specta / ts-rs). Which removes the failure class, and what must refinement do so the contract survives into each subtask?
+10. **Load-aware CI.** Five load-sensitive test failures in one night on a 4-core shared host. What concurrency (agents × CI executors × QE) keeps test timing deterministic, and should agents skip the local full suite when CI runs it?
+
+## Outcome
+
+The build shipped v0.1.4 (all 12 GitHub-review stories, the command registry, editor fixes) about 27 hours after kickoff. With the dispatch gate, free-on-merge, CI dedupe and per-role lanes, the critical path per subtask fell from 50-70 min to roughly 25-40 min; the largest remaining costs were rework rounds, load-sensitive tests and FE/BE integration fixes.
+
