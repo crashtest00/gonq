@@ -1,5 +1,9 @@
-/** Edit > Settings… dialog: the comment author name, validated with platform/settings.ts. */
+/**
+ * Edit > Settings… dialog: the comment author name (validated with platform/settings.ts) and the GitHub account
+ * (who is signed in, Sign in / Sign out). Sign in and out are App's own actions, passed as props.
+ */
 import { useEffect, useRef, useState } from 'react';
+import { signInStatus, type GitHubStatus } from '../platform/github';
 import { DEFAULT_AUTHOR, MAX_AUTHOR_CHARS, authorNameProblem } from '../platform/settings';
 
 const button =
@@ -8,16 +12,44 @@ const button =
 export function SettingsDialog({
   authorName,
   onSave,
+  onSignIn,
+  onSignOut,
   onClose,
 }: {
   authorName: string;
   onSave: (name: string) => Promise<void>;
+  /** Starts the GitHub sign-in. Its dialog is queued behind this one, so Sign In closes Settings (see below). */
+  onSignIn: () => Promise<void>;
+  onSignOut: () => Promise<void>;
   onClose: () => void;
 }) {
   const [value, setValue] = useState(authorName);
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  /** undefined while loading; null when GitHub is unavailable (the browser build). */
+  const [github, setGithub] = useState<GitHubStatus | null | undefined>(undefined);
+  const live = useRef(true);
+  const refresh = async () => {
+    let next: GitHubStatus | null;
+    try {
+      next = await signInStatus();
+    } catch {
+      next = null;
+    }
+    if (live.current) setGithub(next);
+  };
+  useEffect(() => {
+    live.current = true;
+    void refresh();
+    return () => {
+      live.current = false;
+    };
+  }, []);
+  const githubAction = async (act: () => Promise<void>) => {
+    await act();
+    await refresh();
+  };
   useEffect(() => {
     input.current?.focus();
     input.current?.select();
@@ -74,6 +106,32 @@ export function SettingsDialog({
         <p id="settings-author-hint" role={problem || failure ? 'alert' : undefined} className={`m-0 mt-1 mb-5 text-[12px] ${problem || failure ? 'text-destructive' : 'text-muted-foreground'}`}>
           {problem ?? failure ?? `Written on the comments and replies you add.`}
         </p>
+        <h3 className="m-0 mb-1 text-[13px] font-semibold">GitHub</h3>
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <p id="settings-github-status" role="status" className="m-0 min-w-0 break-words text-[13px] text-muted-foreground">
+            {github === undefined
+              ? 'Checking…'
+              : github === null
+                ? 'GitHub sign-in needs the Gonq desktop app.'
+                : github.signed_in
+                  ? github.login !== null
+                    ? `Signed in as ${github.login}.`
+                    : 'Signed in.'
+                  : 'Not signed in.'}
+          </p>
+          {github?.signed_in ? (
+            <button type="button" onClick={() => void githubAction(onSignOut)} className={`${button} shrink-0 border-border bg-transparent`}>
+              Sign Out
+            </button>
+          ) : (
+            <button type="button" onClick={() => {
+                void onSignIn();
+                onClose();
+              }} className={`${button} shrink-0 border-border bg-transparent`}>
+              Sign In
+            </button>
+          )}
+        </div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className={`${button} border-border bg-transparent`}>
             Cancel

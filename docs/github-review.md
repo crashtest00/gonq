@@ -19,7 +19,7 @@ is that broad. The signed-in user needs write access to the repository.
 
 ## The flow
 
-1. **File > Sign in to GitHub…** A dialog shows a short code and an address. Copy the code (there is a Copy button
+1. **Edit > Settings… > GitHub > Sign In** A dialog shows a short code and an address. Copy the code (there is a Copy button
    beside it), choose **Open github.com/login/device** (or copy the address), paste the code on that GitHub page and
    approve. The dialog says "Waiting for approval on github.com…" and finishes by itself once you approve. Gonq never
    sees your password.
@@ -39,7 +39,7 @@ is that broad. The signed-in user needs write access to the repository.
    merge**, **Merge into**, and **Review changes** (the changed files). **Open PR** then shows an editable title and
    body, pre-filled by Gonq; its **Open PR** button creates the pull request, and the result offers **Open in
    browser**.
-8. **File > Sign out of GitHub** forgets the token.
+8. **Edit > Settings… > GitHub > Sign Out** forgets the token.
 
 ## Rules a reviewer will notice
 
