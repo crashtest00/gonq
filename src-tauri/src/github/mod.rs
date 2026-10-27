@@ -16,6 +16,7 @@ pub mod browse;
 pub mod commit;
 pub mod error;
 pub mod flow;
+pub mod pulls;
 pub mod repos;
 pub mod store;
 
@@ -23,6 +24,8 @@ pub mod store;
 mod fake_github;
 #[cfg(test)]
 mod commit_tests;
+#[cfg(test)]
+mod pulls_tests;
 #[cfg(test)]
 mod tests;
 
@@ -282,6 +285,17 @@ pub async fn github_commit_file(
     sha: String,
 ) -> Result<commit::CommitOutcome, GithubError> {
     gh.commit_file(&owner, &repo, &branch, &path, &text, &sha).await
+}
+
+/// The open PR (if any) from each of `branches` of `owner/repo`; see [`pulls`] for the shape.
+#[tauri::command]
+pub async fn github_open_pulls_for_branches(
+    gh: State<'_, Github>,
+    owner: String,
+    repo: String,
+    branches: Vec<String>,
+) -> Result<Vec<pulls::BranchPull>, GithubError> {
+    gh.open_pulls_for_branches(&owner, &repo, &branches).await
 }
 
 #[tauri::command]
