@@ -303,20 +303,20 @@ pub async fn github_open_pulls_for_branches(
 
 /// Whether `gonq/<name>` already exists in `owner/repo` (advisory); see [`branches`].
 #[tauri::command]
-pub async fn github_gonq_branch_exists(gh: State<'_, Github>, owner: String, repo: String, name: String) -> Result<bool, GithubError> {
+pub async fn github_branch_exists(gh: State<'_, Github>, owner: String, repo: String, name: String) -> Result<bool, GithubError> {
     gh.gonq_branch_exists(&owner, &repo, &name).await
 }
 
-/// Creates `gonq/<name>` from the current tip of `source_branch`; see [`branches::CreatedBranch`].
+/// Creates `gonq/<name>` from the current tip of `source`; see [`branches::CreatedBranch`].
 #[tauri::command]
-pub async fn github_create_gonq_branch(
+pub async fn github_create_branch(
     gh: State<'_, Github>,
     owner: String,
     repo: String,
     name: String,
-    source_branch: String,
+    source: String,
 ) -> Result<branches::CreatedBranch, GithubError> {
-    gh.create_gonq_branch(&owner, &repo, &name, &source_branch).await
+    gh.create_gonq_branch(&owner, &repo, &name, &source).await
 }
 
 #[tauri::command]

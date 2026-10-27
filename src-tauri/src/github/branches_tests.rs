@@ -68,7 +68,7 @@ async fn collision_is_the_typed_error_and_nothing_is_overwritten() {
     let (fake, gh, _s) = signed_in().await;
     fake.script(SRC, vec![tip("abc")]);
     fake.script(REFS, vec![Reply::json(422, json!({ "message": "Reference already exists" }))]);
-    assert_eq!(gh.create_gonq_branch("o", "r", "idea", "main").await.unwrap_err(), GithubError::BranchExists);
+    assert_eq!(gh.create_gonq_branch("o", "r", "idea", "main").await.unwrap_err(), GithubError::AlreadyExists);
     let methods: Vec<String> = fake.requests.lock().unwrap().iter().map(|r| r.method.clone()).collect();
     assert!(methods.iter().all(|m| m == "GET" || m == "POST"), "no PATCH/PUT/DELETE: {methods:?}");
 }
