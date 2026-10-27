@@ -7,6 +7,8 @@ mod launch;
 mod ssh;
 mod recents;
 mod settings;
+#[cfg(test)]
+mod pane_width_ipc_tests;
 
 use folder::{FolderEntry, ListError};
 use recents::Recent;
