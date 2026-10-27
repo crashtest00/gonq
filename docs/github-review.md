@@ -19,10 +19,12 @@ is that broad. The signed-in user needs write access to the repository.
 
 ## The flow
 
-1. **Edit > Settings… > GitHub > Sign In** A dialog shows a short code and an address. Copy the code (there is a Copy button
+1. **Edit > Settings… > GitHub > Sign In** Choose Start; the GitHub section of the Settings dialog shows a short code and an address. Copy the code (there is a Copy button
    beside it), choose **Open github.com/login/device** (or copy the address), paste the code on that GitHub page and
-   approve. The dialog says "Waiting for approval on github.com…" and finishes by itself once you approve. Gonq never
-   sees your password.
+   approve. It says "Waiting for approval on github.com…" and finishes by itself once you approve; the section then shows
+   "Signed in as <login>." with a **Sign Out** button. Gonq never sees your password. If you are signed out when you
+   choose **File > Open Repo…** or **Open PR…**, Settings opens already at this step and the command continues once
+   you are signed in.
 2. **File > Open Repo…** lists your repositories; filter and pick one. The folder sidebar becomes the repository
    navigator: the repository name, a **branch dropdown** (with a filter box) and a folder tree of Markdown files.
    Picking another branch reloads the tree.
