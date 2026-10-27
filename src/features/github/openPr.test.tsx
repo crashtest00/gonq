@@ -67,6 +67,30 @@ async function choose(user: User, d: HTMLElement, source: string, target?: strin
   if (target) await user.click(await within(d).findByRole('option', { name: target }));
 }
 
+describe('File > Open PR… while signed out', () => {
+  it('signs in inside Settings first, then opens the dialog; cancelling opens nothing', async () => {
+    const { user } = renderApp();
+    await openRepo(user);
+    let signedIn = false;
+    replies.github_status = () => ({ signed_in: signedIn, login: signedIn ? 'octo' : null, storage: signedIn ? 'keychain' : null });
+    replies.github_start = () => ({ user_code: 'ABCD-1234', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 5 });
+    replies.github_poll = async () => {
+      signedIn = true;
+      return { signed_in: true, login: 'octo', storage: 'keychain' };
+    };
+    await menu(user, 'File', 'Open PR…');
+    let settings = await screen.findByRole('dialog', { name: 'Settings' });
+    await user.click(within(settings).getAllByRole('button', { name: 'Cancel' })[0]);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await menu(user, 'File', 'Open PR…');
+    settings = await screen.findByRole('dialog', { name: 'Settings' });
+    await user.click(await within(settings).findByRole('button', { name: 'Start' }));
+    await user.click(await within(settings).findByRole('button', { name: 'Done' }));
+    expect(await screen.findByRole('dialog', { name: 'Open pull request' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
+  });
+});
+
 describe('File > Open PR…', () => {
   it('is greyed when no repository or GitHub tab is open, and enabled once a repo is open', async () => {
     const { user } = renderApp();

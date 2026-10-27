@@ -1,6 +1,6 @@
 /**
- * The GitHub device-flow sign-in dialog (copyable code, open github.com/login/device, waiting/approved/denied/
- * expired states, signed-in view with Sign out). App.tsx registers it as the ensureSignedIn handler.
+ * The GitHub device-flow sign-in panel (copyable code, open github.com/login/device, waiting/approved/denied/
+ * expired states). It is not a dialog: SettingsDialog shows it inside Settings > GitHub.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Loader2 } from 'lucide-react';
@@ -23,14 +23,13 @@ const plain = `${button} border-border bg-transparent`;
 export const DEVICE_URL = 'https://github.com/login/device';
 
 type Step =
-  | { name: 'idle'; note: string | null }
+  | { name: 'idle' }
   | { name: 'starting' }
   | { name: 'waiting'; start: DeviceStart; openFailed: string | null }
   | { name: 'approved'; status: GitHubStatus }
   | { name: 'denied' }
   | { name: 'expired' }
-  | { name: 'failed'; message: string }
-  | { name: 'signed_in'; status: GitHubStatus };
+  | { name: 'failed'; message: string };
 
 const SESSION_ONLY = 'No keychain is available, so this sign-in lasts for this session only.';
 
@@ -59,20 +58,18 @@ function Copyable({ label, text }: { label: string; text: string }) {
 }
 
 /**
- * Opened from Settings > GitHub > Sign In: shows the device code, waits for approval on github.com, or (already signed in)
- * the login with a Sign out button. Neither the token nor the device code ever reaches here.
+ * Shown by Settings > GitHub > Sign In: the device code, waiting for approval on github.com, then the login.
+ * Neither the token nor the device code ever reaches here. `onApproved` fires when GitHub approves;
  * `onClose` says whether the user is signed in on the way out.
  */
-export function GitHubSignInDialog({
-  status,
+export function GitHubSignInPanel({
+  onApproved,
   onClose,
 }: {
-  status: GitHubStatus;
+  onApproved?: () => void;
   onClose: (signedIn: boolean) => void;
 }) {
-  const [step, setStep] = useState<Step>(
-    status.signed_in ? { name: 'signed_in', status } : { name: 'idle', note: null },
-  );
+  const [step, setStep] = useState<Step>({ name: 'idle' });
   const live = useRef(true);
   /** Bumped by every Start and by Cancel/unmount, so a late reply from an abandoned sign-in is ignored. */
   const run = useRef(0);
@@ -112,6 +109,7 @@ export function GitHubSignInDialog({
       if (!live.current || run.current !== mine) return;
       polling.current = false;
       setStep({ name: 'approved', status: done });
+      onApproved?.();
     } catch (e) {
       if (!live.current || run.current !== mine) return;
       polling.current = false;
@@ -124,7 +122,7 @@ export function GitHubSignInDialog({
 
   const cancel = () => {
     stopPolling();
-    onClose(step.name === 'approved' || step.name === 'signed_in');
+    onClose(step.name === 'approved');
   };
 
   const openBrowser = async () => {
@@ -133,15 +131,6 @@ export function GitHubSignInDialog({
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setStep((s) => (s.name === 'waiting' ? { ...s, openFailed: message } : s));
-    }
-  };
-
-  const doSignOut = async () => {
-    try {
-      await signOut();
-      if (live.current) setStep({ name: 'idle', note: 'Signed out of GitHub.' });
-    } catch (e) {
-      if (live.current) setStep({ name: 'failed', message: toGitHubError(e).message });
     }
   };
 
@@ -165,11 +154,6 @@ export function GitHubSignInDialog({
           {problem !== null && (
             <p role="alert" className="m-0 mb-3 text-[13px] text-destructive">
               {problem}
-            </p>
-          )}
-          {step.name === 'idle' && step.note !== null && (
-            <p role="status" className="m-0 mb-3 text-[13px] text-muted-foreground">
-              {step.note}
             </p>
           )}
           <p className="m-0 mb-4 text-[13px] text-muted-foreground">
@@ -254,45 +238,14 @@ export function GitHubSignInDialog({
         </>
       );
       break;
-    case 'signed_in':
-      title = 'GitHub';
-      body = (
-        <>
-          <p role="status" className="m-0 mb-2 text-[13px]">
-            {step.status.login !== null ? `Signed in as ${step.status.login}.` : 'You are signed in.'}
-          </p>
-          {step.status.storage === 'session_only' && (
-            <p className="m-0 mb-2 text-[13px] text-muted-foreground">{SESSION_ONLY}</p>
-          )}
-          <div className="mt-4 flex justify-end gap-2">
-            <button type="button" className={plain} onClick={() => void doSignOut()}>
-              Sign out
-            </button>
-            <button type="button" className={primary} autoFocus onClick={() => onClose(true)}>
-              Close
-            </button>
-          </div>
-        </>
-      );
-      break;
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="github-title"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') cancel();
-        }}
-        className="w-[460px] max-w-[90vw] rounded-container border border-border bg-surface p-5 [box-shadow:var(--shadow-dialog)]"
-      >
-        <h2 id="github-title" className="m-0 mb-3 text-[15px] font-semibold">
-          {title}
-        </h2>
-        {body}
-      </div>
-    </div>
+    <section aria-labelledby="github-signin-title" className="mb-5 rounded-control border border-border p-3">
+      <h4 id="github-signin-title" className="m-0 mb-2 text-[13px] font-semibold">
+        {title}
+      </h4>
+      {body}
+    </section>
   );
 }

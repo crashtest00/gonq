@@ -207,7 +207,8 @@ it('cancelling the sign-in does not open the picker', async () => {
   render(<App />);
   const user = userEvent.setup();
   await openRepo(user);
-  await user.click(await screen.findByRole('button', { name: 'Cancel' }));
+  const settings = await screen.findByRole('dialog', { name: 'Settings' });
+  await user.click(within(settings).getAllByRole('button', { name: 'Cancel' })[0]);
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(calls('github_list_repos')).toHaveLength(0);
 });

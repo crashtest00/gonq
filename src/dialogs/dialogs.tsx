@@ -3,7 +3,6 @@
  * adapts an existing dialog component (its props and wording are unchanged) to resolve through `close`.
  */
 import type { FileAccess } from '../platform/files';
-import type { GitHubStatus } from '../platform/github';
 import { AboutDialog } from '../components/AboutDialog';
 import { AgentSkillDialog } from '../components/AgentSkillDialog';
 import { BranchChangeDialog } from '../components/BranchChangeDialog';
@@ -12,7 +11,6 @@ import { ConflictDialog, type ConflictChoice } from '../components/ConflictDialo
 import { ConnectDialog } from '../components/ConnectDialog';
 import { CreateBranchDialog, type CreateBranchResult } from '../components/CreateBranchDialog';
 import type { PendingCommit } from '../features/github/createBranch';
-import { GitHubSignInDialog } from '../components/GitHubSignInDialog';
 import { OpenPrDialog, type OpenedPr } from '../components/OpenPrDialog';
 import type { RepoRef } from '../features/github/openPr';
 import type { SessionBranch } from '../features/github/sessionBranches';
@@ -21,18 +19,19 @@ import { RepoPickerDialog, type RepoChoice } from '../components/RepoPickerDialo
 import { UnsavedChangesDialog, type UnsavedChoice } from '../components/UnsavedChangesDialog';
 import { registerDialog, type DialogClose } from './DialogHost';
 
+/** Resolves true when the user is signed in to GitHub on the way out (Open Repo / Open PR wait on it). */
 export const settingsDialog = registerDialog(
   'settings',
   ({
     authorName,
     onSave,
-    onSignIn,
+    startSignIn,
     onSignOut,
     close,
-  }: { authorName: string; onSave: (name: string) => Promise<void>; onSignIn: () => Promise<void>; onSignOut: () => Promise<void> } & DialogClose<void>) => (
-    <SettingsDialog authorName={authorName} onSave={onSave} onSignIn={onSignIn} onSignOut={onSignOut} onClose={() => close()} />
+  }: { authorName: string; onSave: (name: string) => Promise<void>; startSignIn?: boolean; onSignOut: () => Promise<void> } & DialogClose<boolean>) => (
+    <SettingsDialog authorName={authorName} onSave={onSave} startSignIn={startSignIn} onSignOut={onSignOut} onClose={close} />
   ),
-  undefined,
+  false,
 );
 
 export const agentSkillDialog = registerDialog(
@@ -55,13 +54,6 @@ export const connectDialog = registerDialog(
   }: { host?: string; reconnect: boolean; inUse: (account: string) => boolean; onOpened: (folderUri: string) => void } & DialogClose<boolean>) => (
     <ConnectDialog host={host} reconnect={reconnect} inUse={inUse} onOpened={onOpened} onClose={close} />
   ),
-  false,
-);
-
-/** Resolves true when the user is signed in on the way out. */
-export const githubSignInDialog = registerDialog(
-  'github-sign-in',
-  ({ status, close }: { status: GitHubStatus } & DialogClose<boolean>) => <GitHubSignInDialog status={status} onClose={close} />,
   false,
 );
 

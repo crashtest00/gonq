@@ -1,8 +1,11 @@
 /**
  * Edit > Settings… dialog: the comment author name (validated with platform/settings.ts) and the GitHub account
- * (who is signed in, Sign in / Sign out). Sign in and out are App's own actions, passed as props.
+ * (who is signed in, Sign In / Sign Out). Sign In runs the device flow (GitHubSignInPanel) inside this dialog;
+ * `startSignIn` opens it already showing that flow (Open Repo / Open PR while signed out). Sign Out is App's action.
+ * `onClose` says whether the user is signed in on the way out.
  */
 import { useEffect, useRef, useState } from 'react';
+import { GitHubSignInPanel } from './GitHubSignInPanel';
 import { signInStatus, type GitHubStatus } from '../platform/github';
 import { DEFAULT_AUTHOR, MAX_AUTHOR_CHARS, authorNameProblem } from '../platform/settings';
 
@@ -12,17 +15,20 @@ const button =
 export function SettingsDialog({
   authorName,
   onSave,
-  onSignIn,
+  startSignIn = false,
   onSignOut,
   onClose,
 }: {
   authorName: string;
   onSave: (name: string) => Promise<void>;
-  /** Starts the GitHub sign-in. Its dialog is queued behind this one, so Sign In closes Settings (see below). */
-  onSignIn: () => Promise<void>;
+  startSignIn?: boolean;
   onSignOut: () => Promise<void>;
-  onClose: () => void;
+  onClose: (signedIn: boolean) => void;
 }) {
+  const [signingIn, setSigningIn] = useState(startSignIn);
+  /** Set once GitHub approved a sign-in here, so closing the dialog reports it. */
+  const approved = useRef(false);
+  const close = () => onClose(approved.current);
   const [value, setValue] = useState(authorName);
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -61,7 +67,7 @@ export function SettingsDialog({
     setSaving(true);
     try {
       await onSave(value);
-      onClose();
+      close();
     } catch (e) {
       setFailure(e instanceof Error ? e.message : String(e));
       setSaving(false);
@@ -79,7 +85,7 @@ export function SettingsDialog({
           void submit();
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose();
+          if (e.key === 'Escape') close();
         }}
         className="w-[380px] max-w-[90vw] rounded-container border border-border bg-surface p-5 [box-shadow:var(--shadow-dialog)]"
       >
@@ -124,16 +130,30 @@ export function SettingsDialog({
               Sign Out
             </button>
           ) : (
-            <button type="button" onClick={() => {
-                void onSignIn();
-                onClose();
-              }} className={`${button} shrink-0 border-border bg-transparent`}>
+            <button
+              type="button"
+              disabled={signingIn}
+              onClick={() => setSigningIn(true)}
+              className={`${button} shrink-0 border-border bg-transparent disabled:opacity-50`}
+            >
               Sign In
             </button>
           )}
         </div>
+        {signingIn && !github?.signed_in && (
+          <GitHubSignInPanel
+            onApproved={() => {
+              approved.current = true;
+            }}
+            onClose={(signedIn) => {
+              setSigningIn(false);
+              if (startSignIn) onClose(signedIn);
+              else if (signedIn) void refresh();
+            }}
+          />
+        )}
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={`${button} border-border bg-transparent`}>
+          <button type="button" onClick={close} className={`${button} border-border bg-transparent`}>
             Cancel
           </button>
           <button

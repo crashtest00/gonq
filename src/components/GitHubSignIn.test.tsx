@@ -1,9 +1,9 @@
-/** Settings > GitHub (Sign In / Sign Out) and the sign-in dialog: device code display, browser opening, approval, session-only note, cancel and sign out. */
+/** Settings > GitHub (Sign In / Sign Out) and the device-flow panel inside it: code display, browser opening, approval, session-only note, cancel, and the end-to-end sign-in through Settings. */
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from '../App';
-import { GitHubSignInDialog } from './GitHubSignInDialog';
+import { GitHubSignInPanel } from './GitHubSignInPanel';
 import { ensureSignedIn, type GitHubStatus } from '../platform/github';
 
 vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
@@ -53,8 +53,8 @@ afterEach(() => {
   delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
 });
 
-const renderDialog = (status = out, onClose = vi.fn()) => {
-  render(<GitHubSignInDialog status={status} onClose={onClose} />);
+const renderDialog = (onClose = vi.fn()) => {
+  render(<GitHubSignInPanel onClose={onClose} />);
   return { user: userEvent.setup(), onClose };
 };
 
@@ -149,20 +149,6 @@ it('does not stop anything on unmount when nothing is being polled', () => {
   expect(calls('github_sign_out')).toBe(0);
 });
 
-it('already signed in: shows the login and signs out', async () => {
-  const { user } = renderDialog(approved);
-  expect(screen.getByText('Signed in as octo.')).toBeInTheDocument();
-  expect(calls('github_start')).toBe(0);
-  await user.click(screen.getByRole('button', { name: 'Sign out' }));
-  expect(calls('github_sign_out')).toBe(1);
-  expect(await screen.findByText('Signed out of GitHub.')).toBeInTheDocument();
-});
-
-it('already signed in with a session-only token says so', () => {
-  renderDialog({ ...approved, storage: 'session_only' });
-  expect(screen.getByText(/this session only/)).toBeInTheDocument();
-});
-
 it('shows a failed start', async () => {
   handlers.github_start = () => {
     throw { kind: 'network', message: 'connection failed' };
@@ -185,14 +171,28 @@ it('File menu no longer lists the GitHub sign-in items', async () => {
   expect(screen.queryByRole('menuitem', { name: /Sign (in|out)/ })).toBeNull();
 });
 
-it('Settings > Sign In opens the device-flow dialog', async () => {
+it('Settings > Sign In runs the device flow inside Settings and ends signed in with a Sign Out', async () => {
+  let signedIn = false;
+  handlers.github_status = () => (signedIn ? approved : out);
+  handlers.github_poll = async () => {
+    signedIn = true;
+    return approved;
+  };
   render(<App />);
   const user = userEvent.setup();
   const settings = await openSettings(user);
   expect(await within(settings).findByText('Not signed in.')).toBeInTheDocument();
   await user.click(within(settings).getByRole('button', { name: 'Sign In' }));
-  expect(await screen.findByRole('dialog', { name: 'Sign in to GitHub' })).toBeInTheDocument();
-  expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
+  expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  await user.click(await within(settings).findByRole('button', { name: 'Start' }));
+  expect(await within(settings).findByText(/Approved/)).toBeInTheDocument();
+  await user.click(within(settings).getByRole('button', { name: 'Done' }));
+  expect(await within(settings).findByText('Signed in as octo.')).toBeInTheDocument();
+  expect(screen.getByRole('dialog', { name: 'Settings' })).toBe(settings);
+  signedIn = false;
+  await user.click(within(settings).getByRole('button', { name: 'Sign Out' }));
+  expect(await within(settings).findByText('Not signed in.')).toBeInTheDocument();
+  expect(calls('github_sign_out')).toBe(1);
 });
 
 it('Settings shows the login and Sign Out deletes the token', async () => {
@@ -208,25 +208,26 @@ it('Settings shows the login and Sign Out deletes the token', async () => {
   expect(within(settings).getByRole('button', { name: 'Sign In' })).toBeInTheDocument();
 });
 
-it('on the web Settings says it needs the desktop app and Sign In shows the banner error', async () => {
+it('on the web Settings says it needs the desktop app and Sign In shows the error in Settings', async () => {
   delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
   render(<App />);
   const user = userEvent.setup();
   const settings = await openSettings(user);
   expect(await within(settings).findByText('GitHub sign-in needs the Gonq desktop app.')).toBeInTheDocument();
   await user.click(within(settings).getByRole('button', { name: 'Sign In' }));
-  expect(await screen.findAllByText('Signing in to GitHub needs the Gonq desktop app')).not.toHaveLength(0);
-  expect(screen.queryByRole('dialog', { name: 'Sign in to GitHub' })).toBeNull();
+  await user.click(await within(settings).findByRole('button', { name: 'Start' }));
+  expect(await within(settings).findByRole('alert')).toHaveTextContent('Signing in to GitHub needs the Gonq desktop app');
 });
 
-it('ensureSignedIn runs the dialog and returns once it closes', async () => {
+it('ensureSignedIn opens Settings already signing in and returns once it closes', async () => {
   render(<App />);
   const user = userEvent.setup();
   let done: boolean | null = null;
   const pending = ensureSignedIn().then((v) => (done = v));
-  await screen.findByRole('dialog', { name: 'Sign in to GitHub' });
+  const settings = await screen.findByRole('dialog', { name: 'Settings' });
+  expect(await within(settings).findByRole('button', { name: 'Start' })).toBeInTheDocument();
   expect(done).toBeNull();
-  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  await user.click(within(settings).getAllByRole('button', { name: 'Cancel' })[0]);
   await pending;
   expect(done).toBe(false);
   expect(screen.queryByRole('dialog')).toBeNull();

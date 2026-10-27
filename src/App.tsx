@@ -16,7 +16,6 @@ import {
   openPrDialog,
   conflictDialog,
   connectDialog,
-  githubSignInDialog,
   settingsDialog,
   repoPickerDialog,
   unsavedChangesDialog,
@@ -33,7 +32,7 @@ import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
 import type { RepoState } from './components/RepoNavigator';
-import { GitHubError, commitFile, ensureSignedIn, parseGithubPath, setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus, type GithubDocument } from './platform/github';
+import { GitHubError, commitFile, ensureSignedIn, parseGithubPath, setSignInHandler, signOut as githubSignOut, type GithubDocument } from './platform/github';
 import type { RepoChoice } from './components/RepoPickerDialog';
 import { assertConnectAvailable } from './platform/connect';
 import { listThreads, threadKey } from './components/threads';
@@ -93,7 +92,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
   const [theme, setThemeChoice] = useTheme(useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []));
   // Dialogs are opened through openDialog and shown by <DialogHost/>; see dialogs/dialogs.tsx.
-  // The GitHub sign-in dialog: from Settings > GitHub > Sign In or ensureSignedIn (platform/github.ts).
+  // The GitHub sign-in runs inside the Settings dialog: ensureSignedIn (platform/github.ts) opens Settings already signing in.
   const githubOpen = useRef<Promise<boolean> | null>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
@@ -667,24 +666,33 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     if (connectsOpen.current > 0) return Promise.resolve(false);
     return requestConnect(host, false);
   }, [requestConnect]);
-  const requestGithubSignIn = useCallback((status: GitHubStatus): Promise<boolean> => {
-    if (githubOpen.current !== null) return githubOpen.current;
-    const asked = openDialog(githubSignInDialog, { status });
-    githubOpen.current = asked;
-    void asked.then(() => {
-      githubOpen.current = null;
-    });
-    return asked;
-  }, []);
-  useEffect(() => setSignInHandler(() => requestGithubSignIn({ signed_in: false, login: null, storage: null })), [requestGithubSignIn]);
-  /** Settings > GitHub > Sign In; on the web the status call throws and the banner says why. */
-  const openGithubSignIn = useCallback(async () => {
+  const doGithubSignOut = useCallback(async () => {
     try {
-      await requestGithubSignIn(await signInStatus());
+      await githubSignOut();
+      setError(null);
+      setNotice('Signed out of GitHub.');
     } catch (e) {
       failed(e);
     }
-  }, [requestGithubSignIn]);
+  }, []);
+  // Settings, Agent skill and About are single dialogs: asking again while one is open does nothing.
+  const singles = useRef(new Set<string>());
+  const authorNameRef = useRef(authorName);
+  authorNameRef.current = authorName;
+  const saveAuthor = useCallback(async (n: string) => setAuthor(await setAuthorName(n)), []);
+  const requestGithubSignIn = useCallback((): Promise<boolean> => {
+    if (githubOpen.current !== null) return githubOpen.current;
+    if (singles.current.has(settingsDialog.id)) return Promise.resolve(false);
+    singles.current.add(settingsDialog.id);
+    const asked = openDialog(settingsDialog, { authorName: authorNameRef.current, onSave: saveAuthor, startSignIn: true, onSignOut: doGithubSignOut });
+    githubOpen.current = asked;
+    void asked.finally(() => {
+      githubOpen.current = null;
+      singles.current.delete(settingsDialog.id);
+    });
+    return asked;
+  }, [saveAuthor, doGithubSignOut]);
+  useEffect(() => setSignInHandler(requestGithubSignIn), [requestGithubSignIn]);
   // File > Open Repo…: sign in first if needed, then the picker. The navigator (a later story) takes the choice.
   const openRepo = useCallback(async () => {
     try {
@@ -724,15 +732,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const repoSignedOut = () => {
     setNotice('GitHub sign-in is no longer valid. Sign in again to open a repository.');
   };
-  const doGithubSignOut = useCallback(async () => {
-    try {
-      await githubSignOut();
-      setError(null);
-      setNotice('Signed out of GitHub.');
-    } catch (e) {
-      failed(e);
-    }
-  }, []);
   // A save or a folder expand that needs a login waits on the Connect dialog, then runs again.
   const connectPending = useRef(new Map<string, Promise<boolean>>());
   useEffect(() => {
@@ -761,16 +760,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const closeActive = useCallback(() => {
     if (activeIdRef.current !== null) void closeTab(activeIdRef.current);
   }, [closeTab]);
-  // Settings, Agent skill and About are single dialogs: asking again while one is open does nothing.
-  const singles = useRef(new Set<string>());
-  const openSingle = useCallback(<P,>(dialog: DialogRef<P, void>, props: P) => {
+  const openSingle = useCallback(<P, R>(dialog: DialogRef<P, R>, props: P) => {
     if (singles.current.has(dialog.id)) return;
     singles.current.add(dialog.id);
     void openDialog(dialog, props).finally(() => singles.current.delete(dialog.id));
   }, []);
   const openPrefs = useCallback(
-    () => openSingle(settingsDialog, { authorName, onSave: async (n: string) => setAuthor(await setAuthorName(n)), onSignIn: openGithubSignIn, onSignOut: doGithubSignOut }),
-    [openSingle, authorName, openGithubSignIn, doGithubSignOut],
+    () => openSingle(settingsDialog, { authorName, onSave: saveAuthor, onSignOut: doGithubSignOut }),
+    [openSingle, authorName, saveAuthor, doGithubSignOut],
   );
   const undo = useCallback(() => editor.current?.undo(), []);
   const redo = useCallback(() => editor.current?.redo(), []);
