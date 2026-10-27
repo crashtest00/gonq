@@ -1,12 +1,13 @@
 /**
  * Confirmation dialog for committing a GitHub tab (File > Commit…, Ctrl+S): file path, owner/repo, the tab's
  * own branch and the fixed message, plus a warning when the branch is not a gonq/ branch. The Commit button
- * holds the focus (Enter confirms) and comes first in tab order, so Cancel is one Tab away; Esc cancels.
+ * holds the focus (Enter confirms) and comes first in tab order, so Cancel is one Tab away; Esc cancels. On a
+ * branch that is not a gonq/ branch a secondary "Commit to new branch…" button chooses 'new-branch'.
  */
 import { useEffect, useRef } from 'react';
 import { commitMessage } from '../platform/github';
 
-export type CommitChoice = 'commit' | 'cancel';
+export type CommitChoice = 'commit' | 'new-branch' | 'cancel';
 
 /** Branches Gonq makes for itself start with this; any other branch gets the direct-commit warning. */
 export const GONQ_BRANCH_PREFIX = 'gonq/';
@@ -46,7 +47,6 @@ export function CommitDialog({ owner, repo, branch, path, onChoose }: { owner: s
             This commits directly to {branch}. Branch protection and review rules are GitHub&rsquo;s; Gonq does not check them.
           </p>
         )}
-        {/* Story 8 adds its "Commit to new branch…" button here. */}
         <div className="flex flex-row-reverse justify-start gap-2">
           <button type="button" ref={commitRef} onClick={() => onChoose('commit')} className={`${button} border-primary bg-primary text-primary-foreground`}>
             Commit
@@ -54,6 +54,11 @@ export function CommitDialog({ owner, repo, branch, path, onChoose }: { owner: s
           <button type="button" onClick={() => onChoose('cancel')} className={`${button} border-border bg-transparent`}>
             Cancel
           </button>
+          {!branch.startsWith(GONQ_BRANCH_PREFIX) && (
+            <button type="button" onClick={() => onChoose('new-branch')} className={`${button} mr-auto border-border bg-transparent`}>
+              Commit to new branch…
+            </button>
+          )}
         </div>
       </div>
     </div>

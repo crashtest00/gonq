@@ -1,11 +1,11 @@
 /**
  * The GitHub repository navigator, shown by FolderSidebar when a repo is open: a header (owner/repo, the
- * branch dropdown and an empty slot for a future create-branch action) above a lazily listed folder tree
+ * branch dropdown and the create-branch icon) above a lazily listed folder tree
  * (platform/folders.ts listFolderPage on github:// paths). Switching branch reloads the tree and keeps only
  * the expanded folders that exist on the new branch. Exports RepoNavigator, RepoState, BRANCH_RENDER_CAP and describeError.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, File, Folder, GitBranch, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, File, Folder, GitBranch, GitBranchPlus, Loader2 } from 'lucide-react';
 import { ListDirectoryError, listFolderPage, type FolderEntry } from '../platform/folders';
 import { ensureSignedIn, githubPath, listBranches, parseGithubPath, toGitHubError } from '../platform/github';
 
@@ -76,11 +76,14 @@ function BranchMenu({
   owner,
   repo,
   branch,
+  extra,
   onSelect,
 }: {
   owner: string;
   repo: string;
   branch: string;
+  /** Branches made in this session, listed even when GitHub's pages (loaded earlier) do not include them. */
+  extra: string[];
   onSelect: (branch: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -127,10 +130,11 @@ function BranchMenu({
     return () => document.removeEventListener('mousedown', away);
   }, [open]);
 
+  const all = useMemo(() => [...branches, ...extra.filter((b) => !branches.includes(b))], [branches, extra]);
   const matches = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    return q === '' ? branches : branches.filter((b) => b.toLowerCase().includes(q));
-  }, [branches, filter]);
+    return q === '' ? all : all.filter((b) => b.toLowerCase().includes(q));
+  }, [all, filter]);
   const shown = matches.slice(0, BRANCH_RENDER_CAP);
 
   const choose = (b: string) => {
@@ -187,7 +191,7 @@ function BranchMenu({
               Showing the first {shown.length} of {matches.length} branches. Type to narrow the list.
             </p>
           )}
-          {matches.length === 0 && !loadingMore && error === null && <p className={`${muted} px-1`}>{branches.length === 0 ? 'No branches.' : 'No branch matches.'}</p>}
+          {matches.length === 0 && !loadingMore && error === null && <p className={`${muted} px-1`}>{all.length === 0 ? 'No branches.' : 'No branch matches.'}</p>}
           {loadingMore && (
             <p role="status" className={`${muted} flex items-center gap-1.5 px-1`}>
               <Loader2 size={12} aria-hidden className="animate-spin" />
@@ -214,12 +218,17 @@ function rootPath(repo: RepoState): string {
 export function RepoNavigator({
   repo,
   currentPath,
+  createdBranches = [],
   onBranchChange,
+  onCreateBranch,
   onOpenFile,
 }: {
   repo: RepoState;
   currentPath: string | null;
+  /** Branches created in this session on this repository (App's session list). */
+  createdBranches?: string[];
   onBranchChange: (branch: string) => void;
+  onCreateBranch?: () => void;
   onOpenFile: (path: string) => void;
 }) {
   const root = rootPath(repo);
@@ -390,10 +399,19 @@ export function RepoNavigator({
         </div>
         <div className="flex min-w-0 items-center gap-1">
           <div className="min-w-0 flex-1">
-            <BranchMenu key={`${repo.owner}/${repo.repo}`} owner={repo.owner} repo={repo.repo} branch={repo.branch} onSelect={onBranchChange} />
+            <BranchMenu key={`${repo.owner}/${repo.repo}`} owner={repo.owner} repo={repo.repo} branch={repo.branch} extra={createdBranches} onSelect={onBranchChange} />
           </div>
-          {/* Room for the create-branch action (a later story). */}
-          <span data-slot="branch-actions" className="flex shrink-0 items-center" />
+          <span data-slot="branch-actions" className="flex shrink-0 items-center">
+            <button
+              type="button"
+              aria-label="Create branch"
+              title="Create branch"
+              onClick={() => onCreateBranch?.()}
+              className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-control border-0 bg-transparent text-foreground hover:bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <GitBranchPlus size={14} aria-hidden />
+            </button>
+          </span>
         </div>
       </div>
       {branchGone ? (
