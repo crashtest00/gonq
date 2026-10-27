@@ -1,7 +1,7 @@
 /**
  * The app shell: owns the open tabs (useDocument), the one MarkdownEditor, the menu bar and toolbars, the
  * folder/outline/comments sidebars and <DialogHost/> (every dialog is opened with openDialog, see dialogs/), builds the CommandContext the command registry's menus and shortcuts run against, and wires its actions to platform/ calls (open, save,
- * connect, GitHub sign-in, repo picker and its open repo/branch, GitHub files in tabs, launch paths). Errors land in its banner.
+ * connect, GitHub sign-in, repo picker and its open repo/branch, GitHub files in tabs and the navigator following them, launch paths). Errors land in its banner.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from './lib/useTheme';
@@ -18,6 +18,7 @@ import {
   preferencesDialog,
   repoPickerDialog,
   unsavedChangesDialog,
+  branchChangeDialog,
 } from './dialogs/dialogs';
 import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
 import { TabStrip } from './components/TabStrip';
@@ -103,6 +104,15 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     const parent = parentDir(docPath);
     if (parent !== null) setFolder(parent);
   }, [docPath]);
+  // Activating a GitHub tab shows its repository and branch in the navigator, even after Open Folder or Open Repo.
+  const gh = meta?.github;
+  const ghOwner = gh?.owner;
+  const ghRepo = gh?.repo;
+  const ghBranch = gh?.branch;
+  useEffect(() => {
+    if (ghOwner === undefined || ghRepo === undefined || ghBranch === undefined) return;
+    setRepo((r) => (r !== null && r.owner === ghOwner && r.repo === ghRepo && r.branch === ghBranch ? r : { owner: ghOwner, repo: ghRepo, branch: ghBranch }));
+  }, [activeId, ghOwner, ghRepo, ghBranch]);
   const remember = useCallback((path: string | null) => {
     if (path !== null) addRecent(path).then(setRecents, () => {});
   }, []);
@@ -377,6 +387,23 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       if (await confirmTab(id)) session.close(id);
     },
     [confirmTab, session.close],
+  );
+
+  /**
+   * The navigator's branch dropdown. A GitHub document open on another branch is closed first (after a
+   * warning when it has unsaved changes) and no tab is selected; Cancel leaves the repo, branch and tabs as they were.
+   */
+  const changeBranch = useCallback(
+    async (branch: string) => {
+      const id = session.activeId;
+      const tab = id === null ? null : session.peek(id);
+      if (id !== null && tab?.meta.github && tab.meta.github.branch !== branch) {
+        if (tab.dirty && !(await openDialog(branchChangeDialog, { name: tab.meta.name }))) return;
+        session.closeSelectingNone(id);
+      }
+      setRepo((r) => (r === null ? r : { ...r, branch }));
+    },
+    [session.activeId, session.peek, session.closeSelectingNone],
   );
 
   const newFile = useCallback(() => {
@@ -749,7 +776,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           <FolderSidebar
             folder={folder}
             repo={repo}
-            onBranchChange={(branch) => setRepo((r) => (r === null ? r : { ...r, branch }))}
+            onBranchChange={(branch) => void changeBranch(branch)}
             recents={recents}
             currentPath={meta?.path ?? null}
             onOpenFolder={() => void openFolder()}
@@ -783,8 +810,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                   <button type="button" aria-label="Dismiss notice" onClick={() => setNotice(null)} className="cursor-pointer border-0 bg-transparent p-0 text-inherit">×</button>
                 </div>
               )}
-              {meta === null && error === null && (
-                <p className="text-[13px] text-muted-foreground">Use File &gt; Open to open a Markdown file, or File &gt; New to start one.</p>
+              {meta === null && (
+                <p className="text-[13px] text-muted-foreground">Open a document or create a new one.</p>
               )}
             </div>
           )}

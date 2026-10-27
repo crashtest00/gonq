@@ -134,6 +134,19 @@ export function useDocument() {
     [update],
   );
 
+  /** Closes a tab without asking and selects no neighbour: the other tabs stay open and none is active. */
+  const closeSelectingNone = useCallback(
+    (id: number) => {
+      update((s) => {
+        if (!s.tabs.some((t) => t.id === id)) return s;
+        const tabs = s.tabs.filter((t) => t.id !== id);
+        if (tabs.length === 0) return NO_TABS;
+        return { tabs, activeId: s.activeId === id ? null : s.activeId };
+      });
+    },
+    [update],
+  );
+
   /** Moves a tab to the position `to` in the strip (clamped); the active tab stays the same. */
   const move = useCallback(
     (id: number, to: number) => {
@@ -199,6 +212,7 @@ export function useDocument() {
       open,
       openUntitled,
       close,
+      closeSelectingNone,
       move,
       activate,
       findByPath,
@@ -209,6 +223,6 @@ export function useDocument() {
       dirtyIds,
       saved,
     }),
-    [meta, tabInfos, tabIds, state.activeId, active, open, openUntitled, close, move, activate, findByPath, setRaw, edited, peek, peekTabs, dirtyIds, saved],
+    [meta, tabInfos, tabIds, state.activeId, active, open, openUntitled, close, closeSelectingNone, move, activate, findByPath, setRaw, edited, peek, peekTabs, dirtyIds, saved],
   );
 }
