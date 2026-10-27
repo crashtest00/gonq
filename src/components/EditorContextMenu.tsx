@@ -1,4 +1,4 @@
-/** The editor's right-click popup menu (items supplied by App.tsx, opened from MarkdownEditor's onContextMenu). */
+/** The editor's right-click menu: a plain popup whose items come from the command registry (commands with a contextMenu placement; see App.tsx). */
 import { useEffect, useRef } from 'react';
 
 export interface ContextMenuItem {

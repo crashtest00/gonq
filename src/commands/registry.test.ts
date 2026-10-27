@@ -122,3 +122,17 @@ test('matchShortcut: Ctrl or Cmd, no Alt, exact Shift, aliases, and text fields 
   expect(key('y', { shiftKey: true })).toBeUndefined();
   expect(key('y', { target: input })).toBeUndefined();
 });
+
+test('resolveContextMenu lists commands with a contextMenu placement by group and order, with dividers between groups', () => {
+  const r = createRegistry<{ on: boolean }>();
+  const run = () => undefined;
+  r.defineCommand({ id: 'b', group: 0, order: 0, label: 'B', contextMenu: { group: 2, order: 1 }, run });
+  r.defineCommand({ id: 'a', group: 0, order: 0, label: 'A', contextMenu: { group: 1, order: 2, label: 'A!' }, enabled: (c) => c.on, run });
+  r.defineCommand({ id: 'c', group: 0, order: 0, label: 'C', contextMenu: { group: 1, order: 1 }, run });
+  r.defineCommand({ id: 'bar', menu: 'm', group: 0, order: 0, label: 'Bar only', run });
+  expect(r.resolveContextMenu({ on: false }).map((e) => [e.label, e.enabled, e.divider])).toEqual([
+    ['C', true, false],
+    ['A!', false, false],
+    ['B', true, true],
+  ]);
+});

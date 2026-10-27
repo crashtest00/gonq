@@ -1,7 +1,7 @@
 /**
  * The command registry: feature modules call defineCommand/defineMenu (src/features/<x>/index.ts) and the menu
  * bar and the keydown handler are generated from what they registered. Exports defineCommand, defineMenu,
- * resolveMenus (the ordered menu tree for a CommandContext), matchShortcut/installShortcuts (the one keydown
+ * resolveMenus (the ordered menu tree for a CommandContext), resolveContextMenu (the editor's right-click items), matchShortcut/installShortcuts (the one keydown
  * handler) and createRegistry for isolated registries in tests.
  */
 import type { LucideIcon } from 'lucide-react';
@@ -11,13 +11,15 @@ export type CommandKind = 'item' | 'checkbox' | 'radio' | 'submenu';
 
 export interface CommandSpec<C = CommandContext> {
   id: string;
-  /** The menu this command is listed in. */
-  menu: string;
+  /** The menu bar menu this command is listed in; omit for a command only in the editor's right-click menu. */
+  menu?: string;
   /** Items of different groups are separated; groups sort ascending. */
   group: number;
   /** Position inside the group; ties are broken by id. */
   order: number;
   label: string;
+  /** Also lists the command in the editor's right-click menu, with its own group and order there (and optionally its own label). */
+  contextMenu?: { group: number; order: number; label?: string };
   /** Drawn before the label (a lucide icon); it is decoration, so the item's name stays the label. */
   icon?: LucideIcon;
   /** Classes for the label text only (the Bold item shows its label bold). */
@@ -55,6 +57,14 @@ export type MenuEntry<C = CommandContext> =
   | { type: 'separator' }
   | { type: 'item'; command: CommandSpec<C>; enabled: boolean; checked: boolean; shortcut?: string }
   | { type: 'submenu'; command: CommandSpec<C>; enabled: boolean; items: MenuEntry<C>[] };
+
+export interface ContextMenuEntry<C = CommandContext> {
+  command: CommandSpec<C>;
+  label: string;
+  enabled: boolean;
+  /** A divider is drawn above the item (its group differs from the previous item's). */
+  divider: boolean;
+}
 
 export interface ResolvedMenu<C = CommandContext> {
   menu: MenuSpec<C>;
@@ -145,6 +155,19 @@ export function createRegistry<C = CommandContext>() {
     return out;
   }
 
+  /** The editor's right-click menu: every command with a `contextMenu` placement, grouped and ordered by it. */
+  function resolveContextMenu(ctx: C): ContextMenuEntry<C>[] {
+    const list = [...commands.values()]
+      .filter((c) => c.contextMenu !== undefined)
+      .sort((a, b) => a.contextMenu!.group - b.contextMenu!.group || a.contextMenu!.order - b.contextMenu!.order || byId(a, b));
+    return list.map((command, i) => ({
+      command,
+      label: command.contextMenu!.label ?? command.label,
+      enabled: guarded(command.id, 'enabled', command.enabled, ctx, true),
+      divider: i > 0 && list[i - 1].contextMenu!.group !== command.contextMenu!.group,
+    }));
+  }
+
   /** Every menu in order with its entries. */
   function resolveMenus(ctx: C): ResolvedMenu<C>[] {
     return [...menus.values()]
@@ -176,7 +199,7 @@ export function createRegistry<C = CommandContext>() {
     return () => target.removeEventListener('keydown', onKey as EventListener);
   }
 
-  return { defineCommand, defineMenu, resolveMenus, matchShortcut, installShortcuts, commands: () => [...commands.values()] };
+  return { defineCommand, defineMenu, resolveMenus, resolveContextMenu, matchShortcut, installShortcuts, commands: () => [...commands.values()] };
 }
 
 export const registry = createRegistry();
