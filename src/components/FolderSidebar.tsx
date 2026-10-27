@@ -1,9 +1,9 @@
 /**
  * The folder navigator sidebar: Project folder tree (local or ssh://, listed lazily in chunks; or the GitHub
- * repo navigator when `repo` is set) and Recent documents. Exports basename, relativeTime and the row-chunk/spinner constants.
+ * repo navigator when `repo` is set; both have a Refresh button that re-lists the tree, keeping expanded folders) and Recent documents. Exports basename, relativeTime and the row-chunk/spinner constants.
  */
-import { memo, useCallback, useEffect, useState } from 'react';
-import { ChevronRight, File, Folder, Loader2, X } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronRight, File, Folder, Loader2, RefreshCw, X } from 'lucide-react';
 import { ListDirectoryError, listDirectory, type FolderEntry } from '../platform/folders';
 import type { RecentDocument } from '../platform/recents';
 import { RepoNavigator, type RepoState } from './RepoNavigator';
@@ -57,6 +57,7 @@ const Row = memo(function Row({
   depth,
   expanded,
   currentPath,
+  refreshKey,
   onToggle,
   onOpenFile,
   onLogin,
@@ -65,6 +66,7 @@ const Row = memo(function Row({
   depth: number;
   expanded: boolean;
   currentPath: string | null;
+  refreshKey: number;
   onToggle: (path: string) => void;
   onOpenFile: (path: string) => void;
   onLogin?: (path: string) => Promise<boolean> | void;
@@ -86,7 +88,7 @@ const Row = memo(function Row({
             <Folder size={12} aria-hidden className="shrink-0 fill-current" />
             <span className="truncate">{entry.name}</span>
           </button>
-          {expanded && <Tree path={entry.path} depth={depth + 1} currentPath={currentPath} onOpenFile={onOpenFile} onLogin={onLogin} />}
+          {expanded && <Tree path={entry.path} depth={depth + 1} currentPath={currentPath} refreshKey={refreshKey} onOpenFile={onOpenFile} onLogin={onLogin} />}
         </>
       ) : (
         <button
@@ -107,7 +109,7 @@ const Row = memo(function Row({
   );
 });
 
-function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string; depth: number; currentPath: string | null; onOpenFile: (path: string) => void; onLogin?: (path: string) => Promise<boolean> | void }) {
+function Tree({ path, depth, currentPath, refreshKey, onOpenFile, onLogin }: { path: string; depth: number; currentPath: string | null; refreshKey: number; onOpenFile: (path: string) => void; onLogin?: (path: string) => Promise<boolean> | void }) {
   const [entries, setEntries] = useState<FolderEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -117,16 +119,23 @@ function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string;
   // A remote listing shows its spinner only once it has taken longer than 150 ms.
   const [slow, setSlow] = useState(false);
 
+  // A refresh re-lists in place: the current rows stay until the new ones arrive.
+  const listedFor = useRef({ path, attempt, refreshKey });
   useEffect(() => {
     let live = true;
-    setEntries(null);
+    const was = listedFor.current;
+    listedFor.current = { path, attempt, refreshKey };
+    if (was.path !== path || was.attempt !== attempt) {
+      setEntries(null);
+      setShown(ROW_CHUNK);
+    }
     setErrorKind(null);
     setError(null);
-    setShown(ROW_CHUNK);
     listDirectory(path).then(
       (rows) => live && setEntries(rows),
       (e) => {
         if (!live) return;
+        setEntries(null);
         setErrorKind(e instanceof ListDirectoryError ? e.kind : null);
         setError(e instanceof ListDirectoryError || e instanceof Error ? e.message : String(e));
       },
@@ -134,7 +143,7 @@ function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string;
     return () => {
       live = false;
     };
-  }, [path, attempt]);
+  }, [path, attempt, refreshKey]);
 
   useEffect(() => {
     setSlow(false);
@@ -197,6 +206,7 @@ function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string;
           depth={depth}
           expanded={expanded.has(entry.path)}
           currentPath={currentPath}
+          refreshKey={refreshKey}
           onToggle={toggle}
           onOpenFile={onOpenFile}
           onLogin={onLogin}
@@ -250,6 +260,7 @@ export function FolderSidebar({
 }) {
   const [projectOpen, setProjectOpen] = useState(true);
   const [recentOpen, setRecentOpen] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   return (
     <aside aria-label="Folder navigator" className="flex w-full shrink-0 overflow-hidden">
@@ -261,11 +272,22 @@ export function FolderSidebar({
               <RepoNavigator repo={repo} currentPath={currentPath} createdBranches={createdBranches} onBranchChange={onBranchChange ?? (() => {})} onCreateBranch={onCreateBranch} onOpenFile={onOpenFile} />
             ) : folder !== null ? (
               <>
-                <div title={folder} className="mb-1 min-w-0">
-                  <div className="truncate text-[12.5px] font-semibold text-foreground">{isSshPath(folder) ? remoteFolderName(folder) : basename(folder)}</div>
-                  {isSshPath(folder) && <div className="truncate text-[11px] text-muted-foreground">{remoteAccount(folder)}</div>}
+                <div className="mb-1 flex min-w-0 items-center gap-1">
+                  <div title={folder} className="min-w-0 flex-1">
+                    <div className="truncate text-[12.5px] font-semibold text-foreground">{isSshPath(folder) ? remoteFolderName(folder) : basename(folder)}</div>
+                    {isSshPath(folder) && <div className="truncate text-[11px] text-muted-foreground">{remoteAccount(folder)}</div>}
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Refresh"
+                    title="Refresh"
+                    onClick={() => setRefreshKey((n) => n + 1)}
+                    className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-control border-0 bg-transparent text-foreground hover:bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <RefreshCw size={14} aria-hidden />
+                  </button>
                 </div>
-                <Tree key={folder} path={folder} depth={0} currentPath={currentPath} onOpenFile={onOpenFile} onLogin={onLogin} />
+                <Tree key={folder} path={folder} depth={0} refreshKey={refreshKey} currentPath={currentPath} onOpenFile={onOpenFile} onLogin={onLogin} />
               </>
             ) : (
               <>

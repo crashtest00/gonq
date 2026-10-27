@@ -2,10 +2,10 @@
  * The GitHub repository navigator, shown by FolderSidebar when a repo is open: a header (owner/repo, the
  * branch dropdown and the create-branch icon) above a lazily listed folder tree
  * (platform/folders.ts listFolderPage on github:// paths). Switching branch reloads the tree and keeps only
- * the expanded folders that exist on the new branch. Exports RepoNavigator, RepoState, BRANCH_RENDER_CAP and describeError.
+ * the expanded folders that exist on the new branch. The Refresh button re-lists the root and the expanded folders (and the branch list) in place. Exports RepoNavigator, RepoState, BRANCH_RENDER_CAP and describeError.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, File, Folder, GitBranch, GitBranchPlus, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, File, Folder, GitBranch, GitBranchPlus, Loader2, RefreshCw } from 'lucide-react';
 import { ListDirectoryError, listFolderPage, type FolderEntry } from '../platform/folders';
 import { ensureSignedIn, githubPath, listBranches, parseGithubPath, toGitHubError } from '../platform/github';
 
@@ -77,6 +77,7 @@ function BranchMenu({
   repo,
   branch,
   extra,
+  refreshKey,
   onSelect,
 }: {
   owner: string;
@@ -84,6 +85,8 @@ function BranchMenu({
   branch: string;
   /** Branches made in this session, listed even when GitHub's pages (loaded earlier) do not include them. */
   extra: string[];
+  /** Bumped by the Refresh button: the branch list is fetched again from page 1. */
+  refreshKey: number;
   onSelect: (branch: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -94,11 +97,14 @@ function BranchMenu({
   const [attempt, setAttempt] = useState(0);
   const loaded = useRef<{ next: number | null; names: string[] }>({ next: 1, names: [] });
   const root = useRef<HTMLDivElement>(null);
+  const seenRefresh = useRef(refreshKey);
 
   // Pages load one after another, in the background, so the list is complete without opening the menu.
   useEffect(() => {
     let live = true;
-    if (attempt === 0) loaded.current = { next: 1, names: [] };
+    const refreshed = seenRefresh.current !== refreshKey;
+    seenRefresh.current = refreshKey;
+    if (attempt === 0 || refreshed) loaded.current = { next: 1, names: [] };
     setError(null);
     setLoadingMore(true);
     (async () => {
@@ -121,7 +127,7 @@ function BranchMenu({
     return () => {
       live = false;
     };
-  }, [owner, repo, attempt]);
+  }, [owner, repo, attempt, refreshKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -241,6 +247,8 @@ export function RepoNavigator({
   expandedRef.current = expanded;
   const listingsRef = useRef(listings);
   listingsRef.current = listings;
+  const [refreshKey, setRefreshKey] = useState(0);
+  const loadedRoot = useRef(root);
 
   const put = useCallback((gen: number, path: string, l: Listing) => {
     if (gen !== generation.current) return;
@@ -248,9 +256,9 @@ export function RepoNavigator({
   }, []);
 
   const load = useCallback(
-    async (path: string): Promise<Exclude<Listing, { state: 'loading' }>> => {
+    async (path: string, quiet = false): Promise<Exclude<Listing, { state: 'loading' }>> => {
       const gen = generation.current;
-      put(gen, path, { state: 'loading' });
+      if (!quiet) put(gen, path, { state: 'loading' });
       let result: Exclude<Listing, { state: 'loading' }>;
       try {
         const page = await listFolderPage(path);
@@ -270,11 +278,16 @@ export function RepoNavigator({
     // Expanded folders are remembered by their path in the repository; the branch is part of a github:// path.
     const at = parseGithubPath(root)!;
     const keep = new Set([...expandedRef.current].map((p) => githubPath({ ...at, path: parseGithubPath(p)?.path ?? '' })));
-    setListings(new Map());
-    setShown(new Map());
+    // A refresh keeps the rows on screen and swaps in the new listings; a new branch starts empty.
+    const quiet = loadedRoot.current === root;
+    loadedRoot.current = root;
+    if (!quiet) {
+      setListings(new Map());
+      setShown(new Map());
+    }
     (async () => {
       const survivors = new Set<string>();
-      const rootListing = await load(root);
+      const rootListing = await load(root, quiet);
       if (gen !== generation.current) return;
       const known = new Set<string>();
       if (rootListing.state === 'ok') for (const e of rootListing.entries) if (e.isDir) known.add(e.path);
@@ -282,7 +295,7 @@ export function RepoNavigator({
       const pending = [...keep].filter((p) => p !== root).sort((a, b) => a.length - b.length);
       for (const path of pending) {
         if (!known.has(path)) continue;
-        const l = await load(path);
+        const l = await load(path, quiet);
         if (gen !== generation.current) return;
         if (l.state === 'ok') {
           survivors.add(path);
@@ -291,7 +304,7 @@ export function RepoNavigator({
       }
       setExpanded(survivors);
     })();
-  }, [root, load]);
+  }, [root, load, refreshKey]);
 
   const toggle = useCallback(
     (path: string) => {
@@ -399,9 +412,18 @@ export function RepoNavigator({
         </div>
         <div className="flex min-w-0 items-center gap-1">
           <div className="min-w-0 flex-1">
-            <BranchMenu key={`${repo.owner}/${repo.repo}`} owner={repo.owner} repo={repo.repo} branch={repo.branch} extra={createdBranches} onSelect={onBranchChange} />
+            <BranchMenu key={`${repo.owner}/${repo.repo}`} owner={repo.owner} repo={repo.repo} branch={repo.branch} extra={createdBranches} refreshKey={refreshKey} onSelect={onBranchChange} />
           </div>
           <span data-slot="branch-actions" className="flex shrink-0 items-center">
+            <button
+              type="button"
+              aria-label="Refresh"
+              title="Refresh"
+              onClick={() => setRefreshKey((n) => n + 1)}
+              className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-control border-0 bg-transparent text-foreground hover:bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <RefreshCw size={14} aria-hidden />
+            </button>
             <button
               type="button"
               aria-label="Create branch"
