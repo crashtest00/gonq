@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FolderTree, ListTree, MessageSquare, Plus, Server, X } from 'lucide-react';
 import type { TabInfo } from '../document/useDocument';
 import { isSshPath } from '../platform/remote';
+import { isGithubPath } from '../platform/github';
 
 function segments(path: string): string[] {
   return path.split(/[\\/]/).filter((s) => s !== '');
@@ -12,8 +13,13 @@ function segments(path: string): string[] {
  * Tab labels: the file name, with just enough of the folder path in front of it to tell
  * apart tabs that share a name (`notes/todo.md` vs `work/todo.md`).
  */
-export function tabLabels(tabs: Pick<TabInfo, 'name' | 'path'>[]): string[] {
+export function tabLabels(tabs: Pick<TabInfo, 'name' | 'path' | 'github'>[]): string[] {
   return tabs.map((tab, i) => {
+    // A GitHub file is its name; the same name from another path or branch also gets its branch.
+    if (tab.github !== undefined) {
+      const same = tabs.some((o, j) => j !== i && o.github !== undefined && o.name === tab.name && o.path !== tab.path);
+      return same ? `${tab.name} (${tab.github.branch})` : tab.name;
+    }
     const twins = tabs.filter((o, j) => j !== i && o.name === tab.name && o.path !== tab.path);
     if (tab.path === null || twins.length === 0) return tab.name;
     const mine = segments(tab.path);
@@ -127,7 +133,7 @@ export function TabStrip({
                   setDragId(null);
                   setOverId(null);
                 }}
-                title={tab.path ?? tab.name}
+                title={tab.github ? `${tab.github.owner}/${tab.github.repo} @ ${tab.github.branch}\n${tab.github.path}` : (tab.path ?? tab.name)}
                 onClick={() => onSelect(tab.id)}
                 onKeyDown={(e) => {
                   if (e.target !== e.currentTarget) return;

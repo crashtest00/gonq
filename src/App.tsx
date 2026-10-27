@@ -1,7 +1,7 @@
 /**
  * The app shell: owns the open tabs (useDocument), the one MarkdownEditor, the menu bar and toolbars, the
  * folder/outline/comments sidebars and <DialogHost/> (every dialog is opened with openDialog, see dialogs/), builds the CommandContext the command registry's menus and shortcuts run against, and wires its actions to platform/ calls (open, save,
- * connect, GitHub sign-in, repo picker and its open repo/branch, launch paths). Errors land in its banner.
+ * connect, GitHub sign-in, repo picker and its open repo/branch, GitHub files in tabs, launch paths). Errors land in its banner.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from './lib/useTheme';
@@ -29,7 +29,7 @@ import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
 import type { RepoState } from './components/RepoNavigator';
-import { ensureSignedIn, setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus } from './platform/github';
+import { GitHubError, ensureSignedIn, parseGithubPath, setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus } from './platform/github';
 import type { RepoChoice } from './components/RepoPickerDialog';
 import { assertConnectAvailable } from './platform/connect';
 import { listThreads, threadKey } from './components/threads';
@@ -41,9 +41,10 @@ import { useDocument } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
 import { pickImage } from './platform/images';
+import { GITHUB_SAVE_UNAVAILABLE } from './platform/files';
 import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
-import { isGithubPath, pathExists, pickFolder } from './platform/folders';
+import { pathExists, pickFolder } from './platform/folders';
 import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from './platform/recents';
 
 function parentDir(path: string): string | null {
@@ -64,6 +65,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   // Once the user picks a folder with Open Folder…, opening documents no longer moves the Project folder.
   const folderChosen = useRef(false);
   const [recents, setRecents] = useState<RecentDocument[]>([]);
+  // The GitHub repository and branch the navigator shows; null when a folder (or nothing) is shown.
+  const [repo, setRepo] = useState<RepoState | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
   const [tableTarget, setTableTarget] = useState<TableTarget | null>(null);
@@ -95,7 +98,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   useEffect(() => {
     if (docPath === null || folderChosen.current) return;
     // A remote document's parent is not on the allow-list; the remote root comes from the Connect flow.
-    if (isSshPath(docPath)) return;
+    if (isSshPath(docPath) || parseGithubPath(docPath) !== null) return;
     const parent = parentDir(docPath);
     if (parent !== null) setFolder(parent);
   }, [docPath]);
@@ -256,6 +259,11 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       if (tab === null) return true;
       // What is written is what is marked saved, even if typing continues meanwhile.
       const snapshot = tab.text;
+      // Committing to GitHub comes later; until then Save writes nothing, here or on GitHub.
+      if (!as && tab.meta.github !== undefined) {
+        setError(GITHUB_SAVE_UNAVAILABLE);
+        return false;
+      }
       // Save As may not land on a file another tab holds.
       const taken = (path: string) => session.peekTabs().some((t) => t.id !== id && t.path === path);
       const remotePath = !as && tab.meta.path !== null && isSshPath(tab.meta.path) ? tab.meta.path : null;
@@ -360,11 +368,18 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const openKnownPath = useCallback(
     async (path: string, fromRecents: boolean) => {
       if (files.openPath === undefined) return;
+      const github = parseGithubPath(path);
+      // Reopening a GitHub recent shows its repository and branch in the navigator.
+      if (github !== null && fromRecents) {
+        setRepo((r) => (r !== null && r.owner === github.owner && r.repo === github.repo && r.branch === github.branch ? r : { owner: github.owner, repo: github.repo, branch: github.branch }));
+        folderChosen.current = true;
+        setFolderOpen(true);
+      }
       // A file that is already open is shown as it is, unsaved changes and all.
       const existing = session.findByPath(path);
       if (existing !== null) return session.activate(existing);
       try {
-        if (fromRecents) {
+        if (fromRecents && github === null) {
           await allowRecentDocument(path);
           // A remote file stays in the list when its host is unreachable; opening it reports why.
           if (!isSshPath(path) && !(await pathExists(path))) {
@@ -372,7 +387,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             return setError(`${path} no longer exists, so it was removed from recent documents.`);
           }
         }
-        const opened = await files.openPath(path);
+        let opened;
+        try {
+          opened = await files.openPath(path);
+        } catch (e) {
+          // Not signed in: run the sign-in, then read the file once more.
+          if (!(e instanceof GitHubError && e.kind === 'not_signed_in' && (await ensureSignedIn()))) throw e;
+          opened = await files.openPath(path);
+        }
         setError(null);
         session.open(opened);
         remember(opened.path);
@@ -457,8 +479,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
 
   const openFromFolder = useCallback(
     (path: string) => {
-      // TODO(story 5): open a GitHub file (github:// path) in a tab. Until then clicking one does nothing.
-      if (isGithubPath(path)) return;
       void openKnownPath(path, false);
     },
     [openKnownPath],
@@ -536,7 +556,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     }
   }, [requestGithubSignIn]);
   // File > Open Repo…: sign in first if needed, then the picker. The navigator (a later story) takes the choice.
-  const [repo, setRepo] = useState<RepoState | null>(null);
   const openRepo = useCallback(async () => {
     try {
       if (!(await ensureSignedIn())) return;

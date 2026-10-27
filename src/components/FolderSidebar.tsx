@@ -7,9 +7,12 @@ import { ChevronRight, File, Folder, Loader2, X } from 'lucide-react';
 import { ListDirectoryError, listDirectory, type FolderEntry } from '../platform/folders';
 import type { RecentDocument } from '../platform/recents';
 import { RepoNavigator, type RepoState } from './RepoNavigator';
+import { parseGithubPath } from '../platform/github';
 import { isSshPath, remoteAccount, remoteFileName } from '../platform/remote';
 
 export function basename(path: string): string {
+  const gh = parseGithubPath(path);
+  if (gh !== null) return gh.path.split('/').pop() || `${gh.owner}/${gh.repo}`;
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
@@ -285,6 +288,11 @@ export function FolderSidebar({
                     >
                       <span className="block truncate text-[13px] text-foreground">
                         {basename(r.path)}
+                        {parseGithubPath(r.path) !== null && (
+                          <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+                            {parseGithubPath(r.path)!.owner}/{parseGithubPath(r.path)!.repo} @ {parseGithubPath(r.path)!.branch}
+                          </span>
+                        )}
                         {isSshPath(r.path) && <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">{remoteAccount(r.path)}</span>}
                       </span>
                       <span className="block text-[11px] text-muted-foreground">{relativeTime(r.openedAt)}</span>

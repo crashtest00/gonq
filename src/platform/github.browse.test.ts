@@ -5,6 +5,7 @@ let tauri = true;
 const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
 vi.mock('./files', () => ({ isTauri: () => tauri }));
+vi.mock('./tauri', () => ({ isTauri: () => tauri }));
 
 import { githubPath, isGithubPath, listBranches, listFolder, parseGithubPath, toGitHubError } from './github';
 
