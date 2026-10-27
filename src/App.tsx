@@ -629,7 +629,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const redo = useCallback(() => editor.current?.redo(), []);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
-  const clipboardOp = (op: 'cut' | 'copy' | 'paste') => () => {
+  const clipboardOp = (op: 'cut' | 'copy' | 'paste') => {
     editor.current?.[op]().then(
       () => setError(null),
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
@@ -682,6 +682,10 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     setTheme: setThemeChoice,
     openAgentSkill: () => openSingle(agentSkillDialog, { files }),
     openAbout: () => openSingle(aboutDialog, {}),
+    hasSelection: selection !== null,
+    canAddComment: liveSelection !== null || canAddAtCursor,
+    addComment,
+    clipboard: clipboardOp,
   };
   // The one keydown handler is generated from the registered shortcuts and reads the latest context.
   const commandContextRef = useRef(commandContext);
@@ -807,15 +811,12 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           x={menu.x}
           y={menu.y}
           onClose={closeMenu}
-          items={[
-            { label: 'Add Comment', onSelect: addComment, disabled: liveSelection === null && !canAddAtCursor },
-            { label: 'Cut', onSelect: clipboardOp('cut'), disabled: selection === null, divider: true },
-            { label: 'Copy', onSelect: clipboardOp('copy'), disabled: selection === null },
-            { label: 'Paste', onSelect: clipboardOp('paste') },
-            { label: 'Select All', onSelect: () => editor.current?.selectAll(), divider: true },
-            { label: 'Bold', onSelect: () => editor.current?.format('bold'), divider: true },
-            { label: 'Italic', onSelect: () => editor.current?.format('italic') },
-          ]}
+          items={registry.resolveContextMenu(commandContext).map((e) => ({
+            label: e.label,
+            onSelect: () => void e.command.run?.(commandContext),
+            disabled: !e.enabled,
+            divider: e.divider,
+          }))}
         />
       )}
       {liveSelection !== null && draft === null && (

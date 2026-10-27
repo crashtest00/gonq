@@ -44,4 +44,11 @@ export interface CommandContext {
   setTheme: (theme: ThemeChoice) => void;
   openAgentSkill: Action;
   openAbout: Action;
+  /** The editor has selected text (Cut and Copy need it). */
+  hasSelection: boolean;
+  /** A comment can be started at the selection or caret. */
+  canAddComment: boolean;
+  addComment: Action;
+  /** Cut, copy or paste through the clipboard; a failure shows in the error banner. */
+  clipboard: (op: 'cut' | 'copy' | 'paste') => void;
 }

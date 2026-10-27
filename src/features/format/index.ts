@@ -27,6 +27,7 @@ FORMATS.filter((f) => f.format !== 'table').forEach(({ format, label, shortcut, 
     icon,
     labelClass: effect,
     hint: shortcut,
+    ...(format === 'bold' || format === 'italic' ? { contextMenu: { group: 30, order: format === 'bold' ? 10 : 20 } } : {}),
     run: (ctx) => {
       if (format !== 'link') return ctx.editor.current?.format(format);
       const url = askUrl();
