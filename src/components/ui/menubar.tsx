@@ -1,4 +1,4 @@
-/** shadcn/ui Menubar primitives (Radix), styled with the theme tokens; used by MenuBar.tsx. */
+/** shadcn/ui Menubar primitives (Radix), styled with the theme tokens; used by MenuBar.tsx. Every item kind (plain, sub-trigger, checkbox, radio) reserves the same left indicator column so labels align. */
 import * as React from 'react';
 import * as MenubarPrimitive from '@radix-ui/react-menubar';
 import { cn } from '../../lib/utils';
@@ -60,7 +60,7 @@ const MenubarItem = React.forwardRef<
   <MenubarPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center rounded-[4px] px-2 py-1.5 outline-none',
+      'relative flex cursor-default select-none items-center rounded-[4px] py-1.5 pl-7 pr-2 outline-none',
       'focus:bg-background data-[disabled]:pointer-events-none data-[disabled]:text-muted-foreground',
       className,
     )}
@@ -118,7 +118,7 @@ const MenubarSubTrigger = React.forwardRef<
   <MenubarPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center rounded-[4px] px-2 py-1.5 outline-none',
+      'relative flex cursor-default select-none items-center rounded-[4px] py-1.5 pl-7 pr-2 outline-none',
       'focus:bg-background data-[state=open]:bg-background data-[disabled]:pointer-events-none data-[disabled]:text-muted-foreground',
       className,
     )}
