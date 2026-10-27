@@ -629,12 +629,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const redo = useCallback(() => editor.current?.redo(), []);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
-  const clipboardOp = (op: 'cut' | 'copy' | 'paste') => {
-    editor.current?.[op]().then(
-      () => setError(null),
-      (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
-    );
-  };
   const insertImage = () => {
     pickImage(docPath).then(
       (picked) => {
@@ -685,7 +679,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     hasSelection: selection !== null,
     canAddComment: liveSelection !== null || canAddAtCursor,
     addComment,
-    clipboard: clipboardOp,
   };
   // The one keydown handler is generated from the registered shortcuts and reads the latest context.
   const commandContextRef = useRef(commandContext);
