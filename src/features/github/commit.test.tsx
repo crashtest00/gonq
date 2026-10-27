@@ -241,6 +241,18 @@ describe('other tabs and the web', () => {
     expect(await screen.findByRole('menuitem', { name: /^Commit…/ })).toHaveAttribute('aria-disabled', 'true');
   });
 
+  it('File menu lists Save, Save As…, Commit… in that order', async () => {
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+    const { user } = renderApp({ docs: testDoc('# L\n') });
+    await openDocument(user);
+    await user.click(screen.getByRole('menuitem', { name: 'File' }));
+    await screen.findByRole('menuitem', { name: /^Commit…/ });
+    const names = screen.getAllByRole('menuitem').map((e) => e.textContent ?? '');
+    const at = (re: RegExp) => names.findIndex((n) => re.test(n));
+    expect(at(/^Save As…/)).toBe(at(/^Save(?! As)/) + 1);
+    expect(at(/^Commit…/)).toBe(at(/^Save As…/) + 1);
+  });
+
   it('commitFile throws the clear desktop-app error on the web', async () => {
     delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
     const err = await commitFile({ ...loc, branch: 'main', path: 'a.md', text: 'x', sha: 's' }).catch((e) => e);
