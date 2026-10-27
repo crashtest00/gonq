@@ -330,7 +330,7 @@ export function CommentsSidebar({
 }) {
   const selected = selectedKey === null ? undefined : threads.find((t) => t.key === selectedKey);
   return (
-    <aside aria-label="Comments" className="flex w-[340px] shrink-0 overflow-hidden">
+    <aside aria-label="Comments" className="flex w-full shrink-0 overflow-hidden">
       <div className="w-px shrink-0" style={{ background: 'var(--brass-hairline-v)' }} />
       <div className="min-w-0 flex-1 overflow-y-auto">
         {draft !== null ? (

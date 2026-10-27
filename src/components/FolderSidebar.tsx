@@ -252,7 +252,7 @@ export function FolderSidebar({
   const [recentOpen, setRecentOpen] = useState(true);
 
   return (
-    <aside aria-label="Folder navigator" className="flex w-[240px] shrink-0 overflow-hidden">
+    <aside aria-label="Folder navigator" className="flex w-full shrink-0 overflow-hidden">
       <nav className="min-w-0 flex-1 overflow-y-auto px-4 py-3">
         <section className="mb-4">
           <SectionHeader label="Project folder" open={projectOpen} onToggle={() => setProjectOpen((o) => !o)} />
