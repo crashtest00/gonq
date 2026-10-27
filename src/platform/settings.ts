@@ -1,4 +1,4 @@
-// The author name written on new messages and the theme choice (light|dark|auto), persisted outside any
+// The author name, the theme choice (light|dark|auto) and the side panes' widths, persisted outside any
 // document: settings.json in the app config dir on desktop, localStorage in the browser.
 import { invoke } from '@tauri-apps/api/core';
 import { isTauri } from './files';
@@ -88,4 +88,50 @@ export async function setTheme(theme: ThemeChoice): Promise<ThemeChoice> {
   }
   localStorage.setItem(THEME_KEY, theme);
   return theme;
+}
+
+export type PaneName = 'navigator' | 'outline' | 'comments';
+export const PANE_NAMES: readonly PaneName[] = ['navigator', 'outline', 'comments'];
+export type PaneWidths = Partial<Record<PaneName, number>>;
+export const PANE_WIDTHS_KEY = 'gonq.paneWidths';
+
+/** The valid widths in a stored value (an object of pane name to positive finite number); everything else is dropped. */
+export function parsePaneWidths(value: unknown): PaneWidths {
+  const out: PaneWidths = {};
+  if (typeof value !== 'object' || value === null) return out;
+  for (const pane of PANE_NAMES) {
+    const w = (value as Record<string, unknown>)[pane];
+    if (typeof w === 'number' && Number.isFinite(w) && w > 0) out[pane] = w;
+  }
+  return out;
+}
+
+function readBrowserPaneWidths(): PaneWidths {
+  try {
+    return parsePaneWidths(JSON.parse(localStorage.getItem(PANE_WIDTHS_KEY) ?? 'null'));
+  } catch {
+    return {};
+  }
+}
+
+/** The widths the user has set; a pane with none uses its default. Empty when the store is unreadable. */
+export async function getPaneWidths(): Promise<PaneWidths> {
+  if (!isTauri()) return readBrowserPaneWidths();
+  try {
+    return parsePaneWidths(await invoke<unknown>('get_pane_widths'));
+  } catch {
+    return {};
+  }
+}
+
+/** Saves one pane's width in pixels; null clears it back to the default. Rejects with the error on failure. */
+export async function setPaneWidth(pane: PaneName, width: number | null): Promise<void> {
+  if (isTauri()) {
+    await invoke('set_pane_width', { pane, width });
+    return;
+  }
+  const next = readBrowserPaneWidths();
+  if (width === null) delete next[pane];
+  else next[pane] = width;
+  localStorage.setItem(PANE_WIDTHS_KEY, JSON.stringify(next));
 }

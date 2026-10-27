@@ -3,7 +3,7 @@ import type { OutlineItem } from './outline';
 
 export function OutlineSidebar({ items, onJump }: { items: OutlineItem[]; onJump: (from: number) => void }) {
   return (
-    <aside aria-label="Outline" className="flex w-[240px] shrink-0 overflow-hidden">
+    <aside aria-label="Outline" className="flex w-full shrink-0 overflow-hidden">
       <nav className="min-w-0 flex-1 overflow-y-auto px-4 py-3">
         <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Outline</div>
         {items.length === 0 ? (

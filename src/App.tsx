@@ -27,6 +27,8 @@ import { EditToolbar } from './components/EditToolbar';
 import { EditorContextMenu } from './components/EditorContextMenu';
 import { TableToolbar } from './components/TableToolbar';
 import type { TableTarget } from './editor/tables';
+import { ResizablePane } from './components/ResizablePane';
+import { usePaneWidths } from './components/paneWidths';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
@@ -69,6 +71,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const rawAll = session.raw;
   const [error, setError] = useState<string | null>(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const paneLayout = usePaneWidths();
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
   const [folder, setFolder] = useState<string | null>(null);
@@ -856,8 +859,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           setOutlineOpen(false);
         }} commentsOpen={commentsOpen} onToggleComments={toggleComments} />
       <div className="flex min-h-0 flex-1">
-        {outlineOpen && <OutlineSidebar items={outline} onJump={jumpToHeading} />}
+        {outlineOpen && (
+          <ResizablePane pane="outline" edge="right" layout={paneLayout} otherOpen={commentsOpen ? 'comments' : null}>
+            <OutlineSidebar items={outline} onJump={jumpToHeading} />
+          </ResizablePane>
+        )}
         {folderOpen && (
+          <ResizablePane pane="navigator" edge="right" layout={paneLayout} otherOpen={commentsOpen ? 'comments' : null}>
           <FolderSidebar
             folder={folder}
             repo={repo}
@@ -872,6 +880,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             onOpenRecent={(path) => void openKnownPath(path, true)}
             onRemoveRecent={(path) => void removeRecent(path).then(setRecents, () => {})}
           />
+          </ResizablePane>
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {readOnlyPull !== null && <ReadOnlyBanner pull={readOnlyPull} />}
@@ -930,6 +939,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           {meta !== null && <RawSwitch raw={rawAll} onChange={session.setRaw} />}
         </div>
         {commentsOpen && (
+          <ResizablePane pane="comments" edge="left" layout={paneLayout} otherOpen={outlineOpen ? 'outline' : folderOpen ? 'navigator' : null}>
           <CommentsSidebar
             threads={threads}
             selectedKey={selectedKey}
@@ -948,6 +958,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             onEdit={edit}
             onDelete={remove}
           />
+          </ResizablePane>
         )}
       </div>
       {menu !== null && (
