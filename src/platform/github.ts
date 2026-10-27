@@ -1,5 +1,5 @@
 // The only place the frontend invokes the GitHub commands (OAuth device flow, repository list, branches and
-// folder listings, file reads with worded errors, committing a file, open pull requests per branch, creating a branch), and the home of the github:// path format (a repository file is a document identity). The token and the device code stay in
+// folder listings, file reads with worded errors, committing a file, open pull requests per branch, creating a branch, comparing two branches, opening a pull request), and the home of the github:// path format (a repository file is a document identity). The token and the device code stay in
 // Rust: JS gets the user code to show, the login and whether a token exists. Desktop only; on the web every
 // call throws a GitHubError of kind unavailable_on_web, which the caller shows in the error banner.
 import { invoke } from '@tauri-apps/api/core';
@@ -380,6 +380,89 @@ export async function openPullsForBranches(owner: string, repo: string, branches
 /** The open pull request for one branch, or null. Same errors as openPullsForBranches. */
 export async function openPullForBranch(owner: string, repo: string, branch: string): Promise<OpenPull | null> {
   return (await openPullsForBranches(owner, repo, [branch])).get(branch) ?? null;
+}
+
+export const GITHUB_OPEN_PR_UNAVAILABLE = 'Opening a pull request needs the Gonq desktop app';
+
+/**
+ * The subset of `branches` that exist on GitHub (github_branches_exist `{owner, repo, branches}` -> string[]).
+ * Any failure other than a missing branch rejects. On the web: kind unavailable_on_web.
+ */
+export async function branchesExist(owner: string, repo: string, branches: string[]): Promise<string[]> {
+  if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_OPEN_PR_UNAVAILABLE);
+  if (branches.length === 0) return [];
+  const raw = await call<string[] | undefined>('github_branches_exist', { owner, repo, branches }, GITHUB_OPEN_PR_UNAVAILABLE);
+  return Array.isArray(raw) ? raw : [];
+}
+
+export type FileStatus = 'added' | 'modified' | 'removed' | 'renamed' | 'copied' | 'changed' | 'unchanged';
+
+export interface ComparedFile {
+  filename: string;
+  previousFilename: string | null;
+  status: FileStatus;
+  additions: number;
+  deletions: number;
+}
+
+export interface Comparison {
+  /** Commits `head` has that `base` lacks. */
+  aheadBy: number;
+  /** Commits `base` has that `head` lacks. */
+  behindBy: number;
+  files: ComparedFile[];
+  /** GitHub cut the file list off, so `files` is incomplete. */
+  truncated: boolean;
+}
+
+/**
+ * Compares `base` with `head` (github_compare `{owner, repo, base, head}` -> `{ahead_by, behind_by, files:
+ * [{filename, previous_filename, status, additions, deletions}], truncated}`). Rejects with a GitHubError;
+ * on the web with kind unavailable_on_web.
+ */
+export async function compareBranches(owner: string, repo: string, base: string, head: string): Promise<Comparison> {
+  const raw = await call<{
+    ahead_by: number;
+    behind_by: number;
+    files: { filename: string; previous_filename: string | null; status: FileStatus; additions: number; deletions: number }[];
+    truncated: boolean;
+  }>('github_compare', { owner, repo, base, head }, GITHUB_OPEN_PR_UNAVAILABLE);
+  return {
+    aheadBy: raw.ahead_by,
+    behindBy: raw.behind_by,
+    files: raw.files.map((f) => ({
+      filename: f.filename,
+      previousFilename: f.previous_filename ?? null,
+      status: f.status,
+      additions: f.additions,
+      deletions: f.deletions,
+    })),
+    truncated: raw.truncated === true,
+  };
+}
+
+export interface CreatedPull {
+  number: number;
+  url: string;
+}
+
+/**
+ * Opens a pull request of `head` into `base` (github_create_pull `{owner, repo, title, body, head, base}` ->
+ * `{number, html_url}`). GitHub's refusals (no commits between, one already exists, validation) reject with
+ * GitHub's own message unchanged.
+ */
+export async function createPull(args: { owner: string; repo: string; title: string; body: string; head: string; base: string }): Promise<CreatedPull> {
+  if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_OPEN_PR_UNAVAILABLE);
+  try {
+    const raw = await invoke<{ number: number; html_url: string }>('github_create_pull', args);
+    return { number: raw.number, url: raw.html_url };
+  } catch (e) {
+    const r = e as { kind?: unknown; message?: unknown } | null;
+    if (typeof r === 'object' && r !== null && r.kind === 'http' && typeof r.message === 'string' && r.message !== '') {
+      throw new GitHubError('other', r.message);
+    }
+    throw toGitHubError(e);
+  }
 }
 
 export const GITHUB_SCHEME = 'github://';

@@ -39,6 +39,10 @@ export interface CommandContext {
   openFolder: Action;
   openConnect: Action;
   openRepo: Action;
+  /** A repository is open in the navigator or a GitHub tab is open: File > Open PR… has a repository to work on. */
+  canOpenPr: boolean;
+  /** Signs in if needed, then shows the Open PR dialog. */
+  openPr: Action;
   openPreferences: Action;
   githubSignIn: Action;
   githubSignOut: Action;
