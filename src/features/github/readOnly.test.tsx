@@ -144,6 +144,18 @@ describe('a tab with an open pull request', () => {
     expect(docText()).toContain('PASTED');
   });
 
+  it('stays editable when the reply entry for its branch has pull: null', async () => {
+    const { user } = setup([{ branch: 'gonq/fix', path: 'a.md', content: '# A\n' }]);
+    await openRecent(user, /^a\.md/);
+    await waitFor(() => expect(pullCalls().length).toBeGreaterThan(0));
+    expect(banner()).toBeNull();
+    expect(editorView().state.readOnly).toBe(false);
+    type('!');
+    await user.keyboard('{Control>}s{/Control}');
+    expect(screen.queryByText(/Pull request #\d+ is open/)).toBeNull();
+    await screen.findByRole('dialog');
+  });
+
   it('becomes editable again when activated after the PR was closed', async () => {
     pulls = [pr('gonq/fix', 12)];
     const { user } = setup([
@@ -223,6 +235,18 @@ describe('platform calls', () => {
     expect(got.get('c')).toMatchObject({ number: 3, draft: true });
     expect(pullCalls()).toHaveLength(1);
     expect(await openPullForBranch('octo', 'notes', 'b')).toBeNull();
+  });
+
+  it('follow the backend contract: exact command and arguments, literal reply', async () => {
+    invoke.mockImplementationOnce(async () => [
+      { branch: 'a', pull: null },
+      { branch: 'b', pull: { number: 7, html_url: 'https://github.com/o/r/pull/7', draft: true, title: null } },
+    ]);
+    const got = await openPullsForBranches('o', 'r', ['a', 'b']);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith('github_open_pulls_for_branches', { owner: 'o', repo: 'r', branches: ['a', 'b'] });
+    expect(got.get('a')).toBeNull();
+    expect(got.get('b')).toEqual({ number: 7, url: 'https://github.com/o/r/pull/7', draft: true });
   });
 
   it('reject with the network kind on a failed check', async () => {
