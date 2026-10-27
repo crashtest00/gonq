@@ -1,6 +1,8 @@
+/** Live preview and the table widget: hidden syntax, block constructs, task checkboxes, table cells, arrow keys and table ops. */
 import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
+import { settleView } from '../testing/editor';
 import { applyFormat } from '../components/formatting';
 import { focusCaretCell, focusTableCell, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
 
@@ -10,8 +12,8 @@ function show(text: string, caret = text.length) {
   const targets: (TableTarget | null)[] = [];
   const view = new EditorView({ state: createEditorState(text, false, tableTargetListener.of((t) => targets.push(t))), parent });
   view.dispatch({ selection: { anchor: caret } });
-  const shown = () => view.contentDOM.textContent ?? '';
-  const q = (sel: string) => Array.from(view.contentDOM.querySelectorAll(sel));
+  const shown = () => (settleView(view), view.contentDOM.textContent ?? '');
+  const q = (sel: string) => (settleView(view), Array.from(view.contentDOM.querySelectorAll(sel)));
   return { view, shown, q, targets, target: () => targets[targets.length - 1] ?? null, move: (to: number) => view.dispatch({ selection: { anchor: to } }), done: () => (view.destroy(), parent.remove()) };
 }
 
@@ -117,6 +119,27 @@ describe('block constructs', () => {
     expect(e.view.state.doc.toString()).toBe('- [x] a\n- [ ] b\n\ntext');
     e.done();
   });
+
+  // jsdom has no layout, so the x alignment itself is measured in a real browser (e2e/smoke.spec.ts, "wrapped task item").
+  // Here: the shown "- " is a separate mark that is gone with the caret out, and the item keeps its depth line and checkbox.
+  test.each([0, 1, 2, 3])('wrapped task item at depth %i: the shown "- " is a mark that comes and goes with the caret, the checkbox stays', (depth) => {
+    const words = Array.from({ length: 40 }, (_, i) => `word${i}`).join(' ');
+    const lines = Array.from({ length: depth }, (_, d) => `${'  '.repeat(d)}- [ ] parent`);
+    const text = [...lines, `${'  '.repeat(depth)}- [ ] ${words}`, '', 'outside'].join('\n');
+    const item = text.indexOf('word0');
+    const e = show(text, item + 2);
+    const itemLine = () => e.q('.cm-line').find((l) => l.textContent?.includes('word0'))!;
+    expect(e.q('.cm-task-src')).toHaveLength(1);
+    expect(e.q('.cm-task-src')[0].textContent).toBe('- ');
+    expect(itemLine().getAttribute('style')).toContain(`--depth: ${depth}`);
+    expect(itemLine().querySelectorAll('.cm-task-box')).toHaveLength(1);
+    e.move(text.length);
+    expect(e.q('.cm-task-src')).toHaveLength(0);
+    expect(itemLine().querySelectorAll('.cm-task-box')).toHaveLength(1);
+    expect(itemLine().textContent).not.toContain('- ');
+    e.done();
+  });
+
 });
 
 describe('what stays source', () => {

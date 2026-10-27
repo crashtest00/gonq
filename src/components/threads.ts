@@ -1,3 +1,4 @@
+/** Threads as the UI addresses them: listThreads/threadKey (id plus ordinal), relativeTime and preview for the sidebar. */
 import { parseCommentThreads, type CommentThread } from '../comment-threads';
 
 /**

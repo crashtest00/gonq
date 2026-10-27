@@ -1,3 +1,4 @@
+/** useTheme: the saved theme choice (Auto default) applied to <html>, following the OS live in Auto. */
 import { useCallback, useEffect, useState } from 'react';
 import { applyTheme, isDark, systemPrefersDark, systemScheme } from './theme';
 import { getTheme, readStoredTheme, setTheme, type ThemeChoice } from '../platform/settings';

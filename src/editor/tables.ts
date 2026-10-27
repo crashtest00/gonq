@@ -1,3 +1,7 @@
+/**
+ * GFM tables as a block widget with editable cells that write back to the source (Raw shows the pipes). Reports
+ * the target cell (tableTargetListener) and runs table operations on it (runTableOp), each one undo step.
+ */
 import { syntaxTree } from '@codemirror/language';
 import { ChangeSet, type ChangeSpec, type EditorState, type Extension, Prec, type Range, StateField, type Text, Facet } from '@codemirror/state';
 import { redo, undo } from '@codemirror/commands';
@@ -300,7 +304,7 @@ class TableTracker {
   focusout = (e: FocusEvent) => {
     const to = e.relatedTarget as Element | null;
     // Focus may go to the table toolbar or the Format menu and still target the same cell.
-    if (!to || (!this.view.dom.contains(to) && !to.closest('[data-table-toolbar], [data-format-menu]'))) this.release();
+    if (!to || (!this.view.dom.contains(to) && !to.closest('[data-table-toolbar], [data-menu="format"]'))) this.release();
   };
   release() {
     this.focused = null;

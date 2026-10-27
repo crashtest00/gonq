@@ -1,3 +1,4 @@
+/** Document tabs: several open documents, per-tab undo/caret/raw state, dedupe, new tab, sidebars per tab. */
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
@@ -194,7 +195,7 @@ describe('closing a tab', () => {
     await screen.findByText('first doc');
     await user.click(screen.getByRole('button', { name: 'Close a.md' }));
     expect(screen.queryAllByRole('tab')).toHaveLength(0);
-    expect(screen.getByText(/Use File > Open to open a Markdown file/)).toBeInTheDocument();
+    expect(screen.getByText(/Open a document or create a new one\./)).toBeInTheDocument();
   });
 
   test('an empty untitled tab closes, and File > Close does the same', async () => {
@@ -202,7 +203,7 @@ describe('closing a tab', () => {
     await user.click(screen.getByRole('button', { name: 'New tab' }));
     await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
     expect(screen.queryAllByRole('tab')).toHaveLength(0);
-    expect(screen.getByText(/Use File > Open to open a Markdown file/)).toBeInTheDocument();
+    expect(screen.getByText(/Open a document or create a new one\./)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'New tab' }));
     await user.click(screen.getByRole('menuitem', { name: 'File' }));
     await user.click(await screen.findByRole('menuitem', { name: /Close/ }));

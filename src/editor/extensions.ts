@@ -1,3 +1,7 @@
+/**
+ * The editor's extension set: lang-markdown with GFM pieces (gonqMarkdown, incl. the ListEndsTable fix), history
+ * and keymaps, and the Raw/Formatted mode compartment. createEditorState builds a tab's state.
+ */
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore, redo } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { commonmarkLanguage } from '@codemirror/lang-markdown';
@@ -8,6 +12,7 @@ import { EditorView, keymap, placeholder, type Command } from '@codemirror/view'
 import { Strikethrough, Table, TaskList, type MarkdownConfig } from '@lezer/markdown';
 import { formatKeymap } from './formatCommands';
 import { livePreview } from './livePreview';
+import { renumberAfter } from './renumber';
 import { openLink } from './openLink';
 import { tocWidgets } from './toc';
 import { keepCaretOutOfTocMarker, protectThreadBlocks, separateThreadBlocks } from './threads';
@@ -27,7 +32,7 @@ function isTableLeaf(content: string): boolean {
 }
 
 /**
- * A list item right under a table row ends the table instead of turning the table into a Setext heading
+ * A list item, or a line without a pipe, right under a table row ends the table instead of turning the table into a Setext heading
  * (`| 1 | 2 |` then `- ` would otherwise read as an H2). Uses lezer's `endLeaf` block-parser hook, the same
  * one its own Table, list and HR parsers use; a `---` line still underlines as before.
  */
@@ -38,6 +43,9 @@ const ListEndsTable: MarkdownConfig = {
       endLeaf(_cx, line, leaf) {
         if (!isTableLeaf(leaf.content)) return false;
         const text = line.text.slice(line.pos);
+        // A line without a pipe under the table is the text being typed after it, not another row: GFM would
+        // absorb it, and the table widget would swallow the line the caret is on.
+        if (!text.replace(/\\./g, '').includes('|') && !THEMATIC_BREAK.test(text.trim())) return true;
         return LIST_START.test(text) && !THEMATIC_BREAK.test(text.trim());
       },
       before: 'SetextHeading',
@@ -54,6 +62,16 @@ const RAW: Extension = EditorView.editorAttributes.of({ class: 'cm-raw' });
 /** The one thing that differs between Formatted and Raw; swapped by reconfiguring this compartment. */
 export const modeCompartment = new Compartment();
 export const modeExtension = (raw: boolean): Extension => (raw ? RAW : LIVE);
+
+/**
+ * Read-only tabs: CodeMirror's own EditorState.readOnly (blocks typing, paste, drop, undo and the editing
+ * commands) plus EditorView.editable (no caret, tables not editable), in a compartment so the one editor can
+ * switch it per tab. Selecting and copying keep working.
+ */
+export const readOnlyCompartment = new Compartment();
+const READ_ONLY: Extension = [EditorState.readOnly.of(true), EditorView.editable.of(false)];
+const EDITABLE: Extension = [];
+export const readOnlyExtension = (on: boolean): Extension => (on ? READ_ONLY : EDITABLE);
 
 const LIST_LINE = /^[ \t]*([-*+]|\d+[.)])([ \t]|$)/;
 
@@ -87,7 +105,7 @@ function hasListAbove(state: EditorState, pos: number): boolean {
 }
 
 /** Every text-editing behaviour (typing, history, keys, list continuation) is CodeMirror's or lang-markdown's own. */
-export function editorExtensions(raw: boolean, extra: Extension = []): Extension {
+export function editorExtensions(raw: boolean, extra: Extension = [], readOnly = false): Extension {
   return [
     history(),
     // Four spaces, so Tab nests every list marker up to "99. ": a child must start at or past its parent's content column.
@@ -97,7 +115,7 @@ export function editorExtensions(raw: boolean, extra: Extension = []): Extension
     keepCaretOutOfTocMarker,
     formatKeymap,
     keymap.of([
-      { key: 'Tab', run: listIndent(indentMore), shift: listIndent(indentLess) },
+      { key: 'Tab', run: renumberAfter(listIndent(indentMore)), shift: renumberAfter(listIndent(indentLess)) },
       // historyKeymap binds Ctrl+Shift+Z only on Linux; Windows would otherwise have just Ctrl+Y.
       { key: 'Mod-Shift-z', run: redo, preventDefault: true },
       ...searchKeymap,
@@ -109,10 +127,11 @@ export function editorExtensions(raw: boolean, extra: Extension = []): Extension
     EditorView.lineWrapping,
     placeholder(PLACEHOLDER),
     modeCompartment.of(modeExtension(raw)),
+    readOnlyCompartment.of(readOnlyExtension(readOnly)),
     extra,
   ];
 }
 
-export function createEditorState(text: string, raw: boolean, extra: Extension = []): EditorState {
-  return EditorState.create({ doc: text, extensions: editorExtensions(raw, extra) });
+export function createEditorState(text: string, raw: boolean, extra: Extension = [], readOnly = false): EditorState {
+  return EditorState.create({ doc: text, extensions: editorExtensions(raw, extra, readOnly) });
 }

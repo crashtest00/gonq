@@ -1,11 +1,15 @@
 // Native file access lives behind this boundary so the web beta stays usable:
-// in a browser, File > Open falls back to an <input type="file">.
+// in a browser, File > Open falls back to an <input type="file">. Exports FileAccess and `files`
+// (desktop or web); ssh:// paths are routed to remote.ts, github:// paths to github.ts (openGithub; saving one
+// is not available yet).
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import { isTauri } from './tauri';
+import { isGithubPath, readFile as readGithubFile, parseGithubPath, githubPath, type GithubDocument } from './github';
 import { isSshPath, remoteFileName, remoteRead, remoteWrite, type RemoteStat } from './remote';
 
-export { isSshPath };
+export { isSshPath, isTauri };
 
 export interface OpenedDocument {
   name: string;
@@ -15,6 +19,8 @@ export interface OpenedDocument {
   text: string;
   /** ssh:// documents only: the server's version when it was read. */
   remote?: RemoteStat;
+  /** github:// documents only: where the text came from, as GitHub reported it. */
+  github?: GithubDocument;
 }
 
 export class NotUtf8Error extends Error {
@@ -80,10 +86,6 @@ function basename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
-export function isTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
-
 /** The text goes to disk exactly as held: no newline, BOM or whitespace normalisation. */
 async function tauriWrite(path: string, text: string): Promise<SavedDocument> {
   await writeTextFile(path, text);
@@ -94,6 +96,27 @@ async function tauriWrite(path: string, text: string): Promise<SavedDocument> {
     // Images are a nicety; the save itself succeeded.
   }
   return { name: basename(path), path };
+}
+
+export const GITHUB_SAVE_UNAVAILABLE = 'Saving GitHub documents is not available yet. Nothing was written.';
+
+/**
+ * Reads a github:// file. The tab's path is rebuilt from what GitHub answered (its path for the file), on the
+ * branch the file was opened from, so the identity never rests on text the user typed.
+ */
+export async function openGithub(path: string): Promise<OpenedDocument> {
+  const loc = parseGithubPath(path);
+  if (loc === null) throw new Error(`${path} is not a GitHub file address.`);
+  const file = await readGithubFile(loc.owner, loc.repo, loc.branch, loc.path);
+  const github: GithubDocument = {
+    owner: loc.owner,
+    repo: loc.repo,
+    branch: loc.branch,
+    path: file.path,
+    sha: file.sha,
+    commitSha: file.commitSha,
+  };
+  return { name: file.name, path: githubPath(github), text: file.content, github };
 }
 
 async function openRemote(path: string): Promise<OpenedDocument> {
@@ -130,6 +153,7 @@ const tauriFiles: FileAccess = {
   },
 
   async openPath(path) {
+    if (isGithubPath(path)) return openGithub(path);
     if (isSshPath(path)) return openRemote(path);
     const name = basename(path);
     const text = decodeUtf8(await readFile(path), name);
@@ -139,6 +163,7 @@ const tauriFiles: FileAccess = {
 
   async saveDocument(doc, taken, options) {
     if (doc.path === null) return tauriFiles.saveDocumentAs(doc, taken);
+    if (isGithubPath(doc.path)) throw new Error(GITHUB_SAVE_UNAVAILABLE);
     if (isSshPath(doc.path)) return saveRemote(doc.path, doc.text, doc.remote, options?.force === true);
     return tauriWrite(doc.path, doc.text);
   },
@@ -156,6 +181,12 @@ const tauriFiles: FileAccess = {
 };
 
 const webFiles: FileAccess = {
+  // Only github:// paths, which fail with the "needs the desktop app" error; a browser reads no other known path.
+  async openPath(path) {
+    if (isGithubPath(path)) return openGithub(path);
+    throw new Error(`${path} cannot be opened here.`);
+  },
+
   pickDocument() {
     return new Promise((resolve, reject) => {
       const input = document.createElement('input');
@@ -177,6 +208,7 @@ const webFiles: FileAccess = {
 
   // A browser cannot overwrite a file it opened, so saving downloads the text.
   async saveDocument(doc) {
+    if (doc.path !== null && isGithubPath(doc.path)) throw new Error(GITHUB_SAVE_UNAVAILABLE);
     return webFiles.saveDocumentAs(doc);
   },
 

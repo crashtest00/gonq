@@ -1,3 +1,4 @@
+/** The comment-threads library suite, ported 1:1 from test.cjs: format round-trip, replies, ids, marker position safety. */
 import { describe, it, expect, vi } from 'vitest'
 import * as lib from './index'
 import type { CommentThread } from './types'

@@ -1,3 +1,7 @@
+/**
+ * Markdown edits for the formatting toolbar: applyFormat is a pure function from text and selection to an Edit,
+ * never splitting comment markers or formatting inside code. Used by EditToolbar, MenuBar and editor/formatCommands.ts.
+ */
 import { parseCommentMarkers } from '../comment-threads';
 
 /** Markdown edits for the formatting toolbar: pure functions from a field's text and selection to its new text and selection. */

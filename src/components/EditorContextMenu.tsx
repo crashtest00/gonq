@@ -1,3 +1,4 @@
+/** The editor's right-click menu: a plain popup whose items come from the command registry (commands with a contextMenu placement; see App.tsx). */
 import { useEffect, useRef } from 'react';
 
 export interface ContextMenuItem {

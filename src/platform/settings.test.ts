@@ -1,3 +1,4 @@
+/** settings.ts: author name validation and storage, theme parsing and storage. */
 import { vi } from 'vitest';
 
 let tauri = true;

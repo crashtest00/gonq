@@ -1,3 +1,4 @@
+/** ImageWidget: a Markdown image drawn as the image, loaded through platform/images.ts with a fallback. */
 import { WidgetType } from '@codemirror/view';
 import type { EditorView } from '@codemirror/view';
 import { loadImage } from '../platform/images';

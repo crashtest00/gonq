@@ -1,3 +1,4 @@
+/** The editorHost facet: what widgets need from the app (document path, open-thread callback). */
 import { Facet } from '@codemirror/state';
 
 /** What the editor's widgets need from the app around it; read when a widget is built or clicked, so it is always current. */

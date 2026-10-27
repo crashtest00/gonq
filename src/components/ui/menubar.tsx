@@ -1,3 +1,4 @@
+/** shadcn/ui Menubar primitives (Radix), styled with the theme tokens; used by MenuBar.tsx. */
 import * as React from 'react';
 import * as MenubarPrimitive from '@radix-ui/react-menubar';
 import { cn } from '../../lib/utils';

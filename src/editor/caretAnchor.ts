@@ -1,3 +1,4 @@
+/** Keeps the caret in place on screen when Raw <-> Formatted changes line heights (caretOffset, keepCaretVisible). */
 import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { tableAt } from './tables';

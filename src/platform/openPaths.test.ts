@@ -1,3 +1,4 @@
+/** openPaths.ts: queued paths, live events and the browser no-op. */
 import { vi } from 'vitest';
 
 const invoke = vi.fn();

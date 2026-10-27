@@ -1,3 +1,5 @@
+//! Recent documents in recent.json (app data dir): newest first, deduped, capped at ten, written atomically;
+//! a missing or corrupt file is an empty list. Backs the recent_documents_* commands in lib.rs.
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;

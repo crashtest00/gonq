@@ -48,3 +48,6 @@ artifacts/
 # Playwright
 test-results/
 playwright-report/
+
+# Generated project map (npm run map)
+PROJECT_MAP.md

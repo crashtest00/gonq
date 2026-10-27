@@ -1,3 +1,4 @@
+/** File > Connect to Server: input parsing, host list, auth prompts, the remote folder picker and recent folders. */
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, vi } from 'vitest';

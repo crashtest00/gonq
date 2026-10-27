@@ -1,3 +1,7 @@
+/**
+ * File > Connect to Server dialog: choose a host, answer host-key/passphrase/password prompts, then pick a remote
+ * folder (FolderPicker). Registered by App.tsx as the platform connect handler; errors show in the banner on web.
+ */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowUp, Folder, Loader2, Server } from 'lucide-react';
 import {

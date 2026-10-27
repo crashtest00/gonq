@@ -1,5 +1,7 @@
+/** Table cells: leaving an edited cell and undo/redo from inside a cell. */
 import { undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
+import { settleView } from '../testing/editor';
 import { createEditorState } from './extensions';
 
 // Browsers blur a focused cell while its widget is being removed by a redraw, in the middle of the view
@@ -20,6 +22,7 @@ test('Tab out of an edited cell and undo do not throw while the focused cell is 
   const parent = document.body.appendChild(document.createElement('div'));
   const view = new EditorView({ state: createEditorState('| h | i |\n| - | - |\n| a | b |', false), parent });
   try {
+    settleView(view);
     const td = view.contentDOM.querySelectorAll<HTMLElement>('td')[0];
     td.focus();
     td.textContent = 'zz';
@@ -40,7 +43,7 @@ test('Tab out of an edited cell and undo do not throw while the focused cell is 
 test('Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y pressed in a cell undo and redo the document one edit at a time', () => {
   const parent = document.body.appendChild(document.createElement('div'));
   const view = new EditorView({ state: createEditorState('| h | i |\n| - | - |\n| a | b |', false), parent });
-  const cells = () => view.contentDOM.querySelectorAll<HTMLElement>('td');
+  const cells = () => (settleView(view), view.contentDOM.querySelectorAll<HTMLElement>('td'));
   const key = (k: string, o: KeyboardEventInit = {}) => {
     cells()[1].focus();
     cells()[1].dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...o }));
@@ -71,7 +74,7 @@ test('one Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y in a cell is exactly one step with earl
   const errors: unknown[] = [];
   const onErr = (e: ErrorEvent) => errors.push(e.error);
   window.addEventListener('error', onErr);
-  const cells = () => view.contentDOM.querySelectorAll<HTMLElement>('th, td');
+  const cells = () => (settleView(view), view.contentDOM.querySelectorAll<HTMLElement>('th, td'));
   const doc = () => view.state.doc.toString();
   const keyOn = (td: HTMLElement, k: string, o: KeyboardEventInit = {}) => {
     td.focus();

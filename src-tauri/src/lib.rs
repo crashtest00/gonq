@@ -1,4 +1,8 @@
+//! The Tauri app (`run`): declares the modules, defines the local commands (document-folder fs grant,
+//! list_directory/path_exists, recent documents, author name and theme, take_launch_paths), registers them
+//! with the github_* and ssh_*/remote_* commands, and installs the single-instance, dialog, fs and opener plugins.
 mod folder;
+mod github;
 mod launch;
 mod ssh;
 mod recents;
@@ -183,6 +187,7 @@ pub fn run() {
             Ok(())
         })
         .manage(ssh::new_pool())
+        .manage(github::Github::production())
         .manage(ssh::fs::Remote::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -200,6 +205,21 @@ pub fn run() {
             get_theme,
             set_theme,
             take_launch_paths,
+            github::github_start,
+            github::github_poll,
+            github::github_status,
+            github::github_sign_out,
+            github::github_list_repos,
+            github::github_list_branches,
+            github::github_list_folder,
+            github::github_read_file,
+            github::github_commit_file,
+            github::github_open_pulls_for_branches,
+            github::github_branch_exists,
+            github::github_create_branch,
+            github::github_branches_exist,
+            github::github_compare,
+            github::github_create_pull,
             ssh::ssh_list_hosts,
             ssh::ssh_connect,
             ssh::ssh_disconnect,

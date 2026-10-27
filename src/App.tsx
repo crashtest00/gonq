@@ -1,9 +1,27 @@
+/**
+ * The app shell: owns the open tabs (useDocument), the one MarkdownEditor, the menu bar and toolbars, the
+ * folder/outline/comments sidebars and <DialogHost/> (every dialog is opened with openDialog, see dialogs/), builds the CommandContext the command registry's menus and shortcuts run against, and wires its actions to platform/ calls (open, save,
+ * connect, GitHub sign-in, repo picker and its open repo/branch, GitHub files in tabs and the navigator following them, launch paths). Errors land in its banner.
+ */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from './lib/useTheme';
 import { MenuBar } from './components/MenuBar';
-import { AgentSkillDialog } from './components/AgentSkillDialog';
-import { AboutDialog } from './components/AboutDialog';
-import { PreferencesDialog } from './components/PreferencesDialog';
+import { registry, type CommandContext } from './commands';
+import { DialogHost, openDialog, type DialogRef } from './dialogs/DialogHost';
+import {
+  aboutDialog,
+  agentSkillDialog,
+  commitDialog,
+  createBranchDialog,
+  openPrDialog,
+  conflictDialog,
+  connectDialog,
+  githubSignInDialog,
+  preferencesDialog,
+  repoPickerDialog,
+  unsavedChangesDialog,
+  branchChangeDialog,
+} from './dialogs/dialogs';
 import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
 import { TabStrip } from './components/TabStrip';
 import { EditToolbar } from './components/EditToolbar';
@@ -13,20 +31,23 @@ import type { TableTarget } from './editor/tables';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
-import { UnsavedChangesDialog, type UnsavedChoice } from './components/UnsavedChangesDialog';
-import { ConflictDialog, type ConflictChoice } from './components/ConflictDialog';
 import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
-import { ConnectDialog } from './components/ConnectDialog';
+import type { RepoState } from './components/RepoNavigator';
+import { GitHubError, commitFile, ensureSignedIn, parseGithubPath, setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus, type GithubDocument } from './platform/github';
+import type { RepoChoice } from './components/RepoPickerDialog';
 import { assertConnectAvailable } from './platform/connect';
 import { listThreads, threadKey } from './components/threads';
 import { isCommentableAt, selectionRange, type ThreadTarget } from './components/newThread';
 import { parseCommentMarkers, appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus } from './comment-threads';
 import { RawSwitch } from './components/RawSwitch';
 import { MarkdownEditor, type EditorHandle, type EditorSelection } from './editor/MarkdownEditor';
-import { useDocument } from './document/useDocument';
+import { useDocument, type DocumentMeta } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
 import { pickImage } from './platform/images';
+import { addSessionBranch, listSessionBranches, type SessionBranch } from './features/github/sessionBranches';
+import { PULL_CHECK_FAILED, openPullMessage, useOpenPulls } from './features/github/openPulls';
+import { ReadOnlyBanner } from './components/ReadOnlyBanner';
 import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
 import { pathExists, pickFolder } from './platform/folders';
@@ -38,16 +59,14 @@ function parentDir(path: string): string | null {
   return i === 0 ? path.slice(0, 1) : path.slice(0, i);
 }
 
-interface ConnectRequest {
-  id: number;
-  host?: string;
-  reconnect: boolean;
-  resolve: (connected: boolean) => void;
-}
-
 export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const session = useDocument();
   const { meta, text } = session;
+  // A GitHub tab whose branch has an open pull request is read-only (features/github/openPulls.ts).
+  const opens = useOpenPulls(meta?.github ?? null, session.activeId);
+  const opensRef = useRef(opens);
+  opensRef.current = opens;
+  const readOnlyPull = opens.pullFor(meta?.github ?? null);
   const rawAll = session.raw;
   const [error, setError] = useState<string | null>(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -57,25 +76,25 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   // Once the user picks a folder with Open Folder…, opening documents no longer moves the Project folder.
   const folderChosen = useRef(false);
   const [recents, setRecents] = useState<RecentDocument[]>([]);
+  // The GitHub repository and branch the navigator shows; null when a folder (or nothing) is shown.
+  const [repo, setRepo] = useState<RepoState | null>(null);
+  // Branches made with Create branch in this session (the session list in sessionBranches.ts, kept as state to re-render the dropdown).
+  const [createdBranches, setCreatedBranches] = useState<SessionBranch[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
   const [tableTarget, setTableTarget] = useState<TableTarget | null>(null);
   const [selection, setSelection] = useState<EditorSelection | null>(null);
   const [caret, setCaret] = useState<number | null>(null);
   const editor = useRef<EditorHandle>(null);
-  const [asking, setAsking] = useState<{ name: string; resolve: (c: UnsavedChoice) => void } | null>(null);
-  const [conflict, setConflict] = useState<{ name: string; deleted: boolean; resolve: (c: ConflictChoice) => void } | null>(null);
   // A remote save slower than a second says where it is going; an in-place save says it was not atomic.
   const [savingTo, setSavingTo] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const activeId = session.activeId;
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
   const [theme, setThemeChoice] = useTheme(useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []));
-  const [prefsOpen, setPrefsOpen] = useState(false);
-  const [skillOpen, setSkillOpen] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
-  // The Connect dialog: from File > Connect to Server, from a login a save or expand needs, or from an error row.
-  const [connecting, setConnecting] = useState<ConnectRequest | null>(null);
+  // Dialogs are opened through openDialog and shown by <DialogHost/>; see dialogs/dialogs.tsx.
+  // The GitHub sign-in dialog: from File > Sign in to GitHub… or ensureSignedIn (platform/github.ts).
+  const githubOpen = useRef<Promise<boolean> | null>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
 
@@ -92,10 +111,19 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   useEffect(() => {
     if (docPath === null || folderChosen.current) return;
     // A remote document's parent is not on the allow-list; the remote root comes from the Connect flow.
-    if (isSshPath(docPath)) return;
+    if (isSshPath(docPath) || parseGithubPath(docPath) !== null) return;
     const parent = parentDir(docPath);
     if (parent !== null) setFolder(parent);
   }, [docPath]);
+  // Activating a GitHub tab shows its repository and branch in the navigator, even after Open Folder or Open Repo.
+  const gh = meta?.github;
+  const ghOwner = gh?.owner;
+  const ghRepo = gh?.repo;
+  const ghBranch = gh?.branch;
+  useEffect(() => {
+    if (ghOwner === undefined || ghRepo === undefined || ghBranch === undefined) return;
+    setRepo((r) => (r !== null && r.owner === ghOwner && r.repo === ghRepo && r.branch === ghBranch ? r : { owner: ghOwner, repo: ghRepo, branch: ghBranch }));
+  }, [activeId, ghOwner, ghRepo, ghBranch]);
   const remember = useCallback((path: string | null) => {
     if (path !== null) addRecent(path).then(setRecents, () => {});
   }, []);
@@ -246,6 +274,100 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
 
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
+  /**
+   * Opens the Create branch dialog for the open repository. `tab` is the active GitHub tab, if any: its branch is
+   * the source, and when it is dirty the dialog also commits its file to the new branch, after which the tab
+   * (and the navigator) move to it. Otherwise only the branch is made and nothing else moves. Returns true when
+   * the tab's changes were committed to the new branch.
+   */
+  const makeBranch = useCallback(
+    async (tab: { id: number; gh: GithubDocument; meta: DocumentMeta; text: string; dirty: boolean } | null): Promise<boolean> => {
+      const base = tab?.gh ?? repo;
+      if (base === null) return false;
+      const source = tab !== null ? tab.gh.branch : repo!.branch;
+      const commit = tab !== null && tab.dirty ? { path: tab.gh.path, text: tab.text, sha: tab.gh.sha } : null;
+      const result = await openDialog(createBranchDialog, {
+        owner: base.owner,
+        repo: base.repo,
+        source,
+        commit,
+        onCreated: (branch: string) => {
+          const b = { owner: base.owner, repo: base.repo, branch };
+          addSessionBranch(b);
+          setCreatedBranches((prev) => (prev.some((p) => p.owner === b.owner && p.repo === b.repo && p.branch === b.branch) ? prev : [...prev, b]));
+        },
+      });
+      if (result === null || result.commit === null || tab === null) return false;
+      setError(null);
+      setNotice(null);
+      session.saved(tab.id, { ...tab.meta, github: { ...tab.gh, branch: result.branch, sha: result.commit.sha, commitSha: result.commit.commitSha } }, tab.text);
+      setRepo({ owner: tab.gh.owner, repo: tab.gh.repo, branch: result.branch });
+      return true;
+    },
+    [repo, session.saved],
+  );
+
+  const openCreateBranch = useCallback(() => {
+    const id = session.activeId;
+    const tab = id === null ? null : session.peek(id);
+    const gh = tab?.meta.github;
+    void makeBranch(id !== null && tab !== null && gh !== undefined ? { id, gh, meta: tab.meta, text: tab.text, dirty: tab.dirty } : null);
+  }, [session.activeId, session.peek, makeBranch]);
+
+  /**
+   * Commits a GitHub tab's saved text to the branch it was opened from; true when committed. Nothing is
+   * called when there is nothing to commit; a conflict opens the ConflictDialog and writes nothing.
+   * The dialog's 'Commit to new branch…' choice hands over to makeBranch (branch-and-commit).
+   * A pull request open for the branch (found by a fresh check) refuses before the dialog is shown, and so does a
+   * check that cannot complete.
+   */
+  const commitGithub = useCallback(
+    async (id: number, gh: GithubDocument, text: string, dirty: boolean, meta: DocumentMeta): Promise<boolean> => {
+      const noChanges = () => {
+        setNotice('No changes to commit');
+        return true;
+      };
+      const known = opensRef.current.pullFor(gh);
+      if (!dirty && known === null) return noChanges();
+      let pull = known;
+      try {
+        pull = await opensRef.current.checkNow(gh);
+      } catch {
+        // Fail closed: with no answer, nothing is written.
+        if (known === null) {
+          setError(PULL_CHECK_FAILED);
+          return false;
+        }
+      }
+      if (pull !== null) {
+        setError(openPullMessage(pull));
+        return false;
+      }
+      if (!dirty) return noChanges();
+      const choice = await openDialog(commitDialog, { owner: gh.owner, repo: gh.repo, branch: gh.branch, path: gh.path });
+      if (choice === 'new-branch') return makeBranch({ id, gh, meta, text, dirty });
+      if (choice !== 'commit') return false;
+      try {
+        const result = await commitFile({ owner: gh.owner, repo: gh.repo, branch: gh.branch, path: gh.path, text, sha: gh.sha });
+        if (result.status === 'conflict') {
+          // The file changed on GitHub: the same dialog as a remote save. Overwrite has nothing to force, so
+          // either answer leaves the tab unsaved and writes nothing.
+          await openDialog(conflictDialog, { name: meta.name, deleted: false });
+          return false;
+        }
+        setError(null);
+        setNotice(null);
+        addSessionBranch({ owner: gh.owner, repo: gh.repo, branch: gh.branch });
+        session.saved(id, { ...meta, github: { ...gh, sha: result.sha, commitSha: result.commitSha } }, text);
+        return true;
+      } catch (e) {
+        failed(e);
+        return false;
+      }
+    },
+    [session.saved, makeBranch],
+  );
+
   /** Writes tab `id`; true when it is on disk, false when cancelled or failed. */
   const doWrite = useCallback(
     async (id: number, as: boolean): Promise<boolean> => {
@@ -253,6 +375,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       if (tab === null) return true;
       // What is written is what is marked saved, even if typing continues meanwhile.
       const snapshot = tab.text;
+      // Save on a GitHub tab commits (after a confirmation); Save As is not offered for GitHub files yet.
+      if (!as && tab.meta.github !== undefined) return commitGithub(id, tab.meta.github, snapshot, tab.dirty, tab.meta);
       // Save As may not land on a file another tab holds.
       const taken = (path: string) => session.peekTabs().some((t) => t.id !== id && t.path === path);
       const remotePath = !as && tab.meta.path !== null && isSshPath(tab.meta.path) ? tab.meta.path : null;
@@ -269,8 +393,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             if (!(e instanceof RemoteConflictError)) throw e;
             if (slow !== null) clearTimeout(slow);
             setSavingTo(null);
-            const choice = await new Promise<ConflictChoice>((resolve) => setConflict({ name: e.name_, deleted: e.deleted, resolve }));
-            setConflict(null);
+            const choice = await openDialog(conflictDialog, { name: e.name_, deleted: e.deleted });
             // Cancel leaves the tab unsaved, text intact.
             if (choice === 'cancel') return false;
             saved = await files.saveDocument(doc, undefined, { force: true });
@@ -296,7 +419,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         setSavingTo(null);
       }
     },
-    [files, session.peek, session.peekTabs, session.saved, remember],
+    [files, session.peek, session.peekTabs, session.saved, remember, commitGithub],
   );
   // One save per tab at a time: a request made while one is pending joins it (no parallel write, no second dialog).
   const pendingSaves = useRef(new Map<number, Promise<boolean>>());
@@ -322,8 +445,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const tab = session.peek(id);
       if (tab === null || !tab.dirty) return true;
       session.activate(id);
-      const choice = await new Promise<UnsavedChoice>((resolve) => setAsking({ name: tab.meta.name, resolve }));
-      setAsking(null);
+      const choice = await openDialog(unsavedChangesDialog, { name: tab.meta.name });
       if (choice === 'save') return write(id, false);
       return choice === 'discard';
     },
@@ -335,6 +457,23 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       if (await confirmTab(id)) session.close(id);
     },
     [confirmTab, session.close],
+  );
+
+  /**
+   * The navigator's branch dropdown. A GitHub document open on another branch is closed first (after a
+   * warning when it has unsaved changes) and no tab is selected; Cancel leaves the repo, branch and tabs as they were.
+   */
+  const changeBranch = useCallback(
+    async (branch: string) => {
+      const id = session.activeId;
+      const tab = id === null ? null : session.peek(id);
+      if (id !== null && tab?.meta.github && tab.meta.github.branch !== branch) {
+        if (tab.dirty && !(await openDialog(branchChangeDialog, { name: tab.meta.name }))) return;
+        session.closeSelectingNone(id);
+      }
+      setRepo((r) => (r === null ? r : { ...r, branch }));
+    },
+    [session.activeId, session.peek, session.closeSelectingNone],
   );
 
   const newFile = useCallback(() => {
@@ -359,11 +498,18 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const openKnownPath = useCallback(
     async (path: string, fromRecents: boolean) => {
       if (files.openPath === undefined) return;
+      const github = parseGithubPath(path);
+      // Reopening a GitHub recent shows its repository and branch in the navigator.
+      if (github !== null && fromRecents) {
+        setRepo((r) => (r !== null && r.owner === github.owner && r.repo === github.repo && r.branch === github.branch ? r : { owner: github.owner, repo: github.repo, branch: github.branch }));
+        folderChosen.current = true;
+        setFolderOpen(true);
+      }
       // A file that is already open is shown as it is, unsaved changes and all.
       const existing = session.findByPath(path);
       if (existing !== null) return session.activate(existing);
       try {
-        if (fromRecents) {
+        if (fromRecents && github === null) {
           await allowRecentDocument(path);
           // A remote file stays in the list when its host is unreachable; opening it reports why.
           if (!isSshPath(path) && !(await pathExists(path))) {
@@ -371,7 +517,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             return setError(`${path} no longer exists, so it was removed from recent documents.`);
           }
         }
-        const opened = await files.openPath(path);
+        let opened;
+        try {
+          opened = await files.openPath(path);
+        } catch (e) {
+          // Not signed in: run the sign-in, then read the file once more.
+          if (!(e instanceof GitHubError && e.kind === 'not_signed_in' && (await ensureSignedIn()))) throw e;
+          opened = await files.openPath(path);
+        }
         setError(null);
         session.open(opened);
         remember(opened.path);
@@ -454,7 +607,12 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     };
   }, []);
 
-  const openFromFolder = useCallback((path: string) => void openKnownPath(path, false), [openKnownPath]);
+  const openFromFolder = useCallback(
+    (path: string) => {
+      void openKnownPath(path, false);
+    },
+    [openKnownPath],
+  );
 
   const openFolder = useCallback(async () => {
     try {
@@ -462,6 +620,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       if (picked === null) return;
       folderChosen.current = true;
       setFolder(picked);
+      setRepo(null);
       setError(null);
       setOutlineOpen(false);
       setFolderOpen(true);
@@ -483,25 +642,19 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     },
     [session.peekTabs, folder],
   );
-  // One Connect dialog at a time. Each request gets its own key so its dialog starts fresh; requests that
-  // arrive while one is open wait their turn and start only after it closes.
-  const connectingNow = useRef<ConnectRequest | null>(null);
-  const connectQueue = useRef<ConnectRequest[]>([]);
-  const connectSeq = useRef(0);
+  // Each Connect request is its own dialog; DialogHost shows them one at a time, in the order they were asked.
+  const hostInUseRef = useRef(hostInUse);
+  hostInUseRef.current = hostInUse;
+  const openedRemoteFolderRef = useRef<(uri: string) => void>(() => {});
+  const connectsOpen = useRef(0);
   const requestConnect = useCallback((host: string | undefined, reconnect: boolean): Promise<boolean> => {
-    return new Promise<boolean>((resolve) => {
-      const req: ConnectRequest = { id: ++connectSeq.current, host, reconnect, resolve };
-      if (connectingNow.current === null) {
-        connectingNow.current = req;
-        setConnecting(req);
-      } else connectQueue.current.push(req);
-    });
-  }, []);
-  const connectClosed = useCallback((connected: boolean) => {
-    connectingNow.current?.resolve(connected);
-    const next = connectQueue.current.shift() ?? null;
-    connectingNow.current = next;
-    setConnecting(next);
+    connectsOpen.current++;
+    return openDialog(connectDialog, {
+      host,
+      reconnect,
+      inUse: (name: string) => hostInUseRef.current(name),
+      onOpened: (uri: string) => openedRemoteFolderRef.current(uri),
+    }).finally(() => connectsOpen.current--);
   }, []);
   /** File > Connect to Server; does nothing while a Connect dialog is already open. */
   const openConnect = useCallback((host?: string): Promise<boolean> => {
@@ -511,9 +664,75 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       failed(e);
       return Promise.resolve(false);
     }
-    if (connectingNow.current !== null) return Promise.resolve(false);
+    if (connectsOpen.current > 0) return Promise.resolve(false);
     return requestConnect(host, false);
   }, [requestConnect]);
+  const requestGithubSignIn = useCallback((status: GitHubStatus): Promise<boolean> => {
+    if (githubOpen.current !== null) return githubOpen.current;
+    const asked = openDialog(githubSignInDialog, { status });
+    githubOpen.current = asked;
+    void asked.then(() => {
+      githubOpen.current = null;
+    });
+    return asked;
+  }, []);
+  useEffect(() => setSignInHandler(() => requestGithubSignIn({ signed_in: false, login: null, storage: null })), [requestGithubSignIn]);
+  /** File > Sign in to GitHub…; on the web the status call throws and the banner says why. */
+  const openGithubSignIn = useCallback(async () => {
+    try {
+      await requestGithubSignIn(await signInStatus());
+    } catch (e) {
+      failed(e);
+    }
+  }, [requestGithubSignIn]);
+  // File > Open Repo…: sign in first if needed, then the picker. The navigator (a later story) takes the choice.
+  const openRepo = useCallback(async () => {
+    try {
+      if (!(await ensureSignedIn())) return;
+      const result = await openDialog(repoPickerDialog, {});
+      if (result.kind === 'chosen') repoChosen(result.choice);
+      else if (result.kind === 'signed-out') repoSignedOut();
+    } catch (e) {
+      failed(e);
+    }
+  }, []);
+  // File > Open PR…: sign in first if needed, then the three-step dialog on the navigator's repository (or the active GitHub tab's).
+  const openPr = useCallback(async () => {
+    try {
+      if (!(await ensureSignedIn())) return;
+      const gh = session.tabs.filter((t) => t.github !== undefined).map((t) => ({ owner: t.github!.owner, repo: t.github!.repo, branch: t.github!.branch }));
+      const active = meta?.github;
+      await openDialog(openPrDialog, {
+        preferred: repo !== null ? { owner: repo.owner, repo: repo.repo } : active !== undefined ? { owner: active.owner, repo: active.repo } : null,
+        tabBranches: gh,
+        sessionBranches: listSessionBranches(),
+        // Every tab on the branch turns read-only at once (the same mechanism as the open-PR guard).
+        onOpened: ({ owner, repo: name, branch, pull }) => opensRef.current.markOpen({ owner, repo: name, branch }, { number: pull.number, url: pull.url, draft: false }),
+      });
+    } catch (e) {
+      failed(e);
+    }
+  }, [session.tabs, meta, repo]);
+  const repoChosen = (choice: RepoChoice) => {
+    // The navigator opens on the default branch; a document or folder chosen later replaces the repository.
+    folderChosen.current = true;
+    setRepo({ owner: choice.owner, repo: choice.repo, branch: choice.defaultBranch });
+    setError(null);
+    setOutlineOpen(false);
+    setFolderOpen(true);
+  };
+  const repoSignedOut = () => {
+    setNotice('GitHub sign-in is no longer valid. Sign in again to open a repository.');
+  };
+  const doGithubSignOut = useCallback(async () => {
+    try {
+      await githubSignOut();
+      setError(null);
+      setNotice('Signed out of GitHub.');
+    } catch (e) {
+      failed(e);
+    }
+  }, []);
   // A save or a folder expand that needs a login waits on the Connect dialog, then runs again.
   const connectPending = useRef(new Map<string, Promise<boolean>>());
   useEffect(() => {
@@ -530,28 +749,33 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const openedRemoteFolder = useCallback((uri: string) => {
     folderChosen.current = true;
     setFolder(uri);
+    setRepo(null);
     setError(null);
     setOutlineOpen(false);
     setFolderOpen(true);
   }, []);
+  openedRemoteFolderRef.current = openedRemoteFolder;
 
-  // Keyboard shortcuts read the latest handlers through a ref, so the listener is added once.
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
   const closeActive = useCallback(() => {
     if (activeIdRef.current !== null) void closeTab(activeIdRef.current);
   }, [closeTab]);
-  const openPrefs = useCallback(() => setPrefsOpen(true), []);
+  // Preferences, Agent skill and About are single dialogs: asking again while one is open does nothing.
+  const singles = useRef(new Set<string>());
+  const openSingle = useCallback(<P,>(dialog: DialogRef<P, void>, props: P) => {
+    if (singles.current.has(dialog.id)) return;
+    singles.current.add(dialog.id);
+    void openDialog(dialog, props).finally(() => singles.current.delete(dialog.id));
+  }, []);
+  const openPrefs = useCallback(
+    () => openSingle(preferencesDialog, { authorName, onSave: async (n: string) => setAuthor(await setAuthorName(n)) }),
+    [openSingle, authorName],
+  );
   const undo = useCallback(() => editor.current?.undo(), []);
+  const redo = useCallback(() => editor.current?.redo(), []);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
-  const clipboardOp = (op: 'cut' | 'copy' | 'paste') => () => {
-    editor.current?.[op]().then(
-      () => setError(null),
-      (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
-    );
-  };
-  const redo = useCallback(() => editor.current?.redo(), []);
   const insertImage = () => {
     pickImage(docPath).then(
       (picked) => {
@@ -570,32 +794,48 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       setError(e instanceof Error ? e.message : String(e));
     }
   };
-  const actions = useRef({ closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect });
-  actions.current = { closeActive, newFile, openFile, save, saveAs, undo, redo, openPrefs, openConnect };
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-      const a = actions.current;
-      const key = e.key.toLowerCase();
-      const target = e.target as HTMLElement | null;
-      // Undo in the editor is CodeMirror's own, as it is in any other text field.
-      const foreignField = target?.closest('input, textarea, .cm-editor');
-      let run: (() => unknown) | null = null;
-      if (e.key === ',' && !e.shiftKey) run = a.openPrefs;
-      else if (key === 'k' && e.shiftKey) run = () => a.openConnect();
-      else if (key === 'o') run = a.openFile;
-      else if (key === 'n') run = a.newFile;
-      else if (key === 'w' && !e.shiftKey) run = a.closeActive;
-      else if (key === 's') run = e.shiftKey ? a.saveAs : a.save;
-      else if (!foreignField && key === 'z') run = e.shiftKey ? a.redo : a.undo;
-      else if (!foreignField && key === 'y') run = a.redo;
-      if (run === null) return;
-      e.preventDefault();
-      void run();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  const commandContext: CommandContext = {
+    hasDocument: meta !== null,
+    canUndo: session.canUndo,
+    canRedo: session.canRedo,
+    raw: rawAll,
+    theme,
+    tableTarget,
+    editor,
+    session,
+    files,
+    setError,
+    openDialog,
+    save: () => void save(),
+    saveAs: () => void saveAs(),
+    isGithubTab: meta?.github !== undefined,
+    readOnly: readOnlyPull !== null,
+    commit: () => void save(),
+    newFile,
+    openFile: () => void openFile(),
+    closeTab: closeActive,
+    openFolder: () => void openFolder(),
+    openConnect: () => void openConnect(),
+    openRepo: () => void openRepo(),
+    canOpenPr: repo !== null || session.tabs.some((t) => t.github !== undefined),
+    openPr: () => void openPr(),
+    openPreferences: openPrefs,
+    githubSignIn: () => void openGithubSignIn(),
+    githubSignOut: () => void doGithubSignOut(),
+    insertImage,
+    insertToc,
+    setRaw: session.setRaw,
+    setTheme: setThemeChoice,
+    openAgentSkill: () => openSingle(agentSkillDialog, { files }),
+    openAbout: () => openSingle(aboutDialog, {}),
+    hasSelection: selection !== null,
+    canAddComment: readOnlyPull === null && (liveSelection !== null || canAddAtCursor),
+    addComment,
+  };
+  // The one keydown handler is generated from the registered shortcuts and reads the latest context.
+  const commandContextRef = useRef(commandContext);
+  commandContextRef.current = commandContext;
+  useEffect(() => registry.installShortcuts(() => commandContextRef.current), []);
 
   // Closing the window with unsaved changes asks first.
   // Every unsaved tab is asked about in turn; Cancel on any of them keeps the window open.
@@ -609,34 +849,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background font-sans text-foreground">
-      <MenuBar
-        theme={theme}
-        onTheme={setThemeChoice}
-        hasDocument={meta !== null}
-        canUndo={session.canUndo}
-        canRedo={session.canRedo}
-        onNew={newFile}
-        onFocusEditor={() => editor.current?.focus()}
-        onFormat={(f, url) => editor.current?.format(f, url)}
-        onTableAction={(op) => editor.current?.tableAction(op)}
-        onFocusTableCell={() => editor.current?.focusTableCell()}
-        tableTarget={tableTarget}
-        onCloseTab={activeId === null ? undefined : () => void closeTab(activeId)}
-        onOpen={() => void openFile()}
-        onOpenFolder={() => void openFolder()}
-        onConnect={() => void openConnect()}
-        onSave={() => void save()}
-        onSaveAs={() => void saveAs()}
-        onUndo={undo}
-        onRedo={redo}
-        onInsertImage={insertImage}
-        onInsertToc={insertToc}
-        raw={rawAll}
-        onToggleRaw={() => session.setRaw(!rawAll)}
-        onPreferences={openPrefs}
-        onAgentSkill={() => setSkillOpen(true)}
-        onAbout={() => setAboutOpen(true)}
-      />
+      <MenuBar ctx={commandContext} />
       <TabStrip tabs={session.tabs} activeId={activeId} onSelect={(id) => {
         session.activate(id);
         editor.current?.focus();
@@ -652,6 +865,10 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         {folderOpen && (
           <FolderSidebar
             folder={folder}
+            repo={repo}
+            createdBranches={createdBranches.filter((b) => b.owner === repo?.owner && b.repo === repo?.repo).map((b) => b.branch)}
+            onBranchChange={(branch) => void changeBranch(branch)}
+            onCreateBranch={openCreateBranch}
             recents={recents}
             currentPath={meta?.path ?? null}
             onOpenFolder={() => void openFolder()}
@@ -662,6 +879,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {readOnlyPull !== null && <ReadOnlyBanner pull={readOnlyPull} />}
           {meta !== null && <EditToolbar canUndo={session.canUndo} canRedo={session.canRedo} onUndo={undo} onRedo={redo} onFormat={(f, url) => editor.current?.format(f, url)} />}
           {meta !== null && tableTarget !== null && (
             <TableToolbar
@@ -685,8 +903,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                   <button type="button" aria-label="Dismiss notice" onClick={() => setNotice(null)} className="cursor-pointer border-0 bg-transparent p-0 text-inherit">×</button>
                 </div>
               )}
-              {meta === null && error === null && (
-                <p className="text-[13px] text-muted-foreground">Use File &gt; Open to open a Markdown file, or File &gt; New to start one.</p>
+              {meta === null && (
+                <p className="text-[13px] text-muted-foreground">Open a document or create a new one.</p>
               )}
             </div>
           )}
@@ -696,6 +914,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
               tabId={activeId}
               text={text}
               raw={rawAll}
+              readOnly={readOnlyPull !== null}
               tabIds={session.tabIds}
               docPath={meta.path}
               onOpenThread={(id, ordinal) => {
@@ -725,7 +944,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             }}
             onClose={() => setSelectedKey(null)}
             draft={draft === null ? null : { anchor: draft.anchor }}
-            canAdd={meta !== null && (liveSelection !== null || canAddAtCursor)}
+            canAdd={meta !== null && readOnlyPull === null && (liveSelection !== null || canAddAtCursor)}
             onAdd={addComment}
             onCancelDraft={() => setDraft(null)}
             onSubmitDraft={submitDraft}
@@ -741,15 +960,12 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           x={menu.x}
           y={menu.y}
           onClose={closeMenu}
-          items={[
-            { label: 'Add Comment', onSelect: addComment, disabled: liveSelection === null && !canAddAtCursor },
-            { label: 'Cut', onSelect: clipboardOp('cut'), disabled: selection === null, divider: true },
-            { label: 'Copy', onSelect: clipboardOp('copy'), disabled: selection === null },
-            { label: 'Paste', onSelect: clipboardOp('paste') },
-            { label: 'Select All', onSelect: () => editor.current?.selectAll(), divider: true },
-            { label: 'Bold', onSelect: () => editor.current?.format('bold'), divider: true },
-            { label: 'Italic', onSelect: () => editor.current?.format('italic') },
-          ]}
+          items={registry.resolveContextMenu(commandContext).map((e) => ({
+            label: e.label,
+            onSelect: () => void e.command.run?.(commandContext),
+            disabled: !e.enabled,
+            divider: e.divider,
+          }))}
         />
       )}
       {liveSelection !== null && draft === null && (
@@ -766,27 +982,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           💬
         </button>
       )}
-      {prefsOpen && (
-        <PreferencesDialog
-          authorName={authorName}
-          onSave={async (n) => setAuthor(await setAuthorName(n))}
-          onClose={() => setPrefsOpen(false)}
-        />
-      )}
-      {skillOpen && <AgentSkillDialog files={files} onClose={() => setSkillOpen(false)} />}
-      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
-      {connecting !== null && (
-        <ConnectDialog
-          key={connecting.id}
-          host={connecting.host}
-          reconnect={connecting.reconnect}
-          inUse={hostInUse}
-          onOpened={openedRemoteFolder}
-          onClose={connectClosed}
-        />
-      )}
-      {conflict !== null && <ConflictDialog name={conflict.name} deleted={conflict.deleted} onChoose={conflict.resolve} />}
-      {asking !== null && <UnsavedChangesDialog name={asking.name} onChoose={asking.resolve} />}
+      <DialogHost />
     </div>
   );
 }

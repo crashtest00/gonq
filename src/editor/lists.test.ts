@@ -1,21 +1,20 @@
+/** Lists next to tables (ListEndsTable), list depth decorations and Tab/Shift+Tab renumbering. */
 import { ensureSyntaxTree } from '@codemirror/language';
+import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState } from './extensions';
+import { settleView } from '../testing/editor';
 
 function open(text: string, caret = text.length) {
   const parent = document.body.appendChild(document.createElement('div'));
   const view = new EditorView({ state: createEditorState(text, false), parent });
-  // Complete the parse and rebuild the decorations from the full tree. CodeMirror parses each edit
-  // with a 20 ms budget, so on a loaded machine the tree after an edit can be partial.
-  const settle = () => {
-    ensureSyntaxTree(view.state, view.state.doc.length, 5000);
-    view.dispatch({ selection: view.state.selection });
-  };
+  const settle = () => settleView(view);
   view.dispatch({ selection: { anchor: caret } });
   settle();
   const q = (sel: string) => (settle(), Array.from(view.contentDOM.querySelectorAll<HTMLElement>(sel)));
   const depths = () => q('.cm-li').map((l) => l.style.getPropertyValue('--depth').trim());
   const key = (k: string, shiftKey = false) => {
+    settle(); // Tab reads the syntax tree: a test's own dispatch must be fully parsed before the key goes in
     view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: k, shiftKey, bubbles: true, cancelable: true }));
     settle();
   };
@@ -141,5 +140,142 @@ describe('list layout', () => {
     e.key('Tab', true);
     expect(e.depths()).toEqual(['0', '0', '0']);
     e.done();
+  });
+});
+
+describe('Tab / Shift+Tab renumber ordered lists in the source', () => {
+  test('indenting restarts the nested list and closes the gap', () => {
+    const e = open('1. a\n2. b\n3. c', 8);
+    e.key('Tab');
+    expect(e.doc()).toBe('1. a\n    1. b\n2. c');
+    e.key('Tab', true);
+    expect(e.doc()).toBe('1. a\n2. b\n3. c');
+    e.done();
+  });
+  test('a second indented item continues the nested count', () => {
+    const e = open('1. a\n    1. b\n2. c', 18);
+    e.key('Tab');
+    expect(e.doc()).toBe('1. a\n    1. b\n    2. c');
+    e.done();
+  });
+  test('outdenting a middle item joins the parent count and restarts the items it adopts', () => {
+    const e = open('1. a\n    1. b\n    2. c\n    3. d', 15);
+    e.key('Tab', true);
+    expect(e.doc()).toBe('1. a\n    1. b\n2. c\n    1. d');
+    e.done();
+  });
+  test('one undo step, caret kept, a loose list stays one list', () => {
+    const e = open('5. x\n7. y\n\n9. z', 9);
+    e.key('Tab');
+    expect(e.doc()).toBe('5. x\n    1. y\n\n6. z');
+    expect(e.view.state.selection.main.head).toBe(e.doc().indexOf('y') + 1);
+    undo(e.view);
+    expect(e.doc()).toBe('5. x\n7. y\n\n9. z');
+    e.done();
+  });
+
+  const tabAt = (text: string, needle: string, shift = false) => {
+    const e = open(text, text.indexOf(needle) + needle.length);
+    e.key('Tab', shift);
+    const out = e.doc();
+    e.done();
+    return out;
+  };
+  test.each([
+    ['depth 0', '1. a\n2. b\n3. c', '2. b', '1. a\n    1. b\n2. c'],
+    ['depth 1', '1. p0\n    1. a\n    2. b\n    3. c', '2. b', '1. p0\n    1. a\n        1. b\n    2. c'],
+    ['depth 2', '1. p0\n    1. p1\n        1. a\n        2. b\n        3. c', '2. b', '1. p0\n    1. p1\n        1. a\n            1. b\n        2. c'],
+    ['depth 3', '1. p0\n    1. p1\n        1. p2\n            1. a\n            2. b\n            3. c', '2. b', '1. p0\n    1. p1\n        1. p2\n            1. a\n                1. b\n            2. c'],
+    ['the criterion-1 example', '1. a\n2. b\n3. c\n4. d', '3. c', '1. a\n2. b\n    1. c\n3. d'],
+    ['a ")" list', '1) a\n2) b\n3) c', '2) b', '1) a\n    1) b\n2) c'],
+    ['a bullet list', '- a\n- b\n- c', '- b', '- a\n    - b\n- c'],
+    ['a task list', '- [ ] a\n- [x] b\n- [ ] c', '[x] b', '- [ ] a\n    - [x] b\n- [ ] c'],
+    ['an item with a nested bullet list', '1. a\n2. b\n   - x\n   - y\n3. c', '2. b', '1. a\n    1. b\n       - x\n       - y\n2. c'],
+  ])('Tab renumbers: %s', (_n, text, at, expected) => {
+    expect(tabAt(text, at)).toBe(expected);
+  });
+  test.each([
+    ['depth 1', '1. p0\n    1. a\n        1. b\n    2. c', '1. b', '1. p0\n    1. a\n    2. b\n    3. c'],
+    ['an item with children', '1. a\n    1. b\n       - x\n       - y\n2. c', '1. b', '1. a\n2. b\n   - x\n   - y\n3. c'],
+  ])('Shift+Tab reverses: %s', (_n, text, at, expected) => {
+    expect(tabAt(text, at, true)).toBe(expected);
+  });
+  test('redo reapplies the indent and the renumbering together', () => {
+    const e = open('1. a\n2. b\n3. c', 8);
+    e.key('Tab');
+    undo(e.view);
+    redo(e.view);
+    expect(e.doc()).toBe('1. a\n    1. b\n2. c');
+    e.done();
+  });
+  describe('a selection that ends at the start of a line leaves that line alone', () => {
+    const run = (text: string, from: string, to: string, shift = false) => {
+      const e = open(text);
+      e.view.dispatch({ selection: { anchor: text.indexOf(from), head: text.indexOf(to) } });
+      e.key('Tab', shift);
+      const out = e.doc();
+      e.done();
+      return out;
+    };
+    test('numbered', () => {
+      expect(run('1. a\n2. b\n3. c\n4. d\n5. e', '2. b', '4. d')).toBe('1. a\n    1. b\n    2. c\n2. d\n3. e');
+    });
+    test('bullet', () => {
+      expect(run('- a\n- b\n- c\n- d\n- e', '- b', '- d')).toBe('- a\n    - b\n    - c\n- d\n- e');
+    });
+    test('task', () => {
+      expect(run('- [ ] a\n- [ ] b\n- [ ] c\n- [ ] d', '- [ ] b', '- [ ] d')).toBe('- [ ] a\n    - [ ] b\n    - [ ] c\n- [ ] d');
+    });
+    test('triple-click style selection indents one item', () => {
+      expect(run('1. a\n2. b\n3. c', '2. b', '3. c')).toBe('1. a\n    1. b\n2. c');
+      expect(run('- a\n- b\n- c', '- b', '- c')).toBe('- a\n    - b\n- c');
+    });
+    test.each([
+      ['depth 0', '1. a\n    1. b\n    2. c\n2. d', '    1. b', '    2. c', '1. a\n2. b\n    1. c\n3. d'],
+      ['depth 2', '1. p\n    1. q\n        1. a\n        2. b\n    2. d', '        1. a', '        2. b', '1. p\n    1. q\n    2. a\n        1. b\n    3. d'],
+      ['depth 3', '1. p\n    1. q\n        1. r\n            1. a\n            2. b\n        2. d', '            1. a', '            2. b', '1. p\n    1. q\n        1. r\n        2. a\n            1. b\n        3. d'],
+      ['bullet', '- a\n    - b\n    - c\n- d', '    - b', '    - c', '- a\n- b\n    - c\n- d'],
+    ])('Shift+Tab, %s', (_n, text, from, to, expected) => {
+      expect(run(text, from, to, true)).toBe(expected);
+    });
+  });
+});
+
+describe('an empty line directly under a list item', () => {
+  // The line the caret is on, as the editor draws it: [class, --depth].
+  const caretLine = (text: string, caret = text.length) => {
+    const e = open(text, caret);
+    const l = e.q('.cm-line').find((el) => el.classList.contains('cm-activeLine')) ?? e.q('.cm-line')[e.view.state.doc.lineAt(caret).number - 1];
+    const r = { li: l.classList.contains('cm-li'), first: l.classList.contains('cm-li-first'), depth: l.style.getPropertyValue('--depth').trim(), doc: e.doc() };
+    e.done();
+    return r;
+  };
+
+  test.each([
+    ['ordered', '1. a\n2. b\n', '0'],
+    ['bullet', '- a\n- b\n', '0'],
+    ['task', '- [ ] a\n- [ ] b\n', '0'],
+    ['depth 1', '- a\n    - b\n', '1'],
+    ['depth 2', '- a\n    - b\n        - c\n', '2'],
+  ])('%s: takes the item\'s padding, like the lazy line typed text becomes', (_n, text, depth) => {
+    const r = caretLine(text);
+    expect(r).toMatchObject({ li: true, first: false, depth, doc: text });
+    // Typing keeps the same decoration (same x for the caret and the first character).
+    expect(caretLine(text + 'hello')).toMatchObject({ li: true, first: false, depth });
+  });
+
+  test('same when the caret is moved onto it', () => {
+    const text = '1. a\n2. b\n';
+    expect(caretLine(text, 0).li).toBe(true);
+    expect(caretLine(text, text.length)).toMatchObject({ li: true, depth: '0' });
+  });
+
+  test('a blank line between keeps the left edge', () => {
+    expect(caretLine('1. a\n2. b\n\n').li).toBe(false);
+    expect(caretLine('1. a\n2. b\n\nhello').li).toBe(false);
+  });
+
+  test('an empty list item is not a text line to continue', () => {
+    expect(caretLine('1. a\n2. \n').li).toBe(false);
   });
 });

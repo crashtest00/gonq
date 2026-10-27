@@ -1,11 +1,14 @@
+/** Editor keyboard shortcuts: formatting, undo/redo, select all, Home/End, word delete, Ctrl+F find. */
 import { EditorView, runScopeHandlers } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
+import { settleView } from '../testing/editor';
 import { createEditorState } from './extensions';
 
 type Key = { key: string; ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean };
 
 function setup(doc: string, raw: boolean, at: number, to = at) {
   const view = new EditorView({ state: createEditorState(doc, raw) });
+  settleView(view);
   view.dispatch({ selection: { anchor: at, head: to } });
   return view;
 }

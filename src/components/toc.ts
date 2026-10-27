@@ -1,3 +1,7 @@
+/**
+ * The table-of-contents block (`<!-- toc -->…<!-- /toc -->`): findToc, buildToc and tocChange (insert or refresh).
+ * editor/toc.ts draws it in Formatted mode.
+ */
 import { outlineOf } from './outline';
 
 /** The markers that make an inserted table of contents findable again. The list between them is plain Markdown. */

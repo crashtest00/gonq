@@ -1,3 +1,4 @@
+/** Barrel of the comment-threads library (everything except editor/codemirror.ts). */
 export * from './types'
 export * from './markers'
 export * from './parser'

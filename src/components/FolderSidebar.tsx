@@ -1,10 +1,18 @@
+/**
+ * The folder navigator sidebar: Project folder tree (local or ssh://, listed lazily in chunks; or the GitHub
+ * repo navigator when `repo` is set) and Recent documents. Exports basename, relativeTime and the row-chunk/spinner constants.
+ */
 import { memo, useCallback, useEffect, useState } from 'react';
 import { ChevronRight, File, Folder, Loader2, X } from 'lucide-react';
 import { ListDirectoryError, listDirectory, type FolderEntry } from '../platform/folders';
 import type { RecentDocument } from '../platform/recents';
+import { RepoNavigator, type RepoState } from './RepoNavigator';
+import { parseGithubPath } from '../platform/github';
 import { isSshPath, remoteAccount, remoteFileName } from '../platform/remote';
 
 export function basename(path: string): string {
+  const gh = parseGithubPath(path);
+  if (gh !== null) return gh.path.split('/').pop() || `${gh.owner}/${gh.repo}`;
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
@@ -212,6 +220,10 @@ function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string;
 
 export function FolderSidebar({
   folder,
+  repo = null,
+  createdBranches,
+  onBranchChange,
+  onCreateBranch,
   recents,
   currentPath,
   onOpenFolder,
@@ -221,6 +233,12 @@ export function FolderSidebar({
   onRemoveRecent,
 }: {
   folder: string | null;
+  /** An open GitHub repository; it takes the Project folder section from `folder`. */
+  repo?: RepoState | null;
+  /** Branches created in this session on the open repository. */
+  createdBranches?: string[];
+  onBranchChange?: (branch: string) => void;
+  onCreateBranch?: () => void;
   recents: RecentDocument[];
   currentPath: string | null;
   onOpenFolder: () => void;
@@ -239,7 +257,9 @@ export function FolderSidebar({
         <section className="mb-4">
           <SectionHeader label="Project folder" open={projectOpen} onToggle={() => setProjectOpen((o) => !o)} />
           {projectOpen &&
-            (folder !== null ? (
+            (repo !== null ? (
+              <RepoNavigator repo={repo} currentPath={currentPath} createdBranches={createdBranches} onBranchChange={onBranchChange ?? (() => {})} onCreateBranch={onCreateBranch} onOpenFile={onOpenFile} />
+            ) : folder !== null ? (
               <>
                 <div title={folder} className="mb-1 min-w-0">
                   <div className="truncate text-[12.5px] font-semibold text-foreground">{isSshPath(folder) ? remoteFolderName(folder) : basename(folder)}</div>
@@ -273,6 +293,11 @@ export function FolderSidebar({
                     >
                       <span className="block truncate text-[13px] text-foreground">
                         {basename(r.path)}
+                        {parseGithubPath(r.path) !== null && (
+                          <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+                            {parseGithubPath(r.path)!.owner}/{parseGithubPath(r.path)!.repo} @ {parseGithubPath(r.path)!.branch}
+                          </span>
+                        )}
                         {isSshPath(r.path) && <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">{remoteAccount(r.path)}</span>}
                       </span>
                       <span className="block text-[11px] text-muted-foreground">{relativeTime(r.openedAt)}</span>

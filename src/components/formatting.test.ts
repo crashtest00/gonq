@@ -1,3 +1,4 @@
+/** applyFormat: wrapping/unwrapping, links, block prefixes, tables, markers and code. */
 import { applyFormat } from './formatting';
 
 const run = (f: Parameters<typeof applyFormat>[0], v: string, s: number, e = s) => applyFormat(f, v, s, e);

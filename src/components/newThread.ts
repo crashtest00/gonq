@@ -1,3 +1,4 @@
+/** Where a new comment thread may go: isCommentableAt and selectionRange (a selection inside one block, or a bare caret). */
 import { fencedCodeRanges, parseCommentMarkers } from '../comment-threads';
 
 /** Where a new thread goes: a selection (its text becomes the anchor) or a bare cursor. */

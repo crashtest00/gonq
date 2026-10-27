@@ -1,3 +1,7 @@
+/**
+ * Live preview: syntax-tree decorations for the visible range that style Markdown in place and hide its syntax
+ * until the caret touches it; list depth lines, bullets, task checkbox, images and thread-marker glyphs.
+ */
 import { syntaxTree } from '@codemirror/language';
 import { type Extension, type Range, RangeSet } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view';
@@ -234,7 +238,10 @@ function build(view: EditorView): Built {
           const near = touches(l.from, l.to);
           const bullet = /^[-*+]$/.test(doc.sliceString(n.from, n.to));
           if (task) {
-            if (!near) hide(n.from, Math.min(task.from, n.to + 1));
+            const end = Math.min(task.from, n.to + 1);
+            if (!near) hide(n.from, end);
+            // Shown source takes no width, so the checkbox keeps the marker box and the text stays aligned.
+            else out.push(mark('cm-task-src').range(n.from, end));
           } else {
             // Marker and its space share one box, so bullets and numbers have the same width and gap.
             const gap = /[ \t]/.test(doc.sliceString(n.to, n.to + 1)) ? 1 : 0;
@@ -253,6 +260,15 @@ function build(view: EditorView): Built {
       }
     },
   });
+
+  // An empty line directly under an item's text is where a lazy continuation would start: it gets the item's padding too,
+  // so the caret is drawn at the text column the first typed character will use. A blank line between does not count.
+  const itemEmpty = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]*(?:\[[ xX]\][ \t]*)?$/;
+  for (const [no, info] of Array.from(listLines)) {
+    if (no >= doc.lines || listLines.has(no + 1)) continue;
+    const next = doc.line(no + 1);
+    if (next.length === 0 && !itemEmpty.test(doc.line(no).text)) listLines.set(no + 1, { depth: info.depth, first: false });
+  }
 
   for (const [no, { depth, first }] of listLines) {
     out.push(Decoration.line({ class: first ? 'cm-li cm-li-first' : 'cm-li', attributes: { style: `--depth: ${depth}` } }).range(doc.line(no).from));

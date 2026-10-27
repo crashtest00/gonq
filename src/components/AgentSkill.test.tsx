@@ -1,3 +1,5 @@
+/** Help > Agent skill…: the bundled SKILL.md and its rules, the read-only preview, Copy (with clipboard fallback) and Save. */
+import { settleEditors } from '../testing/editor';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
@@ -50,6 +52,7 @@ test('the dialog shows the skill in the live-preview editor, without the front m
     },
     { timeout: 10000 },
   );
+  settleEditors(preview);
   expect(preview.textContent).not.toContain('name: gonq-comment-threads');
   // Read-only: it cannot be typed into.
   expect(preview.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false');
@@ -153,7 +156,7 @@ test('a file edited strictly by following SKILL.md parses and renders in Gonq', 
   await screen.findByTestId('editor');
   // The markers are glyphs and the thread blocks are hidden in the editor.
   await waitFor(() => expect(screen.getByTestId('editor').querySelectorAll('.cm-thread-marker')).toHaveLength(3), { timeout: 10000 });
-  expect(screen.getByTestId('editor').textContent).not.toContain('@thread');
+  expect(settleEditors(screen.getByTestId('editor')).textContent).not.toContain('@thread');
   await user.click(screen.getByRole('button', { name: 'Comments' }));
   const rows = within(screen.getByRole('list')).getAllByRole('listitem');
   expect(rows).toHaveLength(3);

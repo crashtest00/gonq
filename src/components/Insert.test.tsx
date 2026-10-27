@@ -1,9 +1,10 @@
+/** The Insert menu: Image (picker, undo, fallback) and Table of Contents (insert and refresh). */
 import { undo } from '@codemirror/commands';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 import { vi } from 'vitest';
-import { caretAt, docText, editorView, select, shownText, type } from '../testing/editor';
+import { caretAt, docText, editorView, select, settleEditors, shownText, type } from '../testing/editor';
 import App from './../App';
 import type { FileAccess } from '../platform/files';
 
@@ -126,5 +127,5 @@ test('Raw mode shows the markers as text', async () => {
   await insert(user, 'Table of Contents');
   await user.click(screen.getByRole('switch'));
   expect(shownText()).toContain('<!-- toc -->');
-  expect(document.querySelector('.cm-toc-refresh')).toBeNull();
+  expect(settleEditors().querySelector('.cm-toc-refresh')).toBeNull();
 });

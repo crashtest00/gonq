@@ -1,3 +1,4 @@
+/** useDocument: closing tabs, untitled names, dirty tracking and line-ending fidelity on save. */
 import { act, renderHook } from '@testing-library/react';
 import { useDocument } from './useDocument';
 
@@ -70,4 +71,27 @@ test('saving records the written text as the clean state', () => {
   expect(result.current.dirty).toBe(false);
   edit(result, 'x\ny\nz');
   expect(result.current.dirty).toBe(true);
+});
+
+test('closeSelectingNone closes the tab, keeps the others and selects none', () => {
+  const { result } = renderHook(() => useDocument());
+  act(() => result.current.open(doc('a.md')));
+  act(() => result.current.open(doc('b.md')));
+  act(() => result.current.closeSelectingNone(result.current.activeId!));
+  expect(result.current.tabs.map((t) => t.name)).toEqual(['a.md']);
+  expect(result.current.activeId).toBeNull();
+  expect(result.current.meta).toBeNull();
+  act(() => result.current.activate(result.current.tabs[0].id));
+  expect(result.current.meta?.name).toBe('a.md');
+});
+
+test('closeSelectingNone on an inactive tab keeps the active one; the last tab leaves none', () => {
+  const { result } = renderHook(() => useDocument());
+  act(() => result.current.open(doc('a.md')));
+  act(() => result.current.open(doc('b.md')));
+  act(() => result.current.closeSelectingNone(result.current.tabs[0].id));
+  expect(result.current.meta?.name).toBe('b.md');
+  act(() => result.current.closeSelectingNone(result.current.activeId!));
+  expect(result.current.tabs).toEqual([]);
+  expect(result.current.activeId).toBeNull();
 });

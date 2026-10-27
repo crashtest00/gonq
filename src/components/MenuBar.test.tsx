@@ -1,34 +1,28 @@
+/** MenuBar: Format mirrors the toolbar, link prompt, the Table sub-menu and its disabled state; View, Insert and Help run their registered commands. */
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { MenuBar } from './MenuBar';
+import type { CommandContext } from '../commands';
+import type { TableTarget } from '../editor/tables';
 import { EditToolbar } from './EditToolbar';
 import { TableToolbar } from './TableToolbar';
 
 const noop = () => {};
 
-function setup(over: Partial<Parameters<typeof MenuBar>[0]> = {}) {
-  const props = { onFormat: vi.fn(), onTableAction: vi.fn(), onFocusTableCell: vi.fn(), onFocusEditor: vi.fn() };
-  render(
-    <MenuBar
-      hasDocument
-      canUndo={false}
-      canRedo={false}
-      onNew={noop}
-      onOpen={noop}
-      onOpenFolder={noop}
-      onConnect={noop}
-      onSave={noop}
-      onSaveAs={noop}
-      onUndo={noop}
-      onRedo={noop}
-      onInsertImage={noop}
-      onInsertToc={noop}
-      {...props}
-      {...over}
-    />,
-  );
-  return props;
+/** A CommandContext whose editor and actions are spies. */
+function setup(over: { hasDocument?: boolean; onOpenRepo?: () => void; tableTarget?: TableTarget | null } = {}) {
+  const editor = { format: vi.fn(), tableAction: vi.fn(), focusTableCell: vi.fn(), focus: vi.fn() };
+  const ctx = {
+    hasDocument: over.hasDocument ?? true,
+    canUndo: false,
+    canRedo: false,
+    tableTarget: over.tableTarget ?? null,
+    editor: { current: editor },
+    openRepo: over.onOpenRepo ?? noop,
+  } as unknown as CommandContext;
+  render(<MenuBar ctx={ctx} />);
+  return { onFormat: editor.format, onTableAction: editor.tableAction, onFocusTableCell: editor.focusTableCell, onFocusEditor: editor.focus };
 }
 
 const openFormat = async (user = userEvent.setup()) => {
@@ -135,4 +129,15 @@ test('actions the target cannot use are disabled', async () => {
 test('Format is disabled with no document open', () => {
   setup({ hasDocument: false });
   expect(screen.getByRole('menuitem', { name: 'Format' })).toBeDisabled();
+});
+
+test('File > Open Repo… is always enabled and calls onOpenRepo', async () => {
+  const onOpenRepo = vi.fn();
+  setup({ onOpenRepo, hasDocument: false });
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('menuitem', { name: 'File' }));
+  const item = screen.getByRole('menuitem', { name: 'Open Repo…' });
+  expect(item).not.toHaveAttribute('data-disabled');
+  await user.click(item);
+  expect(onOpenRepo).toHaveBeenCalledTimes(1);
 });

@@ -1,5 +1,10 @@
+/**
+ * useDocument: the open tabs (text as the editor holds it, the file as last read/saved, dirty, undo/redo
+ * availability, raw mode, remote stat) and the active one. The editor keeps each tab's caret, scroll and history.
+ */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { OpenedDocument } from '../platform/files';
+import type { GithubDocument } from '../platform/github';
 import type { RemoteStat } from '../platform/remote';
 import { normalizeEol, toFileText } from './eol';
 
@@ -9,6 +14,8 @@ export interface DocumentMeta {
   path: string | null;
   /** ssh:// documents: the server's version at the last read or save, sent back as `expected` on save. */
   remote?: RemoteStat;
+  /** github:// documents: owner, repo, path, branch, blob sha and branch-tip commit sha, all from the API response. */
+  github?: GithubDocument;
 }
 
 /**
@@ -37,6 +44,7 @@ export interface TabInfo {
   name: string;
   path: string | null;
   dirty: boolean;
+  github?: GithubDocument;
 }
 
 const NO_TABS: Tabs = { tabs: [], activeId: null };
@@ -103,7 +111,7 @@ export function useDocument() {
     (doc: OpenedDocument) => {
       const existing = findByPath(doc.path);
       if (existing !== null) return activate(existing);
-      add({ name: doc.name, path: doc.path, remote: doc.remote }, doc.text);
+      add({ name: doc.name, path: doc.path, remote: doc.remote, github: doc.github }, doc.text);
     },
     [findByPath, activate, add],
   );
@@ -121,6 +129,19 @@ export function useDocument() {
         if (tabs.length === 0) return NO_TABS;
         const activeId = s.activeId === id ? tabs[Math.min(i, tabs.length - 1)].id : s.activeId;
         return { tabs, activeId };
+      });
+    },
+    [update],
+  );
+
+  /** Closes a tab without asking and selects no neighbour: the other tabs stay open and none is active. */
+  const closeSelectingNone = useCallback(
+    (id: number) => {
+      update((s) => {
+        if (!s.tabs.some((t) => t.id === id)) return s;
+        const tabs = s.tabs.filter((t) => t.id !== id);
+        if (tabs.length === 0) return NO_TABS;
+        return { tabs, activeId: s.activeId === id ? null : s.activeId };
       });
     },
     [update],
@@ -163,7 +184,7 @@ export function useDocument() {
     return t ? { meta: t.meta, text: toFileText(t.text, t.original), dirty: isDirty(t) } : null;
   }, []);
   const peekTabs = useCallback(
-    (): TabInfo[] => stateRef.current.tabs.map((t) => ({ id: t.id, name: t.meta.name, path: t.meta.path, dirty: isDirty(t) })),
+    (): TabInfo[] => stateRef.current.tabs.map((t) => ({ id: t.id, name: t.meta.name, path: t.meta.path, dirty: isDirty(t), github: t.meta.github })),
     [],
   );
   const dirtyIds = useCallback(() => stateRef.current.tabs.filter(isDirty).map((t) => t.id), []);
@@ -174,7 +195,7 @@ export function useDocument() {
     [patch],
   );
 
-  const tabInfos = useMemo(() => state.tabs.map((t): TabInfo => ({ id: t.id, name: t.meta.name, path: t.meta.path, dirty: isDirty(t) })), [state.tabs]);
+  const tabInfos = useMemo(() => state.tabs.map((t): TabInfo => ({ id: t.id, name: t.meta.name, path: t.meta.path, dirty: isDirty(t), github: t.meta.github })), [state.tabs]);
   const tabIds = useMemo(() => state.tabs.map((t) => t.id), [state.tabs]);
 
   return useMemo(
@@ -191,6 +212,7 @@ export function useDocument() {
       open,
       openUntitled,
       close,
+      closeSelectingNone,
       move,
       activate,
       findByPath,
@@ -201,6 +223,6 @@ export function useDocument() {
       dirtyIds,
       saved,
     }),
-    [meta, tabInfos, tabIds, state.activeId, active, open, openUntitled, close, move, activate, findByPath, setRaw, edited, peek, peekTabs, dirtyIds, saved],
+    [meta, tabInfos, tabIds, state.activeId, active, open, openUntitled, close, closeSelectingNone, move, activate, findByPath, setRaw, edited, peek, peekTabs, dirtyIds, saved],
   );
 }

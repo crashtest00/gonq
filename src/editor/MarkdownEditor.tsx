@@ -1,3 +1,8 @@
+/**
+ * The one CodeMirror 6 editor for the document: one EditorView whose state is swapped per tab. Exposes
+ * EditorHandle (format, replace text, threads, images, TOC, clipboard, scroll) and reports changes,
+ * selection and table target to App.tsx.
+ */
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands';
 import { EditorState, type Extension, type StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
@@ -8,7 +13,7 @@ import { type Format } from '../components/formatting';
 import { diff, formatView } from './formatCommands';
 import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCommentThread, effectiveCommentCreationPosition, AGENT_GUIDANCE, hasAgentGuidance } from '../comment-threads';
 import { commentThreadCreationChanges } from '../comment-threads/editor/codemirror';
-import { createEditorState, modeCompartment, modeExtension } from './extensions';
+import { createEditorState, modeCompartment, modeExtension, readOnlyCompartment, readOnlyExtension } from './extensions';
 import { editorHost } from './host';
 import { threadEdit } from './threads';
 import { refreshToc } from './toc';
@@ -71,6 +76,8 @@ interface Props {
   /** The tab's text, used only to create its editor state the first time it is shown. */
   text: string;
   raw: boolean;
+  /** The active tab cannot be changed (a pull request is open for its branch): see readOnlyExtension. */
+  readOnly: boolean;
   /** Ids of every open tab; the state of a closed tab is dropped. */
   tabIds: number[];
   onChange: (id: number, change: EditorChange) => void;
@@ -84,6 +91,9 @@ interface Props {
   /** Right-click in the text; the caret has already moved there unless it hit the selection. */
   onContextMenu: (x: number, y: number) => void;
 }
+
+/** Said when a text-changing operation reaches a read-only tab (the facet only guards user input, not dispatches). */
+const READ_ONLY_MESSAGE = 'This document is read-only.';
 
 interface Saved {
   state: EditorState;
@@ -143,8 +153,8 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   const extras = () => [listener.current!, hostExt.current!, tableExt.current!];
 
   useLayoutEffect(() => {
-    const { tabId, text, raw } = latest.current;
-    const v = new EditorView({ state: createEditorState(text, raw, extras()), parent: host.current! });
+    const { tabId, text, raw, readOnly } = latest.current;
+    const v = new EditorView({ state: createEditorState(text, raw, extras(), readOnly), parent: host.current! });
     view.current = v;
     current.current = tabId;
     v.focus();
@@ -161,7 +171,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     if (current.current !== null) saved.current.set(current.current, { state: v.state, scroll: v.scrollSnapshot() });
     current.current = props.tabId;
     const back = saved.current.get(props.tabId);
-    v.setState(back?.state ?? createEditorState(props.text, props.raw, extras()));
+    v.setState(back?.state ?? createEditorState(props.text, props.raw, extras(), props.readOnly));
     if (back) v.dispatch({ effects: back.scroll });
     else v.scrollDOM.scrollTop = 0;
     saved.current.delete(props.tabId);
@@ -183,6 +193,15 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     if (!props.raw) focusCaretCell(v);
   }, [props.raw, props.tabId]);
 
+  // A tab becomes read-only or editable again: its own state gets the facets through the compartment.
+  useLayoutEffect(() => {
+    const v = view.current;
+    if (!v) return;
+    const want = readOnlyExtension(props.readOnly);
+    if (readOnlyCompartment.get(v.state) === want) return;
+    v.dispatch({ effects: readOnlyCompartment.reconfigure(want) });
+  }, [props.readOnly, props.tabId]);
+
   // Closed tabs release their state.
   useEffect(() => {
     for (const id of saved.current.keys()) if (!props.tabIds.includes(id)) saved.current.delete(id);
@@ -191,20 +210,20 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
   useImperativeHandle(
     ref,
     () => ({
-      tableAction: (op) => view.current && runTableOp(view.current, op),
+      tableAction: (op) => view.current && !view.current.state.readOnly && runTableOp(view.current, op),
       focusTableCell: () => view.current && focusTableCell(view.current),
       releaseTable: () => view.current && releaseTable(view.current),
       undo: () => view.current && (undo(view.current), view.current.focus()),
       redo: () => view.current && (redo(view.current), view.current.focus()),
       format(format, url = '') {
         const v = view.current;
-        if (!v) return;
+        if (!v || v.state.readOnly) return;
         formatView(v, format, url);
         v.focus();
       },
       setText(next) {
         const v = view.current;
-        if (!v) return;
+        if (!v || v.state.readOnly) return;
         const change = diff(v.state.doc.toString(), next);
         if (change.from === change.to && change.insert === '') return;
         v.dispatch({ changes: change, userEvent: 'input.replace', annotations: threadEdit.of(true) });
@@ -221,6 +240,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       createThread(target, author, body) {
         const v = view.current;
         if (!v) throw new Error('No document is open.');
+        if (v.state.readOnly) throw new Error(READ_ONLY_MESSAGE);
         const selected = typeof target === 'number' ? '' : v.state.sliceDoc(target.from, target.to);
         const thread = createCommentThread(author, body, normalizeAnchor(selected));
         const position =
@@ -239,12 +259,14 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       insertImage(src, alt) {
         const v = view.current;
         if (!v) throw new Error('No document is open.');
+        if (v.state.readOnly) throw new Error(READ_ONLY_MESSAGE);
         v.dispatch(v.state.replaceSelection(`![${alt}](${src})`), { userEvent: 'input.image', scrollIntoView: true });
         v.focus();
       },
       insertToc() {
         const v = view.current;
         if (!v) throw new Error('No document is open.');
+        if (v.state.readOnly) throw new Error(READ_ONLY_MESSAGE);
         const text = v.state.doc.toString();
         if (refreshToc(v)) {
           v.focus();
@@ -265,7 +287,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       },
       async cut() {
         const v = view.current;
-        if (!v) return;
+        if (!v || v.state.readOnly) return;
         const { from, to } = v.state.selection.main;
         if (from === to) return;
         await writeClipboard(v.state.sliceDoc(from, to));
@@ -274,7 +296,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
       },
       async paste() {
         const v = view.current;
-        if (!v) return;
+        if (!v || v.state.readOnly) return;
         if (!navigator.clipboard?.readText) throw new Error('This browser does not allow reading the clipboard; use Ctrl+V.');
         let clip: string;
         try {

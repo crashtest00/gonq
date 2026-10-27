@@ -1,3 +1,4 @@
+/** Help > About Gonq: version matches package.json/tauri.conf.json, logo, repo link via the opener, opener scope. */
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
@@ -47,11 +48,11 @@ test('the shown version matches package.json and tauri.conf.json', async () => {
   expect(within(d).getByText(`Version ${pkg.version}`)).toBeInTheDocument();
 });
 
-test('the opener capability is scoped to the repository URL only', () => {
+test('the opener capability is scoped to the repository URL and the GitHub device-login page only', () => {
   const perm = capability.permissions.find((p) => typeof p === 'object' && p.identifier === 'opener:allow-open-url') as {
     allow: { url: string }[];
   };
-  expect(perm.allow).toEqual([{ url: REPO_URL }]);
+  expect(perm.allow).toEqual([{ url: REPO_URL }, { url: 'https://github.com/login/device' }]);
   expect(capability.permissions).not.toContain('opener:default');
 });
 

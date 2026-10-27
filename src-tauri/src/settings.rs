@@ -1,3 +1,6 @@
+//! App settings in settings.json (app config dir): the comment author name and the theme (light|dark|auto),
+//! validated and written atomically; a missing or corrupt file gives the defaults. Backs get/set_author_name
+//! and get/set_theme in lib.rs.
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
