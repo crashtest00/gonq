@@ -1,4 +1,4 @@
-/** Edit > Preferences…: author name dialog, shortcut, validation and use on new messages. */
+/** Edit > Settings…: author name dialog, shortcut, validation and use on new messages. */
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
@@ -16,15 +16,15 @@ const files: FileAccess = {
 
 beforeEach(() => localStorage.clear());
 
-const dialog = () => screen.queryByRole('dialog', { name: 'Preferences' });
+const dialog = () => screen.queryByRole('dialog', { name: 'Settings' });
 
 async function openPrefsFromMenu(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('menuitem', { name: 'Edit' }));
-  await user.click(await screen.findByRole('menuitem', { name: /Preferences/ }));
-  return screen.findByRole('dialog', { name: 'Preferences' });
+  await user.click(await screen.findByRole('menuitem', { name: /Settings/ }));
+  return screen.findByRole('dialog', { name: 'Settings' });
 }
 
-test('Edit > Preferences… opens the dialog with the default name; Cancel and Escape close it', async () => {
+test('Edit > Settings… opens the dialog with the default name; Cancel and Escape close it', async () => {
   const user = userEvent.setup();
   render(<App files={files} />);
   const d = await openPrefsFromMenu(user);

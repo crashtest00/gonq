@@ -100,7 +100,7 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -405,7 +405,7 @@ exports[`menu tree > no document 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -589,7 +589,7 @@ exports[`menu tree > raw mode on 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -894,7 +894,7 @@ exports[`menu tree > table cell targeted 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -1199,7 +1199,7 @@ exports[`menu tree > theme dark 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -1504,7 +1504,7 @@ exports[`menu tree > undo and redo available 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }

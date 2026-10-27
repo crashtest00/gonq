@@ -16,15 +16,15 @@ import { GitHubSignInDialog } from '../components/GitHubSignInDialog';
 import { OpenPrDialog, type OpenedPr } from '../components/OpenPrDialog';
 import type { RepoRef } from '../features/github/openPr';
 import type { SessionBranch } from '../features/github/sessionBranches';
-import { PreferencesDialog } from '../components/PreferencesDialog';
+import { SettingsDialog } from '../components/SettingsDialog';
 import { RepoPickerDialog, type RepoChoice } from '../components/RepoPickerDialog';
 import { UnsavedChangesDialog, type UnsavedChoice } from '../components/UnsavedChangesDialog';
 import { registerDialog, type DialogClose } from './DialogHost';
 
-export const preferencesDialog = registerDialog(
-  'preferences',
+export const settingsDialog = registerDialog(
+  'settings',
   ({ authorName, onSave, close }: { authorName: string; onSave: (name: string) => Promise<void> } & DialogClose<void>) => (
-    <PreferencesDialog authorName={authorName} onSave={onSave} onClose={() => close()} />
+    <SettingsDialog authorName={authorName} onSave={onSave} onClose={() => close()} />
   ),
   undefined,
 );

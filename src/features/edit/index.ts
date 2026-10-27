@@ -1,5 +1,5 @@
 /**
- * The Edit menu (Undo, Redo, Preferences) and the clipboard and Select All items of the editor's right-click menu, registered with the command registry as a side effect of being
+ * The Edit menu (Undo, Redo, Settings) and the clipboard and Select All items of the editor's right-click menu, registered with the command registry as a side effect of being
  * imported (see commands/index.ts). Undo and Redo keys are left to the editor and to text fields.
  */
 import { defineCommand, defineMenu } from '../../commands/registry';
@@ -30,7 +30,7 @@ defineCommand({
   enabled: (ctx) => ctx.canRedo,
   run: (ctx) => ctx.editor.current?.redo(),
 });
-defineCommand({ id: 'edit.preferences', menu: 'edit', group: 1, order: 10, label: 'Preferences…', shortcut: 'Ctrl+,', run: (ctx) => ctx.openPreferences() });
+defineCommand({ id: 'edit.settings', menu: 'edit', group: 1, order: 10, label: 'Settings…', shortcut: 'Ctrl+,', run: (ctx) => ctx.openSettings() });
 
 /** Cut, copy or paste through the clipboard; a failure shows in the error banner. */
 function clipboard(ctx: CommandContext, op: 'cut' | 'copy' | 'paste') {
