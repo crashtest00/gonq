@@ -50,14 +50,14 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
         "label": "Save As…",
         "shortcut": "Ctrl+Shift+S",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
       },
       {
         "kind": "separator"
@@ -345,13 +345,13 @@ exports[`menu tree > no document 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
+        "label": "Save As…",
+        "shortcut": "Ctrl+Shift+S",
         "disabled": true
       },
       {
         "kind": "item",
-        "label": "Save As…",
-        "shortcut": "Ctrl+Shift+S",
+        "label": "Commit…",
         "disabled": true
       },
       {
@@ -519,14 +519,14 @@ exports[`menu tree > raw mode on 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
         "label": "Save As…",
         "shortcut": "Ctrl+Shift+S",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
       },
       {
         "kind": "separator"
@@ -814,14 +814,14 @@ exports[`menu tree > table cell targeted 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
         "label": "Save As…",
         "shortcut": "Ctrl+Shift+S",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
       },
       {
         "kind": "separator"
@@ -1109,14 +1109,14 @@ exports[`menu tree > theme dark 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
         "label": "Save As…",
         "shortcut": "Ctrl+Shift+S",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
       },
       {
         "kind": "separator"
@@ -1404,14 +1404,14 @@ exports[`menu tree > undo and redo available 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
         "label": "Save As…",
         "shortcut": "Ctrl+Shift+S",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
       },
       {
         "kind": "separator"
