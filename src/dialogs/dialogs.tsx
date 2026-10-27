@@ -6,6 +6,7 @@ import type { FileAccess } from '../platform/files';
 import type { GitHubStatus } from '../platform/github';
 import { AboutDialog } from '../components/AboutDialog';
 import { AgentSkillDialog } from '../components/AgentSkillDialog';
+import { BranchChangeDialog } from '../components/BranchChangeDialog';
 import { ConflictDialog, type ConflictChoice } from '../components/ConflictDialog';
 import { ConnectDialog } from '../components/ConnectDialog';
 import { GitHubSignInDialog } from '../components/GitHubSignInDialog';
@@ -78,4 +79,11 @@ export const unsavedChangesDialog = registerDialog(
   'unsaved-changes',
   ({ name, close }: { name: string } & DialogClose<UnsavedChoice>) => <UnsavedChangesDialog name={name} onChoose={close} />,
   'cancel' as UnsavedChoice,
+);
+
+/** Resolves true when the user chose to close the document and change branch. */
+export const branchChangeDialog = registerDialog(
+  'branch-change',
+  ({ name, close }: { name: string } & DialogClose<boolean>) => <BranchChangeDialog name={name} onChoose={close} />,
+  false,
 );
