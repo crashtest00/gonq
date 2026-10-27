@@ -13,6 +13,7 @@ import {
   agentSkillDialog,
   commitDialog,
   createBranchDialog,
+  openPrDialog,
   conflictDialog,
   connectDialog,
   githubSignInDialog,
@@ -44,7 +45,7 @@ import { useDocument, type DocumentMeta } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
 import { pickImage } from './platform/images';
-import { addSessionBranch, type SessionBranch } from './features/github/sessionBranches';
+import { addSessionBranch, listSessionBranches, type SessionBranch } from './features/github/sessionBranches';
 import { PULL_CHECK_FAILED, openPullMessage, useOpenPulls } from './features/github/openPulls';
 import { ReadOnlyBanner } from './components/ReadOnlyBanner';
 import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
@@ -695,6 +696,23 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       failed(e);
     }
   }, []);
+  // File > Open PR…: sign in first if needed, then the three-step dialog on the navigator's repository (or the active GitHub tab's).
+  const openPr = useCallback(async () => {
+    try {
+      if (!(await ensureSignedIn())) return;
+      const gh = session.tabs.filter((t) => t.github !== undefined).map((t) => ({ owner: t.github!.owner, repo: t.github!.repo, branch: t.github!.branch }));
+      const active = meta?.github;
+      await openDialog(openPrDialog, {
+        preferred: repo !== null ? { owner: repo.owner, repo: repo.repo } : active !== undefined ? { owner: active.owner, repo: active.repo } : null,
+        tabBranches: gh,
+        sessionBranches: listSessionBranches(),
+        // Every tab on the branch turns read-only at once (the same mechanism as the open-PR guard).
+        onOpened: ({ owner, repo: name, branch, pull }) => opensRef.current.markOpen({ owner, repo: name, branch }, { number: pull.number, url: pull.url, draft: false }),
+      });
+    } catch (e) {
+      failed(e);
+    }
+  }, [session.tabs, meta, repo]);
   const repoChosen = (choice: RepoChoice) => {
     // The navigator opens on the default branch; a document or folder chosen later replaces the repository.
     folderChosen.current = true;
@@ -799,6 +817,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     openFolder: () => void openFolder(),
     openConnect: () => void openConnect(),
     openRepo: () => void openRepo(),
+    canOpenPr: repo !== null || session.tabs.some((t) => t.github !== undefined),
+    openPr: () => void openPr(),
     openPreferences: openPrefs,
     githubSignIn: () => void openGithubSignIn(),
     githubSignOut: () => void doGithubSignOut(),

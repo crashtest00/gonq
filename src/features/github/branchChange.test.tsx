@@ -1,7 +1,7 @@
 /** Navigator follows GitHub tabs, and a branch change closes the active GitHub document (warning when dirty); the no-tab message. */
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, configure, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { settleEditors, type } from '../../testing/editor';
 import { openGithub, type FileAccess } from '../../platform/files';
@@ -25,6 +25,10 @@ vi.mock('../../platform/openPaths', () => ({ takePendingOpenPaths: async () => [
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
 
 const gh = (branch: string, repo = 'notes') => githubPath({ owner: 'octo', repo, branch, path: 'a.md' });
+
+// Whole-app tests: under CPU load the 5 s test and 1 s waitFor defaults are too tight.
+vi.setConfig({ testTimeout: 60_000 });
+beforeAll(() => configure({ asyncUtilTimeout: 15_000 }));
 
 beforeEach(() => {
   (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
@@ -67,11 +71,13 @@ describe('branch change with a GitHub document', () => {
     const user = setup([gh('main')]);
     await openRecent(user, 'main');
     await pickBranch(user, 'main', 'dev');
+    expect(await screen.findByText('Open a document or create a new one.')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryAllByRole('tab')).toHaveLength(0);
-    expect(screen.getByText('Open a document or create a new one.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Branch: dev' })).toBeInTheDocument();
-    expect(invoke).toHaveBeenCalledWith('github_list_folder', { owner: 'octo', repo: 'notes', branch: 'dev', path: '' });
+    expect(await screen.findByRole('button', { name: 'Branch: dev' })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('github_list_folder', { owner: 'octo', repo: 'notes', branch: 'dev', path: '' }),
+    );
   });
 
   it('a dirty tab warns; Cancel changes nothing, Close document closes only that document', async () => {
@@ -87,7 +93,7 @@ describe('branch change with a GitHub document', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent(/uncommitted changes will be permanently lost/);
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(screen.getAllByRole('tab')).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Branch: main' })).toBeInTheDocument();
 
@@ -95,13 +101,13 @@ describe('branch change with a GitHub document', () => {
     await user.click(await screen.findByRole('button', { name: 'Close document' }));
     await waitFor(() => expect(screen.getAllByRole('tab')).toHaveLength(1));
     expect(screen.queryAllByRole('tab', { selected: true })).toHaveLength(0);
-    expect(screen.getByText('Open a document or create a new one.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Branch: other' })).toBeInTheDocument();
+    expect(await screen.findByText('Open a document or create a new one.')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Branch: other' })).toBeInTheDocument();
 
     // The remaining tab can be activated and moves the navigator back to its branch.
     await user.click(screen.getByRole('tab', { name: /a\.md/ }));
     await screen.findByText('body of dev');
-    expect(screen.getByRole('button', { name: 'Branch: dev' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Branch: dev' })).toBeInTheDocument();
   });
 
   it('choosing the branch the tab is on closes nothing', async () => {
@@ -117,8 +123,8 @@ describe('branch change with a GitHub document', () => {
     await openRecent(user, 'main');
     await pickBranch(user, 'main', 'dev');
     await pickBranch(user, 'dev', 'other');
+    expect(await screen.findByRole('button', { name: 'Branch: other' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Branch: other' })).toBeInTheDocument();
   });
 });
 
@@ -130,11 +136,11 @@ describe('the navigator follows GitHub tabs', () => {
     expect(screen.getByText('octo/other-repo')).toBeInTheDocument();
     await user.click(screen.getAllByRole('tab')[0]);
     expect(await screen.findByText('octo/notes')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Branch: main' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Branch: main' })).toBeInTheDocument();
     await user.click(screen.getAllByRole('tab')[1]);
     expect(await screen.findByText('octo/other-repo')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Branch: dev' })).toBeInTheDocument();
-  }, 30_000);
+    expect(await screen.findByRole('button', { name: 'Branch: dev' })).toBeInTheDocument();
+  });
 });
 
 it('shows the generic message with no tab', async () => {

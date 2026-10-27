@@ -13,6 +13,9 @@ import { ConnectDialog } from '../components/ConnectDialog';
 import { CreateBranchDialog, type CreateBranchResult } from '../components/CreateBranchDialog';
 import type { PendingCommit } from '../features/github/createBranch';
 import { GitHubSignInDialog } from '../components/GitHubSignInDialog';
+import { OpenPrDialog, type OpenedPr } from '../components/OpenPrDialog';
+import type { RepoRef } from '../features/github/openPr';
+import type { SessionBranch } from '../features/github/sessionBranches';
 import { PreferencesDialog } from '../components/PreferencesDialog';
 import { RepoPickerDialog, type RepoChoice } from '../components/RepoPickerDialog';
 import { UnsavedChangesDialog, type UnsavedChoice } from '../components/UnsavedChangesDialog';
@@ -113,4 +116,19 @@ export const createBranchDialog = registerDialog(
     <CreateBranchDialog owner={owner} repo={repo} source={source} commit={commit} onCreated={onCreated} onClose={close} />
   ),
   null as CreateBranchResult,
+);
+
+/** File > Open PR…; resolves when closed. `onOpened` reports a pull request as soon as GitHub has created it. */
+export const openPrDialog = registerDialog(
+  'open-pr',
+  ({
+    preferred,
+    tabBranches,
+    sessionBranches,
+    onOpened,
+    close,
+  }: { preferred: RepoRef | null; tabBranches: SessionBranch[]; sessionBranches: SessionBranch[]; onOpened: (opened: OpenedPr) => void } & DialogClose<void>) => (
+    <OpenPrDialog preferred={preferred} tabBranches={tabBranches} sessionBranches={sessionBranches} onOpened={onOpened} onClose={() => close()} />
+  ),
+  undefined,
 );
