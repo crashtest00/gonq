@@ -1,5 +1,5 @@
 // The only place the frontend invokes the GitHub commands (OAuth device flow, repository list, branches and
-// folder listings, file reads with worded errors, committing a file, open pull requests per branch), and the home of the github:// path format (a repository file is a document identity). The token and the device code stay in
+// folder listings, file reads with worded errors, committing a file, open pull requests per branch, creating a branch), and the home of the github:// path format (a repository file is a document identity). The token and the device code stay in
 // Rust: JS gets the user code to show, the login and whether a token exists. Desktop only; on the web every
 // call throws a GitHubError of kind unavailable_on_web, which the caller shows in the error banner.
 import { invoke } from '@tauri-apps/api/core';
@@ -21,6 +21,7 @@ export type GitHubErrorKind =
   | 'symlink'
   | 'submodule'
   | 'file_too_large'
+  | 'already_exists'
   | 'unavailable_on_web'
   | 'cancelled'
   | 'other';
@@ -38,6 +39,7 @@ export class GitHubError extends Error {
 }
 
 export const GITHUB_UNAVAILABLE = 'Signing in to GitHub needs the Gonq desktop app';
+export const GITHUB_BRANCH_UNAVAILABLE = 'Creating a GitHub branch needs the Gonq desktop app';
 export const GITHUB_COMMIT_UNAVAILABLE = 'Committing to GitHub needs the Gonq desktop app';
 
 /** What `startSignIn` gives: the code to type at the verification address. */
@@ -72,6 +74,7 @@ const CAUSES: Record<string, GitHubErrorKind> = {
   symlink: 'symlink',
   submodule: 'submodule',
   file_too_large: 'file_too_large',
+  already_exists: 'already_exists',
 };
 
 const FALLBACK: Record<string, string> = {
@@ -94,6 +97,7 @@ const FALLBACK: Record<string, string> = {
   symlink: 'That path is a symbolic link, not a file',
   submodule: 'That path is a submodule, not a file',
   file_too_large: 'That file is over 1 MB',
+  already_exists: 'That branch already exists',
 };
 
 /** Turns what a command rejected with (`{kind, message?}`, or a string) into a GitHubError. */
@@ -114,8 +118,8 @@ export function toGitHubError(e: unknown): GitHubError {
   return new GitHubError('other', typeof e === 'string' ? e : e instanceof Error ? e.message : String(e));
 }
 
-async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_UNAVAILABLE);
+async function call<T>(cmd: string, args?: Record<string, unknown>, unavailable = GITHUB_UNAVAILABLE): Promise<T> {
+  if (!isTauri()) throw new GitHubError('unavailable_on_web', unavailable);
   try {
     return await (args === undefined ? invoke<T>(cmd) : invoke<T>(cmd, args));
   } catch (e) {
@@ -301,6 +305,22 @@ export async function readFile(owner: string, repo: string, branch: string, path
   } catch (e) {
     throw e instanceof GitHubError ? describeReadError(e, owner, repo, branch, path) : e;
   }
+}
+
+/**
+ * Whether `gonq/<name>` exists on GitHub (the answer is GitHub's, not the loaded branch list's, so a branch
+ * missing from the list or differing only in case is judged by GitHub). Advisory: createBranch decides.
+ */
+export async function branchExists(owner: string, repo: string, name: string): Promise<boolean> {
+  return call<boolean>('github_branch_exists', { owner, repo, name }, GITHUB_BRANCH_UNAVAILABLE);
+}
+
+/**
+ * Creates `gonq/<name>` at the current tip of branch `source`. Rejects with a GitHubError of kind
+ * already_exists (nothing is overwritten) or any other failure; on the web, with kind unavailable_on_web.
+ */
+export async function createBranch(owner: string, repo: string, source: string, name: string): Promise<void> {
+  await call<void>('github_create_branch', { owner, repo, source, name }, GITHUB_BRANCH_UNAVAILABLE);
 }
 
 /** What committing a file answers: the new blob and commit shas, or a conflict (nothing was written). */

@@ -10,6 +10,8 @@ import { BranchChangeDialog } from '../components/BranchChangeDialog';
 import { CommitDialog, type CommitChoice } from '../components/CommitDialog';
 import { ConflictDialog, type ConflictChoice } from '../components/ConflictDialog';
 import { ConnectDialog } from '../components/ConnectDialog';
+import { CreateBranchDialog, type CreateBranchResult } from '../components/CreateBranchDialog';
+import type { PendingCommit } from '../features/github/createBranch';
 import { GitHubSignInDialog } from '../components/GitHubSignInDialog';
 import { PreferencesDialog } from '../components/PreferencesDialog';
 import { RepoPickerDialog, type RepoChoice } from '../components/RepoPickerDialog';
@@ -95,4 +97,20 @@ export const commitDialog = registerDialog(
     <CommitDialog owner={owner} repo={repo} branch={branch} path={path} onChoose={close} />
   ),
   'cancel' as CommitChoice,
+);
+
+/** Resolves with the finished create (and commit) outcome, or null when the dialog was dismissed. */
+export const createBranchDialog = registerDialog(
+  'create-branch',
+  ({
+    owner,
+    repo,
+    source,
+    commit,
+    onCreated,
+    close,
+  }: { owner: string; repo: string; source: string; commit: PendingCommit | null; onCreated: (branch: string) => void } & DialogClose<CreateBranchResult>) => (
+    <CreateBranchDialog owner={owner} repo={repo} source={source} commit={commit} onCreated={onCreated} onClose={close} />
+  ),
+  null as CreateBranchResult,
 );

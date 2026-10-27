@@ -61,11 +61,11 @@ const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 const optionNames = () => within(screen.getByRole('listbox', { name: 'Branches' })).getAllByRole('option').map((o) => o.textContent);
 
-it('shows owner/repo and the branch in the header, with an empty slot for a future action', async () => {
+it('shows owner/repo and the branch in the header, with the create-branch icon', async () => {
   const { container } = render(<Harness />);
   expect(screen.getByText('octo/notes')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Branch: main' })).toBeInTheDocument();
-  expect(container.querySelector('[data-slot="branch-actions"]')?.childElementCount).toBe(0);
+  expect(container.querySelector('[data-slot="branch-actions"]')?.querySelector('button[aria-label="Create branch"]')).not.toBeNull();
   await screen.findByText('README.md');
 });
 

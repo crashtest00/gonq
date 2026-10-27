@@ -221,7 +221,9 @@ function Tree({ path, depth, currentPath, onOpenFile, onLogin }: { path: string;
 export function FolderSidebar({
   folder,
   repo = null,
+  createdBranches,
   onBranchChange,
+  onCreateBranch,
   recents,
   currentPath,
   onOpenFolder,
@@ -233,7 +235,10 @@ export function FolderSidebar({
   folder: string | null;
   /** An open GitHub repository; it takes the Project folder section from `folder`. */
   repo?: RepoState | null;
+  /** Branches created in this session on the open repository. */
+  createdBranches?: string[];
   onBranchChange?: (branch: string) => void;
+  onCreateBranch?: () => void;
   recents: RecentDocument[];
   currentPath: string | null;
   onOpenFolder: () => void;
@@ -253,7 +258,7 @@ export function FolderSidebar({
           <SectionHeader label="Project folder" open={projectOpen} onToggle={() => setProjectOpen((o) => !o)} />
           {projectOpen &&
             (repo !== null ? (
-              <RepoNavigator repo={repo} currentPath={currentPath} onBranchChange={onBranchChange ?? (() => {})} onOpenFile={onOpenFile} />
+              <RepoNavigator repo={repo} currentPath={currentPath} createdBranches={createdBranches} onBranchChange={onBranchChange ?? (() => {})} onCreateBranch={onCreateBranch} onOpenFile={onOpenFile} />
             ) : folder !== null ? (
               <>
                 <div title={folder} className="mb-1 min-w-0">

@@ -12,6 +12,7 @@ import {
   aboutDialog,
   agentSkillDialog,
   commitDialog,
+  createBranchDialog,
   conflictDialog,
   connectDialog,
   githubSignInDialog,
@@ -43,7 +44,7 @@ import { useDocument, type DocumentMeta } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
 import { pickImage } from './platform/images';
-import { addSessionBranch } from './features/github/sessionBranches';
+import { addSessionBranch, type SessionBranch } from './features/github/sessionBranches';
 import { PULL_CHECK_FAILED, openPullMessage, useOpenPulls } from './features/github/openPulls';
 import { ReadOnlyBanner } from './components/ReadOnlyBanner';
 import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
@@ -76,6 +77,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [recents, setRecents] = useState<RecentDocument[]>([]);
   // The GitHub repository and branch the navigator shows; null when a folder (or nothing) is shown.
   const [repo, setRepo] = useState<RepoState | null>(null);
+  // Branches made with Create branch in this session (the session list in sessionBranches.ts, kept as state to re-render the dropdown).
+  const [createdBranches, setCreatedBranches] = useState<SessionBranch[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
   const [tableTarget, setTableTarget] = useState<TableTarget | null>(null);
@@ -271,10 +274,50 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
   /**
+   * Opens the Create branch dialog for the open repository. `tab` is the active GitHub tab, if any: its branch is
+   * the source, and when it is dirty the dialog also commits its file to the new branch, after which the tab
+   * (and the navigator) move to it. Otherwise only the branch is made and nothing else moves. Returns true when
+   * the tab's changes were committed to the new branch.
+   */
+  const makeBranch = useCallback(
+    async (tab: { id: number; gh: GithubDocument; meta: DocumentMeta; text: string; dirty: boolean } | null): Promise<boolean> => {
+      const base = tab?.gh ?? repo;
+      if (base === null) return false;
+      const source = tab !== null ? tab.gh.branch : repo!.branch;
+      const commit = tab !== null && tab.dirty ? { path: tab.gh.path, text: tab.text, sha: tab.gh.sha } : null;
+      const result = await openDialog(createBranchDialog, {
+        owner: base.owner,
+        repo: base.repo,
+        source,
+        commit,
+        onCreated: (branch: string) => {
+          const b = { owner: base.owner, repo: base.repo, branch };
+          addSessionBranch(b);
+          setCreatedBranches((prev) => (prev.some((p) => p.owner === b.owner && p.repo === b.repo && p.branch === b.branch) ? prev : [...prev, b]));
+        },
+      });
+      if (result === null || result.commit === null || tab === null) return false;
+      setError(null);
+      setNotice(null);
+      session.saved(tab.id, { ...tab.meta, github: { ...tab.gh, branch: result.branch, sha: result.commit.sha, commitSha: result.commit.commitSha } }, tab.text);
+      setRepo({ owner: tab.gh.owner, repo: tab.gh.repo, branch: result.branch });
+      return true;
+    },
+    [repo, session.saved],
+  );
+
+  const openCreateBranch = useCallback(() => {
+    const id = session.activeId;
+    const tab = id === null ? null : session.peek(id);
+    const gh = tab?.meta.github;
+    void makeBranch(id !== null && tab !== null && gh !== undefined ? { id, gh, meta: tab.meta, text: tab.text, dirty: tab.dirty } : null);
+  }, [session.activeId, session.peek, makeBranch]);
+
+  /**
    * Commits a GitHub tab's saved text to the branch it was opened from; true when committed. Nothing is
    * called when there is nothing to commit; a conflict opens the ConflictDialog and writes nothing.
-   * Story 8 ('Commit to new branch…') adds its choice to the commit dialog and changes the target branch here;
-   * a pull request open for the branch (found by a fresh check) refuses before the dialog is shown, and so does a
+   * The dialog's 'Commit to new branch…' choice hands over to makeBranch (branch-and-commit).
+   * A pull request open for the branch (found by a fresh check) refuses before the dialog is shown, and so does a
    * check that cannot complete.
    */
   const commitGithub = useCallback(
@@ -301,6 +344,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       }
       if (!dirty) return noChanges();
       const choice = await openDialog(commitDialog, { owner: gh.owner, repo: gh.repo, branch: gh.branch, path: gh.path });
+      if (choice === 'new-branch') return makeBranch({ id, gh, meta, text, dirty });
       if (choice !== 'commit') return false;
       try {
         const result = await commitFile({ owner: gh.owner, repo: gh.repo, branch: gh.branch, path: gh.path, text, sha: gh.sha });
@@ -320,7 +364,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         return false;
       }
     },
-    [session.saved],
+    [session.saved, makeBranch],
   );
 
   /** Writes tab `id`; true when it is on disk, false when cancelled or failed. */
@@ -802,7 +846,9 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           <FolderSidebar
             folder={folder}
             repo={repo}
+            createdBranches={createdBranches.filter((b) => b.owner === repo?.owner && b.repo === repo?.repo).map((b) => b.branch)}
             onBranchChange={(branch) => void changeBranch(branch)}
+            onCreateBranch={openCreateBranch}
             recents={recents}
             currentPath={meta?.path ?? null}
             onOpenFolder={() => void openFolder()}
