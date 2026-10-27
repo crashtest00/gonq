@@ -43,6 +43,8 @@ import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
 import { pickImage } from './platform/images';
 import { addSessionBranch } from './features/github/sessionBranches';
+import { PULL_CHECK_FAILED, openPullMessage, useOpenPulls } from './features/github/openPulls';
+import { ReadOnlyBanner } from './components/ReadOnlyBanner';
 import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
 import { pathExists, pickFolder } from './platform/folders';
@@ -57,6 +59,11 @@ function parentDir(path: string): string | null {
 export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const session = useDocument();
   const { meta, text } = session;
+  // A GitHub tab whose branch has an open pull request is read-only (features/github/openPulls.ts).
+  const opens = useOpenPulls(meta?.github ?? null, session.activeId);
+  const opensRef = useRef(opens);
+  opensRef.current = opens;
+  const readOnlyPull = opens.pullFor(meta?.github ?? null);
   const rawAll = session.raw;
   const [error, setError] = useState<string | null>(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -257,14 +264,32 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
    * Commits a GitHub tab's saved text to the branch it was opened from; true when committed. Nothing is
    * called when there is nothing to commit; a conflict opens the ConflictDialog and writes nothing.
    * Story 8 ('Commit to new branch…') adds its choice to the commit dialog and changes the target branch here;
-   * story 9 (refuse while a pull request is open) checks before the dialog is shown.
+   * a pull request open for the branch (found by a fresh check) refuses before the dialog is shown, and so does a
+   * check that cannot complete.
    */
   const commitGithub = useCallback(
     async (id: number, gh: GithubDocument, text: string, dirty: boolean, meta: DocumentMeta): Promise<boolean> => {
-      if (!dirty) {
+      const noChanges = () => {
         setNotice('No changes to commit');
         return true;
+      };
+      const known = opensRef.current.pullFor(gh);
+      if (!dirty && known === null) return noChanges();
+      let pull = known;
+      try {
+        pull = await opensRef.current.checkNow(gh);
+      } catch {
+        // Fail closed: with no answer, nothing is written.
+        if (known === null) {
+          setError(PULL_CHECK_FAILED);
+          return false;
+        }
       }
+      if (pull !== null) {
+        setError(openPullMessage(pull));
+        return false;
+      }
+      if (!dirty) return noChanges();
       const choice = await openDialog(commitDialog, { owner: gh.owner, repo: gh.repo, branch: gh.branch, path: gh.path });
       if (choice !== 'commit') return false;
       try {
@@ -695,6 +720,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     save: () => void save(),
     saveAs: () => void saveAs(),
     isGithubTab: meta?.github !== undefined,
+    readOnly: readOnlyPull !== null,
     commit: () => void save(),
     newFile,
     openFile: () => void openFile(),
@@ -712,7 +738,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     openAgentSkill: () => openSingle(agentSkillDialog, { files }),
     openAbout: () => openSingle(aboutDialog, {}),
     hasSelection: selection !== null,
-    canAddComment: liveSelection !== null || canAddAtCursor,
+    canAddComment: readOnlyPull === null && (liveSelection !== null || canAddAtCursor),
     addComment,
   };
   // The one keydown handler is generated from the registered shortcuts and reads the latest context.
@@ -760,6 +786,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {readOnlyPull !== null && <ReadOnlyBanner pull={readOnlyPull} />}
           {meta !== null && <EditToolbar canUndo={session.canUndo} canRedo={session.canRedo} onUndo={undo} onRedo={redo} onFormat={(f, url) => editor.current?.format(f, url)} />}
           {meta !== null && tableTarget !== null && (
             <TableToolbar
@@ -794,6 +821,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
               tabId={activeId}
               text={text}
               raw={rawAll}
+              readOnly={readOnlyPull !== null}
               tabIds={session.tabIds}
               docPath={meta.path}
               onOpenThread={(id, ordinal) => {
@@ -823,7 +851,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             }}
             onClose={() => setSelectedKey(null)}
             draft={draft === null ? null : { anchor: draft.anchor }}
-            canAdd={meta !== null && (liveSelection !== null || canAddAtCursor)}
+            canAdd={meta !== null && readOnlyPull === null && (liveSelection !== null || canAddAtCursor)}
             onAdd={addComment}
             onCancelDraft={() => setDraft(null)}
             onSubmitDraft={submitDraft}
