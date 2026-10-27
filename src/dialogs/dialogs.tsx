@@ -7,6 +7,7 @@ import type { GitHubStatus } from '../platform/github';
 import { AboutDialog } from '../components/AboutDialog';
 import { AgentSkillDialog } from '../components/AgentSkillDialog';
 import { BranchChangeDialog } from '../components/BranchChangeDialog';
+import { CommitDialog, type CommitChoice } from '../components/CommitDialog';
 import { ConflictDialog, type ConflictChoice } from '../components/ConflictDialog';
 import { ConnectDialog } from '../components/ConnectDialog';
 import { GitHubSignInDialog } from '../components/GitHubSignInDialog';
@@ -86,4 +87,12 @@ export const branchChangeDialog = registerDialog(
   'branch-change',
   ({ name, close }: { name: string } & DialogClose<boolean>) => <BranchChangeDialog name={name} onChoose={close} />,
   false,
+);
+
+export const commitDialog = registerDialog(
+  'commit',
+  ({ owner, repo, branch, path, close }: { owner: string; repo: string; branch: string; path: string } & DialogClose<CommitChoice>) => (
+    <CommitDialog owner={owner} repo={repo} branch={branch} path={path} onChoose={close} />
+  ),
+  'cancel' as CommitChoice,
 );

@@ -11,6 +11,7 @@ import { DialogHost, openDialog, type DialogRef } from './dialogs/DialogHost';
 import {
   aboutDialog,
   agentSkillDialog,
+  commitDialog,
   conflictDialog,
   connectDialog,
   githubSignInDialog,
@@ -30,7 +31,7 @@ import { outlineOf } from './components/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
 import type { RepoState } from './components/RepoNavigator';
-import { GitHubError, ensureSignedIn, parseGithubPath, setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus } from './platform/github';
+import { GitHubError, commitFile, ensureSignedIn, parseGithubPath, setSignInHandler, signInStatus, signOut as githubSignOut, type GitHubStatus, type GithubDocument } from './platform/github';
 import type { RepoChoice } from './components/RepoPickerDialog';
 import { assertConnectAvailable } from './platform/connect';
 import { listThreads, threadKey } from './components/threads';
@@ -38,11 +39,11 @@ import { isCommentableAt, selectionRange, type ThreadTarget } from './components
 import { parseCommentMarkers, appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus } from './comment-threads';
 import { RawSwitch } from './components/RawSwitch';
 import { MarkdownEditor, type EditorHandle, type EditorSelection } from './editor/MarkdownEditor';
-import { useDocument } from './document/useDocument';
+import { useDocument, type DocumentMeta } from './document/useDocument';
 import { files as defaultFiles, type FileAccess } from './platform/files';
 import { guardClose } from './platform/lifecycle';
 import { pickImage } from './platform/images';
-import { GITHUB_SAVE_UNAVAILABLE } from './platform/files';
+import { addSessionBranch } from './features/github/sessionBranches';
 import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
 import { pathExists, pickFolder } from './platform/folders';
@@ -262,6 +263,41 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
 
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
+  /**
+   * Commits a GitHub tab's saved text to the branch it was opened from; true when committed. Nothing is
+   * called when there is nothing to commit; a conflict opens the ConflictDialog and writes nothing.
+   * Story 8 ('Commit to new branch…') adds its choice to the commit dialog and changes the target branch here;
+   * story 9 (refuse while a pull request is open) checks before the dialog is shown.
+   */
+  const commitGithub = useCallback(
+    async (id: number, gh: GithubDocument, text: string, dirty: boolean, meta: DocumentMeta): Promise<boolean> => {
+      if (!dirty) {
+        setNotice('No changes to commit');
+        return true;
+      }
+      const choice = await openDialog(commitDialog, { owner: gh.owner, repo: gh.repo, branch: gh.branch, path: gh.path });
+      if (choice !== 'commit') return false;
+      try {
+        const result = await commitFile({ owner: gh.owner, repo: gh.repo, branch: gh.branch, path: gh.path, text, sha: gh.sha });
+        if (result.status === 'conflict') {
+          // The file changed on GitHub: the same dialog as a remote save. Overwrite has nothing to force, so
+          // either answer leaves the tab unsaved and writes nothing.
+          await openDialog(conflictDialog, { name: meta.name, deleted: false });
+          return false;
+        }
+        setError(null);
+        setNotice(null);
+        addSessionBranch({ owner: gh.owner, repo: gh.repo, branch: gh.branch });
+        session.saved(id, { ...meta, github: { ...gh, sha: result.sha, commitSha: result.commitSha } }, text);
+        return true;
+      } catch (e) {
+        failed(e);
+        return false;
+      }
+    },
+    [session.saved],
+  );
+
   /** Writes tab `id`; true when it is on disk, false when cancelled or failed. */
   const doWrite = useCallback(
     async (id: number, as: boolean): Promise<boolean> => {
@@ -269,11 +305,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       if (tab === null) return true;
       // What is written is what is marked saved, even if typing continues meanwhile.
       const snapshot = tab.text;
-      // Committing to GitHub comes later; until then Save writes nothing, here or on GitHub.
-      if (!as && tab.meta.github !== undefined) {
-        setError(GITHUB_SAVE_UNAVAILABLE);
-        return false;
-      }
+      // Save on a GitHub tab commits (after a confirmation); Save As is not offered for GitHub files yet.
+      if (!as && tab.meta.github !== undefined) return commitGithub(id, tab.meta.github, snapshot, tab.dirty, tab.meta);
       // Save As may not land on a file another tab holds.
       const taken = (path: string) => session.peekTabs().some((t) => t.id !== id && t.path === path);
       const remotePath = !as && tab.meta.path !== null && isSshPath(tab.meta.path) ? tab.meta.path : null;
@@ -316,7 +349,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         setSavingTo(null);
       }
     },
-    [files, session.peek, session.peekTabs, session.saved, remember],
+    [files, session.peek, session.peekTabs, session.saved, remember, commitGithub],
   );
   // One save per tab at a time: a request made while one is pending joins it (no parallel write, no second dialog).
   const pendingSaves = useRef(new Map<number, Promise<boolean>>());
@@ -688,6 +721,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     openDialog,
     save: () => void save(),
     saveAs: () => void saveAs(),
+    isGithubTab: meta?.github !== undefined,
+    commit: () => void save(),
     newFile,
     openFile: () => void openFile(),
     closeTab: closeActive,

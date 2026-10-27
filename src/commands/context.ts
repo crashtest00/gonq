@@ -26,6 +26,10 @@ export interface CommandContext {
   openDialog: typeof openDialog;
   save: Action;
   saveAs: Action;
+  /** The active tab is a GitHub file: Save (Ctrl+S) commits it. */
+  isGithubTab: boolean;
+  /** Commits the active GitHub tab after a confirmation dialog. */
+  commit: Action;
   newFile: Action;
   openFile: Action;
   /** Closes the active tab (asking about unsaved changes); does nothing without one. */

@@ -1,11 +1,11 @@
-/** Opening GitHub files in tabs: github:// identity and routing, recorded metadata, duplicate/branch tabs, recents, error wording, the Save placeholder, the web-build error and text fidelity. */
+/** Opening GitHub files in tabs: github:// identity and routing, recorded metadata, duplicate/branch tabs, recents, error wording, Save on an unchanged tab, the web-build error and text fidelity. */
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { menu } from '../../testing/renderApp';
 import { settleEditors } from '../../testing/editor';
-import { openGithub, GITHUB_SAVE_UNAVAILABLE, type FileAccess } from '../../platform/files';
+import { openGithub, type FileAccess } from '../../platform/files';
 import { githubPath, parseGithubPath, readFile } from '../../platform/github';
 
 let recentRows: { path: string; opened_at: number }[] = [];
@@ -210,7 +210,7 @@ describe('in the app', () => {
     invoke.mockImplementation(base);
   });
 
-  it('Save on a GitHub tab writes nothing and says it is not available yet', async () => {
+  it('Save on an unchanged GitHub tab commits nothing and says so', async () => {
     reads['main:docs/a.md'] = file('docs/a.md', '# A\n\ntext');
     recentRows = [{ path: gh('main', 'docs/a.md'), opened_at: 1 }];
     const { user, saveDocument } = setup();
@@ -218,7 +218,7 @@ describe('in the app', () => {
     await screen.findByText('text');
     await settleEditors(document.body);
     await menu(user, 'File', /^Save(?!\s*As)/);
-    expect(await screen.findByText(GITHUB_SAVE_UNAVAILABLE)).toBeInTheDocument();
+    expect(await screen.findByText('No changes to commit')).toBeInTheDocument();
     expect(saveDocument).not.toHaveBeenCalled();
     expect(invoke.mock.calls.some((c) => /write|save|commit/i.test(String(c[0])))).toBe(false);
   });
