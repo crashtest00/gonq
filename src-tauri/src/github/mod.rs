@@ -12,6 +12,7 @@
 #![allow(dead_code)]
 
 pub mod api;
+pub mod branches;
 pub mod browse;
 pub mod commit;
 pub mod error;
@@ -22,6 +23,8 @@ pub mod store;
 
 #[cfg(test)]
 mod fake_github;
+#[cfg(test)]
+mod branches_tests;
 #[cfg(test)]
 mod commit_tests;
 #[cfg(test)]
@@ -296,6 +299,24 @@ pub async fn github_open_pulls_for_branches(
     branches: Vec<String>,
 ) -> Result<Vec<pulls::BranchPull>, GithubError> {
     gh.open_pulls_for_branches(&owner, &repo, &branches).await
+}
+
+/// Whether `gonq/<name>` already exists in `owner/repo` (advisory); see [`branches`].
+#[tauri::command]
+pub async fn github_gonq_branch_exists(gh: State<'_, Github>, owner: String, repo: String, name: String) -> Result<bool, GithubError> {
+    gh.gonq_branch_exists(&owner, &repo, &name).await
+}
+
+/// Creates `gonq/<name>` from the current tip of `source_branch`; see [`branches::CreatedBranch`].
+#[tauri::command]
+pub async fn github_create_gonq_branch(
+    gh: State<'_, Github>,
+    owner: String,
+    repo: String,
+    name: String,
+    source_branch: String,
+) -> Result<branches::CreatedBranch, GithubError> {
+    gh.create_gonq_branch(&owner, &repo, &name, &source_branch).await
 }
 
 #[tauri::command]
