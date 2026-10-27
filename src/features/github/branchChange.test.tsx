@@ -1,10 +1,9 @@
 /** Navigator follows GitHub tabs, and a branch change closes the active GitHub document (warning when dirty); the no-tab message. */
-import { cleanup, configure, render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import App from '../../App';
+import { cleanup, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { settleEditors, type } from '../../testing/editor';
-import { openGithub, type FileAccess } from '../../platform/files';
+import { openGithub } from '../../platform/files';
+import { renderApp, type User } from '../../testing/renderApp';
 import { githubPath } from '../../platform/github';
 
 let recentRows: { path: string; opened_at: number }[] = [];
@@ -26,10 +25,6 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
 
 const gh = (branch: string, repo = 'notes') => githubPath({ owner: 'octo', repo, branch, path: 'a.md' });
 
-// Whole-app tests: under CPU load the 5 s test and 1 s waitFor defaults are too tight.
-vi.setConfig({ testTimeout: 60_000 });
-beforeAll(() => configure({ asyncUtilTimeout: 15_000 }));
-
 beforeEach(() => {
   (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
   invoke.mockClear();
@@ -39,19 +34,9 @@ afterEach(() => {
   delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
 });
 
-type User = ReturnType<typeof userEvent.setup>;
-
 function setup(rows: string[]) {
   recentRows = rows.map((path) => ({ path, opened_at: 1 }));
-  const files: FileAccess = {
-    pickDocument: async () => null,
-    saveDocument: async (d) => ({ name: d.name, path: d.path }),
-    saveDocumentAs: async () => null,
-    openPath: openGithub,
-  };
-  const user = userEvent.setup();
-  render(<App files={files} />);
-  return user;
+  return renderApp({ files: { openPath: openGithub } }).user;
 }
 
 async function openRecent(user: User, branch: string) {
@@ -80,7 +65,7 @@ describe('branch change with a GitHub document', () => {
     );
   });
 
-  it('a dirty tab warns; Cancel changes nothing, Close document closes only that document', async () => {
+  async function dirtyMainTab() {
     const user = setup([gh('main'), gh('dev')]);
     await openRecent(user, 'main');
     await openRecent(user, 'dev');
@@ -88,17 +73,22 @@ describe('branch change with a GitHub document', () => {
     expect(screen.getByRole('button', { name: 'Branch: main' })).toBeInTheDocument();
     type('X');
     expect(await screen.findByLabelText('unsaved changes')).toBeInTheDocument();
-
     await pickBranch(user, 'main', 'other');
-    const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveTextContent(/uncommitted changes will be permanently lost/);
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/uncommitted changes will be permanently lost/);
+    return user;
+  }
+
+  it('a dirty tab warns; Cancel changes nothing', async () => {
+    const user = await dirtyMainTab();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(screen.getAllByRole('tab')).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Branch: main' })).toBeInTheDocument();
+  });
 
-    await pickBranch(user, 'main', 'other');
-    await user.click(await screen.findByRole('button', { name: 'Close document' }));
+  it('a dirty tab warns; Close document closes only that document', async () => {
+    const user = await dirtyMainTab();
+    await user.click(screen.getByRole('button', { name: 'Close document' }));
     await waitFor(() => expect(screen.getAllByRole('tab')).toHaveLength(1));
     expect(screen.queryAllByRole('tab', { selected: true })).toHaveLength(0);
     expect(await screen.findByText('Open a document or create a new one.')).toBeInTheDocument();
