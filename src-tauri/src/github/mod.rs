@@ -13,6 +13,7 @@
 
 pub mod api;
 pub mod browse;
+pub mod commit;
 pub mod error;
 pub mod flow;
 pub mod repos;
@@ -20,6 +21,8 @@ pub mod store;
 
 #[cfg(test)]
 mod fake_github;
+#[cfg(test)]
+mod commit_tests;
 #[cfg(test)]
 mod tests;
 
@@ -265,6 +268,20 @@ pub async fn github_read_file(
     path: String,
 ) -> Result<browse::RepoFile, GithubError> {
     gh.read_file(&owner, &repo, &branch, &path).await
+}
+
+/// Commits `text` to `path` on `branch`; see [`commit::CommitOutcome`] for the result shape.
+#[tauri::command]
+pub async fn github_commit_file(
+    gh: State<'_, Github>,
+    owner: String,
+    repo: String,
+    branch: String,
+    path: String,
+    text: String,
+    sha: String,
+) -> Result<commit::CommitOutcome, GithubError> {
+    gh.commit_file(&owner, &repo, &branch, &path, &text, &sha).await
 }
 
 #[tauri::command]

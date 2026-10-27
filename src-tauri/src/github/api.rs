@@ -1,4 +1,4 @@
-//! A small GitHub REST client: token, headers, pagination and typed errors.
+//! A small GitHub REST client: token, headers, pagination and typed errors. GET and PUT with a JSON body.
 //! The token is sent only to the configured API origin (api.github.com over HTTPS in
 //! production); redirects are off, and a pagination link to any other origin is refused.
 
@@ -47,17 +47,23 @@ impl Github {
 
     /// One authenticated GET. 401 forgets the stored token and answers `NotSignedIn`.
     async fn get(&self, path_or_url: &str) -> Result<reqwest::Response, GithubError> {
+        self.send(reqwest::Method::GET, path_or_url, None).await
+    }
+
+    /// One authenticated request, with an optional JSON body. Failures are mapped as for `get`.
+    async fn send(&self, method: reqwest::Method, path_or_url: &str, body: Option<&Value>) -> Result<reqwest::Response, GithubError> {
         let url = self.api_url(path_or_url)?;
         let token: Secret = self.token().await?.ok_or(GithubError::NotSignedIn)?;
-        let resp = self
+        let mut req = self
             .http
-            .get(url)
+            .request(method, url)
             .bearer_auth(token.expose())
             .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", API_VERSION)
-            .send()
-            .await
-            .map_err(network)?;
+            .header("X-GitHub-Api-Version", API_VERSION);
+        if let Some(body) = body {
+            req = req.json(body);
+        }
+        let resp = req.send().await.map_err(network)?;
         let status = resp.status();
         if status.is_success() {
             return Ok(resp);
@@ -82,6 +88,12 @@ impl Github {
 
     pub async fn get_json<T: DeserializeOwned>(&self, path: &str) -> Result<T, GithubError> {
         self.get(path).await?.json().await.map_err(|_| unexpected("the reply was not the expected JSON"))
+    }
+
+    /// PUTs a JSON body and returns the JSON reply (`Http` carries GitHub's status and message).
+    pub async fn put_json<T: DeserializeOwned>(&self, path: &str, body: &Value) -> Result<T, GithubError> {
+        let resp = self.send(reqwest::Method::PUT, path, Some(body)).await?;
+        resp.json().await.map_err(|_| unexpected("the reply was not the expected JSON"))
     }
 
     /// GETs one page of a list: its items and the `rel="next"` link, if any.
