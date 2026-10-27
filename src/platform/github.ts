@@ -1,5 +1,5 @@
 // The only place the frontend invokes the GitHub commands (OAuth device flow, repository list, branches and
-// folder listings, file reads with worded errors), and the home of the github:// path format (a repository file is a document identity). The token and the device code stay in
+// folder listings, file reads with worded errors, committing a file), and the home of the github:// path format (a repository file is a document identity). The token and the device code stay in
 // Rust: JS gets the user code to show, the login and whether a token exists. Desktop only; on the web every
 // call throws a GitHubError of kind unavailable_on_web, which the caller shows in the error banner.
 import { invoke } from '@tauri-apps/api/core';
@@ -38,6 +38,7 @@ export class GitHubError extends Error {
 }
 
 export const GITHUB_UNAVAILABLE = 'Signing in to GitHub needs the Gonq desktop app';
+export const GITHUB_COMMIT_UNAVAILABLE = 'Committing to GitHub needs the Gonq desktop app';
 
 /** What `startSignIn` gives: the code to type at the verification address. */
 export interface DeviceStart {
@@ -299,6 +300,33 @@ export async function readFile(owner: string, repo: string, branch: string, path
     return { path: raw.path, name: raw.name, content: raw.content, sha: raw.sha, commitSha: raw.commit_sha };
   } catch (e) {
     throw e instanceof GitHubError ? describeReadError(e, owner, repo, branch, path) : e;
+  }
+}
+
+/** What committing a file answers: the new blob and commit shas, or a conflict (nothing was written). */
+export type CommitResult = { status: 'committed'; sha: string; commitSha: string } | { status: 'conflict' };
+
+/** The fixed commit message; the same text the Rust side writes. */
+export const commitMessage = (path: string): string => `Edit ${path} from Gonq`;
+
+/**
+ * Commits `text` to `path` on `branch` if the file there still has blob `sha`. Rejects with a GitHubError
+ * carrying GitHub's message as given (the Rust side adds the needs-write-access note); on the web it rejects
+ * with kind unavailable_on_web.
+ */
+export async function commitFile(args: { owner: string; repo: string; branch: string; path: string; text: string; sha: string }): Promise<CommitResult> {
+  if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_COMMIT_UNAVAILABLE);
+  try {
+    const raw = await invoke<{ status: string; sha?: string; commit_sha?: string }>('github_commit_file', args);
+    if (raw.status === 'conflict') return { status: 'conflict' };
+    return { status: 'committed', sha: raw.sha ?? '', commitSha: raw.commit_sha ?? '' };
+  } catch (e) {
+    // An HTTP refusal keeps GitHub's own message, without the "GitHub returned N:" prefix other calls add.
+    const r = e as { kind?: unknown; message?: unknown } | null;
+    if (typeof r === 'object' && r !== null && r.kind === 'http' && typeof r.message === 'string' && r.message !== '') {
+      throw new GitHubError('other', r.message);
+    }
+    throw toGitHubError(e);
   }
 }
 

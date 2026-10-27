@@ -6,6 +6,7 @@ import type { FileAccess } from '../platform/files';
 import type { GitHubStatus } from '../platform/github';
 import { AboutDialog } from '../components/AboutDialog';
 import { AgentSkillDialog } from '../components/AgentSkillDialog';
+import { CommitDialog, type CommitChoice } from '../components/CommitDialog';
 import { ConflictDialog, type ConflictChoice } from '../components/ConflictDialog';
 import { ConnectDialog } from '../components/ConnectDialog';
 import { GitHubSignInDialog } from '../components/GitHubSignInDialog';
@@ -78,4 +79,12 @@ export const unsavedChangesDialog = registerDialog(
   'unsaved-changes',
   ({ name, close }: { name: string } & DialogClose<UnsavedChoice>) => <UnsavedChangesDialog name={name} onChoose={close} />,
   'cancel' as UnsavedChoice,
+);
+
+export const commitDialog = registerDialog(
+  'commit',
+  ({ owner, repo, branch, path, close }: { owner: string; repo: string; branch: string; path: string } & DialogClose<CommitChoice>) => (
+    <CommitDialog owner={owner} repo={repo} branch={branch} path={path} onChoose={close} />
+  ),
+  'cancel' as CommitChoice,
 );
