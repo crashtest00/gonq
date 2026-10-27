@@ -20,7 +20,7 @@ use serde_json::Value;
 const CONTENTS_LIMIT: usize = 1000;
 
 /// Percent-encodes everything but RFC 3986 unreserved bytes (so `/` becomes `%2F`).
-fn encode(s: &str) -> String {
+pub(super) fn encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
@@ -33,7 +33,7 @@ fn encode(s: &str) -> String {
 }
 
 /// Encodes each `/`-separated segment, keeping the separators; empty segments are dropped.
-fn encode_path(path: &str) -> String {
+pub(super) fn encode_path(path: &str) -> String {
     path.split('/').filter(|s| !s.is_empty()).map(encode).collect::<Vec<_>>().join("/")
 }
 

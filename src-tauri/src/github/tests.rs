@@ -14,7 +14,7 @@ const DEVICE: &str = "devcode_SECRET_9876543210";
 const UNIT: Duration = Duration::from_millis(20);
 
 #[derive(Default)]
-struct MockStore {
+pub(super) struct MockStore {
     token: Mutex<Option<String>>,
     mode: Mutex<Option<StoreError>>,
 }
@@ -254,7 +254,7 @@ async fn a_locked_keychain_is_a_typed_error_naming_the_keychain() {
     assert!(matches!(gh.status().await.unwrap_err(), GithubError::Keychain { .. }));
 }
 
-async fn signed_in() -> (Fake, Arc<Github>, Arc<MockStore>) {
+pub(super) async fn signed_in() -> (Fake, Arc<Github>, Arc<MockStore>) {
     let store = Arc::new(MockStore::default());
     let (fake, gh) = started(vec![granted()], store.clone()).await;
     gh.poll().await.unwrap();
