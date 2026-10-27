@@ -36,6 +36,11 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
       },
       {
         "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
         "label": "Sign in to GitHub…",
         "disabled": false
       },
@@ -336,6 +341,11 @@ exports[`menu tree > no document 1`] = `
       },
       {
         "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
         "label": "Sign in to GitHub…",
         "disabled": false
       },
@@ -512,6 +522,11 @@ exports[`menu tree > raw mode on 1`] = `
         "kind": "item",
         "label": "Open Repo…",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
       },
       {
         "kind": "item",
@@ -815,6 +830,11 @@ exports[`menu tree > table cell targeted 1`] = `
       },
       {
         "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
         "label": "Sign in to GitHub…",
         "disabled": false
       },
@@ -1115,6 +1135,11 @@ exports[`menu tree > theme dark 1`] = `
       },
       {
         "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
         "label": "Sign in to GitHub…",
         "disabled": false
       },
@@ -1412,6 +1437,11 @@ exports[`menu tree > undo and redo available 1`] = `
         "kind": "item",
         "label": "Open Repo…",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
       },
       {
         "kind": "item",

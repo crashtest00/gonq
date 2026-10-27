@@ -3,7 +3,7 @@
  * persisted between launches). `useOpenPulls(active, tabId)` checks the active GitHub tab's branch when it opens or
  * is activated; tabs on the same branch share one entry, so they flip together. A failed check (offline, rate
  * limited) leaves what was known, so a tab that was editable stays editable. `checkNow` is the strict form
- * for Commit (it reports failure) and the hook story 10 calls after Gonq opens a pull request.
+ * for Commit (it reports failure) and `markOpen` is what Open PR calls after Gonq opens a pull request.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { openPullForBranch, type GithubDocument, type OpenPull } from '../../platform/github';
@@ -25,6 +25,8 @@ export interface OpenPulls {
    * cannot complete (the recorded state is left as it was).
    */
   checkNow(b: BranchRef): Promise<OpenPull | null>;
+  /** Records a pull request just opened for a branch, with no request, so its tabs turn read-only at once. */
+  markOpen(b: BranchRef, pull: OpenPull): void;
 }
 
 export function useOpenPulls(active: BranchRef | null, tabId: number | null): OpenPulls {
@@ -51,6 +53,13 @@ export function useOpenPulls(active: BranchRef | null, tabId: number | null): Op
     return pull;
   }, []);
 
+  const markOpen = useCallback((b: BranchRef, pull: OpenPull) => {
+    const key = branchKey(b);
+    // Any check still in flight began before this pull request existed, so it must not overwrite it.
+    seq.current.set(key, (seq.current.get(key) ?? 0) + 1);
+    setPulls((all) => ({ ...all, [key]: pull }));
+  }, []);
+
   const activeKey = active === null ? null : branchKey(active);
   useEffect(() => {
     if (active === null) return;
@@ -59,5 +68,5 @@ export function useOpenPulls(active: BranchRef | null, tabId: number | null): Op
   }, [activeKey, tabId, checkNow]);
 
   const pullFor = useCallback((b: BranchRef | null) => (b === null ? null : (pulls[branchKey(b)] ?? null)), [pulls]);
-  return { pullFor, checkNow };
+  return { pullFor, checkNow, markOpen };
 }
