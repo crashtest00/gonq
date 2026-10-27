@@ -63,6 +63,16 @@ const RAW: Extension = EditorView.editorAttributes.of({ class: 'cm-raw' });
 export const modeCompartment = new Compartment();
 export const modeExtension = (raw: boolean): Extension => (raw ? RAW : LIVE);
 
+/**
+ * Read-only tabs: CodeMirror's own EditorState.readOnly (blocks typing, paste, drop, undo and the editing
+ * commands) plus EditorView.editable (no caret, tables not editable), in a compartment so the one editor can
+ * switch it per tab. Selecting and copying keep working.
+ */
+export const readOnlyCompartment = new Compartment();
+const READ_ONLY: Extension = [EditorState.readOnly.of(true), EditorView.editable.of(false)];
+const EDITABLE: Extension = [];
+export const readOnlyExtension = (on: boolean): Extension => (on ? READ_ONLY : EDITABLE);
+
 const LIST_LINE = /^[ \t]*([-*+]|\d+[.)])([ \t]|$)/;
 
 /** Tab / Shift+Tab indent or outdent list lines (marker-only ones too); elsewhere Tab keeps moving focus. */
@@ -95,7 +105,7 @@ function hasListAbove(state: EditorState, pos: number): boolean {
 }
 
 /** Every text-editing behaviour (typing, history, keys, list continuation) is CodeMirror's or lang-markdown's own. */
-export function editorExtensions(raw: boolean, extra: Extension = []): Extension {
+export function editorExtensions(raw: boolean, extra: Extension = [], readOnly = false): Extension {
   return [
     history(),
     // Four spaces, so Tab nests every list marker up to "99. ": a child must start at or past its parent's content column.
@@ -117,10 +127,11 @@ export function editorExtensions(raw: boolean, extra: Extension = []): Extension
     EditorView.lineWrapping,
     placeholder(PLACEHOLDER),
     modeCompartment.of(modeExtension(raw)),
+    readOnlyCompartment.of(readOnlyExtension(readOnly)),
     extra,
   ];
 }
 
-export function createEditorState(text: string, raw: boolean, extra: Extension = []): EditorState {
-  return EditorState.create({ doc: text, extensions: editorExtensions(raw, extra) });
+export function createEditorState(text: string, raw: boolean, extra: Extension = [], readOnly = false): EditorState {
+  return EditorState.create({ doc: text, extensions: editorExtensions(raw, extra, readOnly) });
 }

@@ -214,6 +214,7 @@ pub fn run() {
             github::github_list_folder,
             github::github_read_file,
             github::github_commit_file,
+            github::github_open_pulls_for_branches,
             ssh::ssh_list_hosts,
             ssh::ssh_connect,
             ssh::ssh_disconnect,

@@ -28,6 +28,8 @@ export interface CommandContext {
   saveAs: Action;
   /** The active tab is a GitHub file: Save (Ctrl+S) commits it. */
   isGithubTab: boolean;
+  /** The active tab is read-only: a pull request is open for its GitHub branch. */
+  readOnly: boolean;
   /** Commits the active GitHub tab after a confirmation dialog. */
   commit: Action;
   newFile: Action;

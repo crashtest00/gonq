@@ -1,5 +1,5 @@
 // The only place the frontend invokes the GitHub commands (OAuth device flow, repository list, branches and
-// folder listings, file reads with worded errors, committing a file, creating a branch), and the home of the github:// path format (a repository file is a document identity). The token and the device code stay in
+// folder listings, file reads with worded errors, committing a file, open pull requests per branch, creating a branch), and the home of the github:// path format (a repository file is a document identity). The token and the device code stay in
 // Rust: JS gets the user code to show, the login and whether a token exists. Desktop only; on the web every
 // call throws a GitHubError of kind unavailable_on_web, which the caller shows in the error banner.
 import { invoke } from '@tauri-apps/api/core';
@@ -348,6 +348,37 @@ export async function commitFile(args: { owner: string; repo: string; branch: st
     }
     throw toGitHubError(e);
   }
+}
+
+export const GITHUB_PULLS_UNAVAILABLE = 'Checking for open pull requests needs the Gonq desktop app';
+
+/** An open (draft or not) pull request whose head is a branch of the same repository. */
+export interface OpenPull {
+  number: number;
+  url: string;
+  draft: boolean;
+}
+
+/**
+ * The open pull requests for several branches of one repository in one pass: a map from each asked branch to its
+ * pull request, or null when it has none. Calls github_open_pulls (`{owner, repo, branches}` -> a list of
+ * `{branch, number, url, draft}`, one per branch that has an open PR; forks are ignored by the Rust side).
+ * Rejects with a GitHubError on a network or rate-limit failure; on the web with kind unavailable_on_web.
+ */
+export async function openPullsForBranches(owner: string, repo: string, branches: string[]): Promise<Map<string, OpenPull | null>> {
+  if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_PULLS_UNAVAILABLE);
+  const out = new Map<string, OpenPull | null>(branches.map((b) => [b, null]));
+  if (branches.length === 0) return out;
+  const raw = await call<{ branch: string; number: number; url: string; draft?: boolean }[] | undefined>('github_open_pulls', { owner, repo, branches });
+  for (const p of Array.isArray(raw) ? raw : []) {
+    if (out.has(p.branch)) out.set(p.branch, { number: p.number, url: p.url, draft: p.draft === true });
+  }
+  return out;
+}
+
+/** The open pull request for one branch, or null. Same errors as openPullsForBranches. */
+export async function openPullForBranch(owner: string, repo: string, branch: string): Promise<OpenPull | null> {
+  return (await openPullsForBranches(owner, repo, [branch])).get(branch) ?? null;
 }
 
 export const GITHUB_SCHEME = 'github://';
