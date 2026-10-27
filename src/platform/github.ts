@@ -341,17 +341,17 @@ export interface OpenPull {
 
 /**
  * The open pull requests for several branches of one repository in one pass: a map from each asked branch to its
- * pull request, or null when it has none. Calls github_open_pulls (`{owner, repo, branches}` -> a list of
- * `{branch, number, url, draft}`, one per branch that has an open PR; forks are ignored by the Rust side).
+ * pull request, or null when it has none. Calls github_open_pulls_for_branches (`{owner, repo, branches}` -> one
+ * `{branch, pull: null | {number, html_url, draft, title}}` per requested branch; forks are ignored by the Rust side).
  * Rejects with a GitHubError on a network or rate-limit failure; on the web with kind unavailable_on_web.
  */
 export async function openPullsForBranches(owner: string, repo: string, branches: string[]): Promise<Map<string, OpenPull | null>> {
   if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_PULLS_UNAVAILABLE);
   const out = new Map<string, OpenPull | null>(branches.map((b) => [b, null]));
   if (branches.length === 0) return out;
-  const raw = await call<{ branch: string; number: number; url: string; draft?: boolean }[] | undefined>('github_open_pulls', { owner, repo, branches });
-  for (const p of Array.isArray(raw) ? raw : []) {
-    if (out.has(p.branch)) out.set(p.branch, { number: p.number, url: p.url, draft: p.draft === true });
+  const raw = await call<{ branch: string; pull: { number: number; html_url: string; draft?: boolean } | null }[] | undefined>('github_open_pulls_for_branches', { owner, repo, branches });
+  for (const e of Array.isArray(raw) ? raw : []) {
+    if (out.has(e.branch) && e.pull) out.set(e.branch, { number: e.pull.number, url: e.pull.html_url, draft: e.pull.draft === true });
   }
   return out;
 }

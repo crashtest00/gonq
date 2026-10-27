@@ -21,9 +21,12 @@ const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>): Promis
   if (cmd === 'github_list_branches') return { default_branch: 'main', branches: ['main'], next_page: null };
   if (cmd === 'github_list_folder') return { entries: [], truncated: false };
   if (cmd === 'github_read_file') return reads[`${args!.branch}:${args!.path}`];
-  if (cmd === 'github_open_pulls') {
+  if (cmd === 'github_open_pulls_for_branches') {
     if (pullsFail) throw { kind: 'network', message: 'offline' };
-    return pulls.filter((p) => (args!.branches as string[]).includes(p.branch));
+    return (args!.branches as string[]).map((branch) => {
+      const p = pulls.find((x) => x.branch === branch);
+      return { branch, pull: p ? { number: p.number, html_url: p.url, draft: p.draft, title: null } : null };
+    });
   }
   if (cmd === 'github_commit_file') return { status: 'committed', sha: 'blob2', commit_sha: 'tip2' };
   return undefined;
@@ -37,7 +40,7 @@ const loc = { owner: 'octo', repo: 'notes' };
 const pr = (branch: string, number = 7, draft = false): Pull => ({ branch, number, draft, url: `https://github.com/octo/notes/pull/${number}` });
 const MESSAGE = (n: number) => `Pull request #${n} is open for this branch. You can read this document but not change it.`;
 const commits = () => invoke.mock.calls.filter((c) => c[0] === 'github_commit_file');
-const pullCalls = () => invoke.mock.calls.filter((c) => c[0] === 'github_open_pulls');
+const pullCalls = () => invoke.mock.calls.filter((c) => c[0] === 'github_open_pulls_for_branches');
 
 beforeEach(() => {
   (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
