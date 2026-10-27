@@ -17,7 +17,7 @@ import {
   conflictDialog,
   connectDialog,
   githubSignInDialog,
-  preferencesDialog,
+  settingsDialog,
   repoPickerDialog,
   unsavedChangesDialog,
   branchChangeDialog,
@@ -761,7 +761,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const closeActive = useCallback(() => {
     if (activeIdRef.current !== null) void closeTab(activeIdRef.current);
   }, [closeTab]);
-  // Preferences, Agent skill and About are single dialogs: asking again while one is open does nothing.
+  // Settings, Agent skill and About are single dialogs: asking again while one is open does nothing.
   const singles = useRef(new Set<string>());
   const openSingle = useCallback(<P,>(dialog: DialogRef<P, void>, props: P) => {
     if (singles.current.has(dialog.id)) return;
@@ -769,7 +769,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     void openDialog(dialog, props).finally(() => singles.current.delete(dialog.id));
   }, []);
   const openPrefs = useCallback(
-    () => openSingle(preferencesDialog, { authorName, onSave: async (n: string) => setAuthor(await setAuthorName(n)) }),
+    () => openSingle(settingsDialog, { authorName, onSave: async (n: string) => setAuthor(await setAuthorName(n)) }),
     [openSingle, authorName],
   );
   const undo = useCallback(() => editor.current?.undo(), []);
@@ -819,7 +819,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     openRepo: () => void openRepo(),
     canOpenPr: repo !== null || session.tabs.some((t) => t.github !== undefined),
     openPr: () => void openPr(),
-    openPreferences: openPrefs,
+    openSettings: openPrefs,
     githubSignIn: () => void openGithubSignIn(),
     githubSignOut: () => void doGithubSignOut(),
     insertImage,

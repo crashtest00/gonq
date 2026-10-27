@@ -1,11 +1,11 @@
-/** Edit > Preferences… dialog: the comment author name, validated with platform/settings.ts. */
+/** Edit > Settings… dialog: the comment author name, validated with platform/settings.ts. */
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_AUTHOR, MAX_AUTHOR_CHARS, authorNameProblem } from '../platform/settings';
 
 const button =
   'h-8 rounded-control border px-3 text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-export function PreferencesDialog({
+export function SettingsDialog({
   authorName,
   onSave,
   onClose,
@@ -41,7 +41,7 @@ export function PreferencesDialog({
       <form
         role="dialog"
         aria-modal="true"
-        aria-labelledby="preferences-title"
+        aria-labelledby="settings-title"
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
@@ -51,14 +51,14 @@ export function PreferencesDialog({
         }}
         className="w-[380px] max-w-[90vw] rounded-container border border-border bg-surface p-5 [box-shadow:var(--shadow-dialog)]"
       >
-        <h2 id="preferences-title" className="m-0 mb-3 text-[15px] font-semibold">
-          Preferences
+        <h2 id="settings-title" className="m-0 mb-3 text-[15px] font-semibold">
+          Settings
         </h2>
-        <label htmlFor="preferences-author" className="mb-1 block text-[13px] font-semibold">
+        <label htmlFor="settings-author" className="mb-1 block text-[13px] font-semibold">
           Author name
         </label>
         <input
-          id="preferences-author"
+          id="settings-author"
           ref={input}
           value={value}
           onChange={(e) => {
@@ -68,10 +68,10 @@ export function PreferencesDialog({
           placeholder={DEFAULT_AUTHOR}
           maxLength={MAX_AUTHOR_CHARS + 20}
           aria-invalid={problem !== null}
-          aria-describedby="preferences-author-hint"
+          aria-describedby="settings-author-hint"
           className="h-8 w-full rounded-control border border-border bg-background px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
-        <p id="preferences-author-hint" role={problem || failure ? 'alert' : undefined} className={`m-0 mt-1 mb-5 text-[12px] ${problem || failure ? 'text-destructive' : 'text-muted-foreground'}`}>
+        <p id="settings-author-hint" role={problem || failure ? 'alert' : undefined} className={`m-0 mt-1 mb-5 text-[12px] ${problem || failure ? 'text-destructive' : 'text-muted-foreground'}`}>
           {problem ?? failure ?? `Written on the comments and replies you add.`}
         </p>
         <div className="flex justify-end gap-2">
