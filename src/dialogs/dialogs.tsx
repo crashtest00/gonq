@@ -23,8 +23,14 @@ import { registerDialog, type DialogClose } from './DialogHost';
 
 export const settingsDialog = registerDialog(
   'settings',
-  ({ authorName, onSave, close }: { authorName: string; onSave: (name: string) => Promise<void> } & DialogClose<void>) => (
-    <SettingsDialog authorName={authorName} onSave={onSave} onClose={() => close()} />
+  ({
+    authorName,
+    onSave,
+    onSignIn,
+    onSignOut,
+    close,
+  }: { authorName: string; onSave: (name: string) => Promise<void>; onSignIn: () => Promise<void>; onSignOut: () => Promise<void> } & DialogClose<void>) => (
+    <SettingsDialog authorName={authorName} onSave={onSave} onSignIn={onSignIn} onSignOut={onSignOut} onClose={() => close()} />
   ),
   undefined,
 );

@@ -59,7 +59,7 @@ function Copyable({ label, text }: { label: string; text: string }) {
 }
 
 /**
- * File > Sign in to GitHub…: shows the device code, waits for approval on github.com, or (already signed in)
+ * Opened from Settings > GitHub > Sign In: shows the device code, waits for approval on github.com, or (already signed in)
  * the login with a Sign out button. Neither the token nor the device code ever reaches here.
  * `onClose` says whether the user is signed in on the way out.
  */

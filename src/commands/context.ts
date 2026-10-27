@@ -44,8 +44,6 @@ export interface CommandContext {
   /** Signs in if needed, then shows the Open PR dialog. */
   openPr: Action;
   openSettings: Action;
-  githubSignIn: Action;
-  githubSignOut: Action;
   /** Picks an image and inserts it at the caret. */
   insertImage: Action;
   insertToc: Action;

@@ -93,7 +93,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
   const [theme, setThemeChoice] = useTheme(useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []));
   // Dialogs are opened through openDialog and shown by <DialogHost/>; see dialogs/dialogs.tsx.
-  // The GitHub sign-in dialog: from File > Sign in to GitHub… or ensureSignedIn (platform/github.ts).
+  // The GitHub sign-in dialog: from Settings > GitHub > Sign In or ensureSignedIn (platform/github.ts).
   const githubOpen = useRef<Promise<boolean> | null>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
@@ -677,7 +677,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     return asked;
   }, []);
   useEffect(() => setSignInHandler(() => requestGithubSignIn({ signed_in: false, login: null, storage: null })), [requestGithubSignIn]);
-  /** File > Sign in to GitHub…; on the web the status call throws and the banner says why. */
+  /** Settings > GitHub > Sign In; on the web the status call throws and the banner says why. */
   const openGithubSignIn = useCallback(async () => {
     try {
       await requestGithubSignIn(await signInStatus());
@@ -769,8 +769,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     void openDialog(dialog, props).finally(() => singles.current.delete(dialog.id));
   }, []);
   const openPrefs = useCallback(
-    () => openSingle(settingsDialog, { authorName, onSave: async (n: string) => setAuthor(await setAuthorName(n)) }),
-    [openSingle, authorName],
+    () => openSingle(settingsDialog, { authorName, onSave: async (n: string) => setAuthor(await setAuthorName(n)), onSignIn: openGithubSignIn, onSignOut: doGithubSignOut }),
+    [openSingle, authorName, openGithubSignIn, doGithubSignOut],
   );
   const undo = useCallback(() => editor.current?.undo(), []);
   const redo = useCallback(() => editor.current?.redo(), []);
@@ -820,8 +820,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     canOpenPr: repo !== null || session.tabs.some((t) => t.github !== undefined),
     openPr: () => void openPr(),
     openSettings: openPrefs,
-    githubSignIn: () => void openGithubSignIn(),
-    githubSignOut: () => void doGithubSignOut(),
     insertImage,
     insertToc,
     setRaw: session.setRaw,
