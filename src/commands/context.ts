@@ -49,6 +49,4 @@ export interface CommandContext {
   /** A comment can be started at the selection or caret. */
   canAddComment: boolean;
   addComment: Action;
-  /** Cut, copy or paste through the clipboard; a failure shows in the error banner. */
-  clipboard: (op: 'cut' | 'copy' | 'paste') => void;
 }
