@@ -30,6 +30,8 @@ pub enum GithubError {
     RateLimited { reset_at: Option<u64>, message: String },
     /// The branch (ref) does not exist, or was deleted.
     BranchNotFound,
+    /// Creating a branch found its name already taken (GitHub's 422 "Reference already exists"). Nothing was changed.
+    BranchExists,
     /// The path does not exist on that branch.
     PathNotFound,
     /// The path is a file, not a folder.
@@ -68,6 +70,7 @@ impl std::fmt::Display for GithubError {
             }
             Self::RateLimited { reset_at: None, message } => write!(f, "GitHub rate limit reached: {message}"),
             Self::BranchNotFound => write!(f, "that branch was not found (or the repository is private or inaccessible)"),
+            Self::BranchExists => write!(f, "that branch already exists"),
             Self::PathNotFound => write!(f, "that path was not found on the branch"),
             Self::NotAFolder => write!(f, "that path is a file, not a folder"),
             Self::NotAFile => write!(f, "that path is not a file"),

@@ -1,4 +1,4 @@
-//! A small GitHub REST client: token, headers, pagination and typed errors. GET and PUT with a JSON body.
+//! A small GitHub REST client: token, headers, pagination and typed errors. GET, PUT and POST with a JSON body.
 //! The token is sent only to the configured API origin (api.github.com over HTTPS in
 //! production); redirects are off, and a pagination link to any other origin is refused.
 
@@ -93,6 +93,12 @@ impl Github {
     /// PUTs a JSON body and returns the JSON reply (`Http` carries GitHub's status and message).
     pub async fn put_json<T: DeserializeOwned>(&self, path: &str, body: &Value) -> Result<T, GithubError> {
         let resp = self.send(reqwest::Method::PUT, path, Some(body)).await?;
+        resp.json().await.map_err(|_| unexpected("the reply was not the expected JSON"))
+    }
+
+    /// POSTs a JSON body and returns the JSON reply (`Http` carries GitHub's status and message).
+    pub async fn post_json<T: DeserializeOwned>(&self, path: &str, body: &Value) -> Result<T, GithubError> {
+        let resp = self.send(reqwest::Method::POST, path, Some(body)).await?;
         resp.json().await.map_err(|_| unexpected("the reply was not the expected JSON"))
     }
 
