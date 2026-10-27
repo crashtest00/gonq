@@ -17,6 +17,7 @@ pub mod browse;
 pub mod commit;
 pub mod error;
 pub mod flow;
+pub mod open_pr;
 pub mod pulls;
 pub mod repos;
 pub mod store;
@@ -27,6 +28,8 @@ mod fake_github;
 mod branches_tests;
 #[cfg(test)]
 mod commit_tests;
+#[cfg(test)]
+mod open_pr_tests;
 #[cfg(test)]
 mod pulls_tests;
 #[cfg(test)]
@@ -317,6 +320,32 @@ pub async fn github_create_branch(
     source: String,
 ) -> Result<branches::CreatedBranch, GithubError> {
     gh.create_gonq_branch(&owner, &repo, &name, &source).await
+}
+
+/// The subset of `branches` that exist in `owner/repo`; see [`open_pr`].
+#[tauri::command]
+pub async fn github_branches_exist(gh: State<'_, Github>, owner: String, repo: String, branches: Vec<String>) -> Result<Vec<String>, GithubError> {
+    gh.branches_exist(&owner, &repo, &branches).await
+}
+
+/// Commits ahead/behind and changed files between `base` and `head`; see [`open_pr::Comparison`].
+#[tauri::command]
+pub async fn github_compare(gh: State<'_, Github>, owner: String, repo: String, base: String, head: String) -> Result<open_pr::Comparison, GithubError> {
+    gh.compare(&owner, &repo, &base, &head).await
+}
+
+/// Opens a pull request from `head` into `base`; see [`open_pr::CreatedPull`].
+#[tauri::command]
+pub async fn github_create_pull(
+    gh: State<'_, Github>,
+    owner: String,
+    repo: String,
+    title: String,
+    body: String,
+    head: String,
+    base: String,
+) -> Result<open_pr::CreatedPull, GithubError> {
+    gh.create_pull(&owner, &repo, &title, &body, &head, &base).await
 }
 
 #[tauri::command]
