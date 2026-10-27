@@ -79,20 +79,20 @@ fn set_theme<R: Runtime>(app: AppHandle<R>, theme: String) -> Result<String, Str
     settings::set_theme(&settings_file(&app)?, &theme)
 }
 
-/// The saved widths (px) of the outline, folder and comments side panes; defaults when none is saved or it can't be read.
+/// The saved widths (px) of the navigator, outline and comments side panes; null for a pane with none saved (or when it can't be read).
 #[tauri::command]
 fn get_pane_widths<R: Runtime>(app: AppHandle<R>) -> settings::PaneWidths {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     match settings_file(&app) {
         Ok(file) => settings::get_pane_widths(&file),
-        Err(_) => settings::DEFAULT_PANE_WIDTHS,
+        Err(_) => settings::PaneWidths::default(),
     }
 }
 
-/// Saves one pane's width ("outline", "folder" or "comments"; 120..=800 px, anything else is refused) and
-/// returns all the stored widths.
+/// Saves one pane's width ("navigator", "outline" or "comments"; 120..=800 px, anything else is refused);
+/// a null width clears it. Returns all the stored widths.
 #[tauri::command]
-fn set_pane_width<R: Runtime>(app: AppHandle<R>, pane: String, width: u32) -> Result<settings::PaneWidths, String> {
+fn set_pane_width<R: Runtime>(app: AppHandle<R>, pane: String, width: Option<u32>) -> Result<settings::PaneWidths, String> {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     settings::set_pane_width(&settings_file(&app)?, &pane, width)
 }
