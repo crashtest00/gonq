@@ -13,7 +13,7 @@ branches) are also in [github-review.md](github-review.md).
 
 Refresh lists the open folder again and every folder you have expanded, so files added, renamed or deleted outside
 Gonq appear. Expanded folders stay expanded and the scroll position does not move. Collapsed folders are not read.
-Open tabs, unsaved edits and the highlighted current file are not touched.
+Open tabs, unsaved edits and the highlighted current file are not touched. The Refresh button is a normal tab stop and works with Enter and Space.
 
 ## ssh:// folders
 
