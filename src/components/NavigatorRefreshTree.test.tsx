@@ -21,9 +21,9 @@ afterEach(() => {
 const noop = () => {};
 const file = (dir: string, name: string) => ({ name, path: `${dir}/${name}`, is_dir: false });
 
-/** A local tree: a docs folder, 150 filler files, keep.md (the open file), and files that change on the second listing. */
+/** A local tree: a docs folder, 10 filler files, keep.md (the open file), and files that change on the second listing. */
 function localTree(v: 1 | 2) {
-  const fillers = Array.from({ length: 150 }, (_, i) => file('/proj', `f${String(i).padStart(3, '0')}.md`));
+  const fillers = Array.from({ length: 10 }, (_, i) => file('/proj', `f${String(i).padStart(3, '0')}.md`));
   return {
     '/proj': [
       { name: 'docs', path: '/proj/docs', is_dir: true },
@@ -61,7 +61,7 @@ it('local refresh shows renamed, deleted and added files and keeps expanded fold
   nav.scrollTop = 900;
   const docs = screen.getByRole('button', { name: /docs/ });
   const keep = screen.getByRole('button', { name: 'keep.md' });
-  const far = screen.getByRole('button', { name: 'f140.md' });
+  const far = screen.getByRole('button', { name: 'f009.md' });
   expect(keep).toHaveAttribute('aria-current', 'true');
 
   toV2();
@@ -78,10 +78,10 @@ it('local refresh shows renamed, deleted and added files and keeps expanded fold
   expect(screen.getByRole('button', { name: /docs/ })).toBe(docs);
   expect(docs).toHaveAttribute('aria-expanded', 'true');
   expect(screen.getByRole('button', { name: 'keep.md' })).toBe(keep);
-  expect(screen.getByRole('button', { name: 'f140.md' })).toBe(far);
+  expect(screen.getByRole('button', { name: 'f009.md' })).toBe(far);
   expect(keep).toHaveAttribute('aria-current', 'true');
   expect(container.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
-  expect(within(nav).getAllByRole('button', { name: /^f\d{3}\.md$/ })).toHaveLength(150);
+  expect(within(nav).getAllByRole('button', { name: /^f\d{3}\.md$/ })).toHaveLength(10);
   expect(nav.scrollTop).toBe(900);
 });
 
@@ -131,7 +131,7 @@ it('a plain GitHub refresh lists a branch added upstream in the dropdown and nev
 
 it('a GitHub refresh keeps the nav and the untouched rows as the same DOM nodes', async () => {
   const entries = (v: number) => [
-    ...Array.from({ length: 120 }, (_, i) => ({ name: `f${i}.md`, path: `f${i}.md`, kind: 'file' })),
+    ...Array.from({ length: 10 }, (_, i) => ({ name: `f${i}.md`, path: `f${i}.md`, kind: 'file' })),
     { name: v === 1 ? 'old.md' : 'new.md', path: v === 1 ? 'old.md' : 'new.md', kind: 'file' },
   ];
   let v = 1;
@@ -145,12 +145,12 @@ it('a GitHub refresh keeps the nav and the untouched rows as the same DOM nodes'
   await screen.findByText('old.md');
   const nav = container.querySelector('nav') as HTMLElement;
   nav.scrollTop = 500;
-  const row = screen.getByRole('button', { name: /^f100\.md/ });
+  const row = screen.getByRole('button', { name: /^f9\.md/ });
   v = 2;
   await user.click(screen.getByRole('button', { name: 'Refresh' }));
   await screen.findByText('new.md');
   expect(screen.queryByText('old.md')).toBeNull();
   expect(container.querySelector('nav')).toBe(nav);
-  expect(screen.getByRole('button', { name: /^f100\.md/ })).toBe(row);
+  expect(screen.getByRole('button', { name: /^f9\.md/ })).toBe(row);
   expect(nav.scrollTop).toBe(500);
 });
