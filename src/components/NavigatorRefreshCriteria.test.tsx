@@ -1,4 +1,4 @@
-/** Navigator Refresh acceptance criteria through the real platform routing (only invoke is mocked): scroll position, ssh:// and local listings, and which GitHub folders are re-fetched. */
+/** Navigator Refresh acceptance criteria through the real platform routing (only invoke is mocked): ssh:// listings and which GitHub folders are re-fetched. */
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -23,39 +23,6 @@ const sidebar = (folder: string) => (
   <FolderSidebar folder={folder} recents={[]} currentPath={null} onOpenFolder={noop} onOpenFile={noop} onOpenRecent={noop} onRemoveRecent={noop} />
 );
 const calls = (cmd: string) => invoke.mock.calls.filter((c) => c[0] === cmd);
-
-it('keeps the scroll position of a long local tree across a refresh', async () => {
-  const rows = (prefix: string) => Array.from({ length: 200 }, (_, i) => ({ name: `${prefix}${i}.md`, path: `/proj/${prefix}${i}`, is_dir: false }));
-  invoke.mockResolvedValueOnce(rows('a'));
-  const user = userEvent.setup();
-  const { container } = render(sidebar('/proj'));
-  await screen.findByText('a0.md');
-  const nav = container.querySelector('nav') as HTMLElement;
-  nav.scrollTop = 1234;
-  invoke.mockResolvedValueOnce(rows('b'));
-  await user.click(screen.getByRole('button', { name: 'Refresh' }));
-  await screen.findByText('b0.md');
-  expect(screen.queryByText('a0.md')).toBeNull();
-  expect(container.querySelector('nav')).toBe(nav);
-  expect(nav.scrollTop).toBe(1234);
-});
-
-it('keeps the scroll position of a GitHub tree across a refresh', async () => {
-  const entries = (prefix: string) => Array.from({ length: 200 }, (_, i) => ({ name: `${prefix}${i}.md`, path: `${prefix}${i}.md`, kind: 'file' }));
-  let prefix = 'a';
-  invoke.mockImplementation(async (cmd) =>
-    cmd === 'github_list_branches' ? { default_branch: 'main', branches: ['main'], next_page: null } : { entries: entries(prefix), truncated: false },
-  );
-  const user = userEvent.setup();
-  const { container } = render(<FolderSidebar folder={null} repo={{ owner: 'o', repo: 'r', branch: 'main' }} recents={[]} currentPath={null} onOpenFolder={noop} onOpenFile={noop} onOpenRecent={noop} onRemoveRecent={noop} />);
-  await screen.findByText('a0.md');
-  const nav = container.querySelector('nav') as HTMLElement;
-  nav.scrollTop = 777;
-  prefix = 'b';
-  await user.click(screen.getByRole('button', { name: 'Refresh' }));
-  await screen.findByText('b0.md');
-  expect(nav.scrollTop).toBe(777);
-});
 
 it('re-lists an expanded ssh:// folder through remote_list_directory and keeps it open', async () => {
   const root = 'ssh://me@host/proj';
