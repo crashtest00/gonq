@@ -74,6 +74,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const paneLayout = usePaneWidths();
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
+  const [navRefresh, setNavRefresh] = useState(0);
   const [folder, setFolder] = useState<string | null>(null);
   // Once the user picks a folder with Open Folder…, opening documents no longer moves the Project folder.
   const folderChosen = useRef(false);
@@ -817,6 +818,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     openFolder: () => void openFolder(),
     openConnect: () => void openConnect(),
     openRepo: () => void openRepo(),
+    canRefreshNavigator: folderOpen && (repo !== null || folder !== null),
+    refreshNavigator: () => setNavRefresh((n) => n + 1),
     canOpenPr: repo !== null || session.tabs.some((t) => t.github !== undefined),
     openPr: () => void openPr(),
     openSettings: openPrefs,
@@ -870,6 +873,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             folder={folder}
             repo={repo}
             createdBranches={createdBranches.filter((b) => b.owner === repo?.owner && b.repo === repo?.repo).map((b) => b.branch)}
+            refreshSignal={navRefresh}
             onBranchChange={(branch) => void changeBranch(branch)}
             onCreateBranch={openCreateBranch}
             recents={recents}

@@ -2,7 +2,7 @@
  * The GitHub repository navigator, shown by FolderSidebar when a repo is open: a header (owner/repo, the
  * branch dropdown and the create-branch icon) above a lazily listed folder tree
  * (platform/folders.ts listFolderPage on github:// paths). Switching branch reloads the tree and keeps only
- * the expanded folders that exist on the new branch. The Refresh button re-lists the root and the expanded folders (and the branch list) in place. Exports RepoNavigator, RepoState, BRANCH_RENDER_CAP and describeError.
+ * the expanded folders that exist on the new branch. The Refresh button (and View > Refresh Navigator, via `refreshSignal`) re-lists the root and the expanded folders (and the branch list) in place, shows a busy state meanwhile, keeps the rows on screen when a re-list fails, and switches to the default branch when the open branch was deleted. Exports RepoNavigator, RepoState, BRANCH_RENDER_CAP and describeError.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, File, Folder, GitBranch, GitBranchPlus, Loader2, RefreshCw } from 'lucide-react';
@@ -21,6 +21,8 @@ const ROW_CHUNK = 200;
 
 /** The dropdown renders at most this many matching branches; the rest need a narrower filter. */
 export const BRANCH_RENDER_CAP = 100;
+
+const isBranchGone = (e: unknown) => e instanceof ListDirectoryError && e.kind === 'branch_not_found';
 
 const muted = 'm-0 py-1 text-[12.5px] text-muted-foreground';
 const link = 'cursor-pointer border-0 bg-transparent p-0 text-[12.5px] underline';
@@ -228,6 +230,7 @@ export function RepoNavigator({
   onBranchChange,
   onCreateBranch,
   onOpenFile,
+  refreshSignal = 0,
 }: {
   repo: RepoState;
   currentPath: string | null;
@@ -236,6 +239,8 @@ export function RepoNavigator({
   onBranchChange: (branch: string) => void;
   onCreateBranch?: () => void;
   onOpenFile: (path: string) => void;
+  /** Bumped by App (View > Refresh Navigator) to refresh like the button does. */
+  refreshSignal?: number;
 }) {
   const root = rootPath(repo);
   const [listings, setListings] = useState<Map<string, Listing>>(new Map());
@@ -248,7 +253,27 @@ export function RepoNavigator({
   const listingsRef = useRef(listings);
   listingsRef.current = listings;
   const [refreshKey, setRefreshKey] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [refreshError, setRefreshError] = useState<unknown>(null);
   const loadedRoot = useRef(root);
+  const onBranchChangeRef = useRef(onBranchChange);
+  onBranchChangeRef.current = onBranchChange;
+  const branchRef = useRef(repo.branch);
+  branchRef.current = repo.branch;
+
+  const refresh = useCallback(() => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setRefreshKey((n) => n + 1);
+  }, []);
+  const seenSignal = useRef(refreshSignal);
+  useEffect(() => {
+    if (seenSignal.current === refreshSignal) return;
+    seenSignal.current = refreshSignal;
+    refresh();
+  }, [refreshSignal, refresh]);
 
   const put = useCallback((gen: number, path: string, l: Listing) => {
     if (gen !== generation.current) return;
@@ -266,6 +291,8 @@ export function RepoNavigator({
       } catch (e) {
         result = { state: 'error', error: e };
       }
+      // A refresh that fails leaves the rows already shown in place (the error is reported separately).
+      if (quiet && result.state === 'error' && listingsRef.current.get(path)?.state === 'ok' && !folderGone(result.error) && !isBranchGone(result.error)) return result;
       put(gen, path, result);
       return result;
     },
@@ -282,13 +309,40 @@ export function RepoNavigator({
     const quiet = loadedRoot.current === root;
     loadedRoot.current = root;
     if (!quiet) {
+      busyRef.current = false;
+      setBusy(false);
+      setRefreshError(null);
       setListings(new Map());
       setShown(new Map());
     }
+    const finishRefresh = (error: unknown) => {
+      if (!busyRef.current) return;
+      busyRef.current = false;
+      setBusy(false);
+      setRefreshError(error);
+    };
     (async () => {
       const survivors = new Set<string>();
+      let failedFolder: unknown = null;
       const rootListing = await load(root, quiet);
       if (gen !== generation.current) return;
+      if (rootListing.state === 'error') {
+        // The open branch was deleted: move to the default branch (App warns about unsaved changes first).
+        if (quiet && isBranchGone(rootListing.error)) {
+          try {
+            const fallback = (await listBranches(at.owner, at.repo, 1)).defaultBranch;
+            if (gen !== generation.current) return;
+            if (fallback !== branchRef.current) onBranchChangeRef.current(fallback);
+          } catch {
+            /* the "branch no longer exists" message stays */
+          }
+        } else if (quiet) {
+          // Root could not be re-listed: keep the tree as it was, expanded folders included.
+          setExpanded(keep);
+        }
+        finishRefresh(quiet && !isBranchGone(rootListing.error) ? rootListing.error : null);
+        return;
+      }
       const known = new Set<string>();
       if (rootListing.state === 'ok') for (const e of rootListing.entries) if (e.isDir) known.add(e.path);
       // Parents first: a folder is only tried when its parent was listed here and contains it.
@@ -300,10 +354,14 @@ export function RepoNavigator({
         if (l.state === 'ok') {
           survivors.add(path);
           for (const e of l.entries) if (e.isDir) known.add(e.path);
-        } else if (!folderGone(l.error)) survivors.add(path);
+        } else if (!folderGone(l.error)) {
+          survivors.add(path);
+          if (quiet) failedFolder = l.error;
+        }
       }
       setExpanded(survivors);
-    })();
+      finishRefresh(failedFolder);
+    })().catch(() => finishRefresh(null));
   }, [root, load, refreshKey]);
 
   const toggle = useCallback(
@@ -402,7 +460,7 @@ export function RepoNavigator({
 
   const rootListing = listings.get(root);
   const rootError = rootListing?.state === 'error' ? rootListing.error : null;
-  const branchGone = rootError instanceof ListDirectoryError && rootError.kind === 'branch_not_found';
+  const branchGone = isBranchGone(rootError);
 
   return (
     <div>
@@ -419,10 +477,12 @@ export function RepoNavigator({
               type="button"
               aria-label="Refresh"
               title="Refresh"
-              onClick={() => setRefreshKey((n) => n + 1)}
-              className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-control border-0 bg-transparent text-foreground hover:bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+              aria-busy={busy}
+              disabled={busy}
+              onClick={refresh}
+              className="flex h-6 w-6 cursor-pointer disabled:cursor-default disabled:opacity-60 items-center justify-center rounded-control border-0 bg-transparent text-foreground hover:bg-surface focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <RefreshCw size={14} aria-hidden />
+              <RefreshCw size={14} aria-hidden className={busy ? 'animate-spin' : undefined} />
             </button>
             <button
               type="button"
@@ -436,6 +496,7 @@ export function RepoNavigator({
           </span>
         </div>
       </div>
+      {refreshError !== null && !branchGone && <ErrorLine e={refreshError} what="refreshing the navigator" pad={0} onRetry={refresh} />}
       {branchGone ? (
         <p role="alert" className="m-0 py-1 text-[12.5px] text-destructive">
           The branch “{repo.branch}” no longer exists on GitHub. Choose another branch.

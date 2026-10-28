@@ -107,6 +107,11 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
         "checked": false
       },
       {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
+      },
+      {
         "kind": "submenu",
         "label": "Theme",
         "shortcut": "›",
@@ -402,6 +407,11 @@ exports[`menu tree > no document 1`] = `
         "checked": false
       },
       {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
+      },
+      {
         "kind": "submenu",
         "label": "Theme",
         "shortcut": "›",
@@ -574,6 +584,11 @@ exports[`menu tree > raw mode on 1`] = `
         "label": "✓Raw Markdown",
         "disabled": false,
         "checked": true
+      },
+      {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
       },
       {
         "kind": "submenu",
@@ -871,6 +886,11 @@ exports[`menu tree > table cell targeted 1`] = `
         "checked": false
       },
       {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
+      },
+      {
         "kind": "submenu",
         "label": "Theme",
         "shortcut": "›",
@@ -1166,6 +1186,11 @@ exports[`menu tree > theme dark 1`] = `
         "checked": false
       },
       {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
+      },
+      {
         "kind": "submenu",
         "label": "Theme",
         "shortcut": "›",
@@ -1459,6 +1484,11 @@ exports[`menu tree > undo and redo available 1`] = `
         "label": "Raw Markdown",
         "disabled": false,
         "checked": false
+      },
+      {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
       },
       {
         "kind": "submenu",

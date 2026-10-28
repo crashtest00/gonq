@@ -43,6 +43,10 @@ export interface CommandContext {
   canOpenPr: boolean;
   /** Signs in if needed, then shows the Open PR dialog. */
   openPr: Action;
+  /** The folder navigator is open on a folder or repository: View > Refresh Navigator has a tree to re-list. */
+  canRefreshNavigator: boolean;
+  /** Re-lists the navigator's tree (and a repository's branches) in place; same as its Refresh button. */
+  refreshNavigator: Action;
   openSettings: Action;
   /** Picks an image and inserts it at the caret. */
   insertImage: Action;

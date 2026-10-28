@@ -28,6 +28,11 @@ is that broad. The signed-in user needs write access to the repository.
 2. **File > Open Repo…** lists your repositories; filter and pick one. The folder sidebar becomes the repository
    navigator: the repository name, a **branch dropdown** (with a filter box) and a folder tree of Markdown files.
    Picking another branch reloads the tree.
+   **Refresh** (the circular-arrow icon in the navigator header, or **View > Refresh Navigator**) re-lists the tree and
+   the branch list in place: expanded folders and scroll position stay, and the icon spins and is disabled until it
+   finishes. If the refresh fails, the tree stays as it was and an error with Retry appears. If the open branch was
+   deleted on GitHub, Refresh switches the navigator to the repository's default branch (with the usual "Change
+   branch?" warning if the open document has uncommitted changes).
 3. Click a file to open it in a tab. Edit as usual.
 4. **File > Commit…** commits the tab's file to the tab's branch with the message `Edit <path> from Gonq`, after a
    confirmation showing file, repository, branch and message. **Ctrl+S** does the same on a GitHub tab, because there
