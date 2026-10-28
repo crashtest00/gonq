@@ -45,8 +45,11 @@ is that broad. The signed-in user needs write access to the repository.
 7. **File > Open PR…** (greyed until a repository or GitHub tab is open) has three steps, left to right: **Branch to
    merge**, **Merge into**, and **Review changes** (the changed files). **Open PR** then shows an editable title and
    body, pre-filled by Gonq; its **Open PR** button creates the pull request, and the result offers **Open in
-   browser**. If the pull request was created but its label could not be added, the result also shows a short note
-   with the reason; the link and buttons still work.
+   browser**. Gonq also labels the new pull request `gonq-editor` (a fixed name, not a setting; if the repository
+   has no such label Gonq creates it once, and an existing label is never edited). Labelling is best effort: if it
+   fails (no permission, rate limit, network) the pull request is still opened and the reason comes back as
+   `label_warning` from `github_create_pull` (`null` on success); the result then shows it as a short note, and the
+   link and buttons still work.
 8. **Edit > Settings… > GitHub > Sign Out** forgets the token.
 
 ## Rules a reviewer will notice

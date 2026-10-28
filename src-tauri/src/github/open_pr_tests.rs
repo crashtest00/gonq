@@ -73,34 +73,137 @@ async fn compare_errors_surface() {
 async fn create_pull_posts_the_body_and_returns_number_and_url() {
     let (fake, gh, _s) = signed_in().await;
     fake.script("/repos/o/r/pulls", vec![Reply::json(201, json!({ "number": 12, "html_url": "https://github.com/o/r/pull/12", "title": "T" }))]);
+    fake.script("/repos/o/r/labels/gonq-editor", vec![Reply::json(200, json!({ "name": "gonq-editor" }))]);
+    fake.script("/repos/o/r/issues/12/labels", vec![Reply::json(200, json!([]))]);
     let out = gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
-    assert_eq!(out, CreatedPull { number: 12, html_url: "https://github.com/o/r/pull/12".into() });
+    assert_eq!(out, CreatedPull { number: 12, html_url: "https://github.com/o/r/pull/12".into(), label_warning: None });
     let posts = fake.hits("/repos/o/r/pulls");
     assert_eq!(posts[0].method, "POST");
     let body: Value = serde_json::from_str(&posts[0].body).unwrap();
     assert_eq!(body, json!({ "title": "T", "body": "B", "head": "gonq/x", "base": "main" }));
 }
 
-#[tokio::test]
-async fn create_pull_labels_the_pr_gonq_editor() {
-    let (fake, gh, _s) = signed_in().await;
-    fake.script("/repos/o/r/pulls", vec![Reply::json(201, json!({ "number": 12, "html_url": "https://github.com/o/r/pull/12" }))]);
-    fake.script("/repos/o/r/issues/12/labels", vec![Reply::json(200, json!([{ "name": "gonq-editor" }]))]);
-    gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
-    let posts = fake.hits("/repos/o/r/issues/12/labels");
-    assert_eq!((posts.len(), posts[0].method.as_str()), (1, "POST"));
-    let body: Value = serde_json::from_str(&posts[0].body).unwrap();
-    assert_eq!(body, json!({ "labels": ["gonq-editor"] }));
+const PULLS: &str = "/repos/o/r/pulls";
+const APPLY: &str = "/repos/o/r/issues/12/labels";
+const GET_LABEL: &str = "/repos/o/r/labels/gonq-editor";
+const MAKE_LABEL: &str = "/repos/o/r/labels";
+
+fn pr_reply() -> Reply {
+    Reply::json(201, json!({ "number": 12, "html_url": "https://github.com/o/r/pull/12" }))
+}
+
+fn applied_names(fake: &super::fake_github::Fake) -> Vec<Value> {
+    fake.hits(APPLY).iter().map(|r| serde_json::from_str::<Value>(&r.body).unwrap()["labels"].clone()).collect()
 }
 
 #[tokio::test]
-async fn create_pull_succeeds_when_labelling_fails() {
+async fn existing_label_is_applied_without_create_or_edit() {
     let (fake, gh, _s) = signed_in().await;
-    fake.script("/repos/o/r/pulls", vec![Reply::json(201, json!({ "number": 13, "html_url": "https://github.com/o/r/pull/13" }))]);
-    fake.script("/repos/o/r/issues/13/labels", vec![Reply::json(403, json!({ "message": "Forbidden" }))]);
+    fake.script(PULLS, vec![pr_reply()]);
+    fake.script(GET_LABEL, vec![Reply::json(200, json!({ "name": "gonq-editor", "color": "ff0000", "description": "mine" }))]);
+    fake.script(APPLY, vec![Reply::json(200, json!([{ "name": "gonq-editor" }]))]);
     let out = gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
-    assert_eq!(out.number, 13);
-    assert_eq!(fake.hits("/repos/o/r/issues/13/labels").len(), 1);
+    assert_eq!((out.number, out.label_warning), (12, None));
+    assert_eq!(applied_names(&fake), vec![json!(["gonq-editor"])]);
+    assert!(fake.hits(MAKE_LABEL).is_empty());
+    assert_eq!(fake.hits(GET_LABEL).len(), 1);
+}
+
+#[tokio::test]
+async fn label_differing_only_by_case_is_reused() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(PULLS, vec![pr_reply()]);
+    fake.script(GET_LABEL, vec![Reply::json(200, json!({ "name": "Gonq-Editor" }))]);
+    fake.script(APPLY, vec![Reply::json(200, json!([]))]);
+    gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
+    assert!(fake.hits(MAKE_LABEL).is_empty());
+    assert_eq!(applied_names(&fake), vec![json!(["Gonq-Editor"])]);
+}
+
+#[tokio::test]
+async fn missing_label_is_created_once_with_fixed_fields_then_applied() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(PULLS, vec![pr_reply()]);
+    fake.script(MAKE_LABEL, vec![Reply::json(201, json!({ "name": "gonq-editor" }))]);
+    fake.script(APPLY, vec![Reply::json(200, json!([]))]);
+    let out = gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
+    assert_eq!(out.label_warning, None);
+    let made = fake.hits(MAKE_LABEL);
+    assert_eq!((made.len(), made[0].method.as_str()), (1, "POST"));
+    let body: Value = serde_json::from_str(&made[0].body).unwrap();
+    assert_eq!(body, json!({ "name": "gonq-editor", "color": "0e8a16", "description": "Pull request opened from the Gonq editor" }));
+    assert_eq!(applied_names(&fake), vec![json!(["gonq-editor"])]);
+}
+
+#[tokio::test]
+async fn create_race_422_counts_as_existing_and_applies() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(PULLS, vec![pr_reply()]);
+    fake.script(MAKE_LABEL, vec![Reply::json(422, json!({ "message": "Validation Failed", "errors": [{ "code": "already_exists" }] }))]);
+    fake.script(APPLY, vec![Reply::json(200, json!([]))]);
+    let out = gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
+    assert_eq!(out.label_warning, None);
+    assert_eq!(applied_names(&fake).len(), 1);
+}
+
+#[tokio::test]
+async fn create_failure_keeps_the_pr_and_reports_a_warning_without_retry() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(PULLS, vec![pr_reply()]);
+    fake.script(MAKE_LABEL, vec![Reply::json(403, json!({ "message": "Resource not accessible" }))]);
+    let out = gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
+    assert_eq!((out.number, out.html_url.as_str()), (12, "https://github.com/o/r/pull/12"));
+    assert!(out.label_warning.unwrap().contains("Resource not accessible"));
+    assert_eq!((fake.hits(PULLS).len(), fake.hits(MAKE_LABEL).len(), fake.hits(APPLY).len()), (1, 1, 0));
+}
+
+#[tokio::test]
+async fn apply_failure_keeps_the_pr_and_reports_a_warning_without_retry() {
+    for status in [403, 404, 422] {
+        let (fake, gh, _s) = signed_in().await;
+        fake.script(PULLS, vec![pr_reply()]);
+        fake.script(GET_LABEL, vec![Reply::json(200, json!({ "name": "gonq-editor" }))]);
+        fake.script(APPLY, vec![Reply::json(status, json!({ "message": "nope" }))]);
+        let out = gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
+        assert_eq!(out.number, 12);
+        assert!(out.label_warning.unwrap().contains(&status.to_string()));
+        assert_eq!((fake.hits(PULLS).len(), fake.hits(APPLY).len()), (1, 1));
+    }
+}
+
+#[tokio::test]
+async fn network_error_while_labelling_is_a_warning() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(PULLS, vec![pr_reply()]);
+    fake.script(GET_LABEL, vec![Reply::drop_connection()]);
+    let out = gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
+    assert_eq!(out.number, 12);
+    assert!(out.label_warning.unwrap().contains("could not reach GitHub"));
+}
+
+#[tokio::test]
+async fn rate_limit_and_bad_token_while_labelling_are_warnings_not_failures() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script(PULLS, vec![pr_reply()]);
+    fake.script(GET_LABEL, vec![Reply::json(403, json!({ "message": "API rate limit exceeded" })).header("x-ratelimit-remaining", "0")]);
+    let out = gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
+    assert!(out.label_warning.unwrap().contains("rate limit"));
+
+    fake.script(PULLS, vec![pr_reply()]);
+    fake.script(GET_LABEL, vec![Reply::json(401, json!({ "message": "Bad credentials" }))]);
+    let out = gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
+    assert_eq!(out.number, 12);
+    assert_eq!(out.label_warning.as_deref(), Some("not signed in to GitHub"));
+}
+
+#[test]
+fn the_command_takes_no_label_argument() {
+    // Tauri ignores unknown invoke args, so a label sent by the frontend never reaches create_pull; pin that the
+    // command source has no label parameter.
+    let src = include_str!("mod.rs");
+    let start = src.find("pub async fn github_create_pull(").unwrap();
+    let sig = &src[start..src[start..].find(") ->").unwrap() + start];
+    assert!(!sig.to_lowercase().contains("label"), "{sig}");
 }
 
 #[tokio::test]
@@ -151,7 +254,11 @@ fn reply_shapes_match_the_frontend_contract() {
         assert_eq!(serde_json::to_value(s).unwrap(), json!(w));
     }
     assert_eq!(
-        serde_json::to_value(CreatedPull { number: 5, html_url: "https://github.com/o/r/pull/5".into() }).unwrap(),
-        json!({ "number": 5, "html_url": "https://github.com/o/r/pull/5" })
+        serde_json::to_value(CreatedPull { number: 5, html_url: "https://github.com/o/r/pull/5".into(), label_warning: Some("w".into()) }).unwrap(),
+        json!({ "number": 5, "html_url": "https://github.com/o/r/pull/5", "label_warning": "w" })
+    );
+    assert_eq!(
+        serde_json::to_value(CreatedPull { number: 5, html_url: "u".into(), label_warning: None }).unwrap(),
+        json!({ "number": 5, "html_url": "u", "label_warning": null })
     );
 }
