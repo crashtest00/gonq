@@ -62,6 +62,8 @@ export interface ContextMenuEntry<C = CommandContext> {
   command: CommandSpec<C>;
   label: string;
   enabled: boolean;
+  /** The bound key shown beside the label. */
+  shortcut?: string;
   /** A divider is drawn above the item (its group differs from the previous item's). */
   divider: boolean;
 }
@@ -167,6 +169,7 @@ export function createRegistry<C = CommandContext>() {
       command,
       label: command.contextMenu!.label ?? command.label,
       enabled: guarded(command.id, 'enabled', command.enabled, ctx, true),
+      ...(command.showShortcut === false || command.shortcut === undefined ? {} : { shortcut: command.shortcut }),
       divider: i > 0 && list[i - 1].contextMenu!.group !== command.contextMenu!.group,
     }));
   }
@@ -198,6 +201,8 @@ export function createRegistry<C = CommandContext>() {
       const command = matchShortcut(e);
       if (command === undefined) return;
       e.preventDefault();
+      // Holding an Alt shortcut must not re-run it (Ctrl shortcuts such as undo keep repeating).
+      if (e.repeat && e.altKey) return;
       void command.run?.(context());
     };
     target.addEventListener('keydown', onKey as EventListener);

@@ -3,7 +3,7 @@
 exports[`the right-click menu is the same in every state, native or web 1`] = `
 {
   "fenced code": [
-    "Add Comment (disabled)",
+    "Add CommentAlt+M (disabled)",
     "---",
     "Cut (disabled)",
     "Copy (disabled)",
@@ -15,7 +15,7 @@ exports[`the right-click menu is the same in every state, native or web 1`] = `
     "Italic",
   ],
   "heading": [
-    "Add Comment (disabled)",
+    "Add CommentAlt+M (disabled)",
     "---",
     "Cut (disabled)",
     "Copy (disabled)",
@@ -27,7 +27,7 @@ exports[`the right-click menu is the same in every state, native or web 1`] = `
     "Italic",
   ],
   "link": [
-    "Add Comment",
+    "Add CommentAlt+M",
     "---",
     "Cut (disabled)",
     "Copy (disabled)",
@@ -39,7 +39,7 @@ exports[`the right-click menu is the same in every state, native or web 1`] = `
     "Italic",
   ],
   "list item": [
-    "Add Comment",
+    "Add CommentAlt+M",
     "---",
     "Cut (disabled)",
     "Copy (disabled)",
@@ -51,7 +51,7 @@ exports[`the right-click menu is the same in every state, native or web 1`] = `
     "Italic",
   ],
   "outside the selection": [
-    "Add Comment (disabled)",
+    "Add CommentAlt+M (disabled)",
     "---",
     "Cut (disabled)",
     "Copy (disabled)",
@@ -63,7 +63,7 @@ exports[`the right-click menu is the same in every state, native or web 1`] = `
     "Italic",
   ],
   "paragraph": [
-    "Add Comment",
+    "Add CommentAlt+M",
     "---",
     "Cut (disabled)",
     "Copy (disabled)",
@@ -75,7 +75,7 @@ exports[`the right-click menu is the same in every state, native or web 1`] = `
     "Italic",
   ],
   "raw, no selection": [
-    "Add Comment",
+    "Add CommentAlt+M",
     "---",
     "Cut (disabled)",
     "Copy (disabled)",
@@ -87,7 +87,7 @@ exports[`the right-click menu is the same in every state, native or web 1`] = `
     "Italic",
   ],
   "raw, selection": [
-    "Add Comment",
+    "Add CommentAlt+M",
     "---",
     "Cut",
     "Copy",
@@ -99,7 +99,7 @@ exports[`the right-click menu is the same in every state, native or web 1`] = `
     "Italic",
   ],
   "selection": [
-    "Add Comment",
+    "Add CommentAlt+M",
     "---",
     "Cut",
     "Copy",
@@ -111,7 +111,7 @@ exports[`the right-click menu is the same in every state, native or web 1`] = `
     "Italic",
   ],
   "table cell": [
-    "Add Comment (disabled)",
+    "Add CommentAlt+M (disabled)",
     "---",
     "Cut (disabled)",
     "Copy (disabled)",
@@ -123,7 +123,7 @@ exports[`the right-click menu is the same in every state, native or web 1`] = `
     "Italic",
   ],
   "task item": [
-    "Add Comment",
+    "Add CommentAlt+M",
     "---",
     "Cut (disabled)",
     "Copy (disabled)",

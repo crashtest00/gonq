@@ -162,9 +162,15 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     [text],
   );
   const addComment = useCallback(() => {
+    if (readOnlyPull !== null) return;
+    if (draft !== null) {
+      // A draft is already open: keep what was typed and focus it.
+      document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Comment"]')?.focus();
+      return;
+    }
     if (liveSelection !== null) startDraft(liveSelection);
     else if (canAddAtCursor && liveCaret !== null) startDraft(liveCaret);
-  }, [liveSelection, canAddAtCursor, liveCaret, startDraft]);
+  }, [readOnlyPull, draft, liveSelection, canAddAtCursor, liveCaret, startDraft]);
 
   const submitDraft = useCallback(
     (body: string) => {
@@ -972,6 +978,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           onClose={closeMenu}
           items={registry.resolveContextMenu(commandContext).map((e) => ({
             label: e.label,
+            shortcut: e.shortcut,
             onSelect: () => void e.command.run?.(commandContext),
             disabled: !e.enabled,
             divider: e.divider,
