@@ -14,13 +14,18 @@
 //!   when GitHub's file list is incomplete: it caps the list at 300 files, so 300 or more files, or a reply
 //!   without a file list, counts as truncated.
 //! - `github_create_pull { owner, repo, title, body, head, base }` -> `{ number, html_url }` from
-//!   `POST /repos/{o}/{r}/pulls`.
+//!   `POST /repos/{o}/{r}/pulls`, then the new PR is labelled `gonq-editor` with
+//!   `POST /repos/{o}/{r}/issues/{number}/labels` (GitHub creates the label if the repo lacks it). Labelling is
+//!   best effort: if it fails the PR still exists, so the command succeeds and the failure is dropped.
 
 use super::browse::{encode, encode_path};
 use super::error::GithubError;
 use super::Github;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+
+/// Label put on every pull request opened through `create_pull`.
+pub const PR_LABEL: &str = "gonq-editor";
 
 /// GitHub lists at most this many files in a compare reply.
 const COMPARE_FILE_CAP: usize = 300;
@@ -95,9 +100,13 @@ impl Github {
         Ok(Comparison { ahead_by: raw.ahead_by, behind_by: raw.behind_by, files: raw.files.unwrap_or_default(), truncated })
     }
 
-    /// Opens a pull request from `head` into `base`.
+    /// Opens a pull request from `head` into `base` and labels it `PR_LABEL` (best effort).
     pub async fn create_pull(&self, owner: &str, repo: &str, title: &str, body: &str, head: &str, base: &str) -> Result<CreatedPull, GithubError> {
         let path = format!("/repos/{}/{}/pulls", encode(owner), encode(repo));
-        self.post_json(&path, &json!({ "title": title, "body": body, "head": head, "base": base })).await
+        let pull: CreatedPull = self.post_json(&path, &json!({ "title": title, "body": body, "head": head, "base": base })).await?;
+        let labels = format!("/repos/{}/{}/issues/{}/labels", encode(owner), encode(repo), pull.number);
+        // The PR is already open; a failed label must not make the caller think it was not.
+        let _ = self.post_json::<Value>(&labels, &json!({ "labels": [PR_LABEL] })).await;
+        Ok(pull)
     }
 }

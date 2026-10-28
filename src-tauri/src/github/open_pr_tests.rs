@@ -82,6 +82,28 @@ async fn create_pull_posts_the_body_and_returns_number_and_url() {
 }
 
 #[tokio::test]
+async fn create_pull_labels_the_pr_gonq_editor() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script("/repos/o/r/pulls", vec![Reply::json(201, json!({ "number": 12, "html_url": "https://github.com/o/r/pull/12" }))]);
+    fake.script("/repos/o/r/issues/12/labels", vec![Reply::json(200, json!([{ "name": "gonq-editor" }]))]);
+    gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
+    let posts = fake.hits("/repos/o/r/issues/12/labels");
+    assert_eq!((posts.len(), posts[0].method.as_str()), (1, "POST"));
+    let body: Value = serde_json::from_str(&posts[0].body).unwrap();
+    assert_eq!(body, json!({ "labels": ["gonq-editor"] }));
+}
+
+#[tokio::test]
+async fn create_pull_succeeds_when_labelling_fails() {
+    let (fake, gh, _s) = signed_in().await;
+    fake.script("/repos/o/r/pulls", vec![Reply::json(201, json!({ "number": 13, "html_url": "https://github.com/o/r/pull/13" }))]);
+    fake.script("/repos/o/r/issues/13/labels", vec![Reply::json(403, json!({ "message": "Forbidden" }))]);
+    let out = gh.create_pull("o", "r", "T", "B", "gonq/x", "main").await.unwrap();
+    assert_eq!(out.number, 13);
+    assert_eq!(fake.hits("/repos/o/r/issues/13/labels").len(), 1);
+}
+
+#[tokio::test]
 async fn create_pull_refusals_keep_githubs_message() {
     let (fake, gh, _s) = signed_in().await;
     fake.script("/repos/o/r/pulls", vec![Reply::json(422, json!({ "message": "No commits between main and gonq/x" }))]);
