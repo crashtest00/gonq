@@ -133,3 +133,26 @@ it('a failed GitHub refresh keeps the rows and expanded folders and reports the 
   expect(screen.getByText('in.md')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /docs/ })).toHaveAttribute('aria-expanded', 'true');
 });
+
+it('shows a disabled Refresh control when no folder or repository is open', () => {
+  render(<FolderSidebar folder={null} recents={[]} currentPath={null} onOpenFolder={noop} onOpenFile={noop} onOpenRecent={noop} onRemoveRecent={noop} />);
+  const btn = screen.getByRole('button', { name: 'Refresh' });
+  expect(btn).toBeDisabled();
+  expect(btn).toHaveAttribute('title', 'Refresh');
+});
+
+it('refreshes an ssh:// folder tree and shows the spinning icon while busy', async () => {
+  const root = 'ssh://me@host/proj';
+  listDirectory.mockResolvedValueOnce([{ name: 'a.md', path: `${root}/a.md`, isDir: false }]);
+  const user = userEvent.setup();
+  const { container } = render(<FolderSidebar folder={root} recents={[]} currentPath={null} onOpenFolder={noop} onOpenFile={noop} onOpenRecent={noop} onRemoveRecent={noop} />);
+  await screen.findByText('a.md');
+  let release: (v: unknown) => void = () => {};
+  listDirectory.mockImplementationOnce(() => new Promise((r) => (release = r)));
+  await user.click(screen.getByRole('button', { name: 'Refresh' }));
+  expect(container.querySelector('svg.animate-spin')).not.toBeNull();
+  release([{ name: 'b.md', path: `${root}/b.md`, isDir: false }]);
+  await screen.findByText('b.md');
+  expect(listDirectory).toHaveBeenLastCalledWith(root);
+  await waitFor(() => expect(container.querySelector('svg.animate-spin')).toBeNull());
+});

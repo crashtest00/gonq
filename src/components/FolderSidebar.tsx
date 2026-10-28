@@ -1,6 +1,6 @@
 /**
  * The folder navigator sidebar: Project folder tree (local or ssh://, listed lazily in chunks; or the GitHub
- * repo navigator when `repo` is set; both have a Refresh button, also View > Refresh Navigator via `refreshSignal`, that re-lists the tree in place keeping expanded folders and scroll, shows a busy state and keeps the rows when the re-list fails) and Recent documents. Exports basename, relativeTime and the row-chunk/spinner constants.
+ * repo navigator when `repo` is set; both have a Refresh button (shown disabled when nothing is open), also View > Refresh Navigator via `refreshSignal`, that re-lists the tree in place keeping expanded folders and scroll, shows a busy state and keeps the rows when the re-list fails) and Recent documents. Exports basename, relativeTime and the row-chunk/spinner constants.
  */
 import { createContext, memo, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ChevronRight, File, Folder, Loader2, RefreshCw, X } from 'lucide-react';
@@ -348,7 +348,18 @@ export function FolderSidebar({
               </>
             ) : (
               <>
-                <p className="m-0 mb-1 text-[13px] text-muted-foreground">No folder open</p>
+                <div className="mb-1 flex min-w-0 items-center gap-1">
+                  <p className="m-0 min-w-0 flex-1 text-[13px] text-muted-foreground">No folder open</p>
+                  <button
+                    type="button"
+                    aria-label="Refresh"
+                    title="Refresh"
+                    disabled
+                    className="flex h-6 w-6 shrink-0 cursor-default disabled:opacity-60 items-center justify-center rounded-control border-0 bg-transparent text-foreground"
+                  >
+                    <RefreshCw size={14} aria-hidden />
+                  </button>
+                </div>
                 <button type="button" onClick={onOpenFolder} className="cursor-pointer rounded-control border border-solid border-border bg-transparent px-2 py-1 text-[13px] text-foreground hover:bg-surface">
                   Open Folder…
                 </button>
