@@ -444,18 +444,21 @@ export async function compareBranches(owner: string, repo: string, base: string,
 export interface CreatedPull {
   number: number;
   url: string;
+  /** Why the backend's automatic labelling failed; absent when the pull request was labelled. */
+  labelWarning?: string;
 }
 
 /**
  * Opens a pull request of `head` into `base` (github_create_pull `{owner, repo, title, body, head, base}` ->
- * `{number, html_url}`). GitHub's refusals (no commits between, one already exists, validation) reject with
+ * `{number, html_url, label_warning?}`; no label is ever sent, the backend labels). GitHub's refusals (no commits between, one already exists, validation) reject with
  * GitHub's own message unchanged.
  */
 export async function createPull(args: { owner: string; repo: string; title: string; body: string; head: string; base: string }): Promise<CreatedPull> {
   if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_OPEN_PR_UNAVAILABLE);
   try {
-    const raw = await invoke<{ number: number; html_url: string }>('github_create_pull', args);
-    return { number: raw.number, url: raw.html_url };
+    const raw = await invoke<{ number: number; html_url: string; label_warning?: string | null }>('github_create_pull', args);
+    const warning = typeof raw.label_warning === 'string' && raw.label_warning !== '' ? raw.label_warning : undefined;
+    return { number: raw.number, url: raw.html_url, ...(warning !== undefined ? { labelWarning: warning } : {}) };
   } catch (e) {
     const r = e as { kind?: unknown; message?: unknown } | null;
     if (typeof r === 'object' && r !== null && r.kind === 'http' && typeof r.message === 'string' && r.message !== '') {

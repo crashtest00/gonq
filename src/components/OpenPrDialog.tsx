@@ -2,7 +2,7 @@
  * File > Open PR…: a dialog laid out left to right in three steps (Branch to merge, Merge into, Review changes),
  * each shown only once its inputs exist, under a repository dropdown (changing it rebuilds step 1 and clears the
  * rest). Open PR leads to an editable title and body (defaults from features/github/prDefaults.ts), whose Open PR
- * button is the confirmation; then a result with the link and Open in browser. GitHub's own messages are shown
+ * button is the confirmation; then a result with the link and Open in browser, plus a non-blocking note when the backend could not label the pull request. GitHub's own messages are shown
  * unchanged. The platform calls are in platform/github.ts and the pure parts in features/github/openPr.ts; the
  * dialog resolves when closed and reports an opened pull request through `onOpened`.
  */
@@ -314,6 +314,11 @@ export function OpenPrDialog({
             <p className="m-0 mb-4 text-[13px]">
               Pull request <PullLink pull={created} /> was opened for {source}.
             </p>
+            {created.labelWarning !== undefined && (
+              <p role="note" className="m-0 mb-4 break-words text-[13px] text-muted-foreground">
+                Pull request created, but its label could not be added: {created.labelWarning}
+              </p>
+            )}
             <div className="flex flex-row-reverse justify-start gap-2">
               <button type="button" onClick={() => openLink(created.url)} className={primary}>
                 Open in browser
