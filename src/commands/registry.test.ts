@@ -136,3 +136,16 @@ test('resolveContextMenu lists commands with a contextMenu placement by group an
     ['B', true, true],
   ]);
 });
+
+test('matchShortcut: Alt+letter matches Alt alone, by physical key when given, never with Ctrl or Shift', () => {
+  const r = fresh();
+  r.defineCommand(spec('m', { shortcut: 'Alt+M' }));
+  const key = (k: string, over: object = {}) =>
+    r.matchShortcut({ ctrlKey: false, metaKey: false, altKey: true, shiftKey: false, key: k, target: document.body, ...over })?.id;
+  expect(key('m')).toBe('m');
+  expect(key('µ', { code: 'KeyM' })).toBe('m');
+  expect(key('m', { shiftKey: true })).toBeUndefined();
+  expect(key('m', { ctrlKey: true })).toBeUndefined();
+  expect(key('m', { altKey: false })).toBeUndefined();
+  expect(() => r.defineCommand(spec('dup', { shortcut: 'alt+m' }))).toThrow(/both register/);
+});
