@@ -24,7 +24,7 @@ export interface CommandSpec<C = CommandContext> {
   icon?: LucideIcon;
   /** Classes for the label text only (the Bold item shows its label bold). */
   labelClass?: string;
-  /** Binds the key ("Ctrl+N", "Ctrl+Shift+S", "Ctrl+,"; Cmd counts as Ctrl) and is the text shown in the menu. */
+  /** Binds the key ("Ctrl+N", "Ctrl+Shift+S", "Ctrl+,", "Alt+M"; Cmd counts as Ctrl) and is the text shown in the menu. */
   shortcut?: string;
   /** Further keys that run the command; not shown. */
   aliases?: string[];
@@ -76,16 +76,19 @@ export interface ResolvedMenu<C = CommandContext> {
 const CODEMIRROR_KEYS = ['Ctrl+B', 'Ctrl+I', 'Ctrl+U', 'Ctrl+K', 'Ctrl+Shift+X', 'Ctrl+F'];
 
 interface Key {
+  alt: boolean;
   shift: boolean;
   key: string;
 }
 
 function parseShortcut(id: string, text: string): Key {
+  const alt = /^Alt\+(.+)$/i.exec(text);
+  if (alt !== null) return { alt: true, shift: false, key: alt[1].toLowerCase() };
   const m = /^Ctrl\+(Shift\+)?(.+)$/i.exec(text);
-  if (m === null) throw new Error(`Command "${id}": shortcut "${text}" must look like "Ctrl+N" or "Ctrl+Shift+N".`);
-  return { shift: m[1] !== undefined, key: m[2].toLowerCase() };
+  if (m === null) throw new Error(`Command "${id}": shortcut "${text}" must look like "Ctrl+N", "Ctrl+Shift+N" or "Alt+M".`);
+  return { alt: false, shift: m[1] !== undefined, key: m[2].toLowerCase() };
 }
-const keyName = (k: Key) => `${k.shift ? 'shift+' : ''}${k.key}`;
+const keyName = (k: Key) => `${k.alt ? 'alt+' : ''}${k.shift ? 'shift+' : ''}${k.key}`;
 
 /** Runs a predicate for the menu (`absent` when there is none); one that throws counts as false and is logged, never breaking the bar. */
 function guarded<C>(id: string, what: string, fn: ((ctx: C) => boolean) | undefined, ctx: C, absent: boolean): boolean {
@@ -175,10 +178,12 @@ export function createRegistry<C = CommandContext>() {
       .map((menu) => ({ menu, enabled: guarded(`menu ${menu.id}`, 'enabled', menu.enabled, ctx, true), entries: entriesOf(menu.id, undefined, ctx) }));
   }
 
-  /** The command a keydown runs, or undefined: Ctrl or Cmd, no Alt, the exact Shift state. */
-  function matchShortcut(e: Pick<KeyboardEvent, 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey' | 'key' | 'target'>): CommandSpec<C> | undefined {
-    if (!(e.ctrlKey || e.metaKey) || e.altKey) return undefined;
-    const id = keys.get(keyName({ shift: e.shiftKey, key: e.key.toLowerCase() }));
+  /** The command a keydown runs, or undefined: Ctrl or Cmd with no Alt and the exact Shift state, or Alt alone (letter read from `code` when given, as macOS Option changes `key`). */
+  function matchShortcut(e: Pick<KeyboardEvent, 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey' | 'key' | 'target'> & { code?: string }): CommandSpec<C> | undefined {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl === e.altKey || (e.altKey && e.shiftKey)) return undefined;
+    const letter = e.altKey ? (/^Key([A-Z])$/.exec(e.code ?? '')?.[1] ?? e.key).toLowerCase() : e.key.toLowerCase();
+    const id = keys.get(keyName({ alt: e.altKey, shift: e.shiftKey, key: letter }));
     const command = id === undefined ? undefined : commands.get(id);
     if (command?.skipInTextFields) {
       const target = e.target as HTMLElement | null;

@@ -2,7 +2,7 @@
  * The comments sidebar: the thread list, one thread with reply/resolve/edit/delete, and the new-thread draft.
  * It only reports intents; App.tsx writes the document.
  */
-import { useState } from 'react';
+import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
 import {
   AlertDialog,
@@ -83,6 +83,14 @@ function ThreadList({
   );
 }
 
+/** Ctrl/Cmd+Enter in a comment box saves it, like clicking its button. */
+const saveOnModEnter = (save: () => void) => (e: ReactKeyboardEvent) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
+    e.preventDefault();
+    save();
+  }
+};
+
 function ReplyBox({
   status,
   onReply,
@@ -93,10 +101,16 @@ function ReplyBox({
   onToggleStatus: () => void;
 }) {
   const [body, setBody] = useState('');
+  const send = () => {
+    if (body.trim() === '') return;
+    onReply(body);
+    setBody('');
+  };
   return (
     <div className="flex flex-col gap-2">
       <textarea
         aria-label="Reply"
+        onKeyDown={saveOnModEnter(send)}
         placeholder="Reply…"
         rows={3}
         value={body}
@@ -113,11 +127,7 @@ function ReplyBox({
         </button>
         <button
           type="button"
-          onClick={() => {
-            if (body.trim() === '') return;
-            onReply(body);
-            setBody('');
-          }}
+          onClick={send}
           className="cursor-pointer rounded-control border-0 bg-primary px-3.5 py-2 font-sans text-[13px] font-semibold text-primary-foreground"
         >
           Reply
@@ -136,6 +146,7 @@ function EditBox({ initial, onCancel, onSave }: { initial: string; onCancel: () 
     <div className="flex flex-col gap-2">
       <textarea
         aria-label="Edit comment"
+        onKeyDown={saveOnModEnter(() => body.trim() !== '' && onSave(body))}
         rows={4}
         // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus
@@ -267,6 +278,7 @@ function Draft({ anchor, onCancel, onSubmit }: { anchor?: string; onCancel: () =
       {anchor !== undefined && <Anchor text={`On: '${anchor}'`} />}
       <textarea
         aria-label="Comment"
+        onKeyDown={saveOnModEnter(() => body.trim() !== '' && onSubmit(body))}
         placeholder="Write a comment…"
         rows={4}
         // eslint-disable-next-line jsx-a11y/no-autofocus
