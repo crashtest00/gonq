@@ -4,6 +4,10 @@ use tauri::test::{get_ipc_response, mock_builder, mock_context, noop_assets, INV
 use tauri::webview::InvokeRequest;
 use tauri::{ipc::InvokeBody, WebviewWindowBuilder};
 
+// The origin the webview reports for the app's own pages: Tauri serves them from http://tauri.localhost on Windows and
+// from tauri://localhost elsewhere. Any other origin is treated as remote and fails the ACL with "Plugin not found".
+const IPC_ORIGIN: &str = if cfg!(windows) { "http://tauri.localhost" } else { "tauri://localhost" };
+
 fn call(
     w: &tauri::WebviewWindow<tauri::test::MockRuntime>,
     cmd: &str,
@@ -15,7 +19,7 @@ fn call(
             cmd: cmd.into(),
             callback: tauri::ipc::CallbackFn(0),
             error: tauri::ipc::CallbackFn(1),
-            url: "tauri://localhost".parse().unwrap(),
+            url: IPC_ORIGIN.parse().unwrap(),
             body: InvokeBody::Json(body),
             headers: Default::default(),
             invoke_key: INVOKE_KEY.to_string(),
