@@ -42,7 +42,15 @@ fn recents_file<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
 /// Serialises read-modify-write of settings.json.
 static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
 
+/// Tests point settings.json at a temp dir: XDG_CONFIG_HOME only moves the config dir on Linux.
+#[cfg(test)]
+static TEST_SETTINGS_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
 fn settings_file<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    #[cfg(test)]
+    if let Some(dir) = TEST_SETTINGS_DIR.get() {
+        return Ok(dir.join("settings.json"));
+    }
     Ok(app.path().app_config_dir().map_err(|e| e.to_string())?.join("settings.json"))
 }
 

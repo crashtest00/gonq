@@ -26,9 +26,9 @@ fn call(
 
 #[test]
 fn frontend_arguments_reach_the_pane_width_commands() {
-    // Single test: it redirects the config dir for the process, so it must not race another one.
+    // Single test: it redirects the settings dir for the process, so it must not race another one.
     let dir = tempfile::tempdir().unwrap();
-    std::env::set_var("XDG_CONFIG_HOME", dir.path());
+    crate::TEST_SETTINGS_DIR.set(dir.path().to_path_buf()).unwrap();
     let app = mock_builder()
         .invoke_handler(tauri::generate_handler![
             crate::get_author_name,
@@ -89,8 +89,8 @@ fn frontend_arguments_reach_the_pane_width_commands() {
     );
 
     // The legacy `folder` key is ignored (not migrated); other settings survive.
-    let file = std::fs::read_dir(dir.path()).unwrap().next().unwrap().unwrap().path();
-    let settings = walk(&file);
+    let settings = dir.path().join("settings.json");
+    assert!(settings.is_file());
     std::fs::write(&settings, r#"{"author_name":"Ann","theme":"dark","pane_widths":{"folder":333,"outline":300}}"#).unwrap();
     assert_eq!(
         call(&w, "get_pane_widths", serde_json::json!({})).unwrap(),
@@ -103,12 +103,4 @@ fn frontend_arguments_reach_the_pane_width_commands() {
         serde_json::json!({"navigator": null, "outline": 300, "comments": 400})
     );
     assert_eq!(call(&w, "get_author_name", serde_json::json!({})).unwrap(), "Ann");
-}
-
-fn walk(p: &std::path::Path) -> std::path::PathBuf {
-    if p.is_file() {
-        return p.to_path_buf();
-    }
-    let next = std::fs::read_dir(p).unwrap().next().unwrap().unwrap().path();
-    walk(&next)
 }
