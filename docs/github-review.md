@@ -45,7 +45,8 @@ is that broad. The signed-in user needs write access to the repository.
 7. **File > Open PR…** (greyed until a repository or GitHub tab is open) has three steps, left to right: **Branch to
    merge**, **Merge into**, and **Review changes** (the changed files). **Open PR** then shows an editable title and
    body, pre-filled by Gonq; its **Open PR** button creates the pull request, and the result offers **Open in
-   browser**.
+   browser**. If the pull request was created but its label could not be added, the result also shows a short note
+   with the reason; the link and buttons still work.
 8. **Edit > Settings… > GitHub > Sign Out** forgets the token.
 
 ## Rules a reviewer will notice
