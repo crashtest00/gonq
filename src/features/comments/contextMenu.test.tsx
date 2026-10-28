@@ -12,7 +12,7 @@ test('a feature command with a contextMenu placement appears last in the right-c
   await openDocument(user);
   fireEvent.contextMenu(document.querySelector('.cm-content')!, { clientX: 10, clientY: 10 });
   const names = within(screen.getByRole('menu', { name: 'Editor' })).getAllByRole('menuitem').map((i) => i.textContent);
-  expect(names).toEqual(['Add Comment', 'Cut', 'Copy', 'Paste', 'Select All', 'Bold', 'Italic', 'Fixture Ctx', 'Fixture Greyed']);
+  expect(names).toEqual(['Add CommentAlt+M', 'Cut', 'Copy', 'Paste', 'Select All', 'Bold', 'Italic', 'Fixture Ctx', 'Fixture Greyed']);
   expect(screen.getByRole('menuitem', { name: 'Fixture Greyed' })).toBeDisabled();
   await user.click(screen.getByRole('menuitem', { name: 'Fixture Ctx' }));
   expect(calls).toEqual(['ran']);
