@@ -1,8 +1,8 @@
 /**
  * The folder navigator sidebar: Project folder tree (local or ssh://, listed lazily in chunks; or the GitHub
- * repo navigator when `repo` is set; both have a Refresh button that re-lists the tree, keeping expanded folders) and Recent documents. Exports basename, relativeTime and the row-chunk/spinner constants.
+ * repo navigator when `repo` is set; both have a Refresh button, also View > Refresh Navigator via `refreshSignal`, that re-lists the tree in place keeping expanded folders and scroll, shows a busy state and keeps the rows when the re-list fails) and Recent documents. Exports basename, relativeTime and the row-chunk/spinner constants.
  */
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, memo, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ChevronRight, File, Folder, Loader2, RefreshCw, X } from 'lucide-react';
 import { ListDirectoryError, listDirectory, type FolderEntry } from '../platform/folders';
 import type { RecentDocument } from '../platform/recents';
@@ -51,6 +51,9 @@ export const ROW_CHUNK = 200;
 
 /** A remote folder shows its spinner only after this long. */
 export const SPINNER_DELAY_MS = 150;
+
+/** Tree listings report their refresh re-lists here so the Refresh button can show a busy state. */
+const RefreshTracker = createContext<{ start: () => void; end: () => void } | null>(null);
 
 const Row = memo(function Row({
   entry,
@@ -116,25 +119,41 @@ function Tree({ path, depth, currentPath, refreshKey, onOpenFile, onLogin }: { p
   const [shown, setShown] = useState(ROW_CHUNK);
   const [errorKind, setErrorKind] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const tracker = useContext(RefreshTracker);
   // A remote listing shows its spinner only once it has taken longer than 150 ms.
   const [slow, setSlow] = useState(false);
 
   // A refresh re-lists in place: the current rows stay until the new ones arrive.
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
   const listedFor = useRef({ path, attempt, refreshKey });
   useEffect(() => {
     let live = true;
     const was = listedFor.current;
     listedFor.current = { path, attempt, refreshKey };
-    if (was.path !== path || was.attempt !== attempt) {
+    const reload = was.path !== path || was.attempt !== attempt;
+    if (reload) {
       setEntries(null);
       setShown(ROW_CHUNK);
     }
+    // A refresh (same path, new key) reports to the Refresh button's busy state.
+    const refreshing = !reload && was.refreshKey !== refreshKey;
+    if (refreshing) tracker?.start();
     setErrorKind(null);
     setError(null);
+    setRefreshError(null);
     listDirectory(path).then(
-      (rows) => live && setEntries(rows),
+      (rows) => {
+        if (refreshing) tracker?.end();
+        if (live) setEntries(rows);
+      },
       (e) => {
+        if (refreshing) tracker?.end();
         if (!live) return;
+        const message = e instanceof ListDirectoryError || e instanceof Error ? e.message : String(e);
+        // A failed refresh keeps the rows that are already shown.
+        if (refreshing && entriesRef.current !== null) return setRefreshError(message);
         setEntries(null);
         setErrorKind(e instanceof ListDirectoryError ? e.kind : null);
         setError(e instanceof ListDirectoryError || e instanceof Error ? e.message : String(e));
@@ -198,6 +217,12 @@ function Tree({ path, depth, currentPath, refreshKey, onOpenFile, onLogin }: { p
 
   const remaining = entries.length - shown;
   return (
+    <>
+    {refreshError !== null && (
+      <p role="alert" style={pad} className="m-0 py-1 text-[12.5px] text-destructive">
+        Could not refresh: {refreshError}
+      </p>
+    )}
     <ul className="m-0 list-none p-0">
       {entries.slice(0, shown).map((entry) => (
         <Row
@@ -225,6 +250,7 @@ function Tree({ path, depth, currentPath, refreshKey, onOpenFile, onLogin }: { p
         </li>
       )}
     </ul>
+    </>
   );
 }
 
@@ -241,8 +267,11 @@ export function FolderSidebar({
   onLogin,
   onOpenRecent,
   onRemoveRecent,
+  refreshSignal = 0,
 }: {
   folder: string | null;
+  /** Bumped by App (View > Refresh Navigator) to refresh like the button does. */
+  refreshSignal?: number;
   /** An open GitHub repository; it takes the Project folder section from `folder`. */
   repo?: RepoState | null;
   /** Branches created in this session on the open repository. */
@@ -261,6 +290,30 @@ export function FolderSidebar({
   const [projectOpen, setProjectOpen] = useState(true);
   const [recentOpen, setRecentOpen] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [pending, setPending] = useState(0);
+  const pendingRef = useRef(0);
+  const tracker = useRef({
+    start: () => {
+      pendingRef.current += 1;
+      setPending(pendingRef.current);
+    },
+    end: () => {
+      pendingRef.current = Math.max(0, pendingRef.current - 1);
+      setPending(pendingRef.current);
+    },
+  }).current;
+  const busy = pending > 0;
+  // One refresh at a time: a click or command while the last is still listing does nothing.
+  const refresh = useCallback(() => {
+    if (pendingRef.current > 0) return;
+    setRefreshKey((n) => n + 1);
+  }, []);
+  const seenSignal = useRef(refreshSignal);
+  useEffect(() => {
+    if (seenSignal.current === refreshSignal) return;
+    seenSignal.current = refreshSignal;
+    refresh();
+  }, [refreshSignal, refresh]);
 
   return (
     <aside aria-label="Folder navigator" className="flex w-full shrink-0 overflow-hidden">
@@ -269,7 +322,7 @@ export function FolderSidebar({
           <SectionHeader label="Project folder" open={projectOpen} onToggle={() => setProjectOpen((o) => !o)} />
           {projectOpen &&
             (repo !== null ? (
-              <RepoNavigator repo={repo} currentPath={currentPath} createdBranches={createdBranches} onBranchChange={onBranchChange ?? (() => {})} onCreateBranch={onCreateBranch} onOpenFile={onOpenFile} />
+              <RepoNavigator repo={repo} refreshSignal={refreshSignal} currentPath={currentPath} createdBranches={createdBranches} onBranchChange={onBranchChange ?? (() => {})} onCreateBranch={onCreateBranch} onOpenFile={onOpenFile} />
             ) : folder !== null ? (
               <>
                 <div className="mb-1 flex min-w-0 items-center gap-1">
@@ -281,13 +334,17 @@ export function FolderSidebar({
                     type="button"
                     aria-label="Refresh"
                     title="Refresh"
-                    onClick={() => setRefreshKey((n) => n + 1)}
-                    className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-control border-0 bg-transparent text-foreground hover:bg-surface focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-busy={busy}
+                    disabled={busy}
+                    onClick={refresh}
+                    className="flex h-6 w-6 shrink-0 cursor-pointer disabled:cursor-default disabled:opacity-60 items-center justify-center rounded-control border-0 bg-transparent text-foreground hover:bg-surface focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <RefreshCw size={14} aria-hidden />
+                    <RefreshCw size={14} aria-hidden className={busy ? 'animate-spin' : undefined} />
                   </button>
                 </div>
-                <Tree key={folder} path={folder} depth={0} refreshKey={refreshKey} currentPath={currentPath} onOpenFile={onOpenFile} onLogin={onLogin} />
+                <RefreshTracker.Provider value={tracker}>
+                  <Tree key={folder} path={folder} depth={0} refreshKey={refreshKey} currentPath={currentPath} onOpenFile={onOpenFile} onLogin={onLogin} />
+                </RefreshTracker.Provider>
               </>
             ) : (
               <>
