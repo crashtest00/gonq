@@ -2,7 +2,7 @@
  * The comments sidebar: the thread list, one thread with reply/resolve/edit/delete, and the new-thread draft.
  * It only reports intents; App.tsx writes the document.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
 import {
   AlertDialog,
@@ -83,6 +83,30 @@ function ThreadList({
   );
 }
 
+const SAVE_TIP = 'Ctrl+Enter (Cmd+Enter on macOS)';
+const SAVE_KEYS = 'Control+Enter Meta+Enter';
+
+/** Ctrl/Cmd+Enter in a comment box saves it, like clicking its button; key repeat and IME composition are ignored. */
+const saveOnModEnter = (save: () => void) => (e: ReactKeyboardEvent) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
+    e.preventDefault();
+    if (!e.repeat) save();
+  }
+};
+
+/** Wraps a save so it runs once until `body` changes again (a double click or rapid keys cannot send twice). */
+function useOnce(body: string, save: () => void) {
+  const spent = useRef(false);
+  useEffect(() => {
+    spent.current = false;
+  }, [body]);
+  return () => {
+    if (spent.current || body.trim() === '') return;
+    spent.current = true;
+    save();
+  };
+}
+
 function ReplyBox({
   status,
   onReply,
@@ -93,10 +117,17 @@ function ReplyBox({
   onToggleStatus: () => void;
 }) {
   const [body, setBody] = useState('');
+  const send = useOnce(body, () => {
+    onReply(body);
+    setBody('');
+  });
   return (
     <div className="flex flex-col gap-2">
       <textarea
         aria-label="Reply"
+        title={`Reply: ${SAVE_TIP}`}
+        aria-keyshortcuts={SAVE_KEYS}
+        onKeyDown={saveOnModEnter(send)}
         placeholder="Reply…"
         rows={3}
         value={body}
@@ -113,11 +144,9 @@ function ReplyBox({
         </button>
         <button
           type="button"
-          onClick={() => {
-            if (body.trim() === '') return;
-            onReply(body);
-            setBody('');
-          }}
+          onClick={send}
+          title={`Reply (${SAVE_TIP})`}
+          aria-keyshortcuts={SAVE_KEYS}
           className="cursor-pointer rounded-control border-0 bg-primary px-3.5 py-2 font-sans text-[13px] font-semibold text-primary-foreground"
         >
           Reply
@@ -132,10 +161,14 @@ const iconButton =
 
 function EditBox({ initial, onCancel, onSave }: { initial: string; onCancel: () => void; onSave: (body: string) => void }) {
   const [body, setBody] = useState(initial);
+  const save = useOnce(body, () => onSave(body));
   return (
     <div className="flex flex-col gap-2">
       <textarea
         aria-label="Edit comment"
+        title={`Save: ${SAVE_TIP}`}
+        aria-keyshortcuts={SAVE_KEYS}
+        onKeyDown={saveOnModEnter(save)}
         rows={4}
         // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus
@@ -153,7 +186,9 @@ function EditBox({ initial, onCancel, onSave }: { initial: string; onCancel: () 
         </button>
         <button
           type="button"
-          onClick={() => body.trim() !== '' && onSave(body)}
+          onClick={save}
+          title={`Save (${SAVE_TIP})`}
+          aria-keyshortcuts={SAVE_KEYS}
           className="cursor-pointer rounded-control border-0 bg-primary px-3.5 py-2 font-sans text-[13px] font-semibold text-primary-foreground"
         >
           Save
@@ -261,12 +296,16 @@ function SingleThread({
 
 function Draft({ anchor, onCancel, onSubmit }: { anchor?: string; onCancel: () => void; onSubmit: (body: string) => void }) {
   const [body, setBody] = useState('');
+  const submit = useOnce(body, () => onSubmit(body));
   return (
     <div className="flex flex-col gap-3.5 p-5">
       <span className="text-sm font-semibold">New comment</span>
       {anchor !== undefined && <Anchor text={`On: '${anchor}'`} />}
       <textarea
         aria-label="Comment"
+        title={`Submit: ${SAVE_TIP}`}
+        aria-keyshortcuts={SAVE_KEYS}
+        onKeyDown={saveOnModEnter(submit)}
         placeholder="Write a comment…"
         rows={4}
         // eslint-disable-next-line jsx-a11y/no-autofocus
@@ -285,7 +324,9 @@ function Draft({ anchor, onCancel, onSubmit }: { anchor?: string; onCancel: () =
         </button>
         <button
           type="button"
-          onClick={() => body.trim() !== '' && onSubmit(body)}
+          onClick={submit}
+          title={`Submit (${SAVE_TIP})`}
+          aria-keyshortcuts={SAVE_KEYS}
           className="cursor-pointer rounded-control border-0 bg-primary px-3.5 py-2 font-sans text-[13px] font-semibold text-primary-foreground"
         >
           Submit
@@ -330,7 +371,7 @@ export function CommentsSidebar({
 }) {
   const selected = selectedKey === null ? undefined : threads.find((t) => t.key === selectedKey);
   return (
-    <aside aria-label="Comments" className="flex w-[340px] shrink-0 overflow-hidden">
+    <aside aria-label="Comments" className="flex w-full shrink-0 overflow-hidden">
       <div className="w-px shrink-0" style={{ background: 'var(--brass-hairline-v)' }} />
       <div className="min-w-0 flex-1 overflow-y-auto">
         {draft !== null ? (

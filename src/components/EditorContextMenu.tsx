@@ -5,6 +5,8 @@ export interface ContextMenuItem {
   label: string;
   onSelect: () => void;
   disabled?: boolean;
+  /** The key shown at the right of the item. */
+  shortcut?: string;
   /** Draws a divider above the item. */
   divider?: boolean;
 }
@@ -69,6 +71,7 @@ export function EditorContextMenu({ x, y, items, onClose }: Props) {
             type="button"
             role="menuitem"
             disabled={item.disabled}
+            {...(item.shortcut === undefined ? {} : { 'aria-keyshortcuts': item.shortcut.replace(/Ctrl/i, 'Control') })}
             onClick={() => {
               onClose();
               item.onSelect();
@@ -76,6 +79,7 @@ export function EditorContextMenu({ x, y, items, onClose }: Props) {
             className="block w-full cursor-default select-none rounded-sm px-2 py-1 text-left outline-none hover:bg-background focus-visible:bg-background disabled:pointer-events-none disabled:text-muted-foreground"
           >
             {item.label}
+            {item.shortcut !== undefined && <span aria-hidden="true" className="float-right ml-6 text-muted-foreground">{item.shortcut}</span>}
           </button>
         </div>
       ))}

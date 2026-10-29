@@ -15,12 +15,13 @@ test('File menu opens in a real browser', async ({ page }) => {
   await expect(page.getByRole('menuitem', { name: /Connect to Server/ })).toBeVisible();
 });
 
-test('File > Sign in to GitHub… shows the desktop-app error in the banner on the web', async ({ page }) => {
+test('Settings > GitHub > Sign In shows the desktop-app error in the banner on the web', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('menuitem', { name: 'File' }).click();
-  await page.getByRole('menuitem', { name: /Sign in to GitHub/ }).click();
-  await expect(page.getByText('Signing in to GitHub needs the Gonq desktop app')).toBeVisible();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('menuitem', { name: 'Edit' }).click();
+  await page.getByRole('menuitem', { name: /Settings/ }).click();
+  await page.getByRole('button', { name: 'Sign In' }).click();
+  await expect(page.getByText('Signing in to GitHub needs the Gonq desktop app').first()).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Sign in to GitHub' })).toHaveCount(0);
 });
 
 async function newDocument(page: Page) {

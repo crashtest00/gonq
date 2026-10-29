@@ -78,7 +78,7 @@ test('toggle shows/hides the sidebar and reopening shows All threads', async () 
   const toggle = screen.getByRole('button', { name: 'Comments' });
   await user.click(toggle);
   const side = screen.getByRole('complementary', { name: 'Comments' });
-  expect(side).toHaveClass('w-[340px]');
+  expect(side.parentElement).toHaveStyle({ width: '340px' });
   await user.click(within(within(side).getByRole('list')).getAllByRole('button')[0]);
   expect(screen.getByRole('button', { name: 'Close thread' })).toBeInTheDocument();
   await user.click(toggle);

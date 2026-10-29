@@ -40,16 +40,6 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
         "disabled": true
       },
       {
-        "kind": "item",
-        "label": "Sign in to GitHub…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign out of GitHub",
-        "disabled": false
-      },
-      {
         "kind": "separator"
       },
       {
@@ -60,14 +50,14 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
         "label": "Save As…",
         "shortcut": "Ctrl+Shift+S",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
       },
       {
         "kind": "separator"
@@ -100,7 +90,7 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -115,6 +105,11 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
         "label": "Raw Markdown",
         "disabled": false,
         "checked": false
+      },
+      {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
       },
       {
         "kind": "submenu",
@@ -345,16 +340,6 @@ exports[`menu tree > no document 1`] = `
         "disabled": true
       },
       {
-        "kind": "item",
-        "label": "Sign in to GitHub…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign out of GitHub",
-        "disabled": false
-      },
-      {
         "kind": "separator"
       },
       {
@@ -365,13 +350,13 @@ exports[`menu tree > no document 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
+        "label": "Save As…",
+        "shortcut": "Ctrl+Shift+S",
         "disabled": true
       },
       {
         "kind": "item",
-        "label": "Save As…",
-        "shortcut": "Ctrl+Shift+S",
+        "label": "Commit…",
         "disabled": true
       },
       {
@@ -405,7 +390,7 @@ exports[`menu tree > no document 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -420,6 +405,11 @@ exports[`menu tree > no document 1`] = `
         "label": "Raw Markdown",
         "disabled": true,
         "checked": false
+      },
+      {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
       },
       {
         "kind": "submenu",
@@ -529,16 +519,6 @@ exports[`menu tree > raw mode on 1`] = `
         "disabled": true
       },
       {
-        "kind": "item",
-        "label": "Sign in to GitHub…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign out of GitHub",
-        "disabled": false
-      },
-      {
         "kind": "separator"
       },
       {
@@ -549,14 +529,14 @@ exports[`menu tree > raw mode on 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
         "label": "Save As…",
         "shortcut": "Ctrl+Shift+S",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
       },
       {
         "kind": "separator"
@@ -589,7 +569,7 @@ exports[`menu tree > raw mode on 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -604,6 +584,11 @@ exports[`menu tree > raw mode on 1`] = `
         "label": "✓Raw Markdown",
         "disabled": false,
         "checked": true
+      },
+      {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
       },
       {
         "kind": "submenu",
@@ -834,16 +819,6 @@ exports[`menu tree > table cell targeted 1`] = `
         "disabled": true
       },
       {
-        "kind": "item",
-        "label": "Sign in to GitHub…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign out of GitHub",
-        "disabled": false
-      },
-      {
         "kind": "separator"
       },
       {
@@ -854,14 +829,14 @@ exports[`menu tree > table cell targeted 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
         "label": "Save As…",
         "shortcut": "Ctrl+Shift+S",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
       },
       {
         "kind": "separator"
@@ -894,7 +869,7 @@ exports[`menu tree > table cell targeted 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -909,6 +884,11 @@ exports[`menu tree > table cell targeted 1`] = `
         "label": "Raw Markdown",
         "disabled": false,
         "checked": false
+      },
+      {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
       },
       {
         "kind": "submenu",
@@ -1139,16 +1119,6 @@ exports[`menu tree > theme dark 1`] = `
         "disabled": true
       },
       {
-        "kind": "item",
-        "label": "Sign in to GitHub…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign out of GitHub",
-        "disabled": false
-      },
-      {
         "kind": "separator"
       },
       {
@@ -1159,14 +1129,14 @@ exports[`menu tree > theme dark 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
         "label": "Save As…",
         "shortcut": "Ctrl+Shift+S",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
       },
       {
         "kind": "separator"
@@ -1199,7 +1169,7 @@ exports[`menu tree > theme dark 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -1214,6 +1184,11 @@ exports[`menu tree > theme dark 1`] = `
         "label": "Raw Markdown",
         "disabled": false,
         "checked": false
+      },
+      {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
       },
       {
         "kind": "submenu",
@@ -1444,16 +1419,6 @@ exports[`menu tree > undo and redo available 1`] = `
         "disabled": true
       },
       {
-        "kind": "item",
-        "label": "Sign in to GitHub…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign out of GitHub",
-        "disabled": false
-      },
-      {
         "kind": "separator"
       },
       {
@@ -1464,14 +1429,14 @@ exports[`menu tree > undo and redo available 1`] = `
       },
       {
         "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
         "label": "Save As…",
         "shortcut": "Ctrl+Shift+S",
         "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
       },
       {
         "kind": "separator"
@@ -1504,7 +1469,7 @@ exports[`menu tree > undo and redo available 1`] = `
       },
       {
         "kind": "item",
-        "label": "Preferences…",
+        "label": "Settings…",
         "shortcut": "Ctrl+,",
         "disabled": false
       }
@@ -1519,6 +1484,11 @@ exports[`menu tree > undo and redo available 1`] = `
         "label": "Raw Markdown",
         "disabled": false,
         "checked": false
+      },
+      {
+        "kind": "item",
+        "label": "Refresh Navigator",
+        "disabled": true
       },
       {
         "kind": "submenu",

@@ -83,6 +83,9 @@ describe('create branch dialog', () => {
     const d = await openDialog(user);
     expect(within(d).getByTestId('branch-prefix')).toHaveTextContent('gonq/');
     expect(within(d).getAllByRole('textbox')).toHaveLength(1);
+    // No gap between the prefix and the typed name: the input adds no left padding.
+    expect(nameBox(d)).toHaveClass('pl-0');
+    expect(nameBox(d)).not.toHaveClass('px-1');
     await user.type(nameBox(d), 'x');
     expect(nameBox(d)).toHaveValue('x');
   });

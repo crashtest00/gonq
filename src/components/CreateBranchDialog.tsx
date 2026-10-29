@@ -122,7 +122,7 @@ export function CreateBranchDialog({
             spellCheck={false}
             autoComplete="off"
             onChange={(e) => setName(e.target.value)}
-            className="h-8 min-w-0 flex-1 border-0 bg-transparent px-1 text-foreground outline-none"
+            className="h-8 min-w-0 flex-1 border-0 bg-transparent pl-0 pr-2 text-foreground outline-none"
           />
         </div>
         <p id={reason !== null ? 'branch-reason' : 'branch-exists'} role="status" className="m-0 mb-3 min-h-[1.25rem] break-all text-[12.5px] text-destructive">

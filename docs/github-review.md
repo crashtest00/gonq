@@ -19,13 +19,20 @@ is that broad. The signed-in user needs write access to the repository.
 
 ## The flow
 
-1. **File > Sign in to GitHub…** A dialog shows a short code and an address. Copy the code (there is a Copy button
+1. **Edit > Settings… > GitHub > Sign In** Choose Start; the GitHub section of the Settings dialog shows a short code and an address. Copy the code (there is a Copy button
    beside it), choose **Open github.com/login/device** (or copy the address), paste the code on that GitHub page and
-   approve. The dialog says "Waiting for approval on github.com…" and finishes by itself once you approve. Gonq never
-   sees your password.
+   approve. It says "Waiting for approval on github.com…" and finishes by itself once you approve; the section then shows
+   "Signed in as <login>." with a **Sign Out** button. Gonq never sees your password. If you are signed out when you
+   choose **File > Open Repo…** or **Open PR…**, Settings opens already at this step and the command continues once
+   you are signed in.
 2. **File > Open Repo…** lists your repositories; filter and pick one. The folder sidebar becomes the repository
    navigator: the repository name, a **branch dropdown** (with a filter box) and a folder tree of Markdown files.
    Picking another branch reloads the tree.
+   **Refresh** (the circular-arrow icon in the navigator header, or **View > Refresh Navigator**) re-lists the tree and
+   the branch list in place: expanded folders and scroll position stay, and the icon spins and is disabled until it
+   finishes. If the refresh fails, the tree stays as it was and an error with Retry appears. If the open branch was
+   deleted on GitHub, Refresh switches the navigator to the repository's default branch (with the usual "Change
+   branch?" warning if the open document has uncommitted changes).
 3. Click a file to open it in a tab. Edit as usual.
 4. **File > Commit…** commits the tab's file to the tab's branch with the message `Edit <path> from Gonq`, after a
    confirmation showing file, repository, branch and message. **Ctrl+S** does the same on a GitHub tab, because there
@@ -38,8 +45,12 @@ is that broad. The signed-in user needs write access to the repository.
 7. **File > Open PR…** (greyed until a repository or GitHub tab is open) has three steps, left to right: **Branch to
    merge**, **Merge into**, and **Review changes** (the changed files). **Open PR** then shows an editable title and
    body, pre-filled by Gonq; its **Open PR** button creates the pull request, and the result offers **Open in
-   browser**.
-8. **File > Sign out of GitHub** forgets the token.
+   browser**. Gonq also labels the new pull request `gonq-editor` (a fixed name, not a setting; if the repository
+   has no such label Gonq creates it once, and an existing label is never edited). Labelling is best effort: if it
+   fails (no permission, rate limit, network) the pull request is still opened and the reason comes back as
+   `label_warning` from `github_create_pull` (`null` on success); the result then shows it as a short note, and the
+   link and buttons still work.
+8. **Edit > Settings… > GitHub > Sign Out** forgets the token.
 
 ## Rules a reviewer will notice
 

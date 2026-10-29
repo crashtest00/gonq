@@ -136,3 +136,38 @@ test('resolveContextMenu lists commands with a contextMenu placement by group an
     ['B', true, true],
   ]);
 });
+
+test('matchShortcut: Alt+letter matches Alt alone, by physical key when given, never with Ctrl or Shift', () => {
+  const r = fresh();
+  r.defineCommand(spec('m', { shortcut: 'Alt+M' }));
+  const key = (k: string, over: object = {}) =>
+    r.matchShortcut({ ctrlKey: false, metaKey: false, altKey: true, shiftKey: false, key: k, target: document.body, ...over })?.id;
+  expect(key('m')).toBe('m');
+  expect(key('µ', { code: 'KeyM' })).toBe('m');
+  expect(key('m', { shiftKey: true })).toBeUndefined();
+  expect(key('m', { ctrlKey: true })).toBeUndefined();
+  expect(key('m', { altKey: false })).toBeUndefined();
+  expect(() => r.defineCommand(spec('dup', { shortcut: 'alt+m' }))).toThrow(/both register/);
+});
+
+test('matchShortcut: Alt alone never triggers a Ctrl shortcut (Ctrl+S, Ctrl+, Ctrl+Z) and AltGr (Ctrl+Alt) is rejected', () => {
+  const r = fresh();
+  r.defineCommand(spec('save', { shortcut: 'Ctrl+S' }));
+  r.defineCommand(spec('settings', { shortcut: 'Ctrl+,' }));
+  r.defineCommand(spec('undo', { shortcut: 'Ctrl+Z' }));
+  const press = (k: string, over: object = {}) =>
+    r.matchShortcut({ ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, key: k, target: document.body, ...over })?.id;
+  expect(press('s', { ctrlKey: true })).toBe('save');
+  expect(press(',', { metaKey: true })).toBe('settings');
+  expect(press('z', { ctrlKey: true })).toBe('undo');
+  for (const k of ['s', ',', 'z']) {
+    expect(press(k, { altKey: true })).toBeUndefined();
+    expect(press(k, { altKey: true, ctrlKey: true })).toBeUndefined();
+  }
+});
+
+test('resolveContextMenu carries the shortcut shown beside each entry', () => {
+  const r = fresh();
+  r.defineCommand(spec('m', { shortcut: 'Alt+M', contextMenu: { group: 0, order: 1 } }));
+  expect(r.resolveContextMenu({} as never)[0].shortcut).toBe('Alt+M');
+});

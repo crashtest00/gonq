@@ -47,10 +47,10 @@ describe.each([['Ctrl', 'ctrlKey'], ['Cmd', 'metaKey']] as const)('%s shortcuts 
     expect(await screen.findByRole('alert')).toHaveTextContent('Connecting to a server needs the desktop app.');
   });
 
-  test('Ctrl+, opens Preferences', async () => {
+  test('Ctrl+, opens Settings', async () => {
     renderApp();
     expect(press(',', mod)).toBe(false);
-    expect(await screen.findByRole('dialog', { name: 'Preferences' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
   });
 
   test('Save, Save As, Close Tab, Undo and Redo keys do nothing without a document', () => {
@@ -137,11 +137,11 @@ describe('shortcuts inside the editor', () => {
   });
 });
 
-test('Ctrl+S with the Preferences dialog open still saves, as before', async () => {
+test('Ctrl+S with the Settings dialog open still saves, as before', async () => {
   const r = renderApp({ docs: testDoc(TEXT) });
   await openDocument(r.user);
   press(',');
-  const dialog = await screen.findByRole('dialog', { name: 'Preferences' });
+  const dialog = await screen.findByRole('dialog', { name: 'Settings' });
   expect(dialog).toBeInTheDocument();
   await r.user.keyboard('{Control>}s{/Control}');
   expect(r.saveDocument).toHaveBeenCalledTimes(1);

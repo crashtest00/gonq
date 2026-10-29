@@ -1,5 +1,5 @@
 /**
- * The View menu (Raw Markdown, Theme sub-menu), registered with the command registry as a side effect of being
+ * The View menu (Raw Markdown, Refresh Navigator, Theme sub-menu), registered with the command registry as a side effect of being
  * imported (see commands/index.ts). Raw Markdown needs an open tab; the theme choice is always available.
  */
 import { defineCommand, defineMenu } from '../../commands/registry';
@@ -17,6 +17,15 @@ defineCommand({
   enabled: (ctx) => ctx.hasDocument,
   checked: (ctx) => ctx.raw,
   run: (ctx) => ctx.setRaw(!ctx.raw),
+});
+defineCommand({
+  id: 'view.refreshNavigator',
+  menu: 'view',
+  group: 0,
+  order: 15,
+  label: 'Refresh Navigator',
+  enabled: (ctx) => ctx.canRefreshNavigator,
+  run: (ctx) => ctx.refreshNavigator(),
 });
 defineCommand({ id: 'view.theme', menu: 'view', group: 0, order: 20, label: 'Theme', kind: 'submenu' });
 

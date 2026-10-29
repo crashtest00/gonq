@@ -7,6 +7,8 @@ mod launch;
 mod ssh;
 mod recents;
 mod settings;
+#[cfg(test)]
+mod pane_width_ipc_tests;
 
 use folder::{FolderEntry, ListError};
 use recents::Recent;
@@ -40,7 +42,15 @@ fn recents_file<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
 /// Serialises read-modify-write of settings.json.
 static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
 
+/// Tests point settings.json at a temp dir: XDG_CONFIG_HOME only moves the config dir on Linux.
+#[cfg(test)]
+static TEST_SETTINGS_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
 fn settings_file<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    #[cfg(test)]
+    if let Some(dir) = TEST_SETTINGS_DIR.get() {
+        return Ok(dir.join("settings.json"));
+    }
     Ok(app.path().app_config_dir().map_err(|e| e.to_string())?.join("settings.json"))
 }
 
@@ -77,6 +87,24 @@ fn get_theme<R: Runtime>(app: AppHandle<R>) -> String {
 fn set_theme<R: Runtime>(app: AppHandle<R>, theme: String) -> Result<String, String> {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     settings::set_theme(&settings_file(&app)?, &theme)
+}
+
+/// The saved widths (px) of the navigator, outline and comments side panes; null for a pane with none saved (or when it can't be read).
+#[tauri::command]
+fn get_pane_widths<R: Runtime>(app: AppHandle<R>) -> settings::PaneWidths {
+    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    match settings_file(&app) {
+        Ok(file) => settings::get_pane_widths(&file),
+        Err(_) => settings::PaneWidths::default(),
+    }
+}
+
+/// Saves one pane's width ("navigator", "outline" or "comments"; 120..=800 px, anything else is refused);
+/// a null width clears it. Returns all the stored widths.
+#[tauri::command]
+fn set_pane_width<R: Runtime>(app: AppHandle<R>, pane: String, width: Option<u32>) -> Result<settings::PaneWidths, String> {
+    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    settings::set_pane_width(&settings_file(&app)?, &pane, width)
 }
 
 /// Read-only listing of one folder. Only folders already in the fs scope (the folder of an
@@ -204,6 +232,8 @@ pub fn run() {
             set_author_name,
             get_theme,
             set_theme,
+            get_pane_widths,
+            set_pane_width,
             take_launch_paths,
             github::github_start,
             github::github_poll,
