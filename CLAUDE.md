@@ -7,17 +7,19 @@ Tauri 2 desktop app (Rust) with a React 18 + TypeScript + Vite 5 frontend and a 
 The per-file map is generated, not written here: run `npm run map` and read PROJECT_MAP.md (gitignored, one line per
 source file, taken from each file's header comment). `npm run map -- --json` prints the same as JSON.
 
+- apps/desktop/ — the npm workspace for the desktop/web app (@gonq/desktop; root package.json `workspaces: [apps/*, packages/*]`, one package-lock.json and node_modules at the root; its own package.json holds the frontend deps and the dev/build/test/test:e2e/tauri scripts, and index.html, vite.config.ts, tsconfig.json, tailwind/postcss configs, components.json and playwright.config.ts live here). Root `npm test` and `npm run build` fan out to the workspaces; `npm run tauri ...` runs from apps/desktop. Paths below without a prefix are relative to apps/desktop/.
 - src/            — React + TypeScript frontend: App.tsx shell, components/ (RepoNavigator = the navigator's GitHub root; ui/ = shadcn/ui primitives themed by CSS vars in styles/tokens.css), editor/ (the one CodeMirror 6 editor), document/ (open tabs), commands/ (the command registry: defineCommand/defineMenu, CommandContext), features/ (one folder per menu feature, each index.ts registers its commands; features/github/ = Open Repo/Open PR (sign-in itself runs inside the Settings dialog: components/SettingsDialog.tsx + GitHubSignInPanel.tsx), the in-memory session branch list sessionBranches.ts and the scripted PR title/body defaults prDefaults.ts), dialogs/ (DialogHost: registerDialog/openDialog/<DialogHost/> mount every app dialog; dialogs.tsx registers them), platform/ (native/web boundary; github.ts is the only caller of the github_* commands and owns the github:// path format, which routes files.ts/folders.ts to GitHub the way ssh:// goes to remote.ts), comment-threads/ (Markdown comment-threads library, barrel in index.ts), agent-skill/ (bundled SKILL.md), lib/ (theme, utils), testing/ (test helpers), styles/
 - crates/gonq-core/ + apps/desktop/src-tauri/ — Cargo workspace (root Cargo.toml, one Cargo.lock/target at the root). gonq-core: github/, ssh/, settings, recents, folder and the shared command list (commands.rs); desktop: Tauri shell (lib.rs `run`), tauri.conf.json, capabilities, icons.
-- e2e/            — opt-in Playwright Chromium tests against the web build (`npm run test:e2e`; playwright.config.ts builds + serves via vite preview; needs `npx playwright install chromium`; excluded from vitest, not run by Jenkins)
+- e2e/            — (apps/desktop/e2e) opt-in Playwright Chromium tests against the web build (`npm run test:e2e`; playwright.config.ts builds + serves via vite preview; needs `npx playwright install chromium`; excluded from vitest, not run by Jenkins)
 - scripts/        — repo tooling (project-map.mjs: `npm run map` / `npm run map:check`)
 - docs/           — design notes and specs (not shipped); github-review.md is the user-facing guide to the GitHub review flow
 - .github/workflows/ — build-desktop.yml (workflow_dispatch with `sha`, dispatched by Jenkins only), rust-checks.yml (workflow_dispatch with `sha` + `request_id`; cargo test + clippy -D warnings, runs as a matrix on GitHub-hosted ubuntu-22.04, windows-latest and macos-latest runners, not on Jenkins; dispatched and awaited by the Jenkinsfile `Rust checks` stage on PR builds to dev, which skips (logged) unless the PR changes a file under src-tauri/ incl. Cargo.toml/Cargo.lock, and fails on any GitHub API/dispatch error) and release-desktop.yml (`v*` tag push, tagged by Jenkins only); never add other triggers or run/tag by hand
 - assets/        — logo sources (OUTLINE = FULL with text as paths, MICRO for 16/24px), render-icons.js that builds apps/desktop/src-tauri/icons, preview/ PNG renders
-- dist/           — web build output (gitignored); served by nginx in the Dockerfile for beta
+- packages/editor/ — empty npm workspace (@gonq/editor, package.json only); the shared editor code moves here later
+- apps/desktop/dist/ — web build output (gitignored); served by nginx in the Dockerfile for beta
 
 ## Entry Points
-- index.html → src/main.tsx → src/App.tsx
+- apps/desktop/index.html → apps/desktop/src/main.tsx → apps/desktop/src/App.tsx
 - apps/desktop/src-tauri/src/main.rs → lib.rs (`run`)
 
 ## Conventions
