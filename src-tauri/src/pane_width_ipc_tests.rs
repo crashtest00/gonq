@@ -30,18 +30,13 @@ fn call(
 
 #[test]
 fn frontend_arguments_reach_the_pane_width_commands() {
-    // Single test: it redirects the settings dir for the process, so it must not race another one.
     let dir = tempfile::tempdir().unwrap();
-    crate::TEST_SETTINGS_DIR.set(dir.path().to_path_buf()).unwrap();
     let app = mock_builder()
-        .invoke_handler(tauri::generate_handler![
-            crate::get_author_name,
-            crate::set_author_name,
-            crate::get_theme,
-            crate::set_theme,
-            crate::get_pane_widths,
-            crate::set_pane_width
-        ])
+        .invoke_handler(crate::invoke_handler())
+        .manage(crate::DataPaths {
+            settings: Ok(dir.path().join("settings.json")),
+            recents: Ok(dir.path().join("recent.json")),
+        })
         .build(mock_context(noop_assets()))
         .unwrap();
     let w = WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();

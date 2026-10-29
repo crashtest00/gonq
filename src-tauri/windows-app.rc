@@ -1,0 +1,3 @@
+// Manifest-only resource linked into every Windows artifact by build.rs (the shipped app's only manifest; keep windows-app.manifest in sync with tauri-build's default).
+#define RT_MANIFEST 24
+1 RT_MANIFEST "windows-app.manifest"

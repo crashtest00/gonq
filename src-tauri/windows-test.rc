@@ -1,3 +1,0 @@
-// Manifest-only resource linked into every Windows artifact by build.rs.
-#define RT_MANIFEST 24
-1 RT_MANIFEST "windows-test.manifest"
