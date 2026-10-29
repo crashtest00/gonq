@@ -18,13 +18,13 @@ jobs:
         include:
           - label: windows
             os: windows-latest
-            artifact_glob: src-tauri/target/release/bundle/nsis/*.exe
+            artifact_glob: target/release/bundle/nsis/*.exe
           - label: macos
             os: macos-latest
-            artifact_glob: src-tauri/target/release/bundle/dmg/*.dmg
+            artifact_glob: target/release/bundle/dmg/*.dmg
           - label: linux
             os: ubuntu-22.04
-            artifact_glob: src-tauri/target/release/bundle/appimage/*.AppImage
+            artifact_glob: target/release/bundle/appimage/*.AppImage
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -50,7 +50,7 @@ jobs:
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: .
 
       - name: Install dependencies
         run: npm ci
@@ -62,7 +62,6 @@ jobs:
         run: npm run build
 
       - name: Test (Rust)
-        working-directory: src-tauri
         run: cargo test --locked
 
       - name: Build unsigned package

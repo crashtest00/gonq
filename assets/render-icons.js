@@ -1,5 +1,5 @@
-// Renders src-tauri/icons from the SVGs. Needs @resvg/resvg-js (not a repo dependency; install it in a scratch dir and adjust the require path).
-// Usage: node assets/render-icons.js assets/gonq-logo-OUTLINE.svg assets/logo-micro.svg src-tauri/icons
+// Renders apps/desktop/src-tauri/icons from the SVGs. Needs @resvg/resvg-js (not a repo dependency; install it in a scratch dir and adjust the require path).
+// Usage: node assets/render-icons.js assets/gonq-logo-OUTLINE.svg assets/logo-micro.svg apps/desktop/src-tauri/icons
 // 16 and 24 come from MICRO; every other size is rendered from the outlined FULL logo at its own size.
 const {Resvg}=require('/tmp/tools/node_modules/@resvg/resvg-js');
 const fs=require('fs');
