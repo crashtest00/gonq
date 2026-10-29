@@ -1,7 +1,9 @@
 name: rust-checks
 run-name: rust-checks ${{ inputs.request_id }}
 
-# Rust tests + clippy for the PR build. Dispatched only by Jenkins (Jenkinsfile,
+# Rust tests + clippy for the PR build, on ubuntu, windows and macos (the three
+# desktop targets, so a platform-specific Rust failure is caught before merge,
+# not in build-desktop on dev). Dispatched only by Jenkins (Jenkinsfile,
 # stage "Rust checks", PR builds against dev), which awaits the run and fails
 # the PR build when it fails. `request_id` is the correlation id Jenkins finds
 # the run by (it is in the run name). Never add pull_request/push/tag triggers.
@@ -22,8 +24,18 @@ permissions:
 
 jobs:
   rust:
-    name: cargo test + clippy
-    runs-on: ubuntu-22.04
+    name: cargo test + clippy (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ubuntu
+            os: ubuntu-22.04
+          - label: windows
+            os: windows-latest
+          - label: macos
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
       - name: Check out requested SHA
@@ -32,6 +44,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Verify checkout matches requested SHA
+        shell: bash
         env:
           REQUESTED_SHA: ${{ inputs.sha }}
         run: |
@@ -42,6 +55,7 @@ jobs:
           fi
 
       - name: Install Linux system packages
+        if: matrix.label == 'ubuntu'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
