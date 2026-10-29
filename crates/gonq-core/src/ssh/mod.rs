@@ -99,8 +99,8 @@ pub async fn remote_write(
 
 /// Backs `pathExists` for remote recents: false when the file is gone or the host cannot be reached.
 #[tauri::command]
-pub async fn remote_exists(paths: State<'_, crate::DataPaths>, pool: State<'_, Pool>, remote: State<'_, Remote>, uri: String) -> Result<bool, String> {
-    let recorded = crate::is_recent(&paths, &uri)?;
+pub async fn remote_exists(paths: State<'_, crate::commands::DataPaths>, pool: State<'_, Pool>, remote: State<'_, Remote>, uri: String) -> Result<bool, String> {
+    let recorded = crate::commands::is_recent(&paths, &uri)?;
     Ok(fs::exists(&pool, &remote, &uri, recorded).await)
 }
 

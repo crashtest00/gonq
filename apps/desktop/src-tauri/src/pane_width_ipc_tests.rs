@@ -33,7 +33,7 @@ fn frontend_arguments_reach_the_pane_width_commands() {
     let dir = tempfile::tempdir().unwrap();
     let app = mock_builder()
         .invoke_handler(crate::invoke_handler())
-        .manage(crate::DataPaths {
+        .manage(gonq_core::DataPaths {
             settings: Ok(dir.path().join("settings.json")),
             recents: Ok(dir.path().join("recent.json")),
         })

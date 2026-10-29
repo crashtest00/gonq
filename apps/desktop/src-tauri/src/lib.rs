@@ -1,183 +1,15 @@
-//! The Tauri app (`run`): declares the modules, defines the local commands (document-folder fs grant,
-//! list_directory/path_exists, recent documents, author name and theme, take_launch_paths; settings.json and recent.json
-//! locations are `DataPaths` managed state), registers them (`invoke_handler`, shared with the IPC tests)
-//! with the github_* and ssh_*/remote_* commands, and installs the single-instance, dialog, fs and opener plugins.
-mod folder;
-mod github;
+//! The desktop Tauri app (`run`): defines the launch-only pieces (focus_main, deliver_paths, take_launch_paths),
+//! registers the one command list (`invoke_handler`, shared with the IPC tests) from gonq-core (local, github_* and
+//! ssh_*/remote_* commands, by path) plus its own, and installs the single-instance, dialog, fs and opener plugins.
+//! The shared logic and `DataPaths` live in the gonq-core crate.
 mod launch;
-mod ssh;
-mod recents;
-mod settings;
 #[cfg(test)]
 mod pane_width_ipc_tests;
 
-use folder::{FolderEntry, ListError};
-use recents::Recent;
+use gonq_core::{github, ssh, DataPaths};
 use std::path::PathBuf;
-use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_fs::FsExt;
-
-/// Lets the webview read the folder of a document the user picked, so its
-/// relative images load. Refuses any path the user has not chosen in a dialog,
-/// so the fs scope can only grow to the folder of a user-chosen file.
-#[tauri::command]
-fn allow_document_folder<R: Runtime>(app: AppHandle<R>, path: String) -> Result<(), String> {
-    let file = PathBuf::from(path);
-    let scope = app.fs_scope();
-    if !scope.is_allowed(&file) {
-        return Err("not a user-chosen file".into());
-    }
-    let folder = file.parent().ok_or("file has no folder")?;
-    scope.allow_directory(folder, true).map_err(|e| e.to_string())
-}
-
-/// Where settings.json and recent.json live. Held in managed state, filled in `setup` from the app's path resolver
-/// (tests manage their own, pointing at a temp dir). A location that could not be resolved is kept as its error,
-/// which the commands return as before.
-pub(crate) struct DataPaths {
-    pub settings: Result<PathBuf, String>,
-    pub recents: Result<PathBuf, String>,
-}
-
-impl DataPaths {
-    fn resolve<R: Runtime>(app: &AppHandle<R>) -> Self {
-        let path = app.path();
-        DataPaths {
-            settings: path.app_config_dir().map(|d| d.join("settings.json")).map_err(|e| e.to_string()),
-            recents: path.app_data_dir().map(|d| d.join("recent.json")).map_err(|e| e.to_string()),
-        }
-    }
-}
-
-/// Serialises read-modify-write of recent.json.
-static RECENTS_LOCK: Mutex<()> = Mutex::new(());
-
-fn recents_file(paths: &DataPaths) -> Result<PathBuf, String> {
-    paths.recents.clone()
-}
-
-/// Serialises read-modify-write of settings.json.
-static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
-
-fn settings_file(paths: &DataPaths) -> Result<PathBuf, String> {
-    paths.settings.clone()
-}
-
-/// The saved author name for comments; "User" when none is saved or it can't be read.
-#[tauri::command]
-fn get_author_name(paths: tauri::State<'_, DataPaths>) -> String {
-    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    match settings_file(&paths) {
-        Ok(file) => settings::get_author_name(&file),
-        Err(_) => settings::DEFAULT_AUTHOR_NAME.to_string(),
-    }
-}
-
-/// Saves the author name (trimmed; blank or containing `|`, `]`, CR, LF is refused) and
-/// returns what is stored.
-#[tauri::command]
-fn set_author_name(paths: tauri::State<'_, DataPaths>, name: String) -> Result<String, String> {
-    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    settings::set_author_name(&settings_file(&paths)?, &name)
-}
-
-/// The saved theme ("light", "dark" or "auto"); "auto" when none is saved or it can't be read.
-#[tauri::command]
-fn get_theme(paths: tauri::State<'_, DataPaths>) -> String {
-    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    match settings_file(&paths) {
-        Ok(file) => settings::get_theme(&file),
-        Err(_) => settings::DEFAULT_THEME.to_string(),
-    }
-}
-
-/// Saves the theme ("light", "dark" or "auto"; anything else is refused) and returns what is stored.
-#[tauri::command]
-fn set_theme(paths: tauri::State<'_, DataPaths>, theme: String) -> Result<String, String> {
-    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    settings::set_theme(&settings_file(&paths)?, &theme)
-}
-
-/// The saved widths (px) of the navigator, outline and comments side panes; null for a pane with none saved (or when it can't be read).
-#[tauri::command]
-fn get_pane_widths(paths: tauri::State<'_, DataPaths>) -> settings::PaneWidths {
-    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    match settings_file(&paths) {
-        Ok(file) => settings::get_pane_widths(&file),
-        Err(_) => settings::PaneWidths::default(),
-    }
-}
-
-/// Saves one pane's width ("navigator", "outline" or "comments"; 120..=800 px, anything else is refused);
-/// a null width clears it. Returns all the stored widths.
-#[tauri::command]
-fn set_pane_width(paths: tauri::State<'_, DataPaths>, pane: String, width: Option<u32>) -> Result<settings::PaneWidths, String> {
-    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    settings::set_pane_width(&settings_file(&paths)?, &pane, width)
-}
-
-/// Read-only listing of one folder. Only folders already in the fs scope (the folder of an
-/// opened document, or one chosen with Open Folder, and their subfolders) can be listed.
-#[tauri::command]
-fn list_directory<R: Runtime>(app: AppHandle<R>, path: String) -> Result<Vec<FolderEntry>, ListError> {
-    let dir = PathBuf::from(&path);
-    if !app.fs_scope().is_allowed(&dir) {
-        return Err(ListError::NotAllowed(path));
-    }
-    folder::list_directory(&dir)
-}
-
-/// Whether a path still exists (metadata only; reads nothing).
-#[tauri::command]
-fn path_exists(path: String) -> bool {
-    PathBuf::from(path).exists()
-}
-
-#[tauri::command]
-fn recent_documents_add(paths: tauri::State<'_, DataPaths>, path: String) -> Result<Vec<Recent>, String> {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
-    let _guard = RECENTS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    recents::add(&recents_file(&paths)?, &path, now)
-}
-
-#[tauri::command]
-fn recent_documents_list(paths: tauri::State<'_, DataPaths>) -> Result<Vec<Recent>, String> {
-    let _guard = RECENTS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    Ok(recents::load(&recents_file(&paths)?))
-}
-
-#[tauri::command]
-fn recent_documents_remove(paths: tauri::State<'_, DataPaths>, path: String) -> Result<Vec<Recent>, String> {
-    let _guard = RECENTS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    recents::remove(&recents_file(&paths)?, &path)
-}
-
-/// Whether the app itself recorded `path` as an opened document.
-fn is_recent(paths: &DataPaths, path: &str) -> Result<bool, String> {
-    let _guard = RECENTS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    Ok(recents::load(&recents_file(paths)?).iter().any(|r| r.path == path))
-}
-
-/// A recent document from an earlier session is no longer in the fs scope. Re-grants its
-/// folder, but only for a path the app itself recorded as opened.
-#[tauri::command]
-fn allow_recent_document<R: Runtime>(
-    app: AppHandle<R>,
-    paths: tauri::State<'_, DataPaths>,
-    remote: tauri::State<'_, ssh::fs::Remote>,
-    path: String,
-) -> Result<(), String> {
-    if !is_recent(&paths, &path)? {
-        return Err("not a recent document".into());
-    }
-    if ssh::is_ssh_path(&path) {
-        return ssh::allow_recent(&remote, &path);
-    }
-    let folder = PathBuf::from(&path).parent().map(PathBuf::from).ok_or("file has no folder")?;
-    app.fs_scope().allow_directory(folder, true).map_err(|e| e.to_string())
-}
 
 /// Opens the main window's attention: shown, unminimised and focused.
 fn focus_main<R: Runtime>(app: &AppHandle<R>) {
@@ -216,44 +48,44 @@ fn take_launch_paths(launch: tauri::State<'_, launch::LaunchPaths>) -> Vec<Strin
 /// missing here is missing in both.
 fn invoke_handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
-        allow_document_folder,
-        list_directory,
-        path_exists,
-        recent_documents_add,
-        recent_documents_list,
-        recent_documents_remove,
-        allow_recent_document,
-        get_author_name,
-        set_author_name,
-        get_theme,
-        set_theme,
-        get_pane_widths,
-        set_pane_width,
+        gonq_core::commands::allow_document_folder,
+        gonq_core::commands::list_directory,
+        gonq_core::commands::path_exists,
+        gonq_core::commands::recent_documents_add,
+        gonq_core::commands::recent_documents_list,
+        gonq_core::commands::recent_documents_remove,
+        gonq_core::commands::allow_recent_document,
+        gonq_core::commands::get_author_name,
+        gonq_core::commands::set_author_name,
+        gonq_core::commands::get_theme,
+        gonq_core::commands::set_theme,
+        gonq_core::commands::get_pane_widths,
+        gonq_core::commands::set_pane_width,
         take_launch_paths,
-        github::github_start,
-        github::github_poll,
-        github::github_status,
-        github::github_sign_out,
-        github::github_list_repos,
-        github::github_list_branches,
-        github::github_list_folder,
-        github::github_read_file,
-        github::github_commit_file,
-        github::github_open_pulls_for_branches,
-        github::github_branch_exists,
-        github::github_create_branch,
-        github::github_branches_exist,
-        github::github_compare,
-        github::github_create_pull,
-        ssh::ssh_list_hosts,
-        ssh::ssh_connect,
-        ssh::ssh_disconnect,
-        ssh::remote_list_folders,
-        ssh::remote_open_root,
-        ssh::remote_list_directory,
-        ssh::remote_read,
-        ssh::remote_write,
-        ssh::remote_exists
+        gonq_core::github::github_start,
+        gonq_core::github::github_poll,
+        gonq_core::github::github_status,
+        gonq_core::github::github_sign_out,
+        gonq_core::github::github_list_repos,
+        gonq_core::github::github_list_branches,
+        gonq_core::github::github_list_folder,
+        gonq_core::github::github_read_file,
+        gonq_core::github::github_commit_file,
+        gonq_core::github::github_open_pulls_for_branches,
+        gonq_core::github::github_branch_exists,
+        gonq_core::github::github_create_branch,
+        gonq_core::github::github_branches_exist,
+        gonq_core::github::github_compare,
+        gonq_core::github::github_create_pull,
+        gonq_core::ssh::ssh_list_hosts,
+        gonq_core::ssh::ssh_connect,
+        gonq_core::ssh::ssh_disconnect,
+        gonq_core::ssh::remote_list_folders,
+        gonq_core::ssh::remote_open_root,
+        gonq_core::ssh::remote_list_directory,
+        gonq_core::ssh::remote_read,
+        gonq_core::ssh::remote_write,
+        gonq_core::ssh::remote_exists
     ]
 }
 
