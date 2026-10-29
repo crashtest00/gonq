@@ -65,7 +65,7 @@ jobs:
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: .
+          workspaces: ". -> target"
 
       - name: Install dependencies
         run: npm ci
@@ -77,7 +77,7 @@ jobs:
         run: npm run build
 
       - name: Test (Rust)
-        run: cargo test --locked
+        run: cargo test --locked --workspace
 
       - name: Build unsigned package
         run: npm run tauri build
