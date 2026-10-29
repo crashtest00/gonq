@@ -73,7 +73,7 @@ jobs:
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: .
 
       # tauri::generate_context! needs frontendDist (../dist) to exist.
       - name: Install dependencies
@@ -83,9 +83,7 @@ jobs:
         run: npm run build
 
       - name: Test (Rust)
-        working-directory: src-tauri
         run: cargo test --locked
 
       - name: Clippy
-        working-directory: src-tauri
         run: cargo clippy --locked --all-targets -- -D warnings

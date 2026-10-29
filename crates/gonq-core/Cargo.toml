@@ -1,22 +1,18 @@
 [package]
-name = "gonq"
+name = "gonq-core"
 version = "0.1.5"
-description = "Gonq"
+description = "Gonq shared core: GitHub, SSH, settings, recents and folder commands"
 edition = "2021"
 
 [lib]
-name = "gonq_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+name = "gonq_core"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
 embed-resource = "3"
 
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
-tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 russh = { version = "0.64.1", default-features = false, features = ["ring", "rsa", "flate2"] }
@@ -28,7 +24,6 @@ hmac = "0.13.0"
 sha1 = "0.11.0"
 base64 = "0.23.1"
 tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "sync", "time", "net", "fs"] }
-tauri-plugin-single-instance = "2"
 url = "2"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "json"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
@@ -36,7 +31,6 @@ keyring = "4.2.0"
 
 [dev-dependencies]
 tempfile = "3"
-tauri = { version = "2", features = ["test"] }
 rand = "0.10"
 tokio-stream = { version = "0.1", features = ["net"] }
 futures = "0.3"

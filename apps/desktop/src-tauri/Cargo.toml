@@ -1,0 +1,27 @@
+[package]
+name = "gonq"
+version = "0.1.5"
+description = "Gonq"
+edition = "2021"
+
+[lib]
+name = "gonq_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+embed-resource = "3"
+
+[dependencies]
+gonq-core = { path = "../../../crates/gonq-core" }
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+url = "2"
+
+[dev-dependencies]
+tempfile = "3"
+tauri = { version = "2", features = ["test"] }
+serde_json = "1"

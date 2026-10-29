@@ -363,7 +363,7 @@ export interface OpenPull {
  * The open pull requests for several branches of one repository in one pass: a map from each asked branch to its
  * pull request, or null when it has none. Calls github_open_pulls_for_branches (`{owner, repo, branches}` -> one
  * `{branch, pull: null | {number, html_url, draft, title}}` per requested branch; forks are ignored by the Rust side).
- * The contract lives in src-tauri/src/github/pulls.rs, and the command in src-tauri/src/github/mod.rs.
+ * The contract lives in crates/gonq-core/src/github/pulls.rs, and the command in crates/gonq-core/src/github/mod.rs.
  * Rejects with a GitHubError on a network or rate-limit failure; on the web with kind unavailable_on_web.
  */
 export async function openPullsForBranches(owner: string, repo: string, branches: string[]): Promise<Map<string, OpenPull | null>> {

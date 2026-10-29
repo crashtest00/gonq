@@ -1840,6 +1840,23 @@ dependencies = [
 name = "gonq"
 version = "0.1.5"
 dependencies = [
+ "embed-resource",
+ "gonq-core",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tempfile",
+ "url",
+]
+
+[[package]]
+name = "gonq-core"
+version = "0.1.5"
+dependencies = [
  "base64 0.23.1",
  "dirs",
  "embed-resource",
@@ -1856,11 +1873,7 @@ dependencies = [
  "sha1",
  "ssh2-config",
  "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
  "tauri-plugin-fs",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
  "tempfile",
  "tokio",
  "tokio-stream",

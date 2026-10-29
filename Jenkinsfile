@@ -280,14 +280,14 @@ pipeline {
             sh '''
               set -eu
               ERR=$(mktemp)
-              # Only PRs that touch src-tauri/ (Rust sources, Cargo.toml, Cargo.lock)
+              # Only PRs that touch Rust code (crates/, apps/desktop/src-tauri/ sources, Cargo.toml, Cargo.lock)
               # need the Rust checks. Frontend-only PRs skip, loudly.
               if ! FILES=$(gh api --paginate "repos/{owner}/{repo}/pulls/$CHANGE_ID/files" --jq '.[] | .filename, (.previous_filename // empty)' 2>"$ERR"); then
                 echo "ERROR: could not list the files changed by PR #$CHANGE_ID: $(cat "$ERR")" >&2
                 exit 1
               fi
-              if ! printf '%s\\n' "$FILES" | grep -q '^src-tauri/'; then
-                echo "SKIP: PR #$CHANGE_ID changes nothing under src-tauri/ -- Rust checks (cargo test + clippy) not needed" >&2
+              if ! printf '%s\\n' "$FILES" | grep -qE '^(src-tauri/|crates/|apps/desktop/src-tauri/|Cargo[.](toml|lock)$)'; then
+                echo "SKIP: PR #$CHANGE_ID changes no Rust files -- Rust checks (cargo test + clippy) not needed" >&2
                 exit 0
               fi
               # Bootstrap only: until rust-checks.yml has landed on dev there is

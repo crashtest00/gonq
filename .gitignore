@@ -5,8 +5,8 @@ node_modules/
 dist/
 dist-ssr/
 *.tsbuildinfo
-src-tauri/target/
-src-tauri/gen/
+/target/
+apps/desktop/src-tauri/gen/
 
 # Test output
 coverage/

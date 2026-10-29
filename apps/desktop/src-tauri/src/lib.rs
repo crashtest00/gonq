@@ -1,0 +1,131 @@
+//! The desktop Tauri app (`run`): defines the launch-only pieces (focus_main, deliver_paths, take_launch_paths),
+//! registers the one command list (`invoke_handler`, shared with the IPC tests) from gonq-core (local, github_* and
+//! ssh_*/remote_* commands, by path) plus its own, and installs the single-instance, dialog, fs and opener plugins.
+//! The shared logic and `DataPaths` live in the gonq-core crate.
+mod launch;
+#[cfg(test)]
+mod pane_width_ipc_tests;
+
+use gonq_core::{github, ssh, DataPaths};
+use std::path::PathBuf;
+use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri_plugin_fs::FsExt;
+
+/// Opens the main window's attention: shown, unminimised and focused.
+fn focus_main<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+}
+
+/// Hands Markdown files the OS asked us to open to the frontend. Each file's folder joins the
+/// fs scope (the OS launch is the user's choice, like a dialog pick), so relative images load.
+fn deliver_paths<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>) {
+    if paths.is_empty() {
+        return;
+    }
+    for p in &paths {
+        if let Some(folder) = PathBuf::from(p).parent() {
+            let _ = app.fs_scope().allow_directory(folder, true);
+            let _ = app.fs_scope().allow_file(p);
+        }
+    }
+    if let Some(ready) = app.state::<launch::LaunchPaths>().deliver(paths) {
+        let _ = app.emit(launch::OPEN_PATHS_EVENT, ready);
+    }
+}
+
+/// The Markdown files the app was launched with (and any opened before the frontend asked).
+/// After this call further launch paths arrive as `launch-open-paths` events.
+#[tauri::command]
+fn take_launch_paths(launch: tauri::State<'_, launch::LaunchPaths>) -> Vec<String> {
+    launch.take()
+}
+
+/// The one list of commands the webview can invoke. `run` installs it and the IPC tests use it too, so a command
+/// missing here is missing in both.
+fn invoke_handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+    tauri::generate_handler![
+        gonq_core::commands::allow_document_folder,
+        gonq_core::commands::list_directory,
+        gonq_core::commands::path_exists,
+        gonq_core::commands::recent_documents_add,
+        gonq_core::commands::recent_documents_list,
+        gonq_core::commands::recent_documents_remove,
+        gonq_core::commands::allow_recent_document,
+        gonq_core::commands::get_author_name,
+        gonq_core::commands::set_author_name,
+        gonq_core::commands::get_theme,
+        gonq_core::commands::set_theme,
+        gonq_core::commands::get_pane_widths,
+        gonq_core::commands::set_pane_width,
+        take_launch_paths,
+        gonq_core::github::github_start,
+        gonq_core::github::github_poll,
+        gonq_core::github::github_status,
+        gonq_core::github::github_sign_out,
+        gonq_core::github::github_list_repos,
+        gonq_core::github::github_list_branches,
+        gonq_core::github::github_list_folder,
+        gonq_core::github::github_read_file,
+        gonq_core::github::github_commit_file,
+        gonq_core::github::github_open_pulls_for_branches,
+        gonq_core::github::github_branch_exists,
+        gonq_core::github::github_create_branch,
+        gonq_core::github::github_branches_exist,
+        gonq_core::github::github_compare,
+        gonq_core::github::github_create_pull,
+        gonq_core::ssh::ssh_list_hosts,
+        gonq_core::ssh::ssh_connect,
+        gonq_core::ssh::ssh_disconnect,
+        gonq_core::ssh::remote_list_folders,
+        gonq_core::ssh::remote_open_root,
+        gonq_core::ssh::remote_list_directory,
+        gonq_core::ssh::remote_read,
+        gonq_core::ssh::remote_write,
+        gonq_core::ssh::remote_exists
+    ]
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            focus_main(app);
+            deliver_paths(app, launch::paths_from_args(&argv, std::path::Path::new(&cwd)));
+        }))
+        .manage(launch::LaunchPaths::default())
+        .setup(|app| {
+            app.manage(DataPaths::resolve(app.handle()));
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let args: Vec<String> = std::env::args().collect();
+            deliver_paths(app.handle(), launch::paths_from_args(&args, &cwd));
+            Ok(())
+        })
+        .manage(ssh::new_pool())
+        .manage(github::Github::production())
+        .manage(ssh::fs::Remote::default())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(invoke_handler())
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+    app.run(|#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(unused_variables))] app, event| match event {
+        // macOS delivers files opened from Finder (file association) as events, not arguments.
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        tauri::RunEvent::Opened { urls } => {
+            let paths = urls
+                .iter()
+                .filter_map(|u| u.to_file_path().ok())
+                .filter(|p| launch::is_markdown(p) && p.is_file())
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect();
+            focus_main(app);
+            deliver_paths(app, paths);
+        }
+        _ => {}
+    });
+}
