@@ -26,7 +26,7 @@ use config::SshConfigFile;
 use fs::{FolderListing, Remote, RemoteError, RemoteStat, WriteOutcome};
 use crate::folder::FolderEntry;
 use pool::Pool;
-use tauri::{AppHandle, Runtime, State};
+use tauri::State;
 use uri::RemotePath;
 
 /// `Host` names from `~/.ssh/config` (wildcard patterns left out); empty when there is no file.
@@ -99,8 +99,8 @@ pub async fn remote_write(
 
 /// Backs `pathExists` for remote recents: false when the file is gone or the host cannot be reached.
 #[tauri::command]
-pub async fn remote_exists<R: Runtime>(app: AppHandle<R>, pool: State<'_, Pool>, remote: State<'_, Remote>, uri: String) -> Result<bool, String> {
-    let recorded = crate::is_recent(&app, &uri)?;
+pub async fn remote_exists(paths: State<'_, crate::DataPaths>, pool: State<'_, Pool>, remote: State<'_, Remote>, uri: String) -> Result<bool, String> {
+    let recorded = crate::is_recent(&paths, &uri)?;
     Ok(fs::exists(&pool, &remote, &uri, recorded).await)
 }
 
