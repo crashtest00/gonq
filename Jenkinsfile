@@ -286,7 +286,7 @@ pipeline {
                 echo "ERROR: could not list the files changed by PR #$CHANGE_ID: $(cat "$ERR")" >&2
                 exit 1
               fi
-              if ! printf '%s\\n' "$FILES" | grep -qE '^(src-tauri/|crates/|apps/desktop/src-tauri/|Cargo\.(toml|lock)$)'; then
+              if ! printf '%s\\n' "$FILES" | grep -qE '^(src-tauri/|crates/|apps/desktop/src-tauri/|Cargo[.](toml|lock)$)'; then
                 echo "SKIP: PR #$CHANGE_ID changes no Rust files -- Rust checks (cargo test + clippy) not needed" >&2
                 exit 0
               fi
