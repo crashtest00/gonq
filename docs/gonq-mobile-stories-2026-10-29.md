@@ -2,7 +2,8 @@
 
 Intended location: `docs/gonq-mobile-stories-2026-10-29.md`.
 Status: plan only. Nothing here has been built or run.
-Source read: `crashtest00/gonq` at `dev` (v0.1.4), the mobile mockup (based on an outdated spec, so used for visual direction only), and `docs/aigang-multi-repo-gaps-2026-10-27.md`.
+Source read: `crashtest00/gonq` at `dev` (v0.1.5), the corrected mobile mockup `docs/mobile/gonq-mobile-mockup.html`, and `docs/aigang-multi-repo-gaps-2026-10-27.md`.
+**Precedence rule.** The actual desktop implementation wins over any spec or mockup. Where the mockup and the desktop source disagree, the story follows the desktop and the mockup is wrong. A mobile adaptation (layout, sheets, stacked buttons) is allowed only when the roles, labels, strings and rules stay the same.
 
 ## 1. Purpose and summary
 
@@ -26,7 +27,7 @@ Source read: `crashtest00/gonq` at `dev` (v0.1.4), the mobile mockup (based on a
    - This covers the two riskiest Android unknowns (the HTTPS verifier and the keystore) as early as the dependencies allow.
    - **No mobile UI story starts until M-13 passes.**
 3. **The third unknown, Android folder picking (M-14).** A spike runs right after the APK workflow exists, in parallel with the skeleton.
-4. **Shared controllers and mobile UI (M-15 to M-31).** Desktop parity for the GitHub review flow, local folders, the editor, comments, tabs, outline and settings. UI stories also wait for the owner's mockups. The local-folder stories are marked **pending spike outcome**.
+4. **Shared controllers and mobile UI (M-15 to M-31).** Desktop parity for the GitHub review flow, local folders, the editor, comments, tabs, outline and settings. UI stories are built from the corrected mockup, and the frames it still lacks (input I-1) block the stories named there. The local-folder stories are marked **pending spike outcome**.
 5. **Release (M-32 to M-34).** `release-mobile.yml` attaches the signed APK to the `v*` GitHub Release, then a version bump, then a human acceptance pass on Android.
 
 ### What is shared and what is mobile-only
@@ -65,16 +66,42 @@ There is one deliberate exception. SSH is not a mobile feature (decision 2), so 
 7. **Confirmed assumptions.**
    - A-1: `commands/` and `features/` move to `packages/editor`, so one registry drives the desktop menu bar and the mobile overflow menu, long-press menu and accessory toolbar.
    - A-8: Beta serves the mobile web build at `/mobile/`, so QE can verify mobile UI on Beta.
+8. **Mobile UI decisions D1 to D8 (owner, final).** Desktop behaviour wins; SSH stays out of mobile v1; Android only, no iOS.
+   - **D1 Commit:** match desktop. The warning and "Commit to new branch…" appear on any branch not starting with `gonq/`; Commit is primary, Commit to new branch… secondary, plus Cancel; the message is fixed `Edit <path> from Gonq`, no editable message, no Author line. M-22.
+   - **D2 Open PR "Branch to merge":** keep the in-memory session list (branches committed this session plus branches of open GitHub tabs, "#N" link where a PR is open). It is empty after Android kills the app, and the UI shows that empty state. Back from the details screen discards edits. Real structure: Repository, Branch to merge, Merge into, Review on one screen; then title and description; then the result with "Open in browser". M-23.
+   - **D3 Theme:** only in the ⋯ menu (View > Theme). No theme row in Settings, which holds only author name and GitHub, as desktop's `SettingsDialog`. M-25, M-29.
+   - **D4 Table toolbar:** the table bar replaces the formatting bar in table mode. The formatting bar shows a "Table" button only while the caret is in a table, and the table bar has a button back. M-24.
+   - **D5 Outline, Comments and Folder navigator:** mobile-only top-bar buttons, not registry commands; no shared registry commands are added. M-25, M-26, M-28, M-31.
+   - **D6 Branding:** the real logo asset `gonq-logo-OUTLINE.svg`, no tagline, no invented mark. M-07, M-29.
+   - **D7 Sign-in:** keep desktop's idle "Start" screen and show all states (idle, starting, waiting, approved, session-only notice, denied, expired, failed). M-17.
+   - **D8 Conflict dialog:** the real Cancel/Overwrite dialog, GitHub only; the "File changed on disk" dialog is deleted from the design. M-22, M-28.
+   - **D9 Sign-in killed mid-flow:** if Android kills the app during sign-in, it relaunches at the idle "Start" screen with no extra wording. The device code lives only in memory, as on desktop, and there is no "interrupted" state. M-11, M-12, M-17.
+   - **D10 Find in document:** excluded. Desktop has no menu command for it (Ctrl+F is CodeMirror's own search), so mobile adds no touch entry. M-25.
 
 ### Inputs still needed from the owner
 
 | # | Input | Blocks |
 |---|---|---|
-| I-1 | **Mockups**, desktop-function-first: GitHub sign-in, repo picker, repo navigator (branch dropdown, tree, refresh, create branch), commit dialog, open-PR (3 steps), read-only PR banner, change-branch warning, local folder navigator, tabs, outline, table toolbar, raw switch, long-press menu, overflow (⋯) menu, unsaved/conflict dialogs, settings, about/agent-skill, error/empty/loading states | M-17 to M-29, M-31 |
+| I-1 | **Mockup frames still missing** after the corrected mockup. The mockup exists at `docs/mobile/gonq-mobile-mockup.html`, and **the desktop implementation wins over it**. The table below the inputs lists what it still lacks, per story | The stories named in that table |
 | I-2 | **Android release keystore**: generated, backed up offline by the owner, and stored as Actions secrets (M-08 is the human step) | M-09, M-13, M-32 |
 | I-3 | **A physical Android phone** (Android 10 or later) | M-13, M-14, M-34 |
 | I-4 | **Android `applicationId` and app name.** Desktop uses `com.gonq.app` (`src-tauri/tauri.conf.json`). Like the keystore, changing either after testers install forces an uninstall | M-07 (value), M-09 (first signed APK) |
-| I-5 | **The version number for the first mobile RC** | M-33 |
+| I-5 | **The version number for the first mobile RC**, greater than the app version on `dev` when M-33 is dispatched (0.1.5 at the time of this revision) | M-33 |
+
+**I-1 detail: frames still missing, and the stories each blocks.** A story is dispatched only when its frames exist; until then its criteria (which already carry the desktop strings and states) are the specification for the frame. The corrected mockup removes the SSH section, so its later sections are numbered one lower than in the original mockup.
+
+| Missing frames | Blocks |
+|---|---|
+| Comment thread list, new-comment draft, resolve/reopen, edit, delete confirmation, the empty state "No comments yet.", the read-only state | M-26, M-27 |
+| Open PR details screen separate from review, the result screen, already-open, no sources, no changes, truncation, errors | M-23 |
+| The full ⋯ tree: submenus, checkbox and radio rows, disabled rows, a long-scroll layout | M-25 |
+| Sign-in idle, starting, denied, failed, approved, and copy feedback | M-17, M-12 |
+| Recents loading, error, remove-a-recent, and the Open Folder entry | M-18 |
+| Tree error and empty-repo states, branch-list caps and errors, the branch-gone fallback, refresh busy and error | M-19, M-20 |
+| The commit-conflict dialog in its real wording, and the read-only disabled states | M-22 |
+| Settings validation with Save/Cancel, and the "Not signed in." row | M-29 |
+| Local folder empty, error and "No folder open" states | M-31 |
+| The global error/notice banner pattern | M-17 to M-23 and every story that reports a failure |
 
 ### Assumptions still open (correct any that are wrong)
 
@@ -86,7 +113,7 @@ There is one deliberate exception. SSH is not a mobile feature (decision 2), so 
 ## 3. Ordered story table
 
 Types: FE = frontend, BE = backend (Rust), DevOps, Spike, Human = human or device verification.
-**Mockup** means the story is also blocked by I-1.
+**Mockup** means the story is built from the corrected mockup, and is blocked only by the frames input I-1 lists as still missing for it.
 **Gate** means the story is blocked by M-13, the walking skeleton.
 **Pending spike** means the acceptance criteria are provisional until M-14 closes.
 
@@ -114,7 +141,7 @@ Types: FE = frontend, BE = backend (Rust), DevOps, Spike, Human = human or devic
 | M-20 | Mobile branch switcher, create branch, change-branch warning | FE | M | M-19, Mockup |
 | M-21 | Mobile editor host, keyboard accessory toolbar, raw switch | FE | M | M-13, M-15, Mockup |
 | M-22 | Mobile commit sheet, commit conflict, read-only PR banner | FE | M | M-19, M-21, Mockup |
-| M-23 | Mobile Open PR flow (3 steps) | FE | M | M-22, Mockup |
+| M-23 | Mobile Open PR flow (four screens) | FE | M | M-22, Mockup |
 | M-24 | Touch table editing | FE | M | M-21, Mockup |
 | M-25 | Long-press context menu and overflow (⋯) menu from the registry | FE | M | M-21, Mockup |
 | M-26 | Comments bottom sheet: read, reply, resolve, reopen | FE | M | M-21, Mockup |
@@ -221,7 +248,7 @@ M-33 is also blocked by every feature story (M-17 to M-31). The graph leaves tho
 6. The `Jenkinsfile` `Rust checks` stage path filter (`grep -q '^src-tauri/'`) becomes `^(crates/|apps/[^/]+/src-tauri/|Cargo\.toml$|Cargo\.lock$)`.
    - The PR links one Rust-touching PR build that ran the checks, and one frontend-only PR build that logged `SKIP`.
    - Only this project-specific stage changes. The shared template stages are untouched (CLAUDE.md: "don't hand-edit its shared stages").
-7. `Dockerfile` copies the root `package.json`, `package-lock.json` and each workspace `package.json` before `npm ci`, and copies `apps/desktop/dist` into nginx. After merge, QE loads Beta, opens a document, toggles Raw, and checks About shows `0.1.4`.
+7. `Dockerfile` copies the root `package.json`, `package-lock.json` and each workspace `package.json` before `npm ci`, and copies `apps/desktop/dist` into nginx. After merge, QE loads Beta, opens a document, toggles Raw, and checks About shows `0.1.5`.
 8. `build-desktop.yml` and `release-desktop.yml` use the new paths: `rust-cache` `workspaces: ". -> target"`, `cargo test --locked --workspace` from the root, and `artifact_glob` `target/release/bundle/...`. Nothing else in them changes.
 9. **Desktop release proof (human, authorized once).** One manual `workflow_dispatch` of `build-desktop.yml` with `sha` = the M-01 merge SHA produces the Windows, macOS and Linux artifacts. The PR or work item records the run link.
    - The authorization covers that one run on that one SHA only.
@@ -419,7 +446,7 @@ M-33 is also blocked by every feature story (M-17 to M-31). The graph leaves tho
 1. `apps/mobile/vite.config.ts` uses `base: '/mobile/'` for the web build and the Tauri `devUrl`/`frontendDist` for native, and defines `__GONQ_APP__ = 'mobile'`.
 2. `apps/mobile/src/main.tsx` applies the saved theme before first paint, as `src/main.tsx` does.
 3. `Dockerfile` builds both apps. `nginx.conf` adds `location /mobile/ { try_files $uri /mobile/index.html; }`, and `/` is unchanged.
-4. Placeholder screens: Splash and an empty Documents home. They use the logo SVGs from `assets/` uncoloured ("the logo is never recoloured").
+4. Placeholder screens: Splash and an empty Documents home. They use the real logo asset `gonq-logo-OUTLINE.svg` from `assets/`, unmodified and uncoloured ("the logo is never recoloured"). There is no tagline, no wordmark with a rule and no invented mark (decision D6).
 5. The viewport is `width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content`, with safe-area insets from `env(safe-area-inset-*)`.
 6. `apps/mobile/src/testing/renderMobileApp.tsx`, modelled on `renderApp.tsx`, plus an opt-in `e2e/mobile-shell.spec.ts` using a Playwright Pixel device profile.
 7. The mobile `tauri.conf.json` uses the I-4 identifier, and the Android webview scheme (`useHttpsScheme`) is set explicitly and never changed (A-6).
@@ -542,7 +569,7 @@ M-33 is also blocked by every feature story (M-17 to M-31). The graph leaves tho
 3. The controller re-calls `pollSignIn()` when the app resumes and `github_pending().pending` is true.
    - Resume means `document.visibilitychange`, plus Tauri's mobile resume event if one exists (UNVERIFIED in 2.12).
    - A vitest test covers hide, resume, re-poll and success, and checks there are never two polls in flight.
-4. If the process was killed while the user was away (`pending: false` and not signed in), the controller ends in "Sign-in was interrupted. Start again.", never a spinner.
+4. If the process was killed while the user was away (`pending: false` and not signed in), the controller ends in the idle "Start" state (decision D9). There is no "interrupted" state or extra wording, and never a spinner.
 5. Copy code uses `platform/clipboard.ts` `copyText`, then Open uses `platform/external.ts` `openExternal`, in that order (test).
 6. The desktop `GitHubSignInPanel.tsx` uses the controller, and `GitHubSignIn.test.tsx` passes unchanged.
 
@@ -569,7 +596,7 @@ M-33 is also blocked by every feature story (M-17 to M-31). The graph leaves tho
 **Acceptance criteria.**
 
 1. Reachable from the placeholder Documents home with a "Sign in to GitHub" row.
-2. It shows the user code, Copy code, Open GitHub, waiting, expired, denied and interrupted states, the signed-in login, and "session only" when `storage` is `session_only`.
+2. It shows the user code, Copy code, Open GitHub, waiting, expired and denied states, the signed-in login, and "session only" when `storage` is `session_only`.
 3. Theme tokens only, and a header comment.
 4. On Beta `/mobile/`, Sign in shows the web error banner (never hidden).
 5. Vitest covers each state with mocked bindings.
@@ -698,23 +725,32 @@ The SSH connect handler (`setConnectHandler`, `platform/remote.ts:145`) stays in
 
 ### Epic D: GitHub review flow UI on mobile
 
-Every story here is blocked by M-13 (the gate) and by I-1 (mockups).
+Every story here is blocked by M-13 (the gate), and by the frames input I-1 lists as still missing for it.
 On Beta `/mobile/`, native actions show the web error. The flow logic is verified by vitest with mocked bindings, as the desktop's `src/features/github/*.test.tsx` already do.
 
 #### M-17 Mobile GitHub sign-in screen
 
-**Goal.** The designed sign-in screen in `apps/mobile/src/screens/GitHubSignIn.tsx` replaces `SignInInterim.tsx` (M-12), on the same controller.
+**Goal.** The designed sign-in screen in `apps/mobile/src/screens/GitHubSignIn.tsx` replaces `SignInInterim.tsx` (M-12), on the same controller, with every state of the desktop `GitHubSignInPanel.tsx`.
 
 **Why.** Sign-in is the entry to every GitHub flow, and the interim screen was never meant to ship.
 
 **Acceptance criteria.**
 
-1. Every M-12 state is covered, with the same strings as `GitHubSignInPanel.tsx` where the meaning is the same.
-2. Reachable from Settings and from `ensureSignedIn` whenever a GitHub action needs a sign-in.
-3. Copy code and Open GitHub are one tap each, copy first.
-4. On mobile web, the message names "the Gonq app", not "desktop app". This splits the `GITHUB_UNAVAILABLE` constants by `appKind()`, and the desktop wording is unchanged.
-5. `SignInInterim.tsx` is deleted.
-6. Tests: `apps/mobile/src/screens/GitHubSignIn.test.tsx`.
+1. **Every state exists, with the desktop strings verbatim** (layout is the only adaptation):
+   - **Idle:** "Gonq shows a code to type on github.com. Your password and token never pass through this window." with Cancel and Start. The code is requested only after Start (decision D7); there is no auto-start.
+   - **Starting:** "Asking GitHub for a code…".
+   - **Waiting:** "Enter this code on GitHub:", the code, the verification address as text with a "Copy address" button, "Waiting for approval on github.com…", Cancel, and the primary button "Open github.com/login/device".
+   - **Copy feedback:** "Copied" or "Copy failed". **Open failure:** the alert "Could not open the browser (…). Open the address above yourself and type the code."
+   - **Approved:** title "Signed in to GitHub", "Approved. Signed in as <login>." (or "You are signed in."), primary "Done". The notice "No keychain is available, so this sign-in lasts for this session only." appears here only when `storage` is `session_only`, and never when it is `keychain`.
+   - **Denied:** "Sign-in was denied on github.com." **Expired:** "The code expired before it was approved." (no code box). **Failed:** the error text. These three offer Cancel and "Try again".
+   - **Killed mid-flow:** no separate state (decision D9). After a relaunch the sign-in screen is the idle Start screen above.
+2. The signed-in state shows `@login` only. There is no avatar, no display name and no "Signed in" badge: `GitHubStatus` carries only `login` and `storage`.
+3. No code-expiry countdown is required (desktop shows none). If one is shown it is a mobile addition and must not change the strings above.
+4. Reachable from Settings (M-29) and from `ensureSignedIn`. When signed out, Open Repo… and Open PR… send the user here and continue the original command after approval, as desktop does.
+5. Copy code and Open GitHub are one tap each, copy first.
+6. On mobile web, the message names "the Gonq app", not "desktop app". This splits the `GITHUB_UNAVAILABLE` constants by `appKind()`, and the desktop wording is unchanged.
+7. `SignInInterim.tsx` is deleted.
+8. Tests: `apps/mobile/src/screens/GitHubSignIn.test.tsx` covers each state in criterion 1.
 
 **FE/BE contract.** As M-12.
 
@@ -722,21 +758,23 @@ On Beta `/mobile/`, native actions show the web error. The flow logic is verifie
 
 **Risks and unknowns.** None.
 
-**Verification.** Beta (QE): layout and the web error. Device: M-34.
+**Verification.** Beta (QE): layout of each state and the web error. Device: M-34.
 
 #### M-18 Documents home: recents and entry points
 
-**Goal.** Documents home lists recent documents (`listRecents`, local and `github://`, with an icon per source), and has the entry points Open Repo and Open Folder. Dropped from the mockup: Synced/Not synced, the Search tab, and Connect to Server (decision 2).
+**Goal.** Documents home lists recent documents (`listRecents`, local and `github://`, with an icon per source), and has the entry points Open Repo… and Open Folder…. A "+" button runs File > New (`file.new`). Dropped from the mockup: Synced/Not synced, the Search tab, and Connect to Server, including its mention in any empty-state text (decision 2).
 
 **Why.** It is the app's landing screen and the way back to recent work.
 
 **Acceptance criteria.**
 
 1. Tapping a recent reopens it through the document controller, calling `allowRecentDocument` first, as desktop does.
-2. Removing a recent uses `removeRecent`.
-3. The empty, loading and error states follow the mockups.
-4. Open Folder is always present. Before M-31 it shows a clear "not available yet" error, never hidden.
-5. Tests: `apps/mobile/src/screens/Documents.test.tsx`.
+2. Rows use the desktop content of `FolderSidebar.tsx`: the file name; for a GitHub file `owner/repo @ branch`; then the relative time ("just now", "5 min ago", "3 h ago", "2 d ago", otherwise a date). At most 10 recents (`MAX_RECENTS`).
+3. Each row has a remove control that uses `removeRecent`, reachable by swipe, long-press or an overflow button (the mobile choice is made in the frame). Its accessible name is "Remove <name> from recent documents".
+4. The empty text is "No recent documents." The mockup copy that mentions a server is not used.
+5. Open Folder… is always present. Before M-31 it shows a clear "not available yet" error, never hidden. Open Repo… is always present and goes through `ensureSignedIn`.
+6. Loading and error states use the global error/notice banner pattern (section 5) and the frames listed in input I-1.
+7. Tests: `apps/mobile/src/screens/Documents.test.tsx`.
 
 **FE/BE contract.** `recent_documents_list`, `recent_documents_remove`, `allow_recent_document`.
 
@@ -757,13 +795,23 @@ On Beta `/mobile/`, native actions show the web error. The flow logic is verifie
 **Acceptance criteria.**
 
 1. Open Repo opens the picker, and picking a repo opens its tree on the default branch.
-2. Refresh is always rendered, and disabled with nothing open or while listing (the CLAUDE.md navigator rule).
-3. The empty-repo, no-access, rate-limited and network errors use the `GitHubErrorKind` wording.
-4. Ported tests: `RepoPicker.test.tsx`, `NavigatorRefreshTree.test.tsx`.
+2. **Picker content is the desktop content.**
+   - Title "Open repository". Each row shows the `owner/repo` full name, a badge "private" when private, and a badge "read-only for you" when the account cannot push. No description and no pushed-at time (`RepoSummary` has neither).
+   - Filter placeholder "Filter by owner/repo", filtering client-side. No total count: the total is unknown until the last page.
+   - Rows arrive page by page with "Loading more…". Other states: "No repositories found for this account.", "No repositories match “<filter>”." (no hint line and no "Clear filter" button), the note "Repositories from organisations that have not authorised the Gonq OAuth App may not appear here.", and Cancel.
+   - An error shows the `toGitHubError` message with an inline "Retry". A revoked token signs the user out and shows the notice "GitHub sign-in is no longer valid. Sign in again to open a repository."
+3. Refresh is always rendered, and disabled with nothing open or while listing (the CLAUDE.md navigator rule). It shows a busy state, and a refresh error line with Retry.
+4. **Navigator content is the desktop content.**
+   - The repo name is the title. The branch dropdown has the filter box "Filter branches" and rows of a check mark and the name only: no "default" badge. Branches created this session are merged into the list.
+   - Branch list states: "Loading more…", "Showing the first 100 of N branches. Type to narrow the list.", "No branches." or "No branch matches.", and an error with Retry.
+   - Tree empty text: "No Markdown files in this branch." at the root and "No Markdown files in this folder." in subfolders. No "Switch branch" button.
+   - "Show more (N more)" after 200 rows, and "Showing what GitHub returned; the folder may have more."
+5. The empty-repo, branch-gone, folder-gone, no-access, rate-limited and network errors use the `describeError` wording of `RepoNavigator.tsx` (for example "This repository is empty: it has no commits yet.", "The branch no longer exists on GitHub. Choose another branch.", "Sign in to GitHub to browse this repository.", "GitHub rate limit reached. Try again after HH:MM.").
+6. Ported tests: `RepoPicker.test.tsx`, `NavigatorRefreshTree.test.tsx`.
 
 **FE/BE contract.** `github_list_repos`, `github_list_folder`, `github_read_file`.
 
-**Out of scope.** Search across repos.
+**Out of scope.** Search across repos. A "default" branch badge (desktop has none).
 
 **Risks and unknowns.** None.
 
@@ -771,15 +819,22 @@ On Beta `/mobile/`, native actions show the web error. The flow logic is verifie
 
 #### M-20 Mobile branch switcher, create branch, change-branch warning
 
-**Goal.** A branch sheet (paged `listBranches`, the session list from `sessionBranches.ts`), Create branch (the name rules in `createBranch.ts`), and the change-branch warning when tabs are dirty.
+**Goal.** A branch sheet (paged `listBranches`, the session list from `sessionBranches.ts`), Create branch (the name rules in `createBranch.ts`), and the change-branch warning when the active GitHub document is dirty.
 
 **Why.** Reviewing on GitHub means working on a branch.
 
 **Acceptance criteria.**
 
 1. Behaviour matches `createBranch.test.tsx`, `createBranchName.test.ts` and `branchChange.test.tsx`, ported.
-2. Switching with unsaved edits always asks first.
-3. Errors use the shared wording.
+2. **Create branch.**
+   - The name box has a fixed, uneditable `gonq/` prefix in front of it (`BRANCH_PREFIX`). The created branch is always `gonq/<name>`. The mockup's free-form field is wrong.
+   - Line "From <source>". Live validation reasons exactly as `createBranch.ts`: "Enter a name", "No spaces", "No control characters", "No “..”", "No “@{”", "Not just “@”", "No “<char>”", "Cannot start or end with “/”", "Cannot start or end with “.”", "No “//”", "A part cannot end with “.lock”", "A part cannot start with “.”", and "That branch already exists". The hint "Letters, numbers, and / - _ . only." is not used.
+   - When the active GitHub tab is dirty: "Creating this branch will also commit your changes in <path> to it."
+   - Buttons Cancel and Create (not "Create branch"). After a partial failure the button reads "Close".
+   - Errors: "<path> changed on GitHub since you opened it, so no branch was created. Nothing was committed.", the partial-failure text, and the busy state.
+   - The navigator switches to the new branch only when the commit also happened.
+3. **Change-branch warning.** Title "Change branch?", body "Changing branches will close {name}, and any uncommitted changes will be permanently lost.", buttons Cancel (focused) and "Close document" (destructive). It closes only the active GitHub document, and it asks only when that document is dirty and the target branch differs. There is no file count.
+4. Errors use the shared wording.
 
 **FE/BE contract.** `github_list_branches`, `github_branch_exists`, `github_create_branch`, `github_branches_exist`.
 
@@ -793,8 +848,8 @@ On Beta `/mobile/`, native actions show the web error. The flow logic is verifie
 
 **Goal.**
 
-- Save on a `github://` tab opens the commit sheet (`CommitDialog` content, message from `commitMessage()`).
-- A `conflict` result shows the conflict choice.
+- Save and Commit… on a `github://` tab open the commit sheet (`CommitDialog` content, message from `commitMessage()`).
+- A `conflict` result shows the real conflict dialog.
 - A branch with an open PR shows the `ReadOnlyBanner.tsx` text, and the editor is read-only (`readOnlyCompartment`).
 
 **Why.** Committing is how a mobile edit reaches GitHub.
@@ -802,42 +857,73 @@ On Beta `/mobile/`, native actions show the web error. The flow logic is verifie
 **Acceptance criteria.**
 
 1. Behaviour matches `commit.test.tsx` and `readOnly.test.tsx`, ported.
-2. The banner links to the PR through `openExternal`. The mobile opener allow-list adds `https://github.com/*/pull/*`, recorded in `capabilities/mobile.json`. Desktop is unchanged.
-3. On a read-only tab, format actions are disabled through the registry's `enabled`, not hidden.
+2. **Commit sheet (decision D1, desktop behaviour).**
+   - Title "Commit {path}?" and four rows: File, Repository, Branch, Message. The message is fixed text `Edit <path> from Gonq` (`commitMessage(path)`), shown read-only. There is no editable message, no Author line and no diff stats.
+   - The warning appears on **any branch whose name does not start with `gonq/`** (`GONQ_BRANCH_PREFIX`), not only on the default branch. Text: "This commits directly to {branch}. Branch protection and review rules are GitHub’s; Gonq does not check them."
+   - On such a branch the sheet offers three actions: **Commit** (primary, focused), **Commit to new branch…** (secondary) and **Cancel**. A stacked phone layout is fine, but the roles stay. "Commit to main" is not a label.
+   - On a `gonq/…` branch there is no warning and no "Commit to new branch…" button.
+   - "Commit to new branch…" continues into Create branch (M-20), which also commits the change.
+3. **Outcomes around the sheet.**
+   - "No changes to commit" shows as a notice.
+   - With an open PR for the branch, Commit and Save refuse before the sheet with "Pull request #N is open for this branch. You can read this document but not change it."
+   - If the PR check fails: "Could not check for an open pull request; try again."
+   - The sheet closes before the commit runs. A failed commit shows GitHub's own message in the global error banner (section 5), not as a sheet state. There is no invented "main is protected" copy.
+4. **Commit conflict dialog (decision D8, GitHub only).** The real `ConflictDialog.tsx`, not the mockup's "File changed on disk" dialog, which is deleted from the design (desktop has no external-change detection for local files).
+   - Title: "{name} changed on the server since you opened it." (or "{name} was deleted on the server since you opened it.").
+   - Body: "Overwrite replaces the server’s version with yours. Cancel keeps your changes unsaved." (deleted: "Overwrite writes your version back as a new file.").
+   - Buttons: Cancel (focused) and Overwrite (destructive). On a GitHub commit conflict both leave the tab unsaved and write nothing, as `App.tsx` does.
+5. **Read-only banner.**
+   - Text "Pull request #{n} is open for this branch. You can read this document but not change it." and a link labelled "Open PR". The same sentence is the refusal text in criterion 3.
+   - On a read-only tab: the editor text is not editable (CodeMirror's read-only extension), Add Comment is disabled, `file.commit` is disabled, and Commit and Save refuse with the banner text. Raw/Formatted switching and reading still work.
+   - **The registry's Format commands and the formatting bar are not gated on read-only, because desktop does not gate them.** This story adds no `enabled` rule to Format commands. Gating them would change the desktop menus. Mobile behaves as desktop for a Format command chosen on a read-only tab; the QE compares the two.
+6. The banner links to the PR through `openExternal`. The mobile opener allow-list (`capabilities/mobile.json`) adds `https://github.com/*/pull/*`; the list is then exactly three entries (`https://github.com/crashtest00/gonq` for About, `https://github.com/login/device` for sign-in, and this one), and a test asserts it. Desktop is unchanged.
 
 **FE/BE contract.** `github_commit_file -> { status: 'committed', sha, commit_sha } | { status: 'conflict' }`, `github_open_pulls_for_branches`.
 
-**Out of scope.** PR status.
+**Out of scope.** PR status. Any conflict handling for local files.
 
-**Risks and unknowns.** None.
+**Risks and unknowns.** Whether a Format command dispatches changes on a read-only tab is UNVERIFIED on mobile; criterion 5 says to match desktop and not to fix it here.
 
 **Verification.** Beta (QE) layout. Vitest. Device: M-34.
 
-#### M-23 Mobile Open PR flow (3 steps)
+#### M-23 Mobile Open PR flow (four screens)
 
-**Goal.** `OpenPrDialog.tsx` as a 3-step sheet:
+**Goal.** `OpenPrDialog.tsx` as stacked screens, in the desktop structure:
 
-1. Pick head and base.
-2. Review the comparison (`compareBranches`).
-3. Edit the title and body (`prDefaults.ts`) and create (`createPull`).
+1. **Review screen:** Repository, Branch to merge, Merge into and Review changes, all selected and shown before the PR is opened (on a phone these are stacked sections or steps of one screen; the primary action stays "Open PR").
+2. **Details screen:** Title and Description, buttons Back, Cancel and Open PR.
+3. **Result screen:** "Pull request opened".
 
-The result shows the PR number and link.
+Compare with `compareBranches`; create with `createPull`.
 
 **Why.** Opening a PR completes the review flow.
 
 **Acceptance criteria.**
 
 1. Behaviour matches `openPr.test.tsx` and `prDefaults.test.ts`, ported.
-2. Going back keeps the entered title and body.
-3. Errors use the shared wording.
+2. **Repository.** A Repository selector lists the navigator's repo, the repos of open GitHub tabs, and session repos (`openPr.ts`). Changing it resets the other selections.
+3. **Branch to merge (decision D2).**
+   - The list is the in-memory session list: branches Gonq committed to this session plus branches of open GitHub tabs, each checked to still exist. A branch with an open PR shows a "#N" link. There are no "commits ahead" counts per row.
+   - Texts: "Checking branches…" while loading, and "No branches to merge from this session." when empty.
+   - The list is not persisted. On Android it is empty after the app is killed or restarted. The UI shows that empty state and does not fall back to listing every branch.
+4. **Merge into.** Every branch except the source, with the box "Filter branches", "Loading branches…", the first-100 cap with "Showing the first 100 of N; type to narrow the list.", no "default" badge and no preselected target.
+5. **Review changes (read-only).** "N commits ahead, M commits behind <target>", "N files changed, +A −D", the truncation note "GitHub cut the file list off, so some changed files are not listed and the totals cover only those shown.", and a file list with status ("added", "modified", "removed", "renamed from <old>") and "+a −d". Other states: "Comparing…" and "No changes between these branches.". The count in the heading matches the rows listed.
+6. **Open PR button** is disabled until a source, a target and a loaded, non-empty comparison exist. It is labelled "Open PR" (not "Next", not "Open pull request"), and the stepper (if any) must not imply that the PR is opened before this button.
+7. **Details screen.** The header reads "<repo>: <source> into <target>". The Title defaults to the branch name with one leading `gonq/` removed ("gonq/fix-typos" gives "fix-typos"; "feature/x" is unchanged). The Description is the `prDefaults.ts` template (`Merging <source> into <target>`, the file counts, one line per file, `Opened from Gonq`), not hand-written text.
+8. **Back discards edits.** Back from the details screen returns to the review screen, and opening the details again rebuilds the defaults (`toDetails`). This is desktop behaviour; entered text is not kept.
+9. **Outcomes.**
+   - A branch that already has an open PR shows "Pull request #N is already open for this branch" with the link, and no Open PR button.
+   - GitHub's own errors are shown unchanged.
+   - Success shows "Pull request #N was opened for <branch>." with "Open in browser" (through `openExternal`, allow-listed in M-22) and "Close". If the label step fails, the result also shows "Pull request created, but its label could not be added: …".
+   - On success every tab on that branch becomes read-only at once.
 
-**FE/BE contract.** `github_compare -> Comparison`, `github_create_pull -> { number, html_url }`.
+**FE/BE contract.** `github_compare -> Comparison`, `github_create_pull -> { number, html_url }`, plus the `github_list_branches`, `github_branches_exist` and `github_open_pulls_for_branches` calls the shared controller already makes.
 
-**Out of scope.** Draft PRs, reviewers.
+**Out of scope.** Draft PRs, reviewers. Persisting the session branch list. Listing every repository branch as a source.
 
-**Risks and unknowns.** None.
+**Risks and unknowns.** The empty "Branch to merge" list will be hit often on Android (the OS kills background apps). That is accepted desktop parity; the empty state must read clearly.
 
-**Verification.** Beta (QE) layout. Vitest.
+**Verification.** Beta (QE) layout. Vitest. Device: M-34 (including a force-stop before opening the flow).
 
 ### Epic E: Mobile editor and touch interactions
 
@@ -847,7 +933,7 @@ The result shows the PR number and link.
 
 - Mount the shared `MarkdownEditor` in a mobile editor screen.
 - Keep the caret visible above the virtual keyboard.
-- Add a keyboard accessory toolbar that runs the desktop Format and Insert commands from `features/format` and `features/insert`. The mockup's button set is visual direction only.
+- Add a keyboard accessory toolbar that runs the desktop Format and Insert commands from `features/format` and `features/insert`.
 - Add a Raw/Formatted switch (`RawSwitch.tsx` semantics, `setRaw`).
 
 **Why.** CLAUDE.md: "All text editing … is CodeMirror's own". Mobile adds only chrome and integration.
@@ -857,8 +943,11 @@ The result shows the PR number and link.
 1. No `keydown`, `beforeinput` or `input` listener is added outside CodeMirror. Accessory buttons run registry commands (`formatCommands.ts`) and keep focus in the editor (`preventDefault` on `pointerdown`), so the keyboard stays open.
 2. The caret stays visible when the keyboard opens and while typing on the last line. Use `visualViewport` and CodeMirror's `scrollIntoView` or `keepCaretVisible` (`editor/caretAnchor.ts`). The PR names the CodeMirror hook used; Gonq prefers official CodeMirror and lezer hooks.
 3. The accessory bar sits above the Android keyboard, and at the screen bottom on mobile web.
-4. `editor/livePreview.ts` behaviour is unchanged, and the existing editor tests pass untouched.
-5. A Playwright Pixel-profile test on `/mobile/`: type, bold via the bar, toggle Raw.
+4. **The bar offers only what desktop has** (`EditToolbar.tsx`): Bold, Italic, Underline, Strikethrough, Insert link, Bullet list, Numbered list, Checkbox list, Insert table, and Undo/Redo. No H1, H2, quote or code buttons. A "Table" button that switches to the table bar is added by M-24 and is visible only while the caret is in a table.
+5. The bar never clips a button: it scrolls horizontally with a visible cue that more buttons exist, and every button meets the 44 px tap rule (section 5).
+6. **Raw switch.** A top-bar segmented control with the accessible name "Raw Markdown". It is document-wide (`session.raw`), not per tab, and works on a read-only tab. The View > Raw Markdown checkbox stays in the ⋯ menu (M-25).
+7. `editor/livePreview.ts` behaviour is unchanged, and the existing editor tests pass untouched.
+8. A Playwright Pixel-profile test on `/mobile/`: type, bold via the bar, toggle Raw.
 
 **FE/BE contract.** None.
 
@@ -870,15 +959,18 @@ The result shows the PR number and link.
 
 #### M-24 Touch table editing
 
-**Goal.** The `TableToolbar.tsx` operations for touch. A tap focuses a cell (`focusTableCell`, `editor/tables.ts`), and the accessory bar switches to table operations while the caret is in a table (`tableTargetListener`).
+**Goal.** The `TableToolbar.tsx` operations for touch (decision D4). A tap focuses a cell (`focusTableCell`, `editor/tables.ts`). While the caret is in a table, the formatting bar shows a "Table" button (`tableTargetListener`). The table bar replaces the formatting bar, and has a button back to the formatting bar.
 
 **Why.** Tables are a desktop editing feature that needs a touch equivalent.
 
 **Acceptance criteria.**
 
-1. Every `TableOp` in `editor/tables.ts` is reachable.
-2. Tapping outside a table releases it (`releaseTable`), as `tableBlur.test.ts` specifies.
-3. The relevant `TableToolbar.test.tsx` cases are ported, plus a Playwright test that adds a row by tap.
+1. **Switching.** The formatting bar's "Table" button is visible only when the caret is inside a table, and hidden otherwise. Tapping it replaces the formatting bar with the table bar. The table bar has a button back to the formatting bar. When the caret leaves the table, the formatting bar returns. Inline formatting (Bold, Italic, link) is therefore reachable inside a cell by switching back.
+2. **Every `TableOp` in `editor/tables.ts` is reachable**, in the desktop order: Insert row above, Insert row below, Insert column left, Insert column right | Align column left, Align column center, Align column right | Delete row, Delete column, Delete table. The mockup's seven text chips (no alignment buttons) are not enough. Icons may replace text if each button's accessible name is the desktop label above.
+3. Per-op disabled state follows `target.disabled`, and the current alignment shows as pressed (`aria-pressed`), as in `TableToolbar.tsx`.
+4. Tapping outside a table releases it (`releaseTable`), as `tableBlur.test.ts` specifies.
+5. Every table-bar button meets the 44 px tap rule (section 5) and the bar never clips; the ten buttons scroll with a visible cue.
+6. The relevant `TableToolbar.test.tsx` cases are ported, plus a Playwright test that adds a row by tap.
 
 **FE/BE contract.** None.
 
@@ -899,10 +991,14 @@ The result shows the PR number and link.
 
 **Acceptance criteria.**
 
-1. Both menus are generated from the registry.
+1. Both menus are generated from the registry, so they show the registry labels, not the mockup's: "New", "Open…", "Open Folder…", "Open Repo…", "Open PR…", "Save", "Save As…", "Commit…", "Close Tab", Edit including "Settings…", the Format menu (with its Table submenu), Insert ("Image…", "Table of Contents"), View ("Refresh Navigator", the "Raw Markdown" checkbox, "Theme" with Light, Dark and Auto as radio rows) and Help ("Agent skill…", "About Gonq").
 2. A test asserts that every command with a `menu` appears in the overflow tree, **except exactly** the commands in `apps/mobile/src/excludedCommands.ts` (`openConnect` and the remote-folder recents). A snapshot works like `MenuTree.test.tsx`.
-3. The native selection handles and OS text menu keep working. The PR documents which gesture opens Gonq's sheet.
-4. Disabled commands show as disabled (`enabled`), never hidden.
+3. **Mobile-only top-bar buttons (decision D5).** Outline, Comments and Folder navigator are TabStrip buttons on desktop, not registry commands. On mobile they are top-bar buttons outside the registry (M-28, M-26, M-31). No shared registry command is added for them, so the desktop menu is unchanged. They are not in the ⋯ tree, and neither are "Find in document" or an "Outline" menu row.
+4. Disabled commands show as disabled (`enabled`), never hidden. The tree scrolls, with submenu, checkbox and radio patterns.
+5. Shortcut hints, if shown, are the registry's: "Ctrl+S", "Ctrl+Y" for Redo, "Ctrl+F", not macOS glyphs. Touch sheets omit the hints.
+6. **Long-press sheet contents and order**, by group with dividers: Add Comment (disabled on a read-only tab) | Cut, Copy, Paste (Cut and Copy disabled without a selection) | Select All | Bold, Italic. There is no "Insert link…" row.
+7. The native selection handles and OS text menu keep working. The PR documents which gesture opens Gonq's sheet.
+8. Find: desktop has no menu command for it (Ctrl+F is CodeMirror's search). A touch entry for Find would be a new mobile affordance; the owner excluded it (decision D10).
 
 **FE/BE contract.** None.
 
@@ -916,17 +1012,18 @@ The result shows the PR number and link.
 
 #### M-26 Comments bottom sheet: read, reply, resolve, reopen
 
-**Goal.** A bottom sheet with the thread list and thread detail. It replaces `CommentsSidebar.tsx` on mobile, on the shared `comment-threads/` library and `threads.ts`. Tapping a marker opens its thread through `editorHost.openThread`.
+**Goal.** A bottom sheet with the thread list and thread detail. It replaces `CommentsSidebar.tsx` on mobile, on the shared `comment-threads/` library and `threads.ts`. A mobile-only top-bar Comments button opens the list (decision D5). Tapping a marker opens its thread through `editorHost.openThread`.
 
 **Why.** Comment threads are central to Gonq's review use.
 
 **Acceptance criteria.**
 
-1. It shows the open/resolved counts, as on desktop.
-2. Reply saves into the document's thread block. Ctrl/Cmd+Enter works with a hardware keyboard (the CLAUDE.md comment-shortcut rules).
-3. Resolve and reopen produce byte-identical documents to the desktop path, checked by a shared test.
-4. Port the cases from `ReplyThread.test.tsx`, `ResolveThread.test.tsx` and `CommentThreads.test.tsx`.
-5. The sheet never covers the anchored text.
+1. **List.** One row per thread with its own Open or Resolved badge. There are no aggregate "open/resolved" counts (desktop has none). Empty text "No comments yet." The list has an "Add comment" action, as `CommentsSidebar.tsx` does (the add flow is M-27).
+2. The Comments button is outside the registry: no shared command is added.
+3. Reply saves into the document's thread block. Ctrl/Cmd+Enter works with a hardware keyboard (the CLAUDE.md comment-shortcut rules).
+4. Resolve and reopen produce byte-identical documents to the desktop path, checked by a shared test. Thread detail also offers Close thread.
+5. Port the cases from `ReplyThread.test.tsx`, `ResolveThread.test.tsx` and `CommentThreads.test.tsx`.
+6. The sheet never covers the anchored text.
 
 **FE/BE contract.** None.
 
@@ -938,16 +1035,19 @@ The result shows the PR number and link.
 
 #### M-27 New comment, edit and delete by touch
 
-**Goal.** Add Comment from the long-press menu and the accessory bar (the same `Add Comment` command as Alt+M on desktop), with the draft box in the sheet. Edit and delete use the `EditDeleteThread.test.tsx` semantics.
+**Goal.** Add Comment from the long-press menu (M-25) and the sheet's "Add comment" action (the same `Add Comment` command as Alt+M on desktop), with the draft box in the sheet. Edit and delete use the `EditDeleteThread.test.tsx` semantics.
 
 **Why.** Completes comment parity.
 
 **Acceptance criteria.**
 
-1. A new comment is placed by `effectiveCommentCreationPosition` (`newThread.ts`).
+1. A new comment is placed by `effectiveCommentCreationPosition` (`newThread.ts`). The draft box is labelled "New comment" with the placeholder "Write a comment…".
 2. If a draft is already open, the command focuses it.
 3. The author name comes from `getAuthorName`.
-4. Port the `NewThread.test.tsx` and `EditDeleteThread.test.tsx` cases.
+4. Thread detail has "Edit thread" and "Delete thread". Delete asks first: "The whole thread, including its replies, is removed from the document."
+5. Add Comment is disabled on a read-only tab (`canAddComment`), shown disabled, not hidden.
+6. The accessory bar has no Add Comment button (it holds only the desktop formats, M-21).
+7. Port the `NewThread.test.tsx` and `EditDeleteThread.test.tsx` cases.
 
 **FE/BE contract.** `get_author_name`.
 
@@ -963,18 +1063,23 @@ The result shows the PR number and link.
 
 **Goal.**
 
-- A tab switcher sheet (`TabStrip.tsx` semantics: dirty marker, close).
-- An outline sheet (`outline.ts`; tap to jump).
-- The unsaved-changes and conflict dialogs as sheets, wired to M-15.
+- A scrolling tab strip (`TabStrip.tsx` semantics). There is no tab switcher sheet.
+- An outline drawer (`outline.ts`; tap to jump), opened by a mobile-only top-bar button (decision D5).
+- The unsaved-changes dialog as a sheet, and the conflict dialog from M-22, wired to M-15.
 
 **Why.** Desktop parity for working with several documents.
 
 **Acceptance criteria.**
 
-1. Closing a dirty tab always asks: save, discard or cancel.
-2. The conflict choices match `ConflictDialog.tsx`.
-3. The outline matches `outline.test.ts` for the same document.
-4. Ported tests: `Tabs.test.tsx`, `OutlineSidebar.test.tsx`.
+1. **Tab strip.**
+   - The unsaved marker "●" (title "Unsaved changes") follows the label and shows only on a dirty tab. A clean active tab shows no dot.
+   - Same-named tabs are told apart: `name (branch)` for GitHub tabs, `folder/name` for local tabs.
+   - The active tab scrolls into view, no tab is clipped without a scroll cue, and every tab has a close control. The close control, the "+" (File > New) and each tab meet the 44 px tap rule (section 5). Drag-to-reorder is desktop-only.
+2. **Outline.** Header "Outline". Empty text "No headings." Level 1 is semibold; deeper levels are muted and indented. There is no highlighted "current heading" row. The Outline button is outside the registry.
+3. **Unsaved changes.** Closing a dirty tab always asks. Title "Save changes to {name}?" (no quotes around the name), body "Your changes will be lost if you don’t save them.", choices Cancel, "Don’t save" (destructive) and Save (primary, focused). A stacked order is fine.
+4. The conflict dialog is the one specified in M-22 criterion 4 (real `ConflictDialog.tsx`, GitHub only).
+5. The outline matches `outline.test.ts` for the same document.
+6. Ported tests: `Tabs.test.tsx`, `OutlineSidebar.test.tsx`.
 
 **FE/BE contract.** None.
 
@@ -988,22 +1093,31 @@ The result shows the PR number and link.
 
 **Goal.**
 
-- A Settings screen: author name (`authorNameProblem` rules), theme (light, dark, auto), and the GitHub account row (M-17).
-- About: `__APP_VERSION__` and the `REPO_URL` link.
+- A Settings screen with only what desktop's `SettingsDialog.tsx` has: author name (`authorNameProblem` rules) and the GitHub account row (M-17). There is no theme row (decision D3).
+- About: the logo, `Version {__APP_VERSION__}` and the `REPO_URL` link.
 - Agent skill: the bundled `SKILL.md`, as `AgentSkillDialog.tsx` shows it.
+
+About and Agent skill are reached from the ⋯ menu's Help entries ("About Gonq", "Agent skill…"), not from rows in Settings. Theme is set only from ⋯ > View > Theme (Light, Dark, Auto).
 
 **Why.** Desktop parity.
 
 **Acceptance criteria.**
 
 1. Behaviour matches `Settings.test.tsx`, `AboutDialog.test.tsx` and `AgentSkill.test.tsx`, ported.
-2. Pane widths are not shown (a desktop-only concept); their commands stay in core, unused.
-3. There is no SSH keys row (decision 2).
-4. The theme applies immediately and persists.
+2. **Author name.** Hint "Written on the comments and replies you add." (the name is not used for commits). Placeholder "User". Validation messages "Enter a name.", "Use at most 100 characters." and "The name cannot contain "|", "]" or line breaks.". Cancel and Save buttons; Save is disabled while the name is invalid; a backend failure shows in the same line.
+3. **GitHub row.** States "Checking…", "Not signed in." with a Sign In button, "Signed in as <login>." (or "Signed in.") with a Sign Out button. On mobile web: the "Gonq app" message from M-17.
+4. **About.**
+   - Real logo asset `gonq-logo-OUTLINE.svg`, unmodified (decision D6), the name "Gonq", "Version 0.1.x" from `__APP_VERSION__` (no build number), the repository link row, and Close.
+   - No tagline, no "Release notes" and no "Open-source licenses" buttons.
+   - The link opens `https://github.com/crashtest00/gonq` through `openExternal`. That URL must be in the mobile opener allow-list in `capabilities/mobile.json` (M-06 adds it; M-22 adds the PR pattern). A test asserts that `REPO_URL` matches an allow-list entry, so a changed constant cannot silently break the link on Android.
+5. **Agent skill.** The line "Give this to an AI agent so it can read and join comment threads in your Markdown files.", a scrollable rendered preview of the skill body (front matter stripped), a status line ("Copied to the clipboard.", "Saved <name>.", "Could not copy: …", "Could not save: …"), and buttons Copy, Save as… and Close. Copy and Save use the full text including front matter. Save as… depends on the M-14 outcome; until then it shows a clear error, never hidden.
+6. Pane widths are not shown (a desktop-only concept); their commands stay in core, unused.
+7. There is no SSH keys row (decision 2).
+8. The theme applies immediately and persists, through the View > Theme registry commands.
 
 **FE/BE contract.** `get/set_author_name`, `get/set_theme`, `github_status`, `github_sign_out`.
 
-**Out of scope.** None.
+**Out of scope.** A Settings theme row. Showing pane widths.
 
 **Risks and unknowns.** None.
 
@@ -1042,7 +1156,7 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 
 #### M-31 Android local folder navigator, open and save (**pending spike outcome**)
 
-**Goal (provisional).** Open Folder from Documents home, a folder navigator (`FolderSidebar.tsx` local semantics and the Refresh rules), and open and save through M-15.
+**Goal (provisional).** Open Folder from Documents home, a folder navigator (`FolderSidebar.tsx` local semantics and the Refresh rules) opened by a mobile-only top-bar button (decision D5), and open and save through M-15.
 
 **Why.** It completes the local-folder function.
 
@@ -1050,6 +1164,9 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 
 1. Behaviour matches the desktop local-folder tests (`FolderSidebar.test.tsx`, `NavigatorRefresh.test.tsx`), ported where the spike allows.
 2. The M-18 "not available yet" error is replaced by the working flow.
+3. **Strings are the desktop ones.** The section is "Project folder" and the title shows only the folder's base name. With no folder open: "No folder open", a disabled Refresh and "Open Folder…". An empty folder shows "No Markdown files.", a subfolder "Empty.", and loading shows "Loading…". The current file is marked (`aria-current`).
+4. Refresh is always rendered, disabled with nothing open or while listing, with a busy state.
+5. The Folder navigator button is outside the registry.
 
 **FE/BE contract.** As M-30.
 
@@ -1106,7 +1223,7 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 
 **Acceptance criteria.**
 
-1. One new version (I-5) appears in:
+1. One new version (I-5) appears in, and it is greater than the version on `dev` when the story is dispatched (0.1.5 at the time of this revision):
    - root `package.json`;
    - `apps/desktop/package.json`, `apps/mobile/package.json`, `packages/editor/package.json`;
    - `crates/gonq-core/Cargo.toml`, `apps/desktop/src-tauri/Cargo.toml`, `apps/mobile/src-tauri/Cargo.toml`;
@@ -1139,10 +1256,12 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
    - open a repo, switch branch, create a branch, edit, commit;
    - the conflict path;
    - the read-only banner on a branch with an open PR;
-   - open a PR.
+   - on a branch not starting with `gonq/`, the commit sheet warns and offers "Commit to new branch…", with Commit primary;
+   - open a PR, including after a force-stop, when "Branch to merge" shows "No branches to merge from this session.";
+   - sign-in from the idle Start screen through approved, and the denied path.
 3. Local folders: per the M-14 outcome.
 4. Editor: type with Gboard including autocorrect, the accessory toolbar, a table edit, the long-press and overflow menus (no Connect to Server), add, reply to and resolve a comment, an outline jump, a dirty-close prompt.
-5. Settings: author name, theme, sign out.
+5. Settings: author name and sign out. Theme is checked under ⋯ > View > Theme (there is no Settings theme row).
 6. Results go on the Release work item. Gonq PRs auto-merge on green and QE verifies afterward, so any failure becomes a new rework story, never a pre-merge gate.
 
 **FE/BE contract.** None.
@@ -1162,6 +1281,13 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 - Theme tokens only (`styles/tokens.css`). The logo is never recoloured.
 - Per-feature test files next to the feature. Mobile App-level tests use `renderMobileApp()`.
 - Nothing heavy runs on the Jenkins box: no cargo, Gradle or NDK there. Background CI waits are bounded at about three times the last recorded run.
+- **Desktop wins over the mockup.** Use the desktop strings, button roles and rules verbatim. A mobile adaptation (layout, sheets, stacked buttons, icons with the desktop label as accessible name) must keep roles, labels and rules. If a mockup frame disagrees with the desktop source, the frame is wrong and the story reports it.
+- **Registry labels and shortcuts.** Menus show the registry labels ("New", "Open…", "Open PR…") and Ctrl-style shortcuts, never macOS glyphs.
+- **44 px tap-target rule.** Every interactive element has a hit area of at least 44 x 44 CSS px, including accessory-bar and table-bar buttons, the Raw switch segments, tabs, the tab "+" and close controls, text buttons and bottom-bar items. The visual may be smaller if the hit area is padded. Each UI story's Playwright test measures its bounding boxes on a Pixel profile.
+- **Nothing clips silently.** A row of buttons or tabs that overflows scrolls horizontally with a visible cue.
+- **Failures use the global error/notice banner.** The desktop error banner and dismissible notice (for example "No changes to commit", "GitHub sign-in is no longer valid. Sign in again to open a repository.") need a mobile equivalent; stories use it instead of inventing per-screen failure states.
+- **No new shared registry commands for mobile-only chrome.** Outline, Comments and Folder navigator are mobile top-bar buttons (D5). Desktop menus and `MenuTree.test.tsx` stay unchanged.
+- **Opener allow-list.** `capabilities/mobile.json` allows exactly `https://github.com/crashtest00/gonq` (About), `https://github.com/login/device` (sign-in) and `https://github.com/*/pull/*` (read-only banner, Open PR result). A test asserts the list.
 
 ## 6. Risks and open questions (ranked)
 
@@ -1170,13 +1296,14 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 | R-1 | **Android keystore and TLS init unverified** | `android-native-keyring-store` needs the Android context through `ndk-context`, which Tauri Mobile is documented to provide but which has not been run here. `rustls-platform-verifier` (pulled in by `reqwest` 0.13) needs its own JNI init and Android component. Missing either means session-only tokens and/or every GitHub call failing TLS. | M-10, M-13 | Exercised at M-13, the earliest point both can run on a release APK. M-13 gates all UI. |
 | R-2 | **Workspace conversion breaks the pipeline** | M-01 changes every path that Jenkins (the `Rust checks` filter `^src-tauri/`), `rust-checks.yml`, `build-desktop.yml`, `release-desktop.yml`, the `Dockerfile` and `project-map.mjs` depend on. Workspace `npm test` adds load on a box that has failed vitest under load. A missed path makes Rust checks skip silently, or breaks the desktop release only at the next tag. | M-01 | Criteria 5 to 9 prove each consumer. The single authorized `build-desktop.yml` run proves the desktop build before any RC. Dispatch with nothing else in flight. |
 | R-3 | **Android folder picking and the local-folder model** | `tauri-plugin-dialog` folder picking on Android is UNVERIFIED. `content://` trees are not paths, and `recents.rs`, the fs scope and the `files.ts` routing assume paths. | M-14, M-30, M-31 | The spike runs right after the first APK. The stories stay "pending". The app-documents-only fallback is presented to the owner. |
-| R-4 | **Suspension during the device flow** | One long Rust poll with an `Instant` deadline. Android suspends the app and `CLOCK_MONOTONIC` stalls in deep sleep. The `invoke` may never resolve. The process may be killed, losing the in-memory device code by design. | M-11, M-13 | Re-poll on resume, a wall-clock deadline, `github_pending`, and an explicit "interrupted" state. Proven at M-13. |
+| R-4 | **Suspension during the device flow** | One long Rust poll with an `Instant` deadline. Android suspends the app and `CLOCK_MONOTONIC` stalls in deep sleep. The `invoke` may never resolve. The process may be killed, losing the in-memory device code by design. | M-11, M-13 | Re-poll on resume, a wall-clock deadline, `github_pending`, and a fall back to the idle Start screen if the process was killed (D9). Proven at M-13. |
 | R-5 | **Release keystore loss or change** | Android refuses updates signed by a different certificate. Testers must uninstall, losing the stored token. | M-08, M-09, M-32 | Owner-held offline backups. The pinned fingerprint fails any build signed with a different key. |
 | R-6 | **QE cannot verify native flows on Beta** | Beta is a web build, so GitHub and local actions error there by rule. | M-17 to M-31 | Vitest with mocked bindings, Beta `/mobile/` for layout and error paths, the M-13 gate, and the M-34 acceptance pass. |
 | R-7 | **tauri-specta maturity** | The Tauri 2 line has long been a release candidate. Raw `ipc::Response` and zeroizing types need overrides. | M-02 | Fallback to `specta` with a hand-listed command set. The drift check still applies. |
 | R-8 | **Touch editing quality** | CodeMirror 6 composition near widgets with Gboard, and native long-press selection versus Gonq's sheet. | M-21, M-24, M-25 | Official CodeMirror hooks only. A human real-phone browser check per editor story, not only at acceptance. |
 | R-9 | **APK attach timing on the Release** | `release-mobile.yml` must wait for `release-desktop.yml` to create the Release. A desktop failure leaves no Release to attach to. | M-32 | Wait and retry, never create, fail loudly, and keep the APK as a workflow artifact. |
 | R-10 | **SSH leaking into the mobile app** | The bindings are generated with `ssh` on, so mobile TS could call missing commands. | M-05, M-25 | `appKind()` errors in `connect.ts` and `remote.ts`, the tested exclusion list, and the CI `cargo tree` check on the Android target. |
+| R-11 | **Open PR source list empty on Android** | The "Branch to merge" list is in memory only (decision D2). Android kills background apps, so after a restart the list is empty and the user must commit or open a branch tab first. | M-23, M-34 | Accepted desktop parity. The empty text "No branches to merge from this session." must read clearly, and M-34 checks it after a force-stop. |
 
 **Open questions.** None of the owner decisions remain open. The inputs still needed are I-1 to I-5 (section 2).
 
@@ -1184,6 +1311,8 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 
 - **Offline sync or a "Synced" state.** Desktop has none; it opens and saves directly to the source. The owner dropped it.
 - **Document search tab.** Not in desktop; the owner dropped it. In-document find (`@codemirror/search`) is already in the shared editor.
+- **A touch entry for "Find in document".** Desktop has no menu command for it, and the owner excluded it (D10).
+- **A mobile-only "sign-in interrupted" state.** After Android kills the app mid-flow, the user lands on the idle Start screen (D9).
 - **SSH remote folders on mobile.** The owner dropped them; they are compiled out (M-05).
 - **Multiple GitHub accounts.** Listed as "Not supported" in `docs/github-review.md`; there is one `SERVICE`/`ACCOUNT` keystore entry.
 - **Fork-based PRs, draft PRs, reviewers, PR status, deleting branches.** Also on the desktop "Not supported" list; parity means not adding them.
@@ -1192,6 +1321,7 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 - **Tablet layouts.** Phone layout first. Hardware-keyboard shortcuts already work through the registry.
 - **An in-app updater.** Desktop has it disabled. Testers install new APKs from the GitHub Release.
 - **Push notifications.** No desktop equivalent.
+- **Features the mockup invented that desktop lacks.** A Settings theme row, a tab switcher sheet, aggregate open/resolved comment counts, a "default" badge on branches, per-branch "commits ahead" counts in the Open PR source list, a persisted Open PR source list, an editable commit message or Author line, avatar and full name for the signed-in user, a tagline, release notes and licences buttons, a build number, and external-change detection for local files.
 
 ## 8. Deferred: iOS and stores
 
@@ -1217,3 +1347,32 @@ These are out of this plan. Each needs its own owner go-ahead.
   - An AAB build, an internal-testing track, and a first upload done by hand in the Console.
 - **Store listings and review.** Privacy labels (the GitHub token, repository contents), screenshots, and store review of an editor with remote access.
 - **Production promotion.** A public store release is a separate human decision. Nothing in this plan promotes to production.
+
+---
+
+## 9. Changes in this revision
+
+This revision aligns the plan with the real desktop implementation (v0.1.5) and the owner's decisions D1 to D8. No stories were added or removed; ids are unchanged.
+
+| Story | What changed, and why |
+|---|---|
+| Header, section 2 | Source is now v0.1.5 and the corrected mockup; added the precedence rule (desktop wins); decisions D1 to D8 added; input I-1 rewritten as the frames still missing, with the stories each blocks; I-5 must exceed the version on `dev`. |
+| M-01 | Criterion 7 expects About to show 0.1.5, the current version. |
+| M-07 | Splash uses the real `gonq-logo-OUTLINE.svg`, no tagline, no invented mark (D6). |
+| M-17 | Rewritten criteria: all sign-in states with desktop strings, idle Start screen (D7), `@login` only (no avatar or name), sign-in redirect from Open Repo/Open PR. Mockup auto-start and invented strings removed. |
+| M-18 | Recents rows, relative times, remove control, empty text, Open Folder and Open Repo entries, "+" as File > New, Connect to Server removed everywhere; loading/error frames pointed at I-1. |
+| M-19 | Picker and navigator carry desktop strings, badges, states and caps; no descriptions, counts, "default" badge or invented empty-state button. |
+| M-20 | Create branch has the fixed `gonq/` prefix, desktop validation and button texts; Change branch? uses the real title, body and "Close document", only for the dirty active document. |
+| M-21 | Accessory bar limited to desktop formats (no H1/quote/code), scroll cue, 44 px rule, Raw switch accessible name and read-only availability. |
+| M-22 | Commit sheet matches desktop (D1): warning on any non-`gonq/` branch, button roles, fixed message, no Author; real conflict dialog, GitHub only (D8); exact read-only text and "Open PR" link; removed the criterion gating Format commands on read-only (desktop does not); allow-list stated as exactly three entries. |
+| M-23 | Rewritten to the real structure (D2): Repository, Branch to merge (in-memory list, empty state), Merge into, Review, details, result. Back discards edits (was "keeps edits"). Title/body defaults, outcomes and "Open in browser" added. Title changed from "3 steps" to "four screens". |
+| M-24 | Table bar replaces the formatting bar with switch buttons both ways (D4); all ten ops in desktop order; disabled/pressed states; 44 px rule. |
+| M-25 | Menu uses registry labels and the full tree; Theme only here (D3); Outline/Comments/Folder navigator are mobile top-bar buttons, no new registry commands (D5); "Find" and "Outline" menu rows excluded; long-press order fixed, no "Insert link…"; Ctrl shortcuts. |
+| M-26 | Removed "open/resolved counts" (desktop has per-thread badges only); added list, empty text, Comments top-bar button (D5). |
+| M-27 | Added draft label and placeholder, edit/delete controls with the delete confirmation, Add Comment disabled on read-only; removed the accessory-bar button. |
+| M-28 | Tab strip instead of a tab switcher sheet; dirty dot after the label only; same-name labels; Outline drawer with its top-bar button, no current-heading highlight; exact Unsaved dialog strings; conflict dialog delegated to M-22 (D8). |
+| M-29 | Settings holds only author name and GitHub (no theme row, D3); validation, Save/Cancel, GitHub row states; About with the real logo, no tagline or extra buttons, repo link with an opener allow-list test; Agent skill strings and buttons; About and Agent skill reached from the Help menu. |
+| M-31 | Folder navigator top-bar button (D5), desktop strings and Refresh rules. |
+| M-33 | New version must exceed the version on `dev` (0.1.5 now), keeping the bump consistent with the current app version. |
+| M-34 | Checklist adds the non-`gonq/` commit warning, the empty Branch-to-merge list after force-stop, the sign-in Start screen, and theme via the ⋯ menu. |
+| Section 5, 6, 7 | Cross-cutting rules added (desktop wins, registry labels, 44 px tap targets, no silent clipping, global error banner, no shared commands for mobile chrome, opener allow-list); risk R-11 added; "not building" list extended with the mockup-only features. |

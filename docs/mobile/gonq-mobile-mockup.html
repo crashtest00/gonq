@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<!--
+  Gonq mobile screen set, v3 (Android). Corrected against the desktop app on origin/dev (version 0.1.5).
+  Fonts: the app bundles Public Sans and JetBrains Mono through @fontsource; the Google Fonts link below only
+  serves this standalone mockup. The logo is the real gonq-logo-OUTLINE.svg, embedded as a data URI, not recoloured.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gonq — Mobile Screen Set (v3)</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#0B0C10;font-family:'Public Sans',sans-serif;color:#EDEEF0;padding:0 28px 80px;}
+  .page-head{position:sticky;top:0;z-index:50;background:#0B0C10;padding:18px 0 14px;border-bottom:1px solid #1D2229;display:flex;gap:24px;align-items:center;flex-wrap:wrap;}
+  .page-head h1{font-size:16px;font-weight:700;}
+  .page-head .sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8A8F98;}
+  .filter{display:flex;gap:6px;margin-left:auto;}
+  .filter button{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;background:#14171F;color:#8A8F98;border:1px solid #2A2F38;border-radius:6px;padding:7px 12px;cursor:pointer;}
+  .filter button.on{background:#177A59;color:#fff;border-color:#177A59;}
+  body.only-light .dark-w{display:none;}
+  body.only-dark .light-w{display:none;}
+
+  .sec{margin-top:44px;}
+  .sec-h{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px;}
+  .sec-h .n{font-family:'JetBrains Mono',monospace;font-size:12px;color:#8A8F98;}
+  .sec-h h2{font-size:20px;font-weight:700;}
+  .sec-h .src{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8A8F98;}
+  .sec-h .pri{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;padding:3px 8px;border-radius:20px;border:1px solid #2A2F38;color:#8A8F98;}
+  .sec-h .pri.high{color:#2FA079;border-color:#177A59;}
+  .sec-note{font-size:13px;color:#8A8F98;max-width:860px;line-height:1.55;margin-bottom:14px;}
+  .sec-note b{color:#C9CCD2;}
+  .sec-note code{font-family:'JetBrains Mono',monospace;font-size:12px;color:#C9CCD2;}
+  .frames{display:flex;flex-wrap:wrap;gap:34px 30px;}
+  .cell .cap{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8A8F98;margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em;max-width:470px;}
+  .pair{display:flex;gap:14px;}
+  .pw{zoom:.6;}
+
+  /* ---------- Phone ---------- */
+  .phone{width:390px;height:844px;border-radius:44px;border:10px solid #000;overflow:hidden;position:relative;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font-size:15px;}
+  .status{height:48px;flex-shrink:0;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 6px;font-size:14px;font-weight:600;}
+  .status .r{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .ic{flex-shrink:0;}
+
+  .light{--bg:#F6F2E7;--surface:#FBF9F3;--ink:#14171F;--muted:#6B6659;--line:#DAD4C4;
+         --primary:#146872;--primary-icon:#1E8A96;--link:#146872;--secondary:#2F7D6B;--rust:#A6432E;
+         --npb:#A4DDED;--npb-ink:#1C6E86;--hl:#A4DDED;--kb:#D8D4C8;--key:#FBF9F3;--scrim:rgba(20,23,31,.38);
+         --sel:rgba(20,104,114,.10);--selhi:rgba(30,138,150,.28);--warnbg:rgba(166,67,46,.08);--warnline:rgba(166,67,46,.38);
+         --dfill:#A6432E;--on-dfill:#fff;--skel:#E8E2D2;--ba:#A9812F;--bb:#D4AF6A;--pressed:#E3DCCB;}
+  .dark{--bg:#14171F;--surface:#1D2229;--ink:#EDEEF0;--muted:#8A8F98;--line:#2A2F38;
+        --primary:#177A59;--primary-icon:#2FA079;--link:#2FA079;--secondary:#9C3B4F;--rust:#D66A52;
+        --npb:#A4DDED;--npb-ink:#7FCBDE;--hl:rgba(164,221,237,.22);--kb:#262B33;--key:#3A404A;--scrim:rgba(0,0,0,.58);
+        --sel:rgba(47,160,121,.14);--selhi:rgba(47,160,121,.38);--warnbg:rgba(214,106,82,.12);--warnline:rgba(214,106,82,.45);
+        --dfill:#D66A52;--on-dfill:#14171F;--skel:#2A2F38;--ba:#C9A227;--bb:#E8C77A;--pressed:#343A44;}
+
+  /* ---------- Bars ---------- */
+  .topbar{height:52px;flex-shrink:0;display:flex;align-items:center;gap:4px;padding:0 6px;border-bottom:1px solid var(--line);}
+  .ib{width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0;border-radius:8px;}
+  .ib.on{background:var(--sel);color:var(--link);}
+  .ib.dis{opacity:.4;}
+  .topbar .ttl{flex:1;min-width:0;padding:0 4px;}
+  .topbar .t1{font-weight:600;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .topbar .t2{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center;white-space:nowrap;overflow:hidden;}
+  .topbar .ttl.c{text-align:center;}
+  .topbar .act{font-weight:600;font-size:15px;color:var(--link);padding:0 12px;height:44px;display:flex;align-items:center;flex-shrink:0;}
+  .toolrow{height:48px;flex-shrink:0;display:flex;align-items:center;gap:2px;padding:0 6px;border-bottom:1px solid var(--line);}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;padding:0;height:46px;flex-shrink:0;overflow:hidden;}
+  .seg div{width:46px;height:44px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--muted);}
+  .seg .on{background:var(--primary);color:#fff;}
+  .tabs{height:52px;flex-shrink:0;position:relative;border-bottom:1px solid var(--line);overflow:hidden;}
+  .tabs-sc{display:flex;align-items:center;gap:4px;height:100%;padding:0 8px;overflow:hidden;}
+  .tab-i{height:44px;border-radius:8px;padding:0 0 0 12px;display:flex;align-items:center;font-size:14px;font-weight:500;color:var(--muted);white-space:nowrap;flex-shrink:0;max-width:220px;}
+  .tab-i .tl{overflow:hidden;text-overflow:ellipsis;}
+  .tab-i.on{background:var(--surface);border:1px solid var(--line);color:var(--ink);font-weight:600;}
+  .tab-i .dirty{margin-left:6px;color:var(--link);font-size:12px;}
+  .tab-x{width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0;}
+  .tab-add{width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0;}
+  .cue{position:absolute;right:0;top:0;bottom:0;width:56px;background:linear-gradient(90deg,rgba(0,0,0,0),var(--bg) 62%);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:var(--muted);pointer-events:none;}
+  .banner{flex-shrink:0;display:flex;gap:10px;align-items:center;padding:6px 8px 6px 16px;background:var(--surface);border-bottom:1px solid var(--line);font-size:14px;line-height:1.45;}
+  .banner .ic{color:var(--link);}
+  .banner span.t{flex:1;}
+  .lnk{color:var(--link);font-weight:600;white-space:nowrap;text-decoration:underline;min-height:44px;min-width:44px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .gerr{margin:10px 16px 0;border:1px solid var(--rust);color:var(--rust);border-radius:6px;padding:10px 12px;font-size:14px;line-height:1.45;flex-shrink:0;}
+  .gnote{margin:10px 16px 0;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:0 0 0 12px;font-size:14px;line-height:1.45;display:flex;align-items:center;gap:6px;flex-shrink:0;}
+  .gnote span.t{flex:1;padding:10px 0;}
+  .gnote .nx{width:44px;height:44px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+  /* ---------- Editor ---------- */
+  .canvas{flex:1;overflow:hidden;padding:18px 22px 0;position:relative;min-height:0;}
+  .canvas h1{font-size:26px;font-weight:700;line-height:1.2;margin-bottom:14px;letter-spacing:-.01em;}
+  .canvas .h2{font-size:18px;font-weight:600;margin:18px 0 8px;}
+  .canvas p{font-size:16px;line-height:1.65;margin-bottom:12px;}
+  .canvas ul{margin:0 0 12px 20px;font-size:16px;line-height:1.7;}
+  .canvas blockquote{border-left:3px solid var(--primary-icon);padding-left:14px;color:var(--muted);font-size:16px;line-height:1.6;margin:6px 0 12px;}
+  .canvas.raw{font-family:'JetBrains Mono',monospace;font-size:13.5px;line-height:1.75;white-space:pre-wrap;padding-top:16px;}
+  .raw .mk{color:var(--link);}
+  .raw .b{font-weight:600;}
+  .hl{background:var(--hl);border-radius:3px;padding:1px 2px;}
+  .selr{background:var(--selhi);border-radius:2px;}
+  .marker{display:inline-flex;width:22px;height:22px;border-radius:11px;background:var(--npb);color:#14303a;font-size:12px;align-items:center;justify-content:center;vertical-align:middle;margin-left:2px;}
+  .caret{display:inline-block;width:2px;height:18px;background:var(--primary-icon);vertical-align:text-bottom;margin-left:1px;}
+  table.tbl{border-collapse:collapse;width:100%;font-size:14px;margin:6px 0 12px;}
+  table.tbl td,table.tbl th{border:1px solid var(--line);padding:9px 10px;text-align:left;}
+  table.tbl th{background:var(--surface);font-weight:600;}
+  table.tbl .cellsel{outline:2px solid var(--primary-icon);outline-offset:-2px;}
+
+  .kbtool{height:56px;flex-shrink:0;display:flex;align-items:center;gap:4px;padding:0 6px;border-top:1px solid var(--line);background:var(--surface);}
+  .kb-wrap{position:relative;flex:1;min-width:0;height:44px;overflow:hidden;}
+  .kb-sc{display:flex;gap:2px;height:44px;align-items:center;}
+  .kb-cue{position:absolute;right:0;top:0;bottom:0;width:48px;background:linear-gradient(90deg,rgba(0,0,0,0),var(--surface) 65%);display:flex;align-items:center;justify-content:flex-end;color:var(--muted);pointer-events:none;}
+  .kb-bar{position:absolute;left:0;bottom:-6px;height:3px;border-radius:2px;background:var(--line);}
+  .tb{width:44px;height:44px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--ink);flex-shrink:0;}
+  .tb.dis{opacity:.35;}
+  .tb.pressed{background:var(--pressed);}
+  .vdiv{width:1px;height:24px;background:var(--line);flex-shrink:0;margin:0 3px;}
+  .swap{height:44px;padding:0 12px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:var(--link);flex-shrink:0;}
+  .keyboard{height:262px;flex-shrink:0;background:var(--kb);padding:10px 4px 0;}
+  .keyboard .kr{display:flex;justify-content:center;gap:5px;margin-bottom:11px;}
+  .keyboard .k{width:32px;height:42px;border-radius:5px;background:var(--key);display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 1px 0 rgba(0,0,0,.25);}
+  .keyboard .k.w{width:46px;}
+  .keyboard .k.space{width:200px;}
+  .home{height:26px;flex-shrink:0;display:flex;justify-content:center;align-items:flex-start;}
+  .home i{width:130px;height:5px;border-radius:3px;background:var(--ink);opacity:.5;}
+
+  /* ---------- Overlays ---------- */
+  .scrim{position:absolute;inset:0;background:var(--scrim);z-index:5;}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-radius:16px 16px 0 0;border-top:1px solid var(--line);display:flex;flex-direction:column;padding-bottom:30px;}
+  .handle{width:40px;height:5px;border-radius:3px;background:var(--line);margin:10px auto 8px;flex-shrink:0;}
+  .sh-t{padding:4px 20px 12px;font-weight:700;font-size:18px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .sh-b{padding:0 20px;}
+  .dlg{position:absolute;left:20px;right:20px;top:50%;transform:translateY(-50%);z-index:6;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:22px 20px 20px;box-shadow:0 12px 32px rgba(0,0,0,.3);}
+  .dlg h3{font-size:18px;font-weight:700;margin-bottom:8px;line-height:1.35;word-break:break-word;}
+  .dlg p{font-size:15px;line-height:1.5;color:var(--muted);margin-bottom:18px;}
+  .dlg .row{display:flex;gap:10px;}
+  .dlg .col{display:flex;flex-direction:column;gap:8px;}
+  .drawer{position:absolute;left:0;top:48px;bottom:0;width:310px;z-index:6;background:var(--surface);border-right:1px solid var(--line);padding-top:0;display:flex;flex-direction:column;}
+  .pop{position:absolute;z-index:6;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.3);min-width:220px;padding:6px;}
+  .pop .pr{height:44px;padding:0 12px;display:flex;align-items:center;border-radius:6px;font-size:15px;}
+  .pop .pr.dis{opacity:.4;}
+  .pop hr{border:none;border-top:1px solid var(--line);margin:4px 0;}
+
+  /* ---------- Form bits ---------- */
+  .btn{height:44px;padding:0 18px;border-radius:6px;font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;white-space:nowrap;flex-shrink:0;}
+  .btn.block{width:100%;}
+  .btn.fl{flex:1;}
+  .btn.sm{padding:0 14px;font-size:14px;}
+  .btn.dis{opacity:.45;}
+  .b-primary{background:var(--primary);color:#fff;}
+  .b-out{border-color:var(--line);color:var(--ink);background:transparent;}
+  .b-dest{background:var(--dfill);color:var(--on-dfill);}
+  .b-destout{border-color:var(--warnline);color:var(--rust);background:transparent;}
+  .b-text{color:var(--link);}
+  .lbl{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px;display:block;}
+  .field{min-height:44px;border:1px solid var(--line);border-radius:6px;padding:0 12px;display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink);background:var(--bg);}
+  .field.ph{color:var(--muted);}
+  .field.focus{border-color:var(--primary-icon);box-shadow:0 0 0 3px var(--sel);}
+  .field.bad{border-color:var(--rust);}
+  .field.area{align-items:flex-start;padding:11px 12px;line-height:1.5;}
+  .field.ro{background:transparent;}
+  .field .ic{color:var(--muted);}
+  .pfx{color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:14px;}
+  .hint{font-size:13px;color:var(--muted);line-height:1.45;margin-top:6px;}
+  .hint.err{color:var(--rust);font-weight:500;}
+  .err{color:var(--rust);font-size:14px;line-height:1.45;}
+  .fg{margin-bottom:16px;}
+  .badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--muted);white-space:nowrap;}
+  .pill{font-size:12px;font-weight:600;padding:2px 9px;border-radius:20px;}
+  .pill.open{background:var(--npb);color:#14303a;}
+  .pill.res{background:var(--line);color:var(--muted);}
+  mark{background:var(--hl);color:inherit;border-radius:2px;}
+  .body{flex:1;overflow:hidden;min-height:0;position:relative;}
+  .pad{padding:20px;}
+  .lbl-up{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:16px 20px 8px;}
+  .foot{flex-shrink:0;display:flex;gap:10px;padding:12px 20px 4px;border-top:1px solid var(--line);}
+  .note{font-size:13px;color:var(--muted);line-height:1.45;}
+  .stline{display:flex;align-items:center;gap:10px;font-size:14.5px;color:var(--muted);}
+  .spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--primary-icon);flex-shrink:0;}
+  .dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14.5px;margin-bottom:16px;}
+  .dl dt{color:var(--muted);}
+  .dl dd{word-break:break-all;}
+  .card{border:1px solid var(--line);border-radius:8px;padding:14px;background:var(--bg);}
+
+  /* ---------- Lists ---------- */
+  .li{display:flex;align-items:center;gap:12px;padding:0 20px;min-height:56px;border-bottom:1px solid var(--line);}
+  .li .ic{color:var(--muted);}
+  .li .m{flex:1;min-width:0;}
+  .li .t{font-size:15.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .li .t .o{color:var(--muted);font-weight:500;}
+  .li .d{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+  .li .d.mono{font-family:'JetBrains Mono',monospace;font-size:11.5px;}
+  .li .r{font-size:12px;color:var(--muted);white-space:nowrap;}
+  .li.sel{background:var(--sel);}
+  .li.pad2{padding-top:8px;padding-bottom:8px;}
+  .li.slim{min-height:48px;}
+  .radio{width:20px;height:20px;border-radius:50%;border:2px solid var(--line);flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .radio.on{border-color:var(--primary-icon);}
+  .radio.on::after{content:'';width:10px;height:10px;border-radius:50%;background:var(--primary-icon);}
+  .tr{display:flex;align-items:center;gap:8px;min-height:44px;padding-right:16px;font-size:15px;}
+  .tr .ic{color:var(--muted);}
+  .tr.sel{background:var(--sel);color:var(--link);font-weight:600;}
+  .tr.sel .ic{color:var(--link);}
+  .tr .ch{width:16px;display:flex;justify-content:center;}
+  .tr.msg{font-size:14px;color:var(--muted);}
+  .tr.msg.e{color:var(--rust);}
+  .ctl{padding:12px 16px 10px;border-bottom:1px solid var(--line);}
+  .ctl .row{display:flex;gap:8px;margin-top:8px;}
+  .bsel{height:44px;border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 12px;font-family:'JetBrains Mono',monospace;font-size:14px;}
+  .bsel .ic{color:var(--muted);}
+  .bsel .ch{margin-left:auto;}
+  .sech{font-size:14px;font-weight:700;padding:14px 20px 8px;}
+
+  /* ---------- Menu ---------- */
+  .mgrp{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 20px 4px;}
+  .mrow{display:flex;align-items:center;gap:10px;height:44px;padding:0 20px;font-size:15.5px;}
+  .mrow.dis{opacity:.4;}
+  .mrow .mk{width:20px;display:flex;justify-content:center;color:var(--link);flex-shrink:0;}
+  .mrow .sub{margin-left:auto;color:var(--muted);display:flex;}
+  .msep{border-top:1px solid var(--line);margin:4px 20px;}
+  .cbx{width:18px;height:18px;border:2px solid var(--muted);border-radius:4px;}
+
+  /* ---------- Recents / tabbar ---------- */
+  .dhead{padding:10px 20px 4px;}
+  .dhead .big{font-size:28px;font-weight:700;letter-spacing:-.01em;}
+  .entry{display:flex;gap:10px;padding:12px 16px 4px;}
+  .entry .btn{flex:1;padding:0 10px;font-size:14px;}
+  .entry .btn .ic{color:var(--link);}
+  .rlist{flex:1;overflow:hidden;position:relative;min-height:0;}
+  .rx{width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0;margin-right:-10px;}
+  .fab{position:absolute;right:20px;bottom:18px;width:56px;height:56px;border-radius:16px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.25);}
+  .tabwrap{flex-shrink:0;border-top:1px solid var(--line);background:var(--surface);}
+  .tabwrap .home{height:22px;}
+  .tabbar{height:58px;display:flex;padding-top:6px;}
+  .tabbar .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12.5px;font-weight:600;color:var(--muted);}
+  .tabbar .tab.on{color:var(--link);}
+
+  /* ---------- Specific ---------- */
+  .codebox{display:flex;gap:10px;align-items:center;margin-bottom:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:8px 8px 8px 14px;}
+  .code{flex:1;white-space:nowrap;font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:600;letter-spacing:.08em;}
+  .addr{display:flex;gap:10px;align-items:center;margin-bottom:14px;font-size:13px;color:var(--muted);}
+  .addr span{flex:1;min-width:0;word-break:break-all;}
+  .steps{display:flex;padding:12px 16px 10px;gap:6px;border-bottom:1px solid var(--line);flex-shrink:0;}
+  .steps .s{flex:1 1 auto;min-width:0;}
+  .steps .bar{height:3px;border-radius:2px;background:var(--line);margin-bottom:7px;}
+  .steps .s.on .bar,.steps .s.done .bar{background:var(--primary-icon);}
+  .steps .nm{font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap;}
+  .steps .s.on .nm,.steps .s.done .nm{color:var(--ink);}
+  .sk{height:12px;border-radius:6px;background:var(--skel);}
+  .skrow{display:flex;gap:12px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);}
+  .skrow .sk.ico{width:20px;height:20px;border-radius:5px;}
+  .empty{text-align:center;padding:64px 28px 0;}
+  .empty .ico{width:56px;height:56px;border-radius:14px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;background:var(--sel);color:var(--link);}
+  .empty p{font-size:15px;line-height:1.5;color:var(--muted);margin-bottom:20px;}
+  .diff{font-family:'JetBrains Mono',monospace;font-size:12px;white-space:nowrap;}
+  .diff .a{color:var(--link);} .diff .d{color:var(--rust);}
+  .splash{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;}
+  .anchor{border-left:2px solid var(--npb);padding-left:10px;font-size:13.5px;font-style:italic;color:var(--muted);line-height:1.45;}
+  .th{padding:14px 20px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:7px;}
+  .msgh{font-size:12.5px;font-weight:600;color:var(--muted);}
+  .msgb{font-size:15px;line-height:1.5;}
+  .preview{border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:12px 14px;font-size:13.5px;line-height:1.5;overflow:hidden;}
+  .preview h4{font-size:16px;margin-bottom:8px;}
+  .preview h5{font-size:14px;margin:10px 0 6px;}
+  .preview pre{font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5;color:var(--muted);margin:6px 0;white-space:pre-wrap;}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Gonq — mobile screen set (Android) · v3</h1>
+  <span class="sub">frames · light + dark · 390×844 portrait</span>
+  <div class="filter" id="filter">
+    <button data-m="both" class="on">Both</button><button data-m="light">Light</button><button data-m="dark">Dark</button>
+  </div>
+</div>
+<div id="root"></div>
+
+<script>
+/* ============ Logo (real gonq-logo-OUTLINE.svg from origin/dev, editor export metadata removed, colours untouched) ============ */
+const LOGO='data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjxzdmcKICAgd2lkdGg9IjU4NSIKICAgaGVpZ2h0PSI1ODUiCiAgIHZpZXdCb3g9IjAgMCA1ODQuOTk5OTkgNTg1IgogICB2ZXJzaW9uPSIxLjEiCiAgIGlkPSJzdmcxMSIKICAgc29kaXBvZGk6ZG9jbmFtZT0iZ29ucS1sb2dvLU9VVExJTkUuc3ZnIgogICBpbmtzY2FwZTp2ZXJzaW9uPSIxLjEuMiAoYjhlMjViZTgzMywgMjAyMi0wMi0wNSkiCgoKCiAgIHhtbG5zOmlua3NjYXBlPSJodHRwOi8vd3d3Lmlua3NjYXBlLm9yZy9uYW1lc3BhY2VzL2lua3NjYXBlIgogICB4bWxuczpzb2RpcG9kaT0iaHR0cDovL3NvZGlwb2RpLnNvdXJjZWZvcmdlLm5ldC9EVEQvc29kaXBvZGktMC5kdGQiCiAgIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIgogICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgIHhtbG5zOnN2Zz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxzb2RpcG9kaTpuYW1lZHZpZXcKICAgICBpZD0ibmFtZWR2aWV3MjQiCiAgICAgcGFnZWNvbG9yPSIjZmZmZmZmIgogICAgIGJvcmRlcmNvbG9yPSIjNjY2NjY2IgogICAgIGJvcmRlcm9wYWNpdHk9IjEuMCIKICAgICBpbmtzY2FwZTpwYWdlc2hhZG93PSIyIgogICAgIGlua3NjYXBlOnBhZ2VvcGFjaXR5PSIwLjAiCiAgICAgaW5rc2NhcGU6cGFnZWNoZWNrZXJib2FyZD0iMCIKICAgICBzaG93Z3JpZD0iZmFsc2UiCiAgICAgc2hvd2d1aWRlcz0iZmFsc2UiCiAgICAgaW5rc2NhcGU6Z3VpZGUtYmJveD0idHJ1ZSIKICAgICBpbmtzY2FwZTp6b29tPSIxIgogICAgIGlua3NjYXBlOmN4PSIyNzgiCiAgICAgaW5rc2NhcGU6Y3k9IjM0OCIKICAgICBpbmtzY2FwZTp3aW5kb3ctd2lkdGg9IjE0ODciCiAgICAgaW5rc2NhcGU6d2luZG93LWhlaWdodD0iOTY1IgogICAgIGlua3NjYXBlOndpbmRvdy14PSIwIgogICAgIGlua3NjYXBlOndpbmRvdy15PSIwIgogICAgIGlua3NjYXBlOndpbmRvdy1tYXhpbWl6ZWQ9IjAiCiAgICAgaW5rc2NhcGU6Y3VycmVudC1sYXllcj0idGV4dDMzODY0IgogICAgIHdpZHRoPSI1ODVweCI+CiAgICA8c29kaXBvZGk6Z3VpZGUKICAgICAgIHBvc2l0aW9uPSItNDg5Ljk0MzYsMTM4OS41ODE0IgogICAgICAgb3JpZW50YXRpb249IjEsMCIKICAgICAgIGlkPSJndWlkZTM1MDkiIC8+CiAgICA8c29kaXBvZGk6Z3VpZGUKICAgICAgIHBvc2l0aW9uPSItOTAwLjY5MTk1LDEzNDAuODE2IgogICAgICAgb3JpZW50YXRpb249IjAsLTEiCiAgICAgICBpZD0iZ3VpZGUzODQzIiAvPgogICAgPHNvZGlwb2RpOmd1aWRlCiAgICAgICBwb3NpdGlvbj0iLTUzMS45NTc4NywxMzUzLjgzMTIiCiAgICAgICBvcmllbnRhdGlvbj0iMCwtMSIKICAgICAgIGlkPSJndWlkZTM4NDUiIC8+CiAgICA8c29kaXBvZGk6Z3VpZGUKICAgICAgIHBvc2l0aW9uPSItMTIxOC42MjQ4LDEzODYuMDcwOCIKICAgICAgIG9yaWVudGF0aW9uPSIxLDAiCiAgICAgICBpZD0iZ3VpZGU0ODM4IiAvPgogIDwvc29kaXBvZGk6bmFtZWR2aWV3PgogIDxkZWZzCiAgICAgaWQ9ImRlZnMyIj4KICAgIDxyZWN0CiAgICAgICB4PSIxNTUxLjcyNDEiCiAgICAgICB5PSI0MDcuMjU5NTIiCiAgICAgICB3aWR0aD0iMzA5LjI1NTg5IgogICAgICAgaGVpZ2h0PSIyMzUuMjA4NzEiCiAgICAgICBpZD0icmVjdDQyNzE5IiAvPgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQyOTkzNSIKICAgICAgIHgxPSIxNjIuNTkwNjciCiAgICAgICB4Mj0iMzE2LjAzMTIyIgogICAgICAgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgwLjcxMDM3Mjg4LDAsMCwxLjQwNzcxMTQsNjUuMjA4NzEyLDMuNDU4MjU3OSkiCiAgICAgICB5MT0iNzkuMjA2NTczIgogICAgICAgeTI9Ijc5LjIwNjU3MyIKICAgICAgIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDI5OTMxIgogICAgICAgICBzdHlsZT0ic3RvcC1jb2xvcjojMmE4NTQ4O3N0b3Atb3BhY2l0eToxIiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wMjk5MzMiCiAgICAgICAgIHN0eWxlPSJzdG9wLWNvbG9yOiMxOTRlMmI7c3RvcC1vcGFjaXR5OjEiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ0MjIyIgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3A0MjE4IiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wNDIyMCIKICAgICAgICAgc3R5bGU9InN0b3AtY29sb3I6IzUwYzg3ODtzdG9wLW9wYWNpdHk6MSIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJicmFzcy00IgogICAgICAgeDE9IjE2Mi41OTA2NyIKICAgICAgIHgyPSIzMTYuMDMxMjIiCiAgICAgICBncmFkaWVudFRyYW5zZm9ybT0ibWF0cml4KDAuNzEwMzcyODgsMCwwLDEuNDA3NzExNCw2NS4yMDg3MTIsMy40NTgyNTc5KSIKICAgICAgIHkxPSI3OS4yMDY1NzMiCiAgICAgICB5Mj0iNzkuMjA2NTczIgogICAgICAgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMTA5NyIKICAgICAgICAgc3R5bGU9InN0b3AtY29sb3I6IzJhODU0ODtzdG9wLW9wYWNpdHk6MSIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDEwOTkiCiAgICAgICAgIHN0eWxlPSJzdG9wLWNvbG9yOiM1MGM4Nzg7c3RvcC1vcGFjaXR5OjEiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0iYnJhc3MiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDEiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AyIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImJyYXNzLTQtMiIKICAgICAgIHgxPSIxNjIuNTkwNjciCiAgICAgICB4Mj0iMzE2LjAzMTIyIgogICAgICAgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgwLjcxMDM3Mjg4LDAsMCwxLjQwNzcxMTQsNjUuMjA4NzEyLDMuNDU4MjU3OSkiCiAgICAgICB5MT0iNzkuMjA2NTczIgogICAgICAgeTI9Ijc5LjIwNjU3MyIKICAgICAgIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDEtNyIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDItNSIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJicmFzcy00MyIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMS03NSIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDItNTciIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQzODYxIgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AzODU3IiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wMzg1OSIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDM4NjgiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDM4NjQiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AzODY2IiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImJyYXNzLTQ5IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AxLTYiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AyLTkiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQzOTY2IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AzOTYyIiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wMzk2NCIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDM5NzMiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDM5NjkiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AzOTcxIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50Mzk4MCIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMzk3NiIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDM5NzgiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQzOTg3IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AzOTgzIiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wMzk4NSIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDM5OTQiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDM5OTAiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AzOTkyIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50NDAwMSIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMzk5NyIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDM5OTkiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ0MDA4IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3A0MDA0IiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wNDAwNiIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDQwMTUiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDQwMTEiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3A0MDEzIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImJyYXNzLTQzLTEiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDEtNzUtMCIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDItNTctNiIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJicmFzcy0zIgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AxLTgiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AyLTciIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQzMDY1MSIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMzA2NDciIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AzMDY0OSIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDMwNjU4IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AzMDY1NCIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDMwNjU2IiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50MzA2NjUiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDMwNjYxIiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wMzA2NjMiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQzMDY3MiIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMzA2NjgiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AzMDY3MCIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDMwNjc5IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AzMDY3NSIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDMwNjc3IiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50MzA2ODYiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDMwNjgyIiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wMzA2ODQiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQzMDY5MyIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMzA2ODkiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AzMDY5MSIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDMwNzAwIgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AzMDY5NiIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDMwNjk4IiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50MzA3MDciCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDMwNzAzIiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wMzA3MDUiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQzMDcxNCIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMzA3MTAiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AzMDcxMiIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDMwNzIxIgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AzMDcxNyIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDMwNzE5IiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImJyYXNzLTQ0IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AxLTIiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AyLTAiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ0MzY3NiIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wNDM2NzIiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3A0MzY3NCIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDQzNjgzIgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3A0MzY3OSIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDQzNjgxIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50NDM2OTAiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDQzNjg2IiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wNDM2ODgiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ0MzY5NyIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wNDM2OTMiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3A0MzY5NSIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDQzNzA0IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3A0MzcwMCIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDQzNzAyIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50NDM3MTEiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDQzNzA3IiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wNDM3MDkiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ0MzcxOCIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wNDM3MTQiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3A0MzcxNiIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDQzNzI1IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3A0MzcyMSIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDQzNzIzIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImJyYXNzLTMtNCIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMS04LTEiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AyLTctNiIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJicmFzcy01IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AxLTAiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AyLTQiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ0Mzk5OSIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wNDM5OTUiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3A0Mzk5NyIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDM5NjYtOSIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMzk2Mi02IiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wMzk2NC0yIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImJyYXNzLTMtMSIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMS04LTUiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AyLTctNCIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJicmFzcy03IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AxLTEiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AyLTIiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ1MjgwOCIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wNTI4MDQiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3A1MjgwNiIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlua3NjYXBlOmNvbGxlY3Q9ImFsd2F5cyIKICAgICAgIHhsaW5rOmhyZWY9IiNicmFzcy00MyIKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDU5NTU5IgogICAgICAgeDE9IjExMzIuODY4NSIKICAgICAgIHkxPSIxMzU1LjY5OCIKICAgICAgIHgyPSIxNzI3LjI2MTEiCiAgICAgICB5Mj0iMTM1NS42OTgiCiAgICAgICBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIKICAgICAgIGdyYWRpZW50VHJhbnNmb3JtPSJtYXRyaXgoMC45OTg1MTQyMywwLDAsMS4yMzU4NjA1LC0xMTI2LjgxODksLTEzODQuOTI5MykiIC8+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJicmFzcy00My04IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AxLTc1LTkiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3AyLTU3LTAiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpbmtzY2FwZTpjb2xsZWN0PSJhbHdheXMiCiAgICAgICB4bGluazpocmVmPSIjYnJhc3MtNDMiCiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ1OTU5NyIKICAgICAgIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIgogICAgICAgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgwLjg3NDM4NDY0LDAsMCwxLjAyMzU2NzIsLTk0OS43MjE3OSwtMTEwMy4wNTc0KSIKICAgICAgIHgxPSIxMTMyLjg2ODUiCiAgICAgICB5MT0iMTM1NS42OTgiCiAgICAgICB4Mj0iMTcyNy4yNjExIgogICAgICAgeTI9IjEzNTUuNjk4IiAvPgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0iYnJhc3MtNDMtOSIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wMS03NS0xIiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wMi01Ny0yIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50ODU3NSIKICAgICAgIHgxPSIwIgogICAgICAgeDI9IjEiPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjAiCiAgICAgICAgIHN0b3AtY29sb3I9IiNBOTgxMkYiCiAgICAgICAgIGlkPSJzdG9wODU3MSIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDg1NzMiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpbmtzY2FwZTpjb2xsZWN0PSJhbHdheXMiCiAgICAgICB4bGluazpocmVmPSIjYnJhc3MtNDMiCiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ4NjI2IgogICAgICAgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiCiAgICAgICBncmFkaWVudFRyYW5zZm9ybT0ibWF0cml4KDAuMDU0ODk1OCwwLDAsMC4wNjc5NDQ0OSw5NTIuMDk5MzMsNzIzLjIzNjkzKSIKICAgICAgIHgxPSIxMTMyLjg2ODUiCiAgICAgICB5MT0iMTM1NS42OTgiCiAgICAgICB4Mj0iMTcyNy4yNjExIgogICAgICAgeTI9IjEzNTUuNjk4IiAvPgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpbmtzY2FwZTpjb2xsZWN0PSJhbHdheXMiCiAgICAgICB4bGluazpocmVmPSIjYnJhc3MtNDMiCiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ4NjI4IgogICAgICAgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiCiAgICAgICBncmFkaWVudFRyYW5zZm9ybT0ibWF0cml4KDAuMDQ4MDcxNDYsMCwwLDAuMDU2MjczMTQsOTYxLjgzNTY5LDczOC43MzM1NCkiCiAgICAgICB4MT0iMTEzMi44Njg1IgogICAgICAgeTE9IjEzNTUuNjk4IgogICAgICAgeDI9IjE3MjcuMjYxMSIKICAgICAgIHkyPSIxMzU1LjY5OCIgLz4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaWQ9ImJyYXNzLTQzLTUiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDEtNzUtNyIgLz4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBzdG9wLWNvbG9yPSIjRDRBRjZBIgogICAgICAgICBpZD0ic3RvcDItNTctMDMiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ4NjQ5IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3A4NjQ1IiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wODY0NyIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlua3NjYXBlOmNvbGxlY3Q9ImFsd2F5cyIKICAgICAgIHhsaW5rOmhyZWY9IiNicmFzcy00MyIKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDg3MDAiCiAgICAgICBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIKICAgICAgIGdyYWRpZW50VHJhbnNmb3JtPSJtYXRyaXgoMC4xMDk3OTE1LDAsMCwwLjEzNTg4ODg2LDEwMDQuODgwOCw2MzAuMjcxOTEpIgogICAgICAgeDE9IjExMzIuODY4NSIKICAgICAgIHkxPSIxMzU1LjY5OCIKICAgICAgIHgyPSIxNzI3LjI2MTEiCiAgICAgICB5Mj0iMTM1NS42OTgiIC8+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlua3NjYXBlOmNvbGxlY3Q9ImFsd2F5cyIKICAgICAgIHhsaW5rOmhyZWY9IiNicmFzcy00MyIKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDg3MDIiCiAgICAgICBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIKICAgICAgIGdyYWRpZW50VHJhbnNmb3JtPSJtYXRyaXgoMC4wOTYxNDI4MywwLDAsMC4xMTI1NDYxOCwxMDI0LjM1MzUsNjYxLjI2NTEpIgogICAgICAgeDE9IjExMzIuODY4NSIKICAgICAgIHkxPSIxMzU1LjY5OCIKICAgICAgIHgyPSIxNzI3LjI2MTEiCiAgICAgICB5Mj0iMTM1NS42OTgiIC8+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJicmFzcy00My03IgogICAgICAgeDE9IjAiCiAgICAgICB4Mj0iMSI+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgc3RvcC1jb2xvcj0iI0E5ODEyRiIKICAgICAgICAgaWQ9InN0b3AxLTc1LTAxIiAvPgogICAgICA8c3RvcAogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIHN0b3AtY29sb3I9IiNENEFGNkEiCiAgICAgICAgIGlkPSJzdG9wMi01Ny0yMyIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlkPSJsaW5lYXJHcmFkaWVudDg3MjMiCiAgICAgICB4MT0iMCIKICAgICAgIHgyPSIxIj4KICAgICAgPHN0b3AKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBzdG9wLWNvbG9yPSIjQTk4MTJGIgogICAgICAgICBpZD0ic3RvcDg3MTkiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIG9mZnNldD0iMSIKICAgICAgICAgc3RvcC1jb2xvcj0iI0Q0QUY2QSIKICAgICAgICAgaWQ9InN0b3A4NzIxIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaW5rc2NhcGU6Y29sbGVjdD0iYWx3YXlzIgogICAgICAgeGxpbms6aHJlZj0iI2JyYXNzLTQzIgogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50ODc3NCIKICAgICAgIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIgogICAgICAgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgwLjA4MjM0MzU1LDAsMCwwLjEwMTkxNjU1LDk3My45MTA3LDY3Ny4yNzc2MikiCiAgICAgICB4MT0iMTEzMi44Njg1IgogICAgICAgeTE9IjEzNTUuNjk4IgogICAgICAgeDI9IjE3MjcuMjYxMSIKICAgICAgIHkyPSIxMzU1LjY5OCIgLz4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaW5rc2NhcGU6Y29sbGVjdD0iYWx3YXlzIgogICAgICAgeGxpbms6aHJlZj0iI2JyYXNzLTQzIgogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50ODc3NiIKICAgICAgIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIgogICAgICAgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgwLjA3MjEwNzA2LDAsMCwwLjA4NDQwOTU2LDk4OC41MTUyLDcwMC41MjI0OSkiCiAgICAgICB4MT0iMTEzMi44Njg1IgogICAgICAgeTE9IjEzNTUuNjk4IgogICAgICAgeDI9IjE3MjcuMjYxMSIKICAgICAgIHkyPSIxMzU1LjY5OCIgLz4KICA8L2RlZnM+CiAgPHN0eWxlCiAgICAgaWQ9InN0eWxlMiI+QGZvbnQtZmFjZXtmb250LWZhbWlseTonR0ZTIERpZG90JztzcmM6dXJsKCcvdXNyL3NoYXJlL2ZvbnRzL29wZW50eXBlL2RpZG90L0dGU0RpZG90Lm90ZicpfTwvc3R5bGU+CiAgPHRleHQKICAgICB4bWw6c3BhY2U9InByZXNlcnZlIgogICAgIHN0eWxlPSJmb250LXN0eWxlOm5vcm1hbDtmb250LXZhcmlhbnQ6bm9ybWFsO2ZvbnQtd2VpZ2h0Om5vcm1hbDtmb250LXN0cmV0Y2g6bm9ybWFsO2ZvbnQtc2l6ZTo0MHB4O2xpbmUtaGVpZ2h0OjEuMjU7Zm9udC1mYW1pbHk6QnJvYWR3YXk7LWlua3NjYXBlLWZvbnQtc3BlY2lmaWNhdGlvbjpCcm9hZHdheTtmaWxsOiMwMDAwMDA7ZmlsbC1vcGFjaXR5OjE7c3Ryb2tlOm5vbmUiCiAgICAgeD0iNDY5LjM5MDI2IgogICAgIHk9Ii03MjAuNjY2MjYiCiAgICAgaWQ9InRleHQzMzg2NC0zIj48dHNwYW4KICAgICAgIHNvZGlwb2RpOnJvbGU9ImxpbmUiCiAgICAgICBpZD0idHNwYW4zMzg2Mi0zIgogICAgICAgeD0iNDY5LjM5MDI2IgogICAgICAgeT0iLTcyMC42NjYyNiIKICAgICAgIHN0eWxlPSJmb250LXN0eWxlOm5vcm1hbDtmb250LXZhcmlhbnQ6bm9ybWFsO2ZvbnQtd2VpZ2h0Om5vcm1hbDtmb250LXN0cmV0Y2g6bm9ybWFsO2ZvbnQtZmFtaWx5OidHRlMgRGlkb3QnOy1pbmtzY2FwZS1mb250LXNwZWNpZmljYXRpb246J0dGUyBEaWRvdCciIC8+PC90ZXh0PgogIDx0ZXh0CiAgICAgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIKICAgICBpZD0idGV4dDQyNzE3IgogICAgIHN0eWxlPSJmb250LXN0eWxlOm5vcm1hbDtmb250LXdlaWdodDpub3JtYWw7Zm9udC1zaXplOjQwcHg7bGluZS1oZWlnaHQ6MS4yNTtmb250LWZhbWlseTpzYW5zLXNlcmlmO3doaXRlLXNwYWNlOnByZTtzaGFwZS1pbnNpZGU6dXJsKCNyZWN0NDI3MTkpO2ZpbGw6IzAwMDAwMDtmaWxsLW9wYWNpdHk6MTtzdHJva2U6bm9uZSIKICAgICB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTEzMC45NDM2LC0xMjA0LjcwMTkpIiAvPgogIDxwYXRoCiAgICAgaWQ9InJlY3Q1ODAzMiIKICAgICBzdHlsZT0iZmlsbDojZjVmMGU2O3N0cm9rZTp1cmwoI2xpbmVhckdyYWRpZW50NTk1NTkpO3N0cm9rZS13aWR0aDoxMi4wNTY0O3N0cm9rZS1taXRlcmxpbWl0OjQ7c3Ryb2tlLWRhc2hhcnJheTpub25lIgogICAgIGQ9Im0gODYuMDI4Miw2Ny4wMjgyIGggNDE0IGMgNTIuMzgxLDAgNzgsMzUuMDQwNyA3OCw3OCB2IDIxMiBjIDAsNDIuOTU5NCAtMjUuNjE5MDcsNzguMDg1NSAtNzgsNzggaCAtMjYzIGwgLTg1LDc2IHYgLTc2IGggLTY2IGMgLTUyLjM4MTEsMCAtNzcuOTk5OTk5OSwtMzUuMDQwNiAtNzcuOTk5OTk5OSwtNzggdiAtMjEyIGMgMCwtNDIuOTU5MyAyNS42MTg4OTk5LC03OCA3Ny45OTk5OTk5LC03OCB6IgogICAgIHNvZGlwb2RpOm5vZGV0eXBlcz0ic3Nzc3NjY2Nzc3NzIiAvPgogIDxwYXRoCiAgICAgaWQ9InJlY3Q1ODAzMi02IgogICAgIHN0eWxlPSJmaWxsOiNmNWYwZTY7c3Ryb2tlOnVybCgjbGluZWFyR3JhZGllbnQ1OTU5Nyk7c3Ryb2tlLXdpZHRoOjMuMDE0MDk7c3Ryb2tlLW1pdGVybGltaXQ6NDtzdHJva2UtZGFzaGFycmF5Om5vbmUiCiAgICAgZD0ibSA4Ni4wMjgyLDg1LjAyODIgaCA0MTQgYyA0NS44NjkyLDAgNjAsMjQuNDIgNjAsNjAgdiAyMTIgYyAwLDM1LjU4IC0xNC4xODk5MSw2Mi4zMjc5OCAtNjAsNjAgaCAtMjcwIGwgLTYwLDU0IHYgLTU0IGggLTg0IGMgLTQ1Ljg2OTQsMCAtNjAsLTI0LjQyIC02MCwtNjAgdiAtMjEyIGMgMCwtMzUuNTggMTQuMTMwNiwtNjAgNjAsLTYwIHoiCiAgICAgc29kaXBvZGk6bm9kZXR5cGVzPSJzc3Nzc2NjY3Nzc3MiIC8+CiAgPGcKICAgICBhcmlhLWxhYmVsPSJHT05RIgogICAgIHRyYW5zZm9ybT0ic2NhbGUoMC45NjM5MTAzMywxLjAzNzQ0MDkpIgogICAgIGlkPSJ0ZXh0MzM4NjQiCiAgICAgc3R5bGU9ImZvbnQtc2l6ZToxNjguMjA4cHg7bGluZS1oZWlnaHQ6MS4yNTtmb250LWZhbWlseTpCcm9hZHdheTstaW5rc2NhcGUtZm9udC1zcGVjaWZpY2F0aW9uOkJyb2Fkd2F5O2ZpbGw6IzE3N2E1OTtzdHJva2Utd2lkdGg6MC44NzYwODkiPgogICAgPHBhdGgKICAgICAgIGQ9Im0gMTc0LjE1OTA3LDI0MS4zMzY0NiBxIC0wLjQ5MjgsMjQuMzkzNDQgLTE1LjYwNTIzLDQwLjczNzg3IC04LjQ1OTY4LDkuMTE2NzQgLTIwLjEyMjU0LDE0LjIwODk4IC0xMS41ODA3Myw1LjAxMDEgLTI0LjA2NDkxLDUuMDEwMSAtMTAuODQxNTQsMCAtMjEuMzU0NTM1LC00LjEwNjY0IC0xMC41MTI5OTksLTQuMTA2NjQgLTE4LjY0NDE0OCwtMTEuNDk4NTkgLTEwLjQzMDg2NiwtOS41Mjc0MSAtMTUuNDQwOTY4LC0yMi45MTUwNiAtMy45NDIzNzQsLTEwLjY3NzI2IC0zLjk0MjM3NCwtMjEuMTkwMjYgMCwtMTkuNTQ3NjEgMTIuMDczNTIyLC0zNS40ODEzOCA4LjI5NTQxNCwtMTEuMDg3OTMgMjAuODYxNzM0LC0xNy4zMzAwMiAxMi41NjYzMTksLTYuMzI0MjIgMjYuMzY0NjI5LC02LjMyNDIyIDI0LjIyOTE4LDAgNDEuNzIzNDcsMTYuNjcyOTYgNy44MDI2Miw3LjQ3NDA4IDcuODAyNjIsMTAuNTk1MTMgMCwxLjA2NzcyIC0wLjkwMzQ2LDEuODA2OTIgLTAuODIxMzMsMC43MzkxOSAtMi4wNTMzMiwwLjczOTE5IC0xLjg4OTA2LDAgLTQuMDI0NTEsLTIuODc0NjQgLTE2LjUwODcsLTIxLjkyOTQ2IC00Mi4zODA1MywtMjEuOTI5NDYgLTMuMTIxMDUsMCAtNi4zMjQyMywwLjQxMDY2IGwgLTAuNDEwNjYsNTguMzE0MjkgMC40MTA2Niw0OS41MjYwOSBxIDMuMDM4OTIsMC41NzQ5MyA2LjE1OTk2LDAuNTc0OTMgOS4yODEwMSwwIDE3Ljk4NzA5LC0zLjEyMTA1IDIyLjAxMTU5LC03LjgwMjYyIDMxLjYyMTEzLC0yOC42NjQzNSA0LjEwNjY0LC04Ljc4ODIxIDQuODQ1ODMsLTE3LjkwNDk1IGggLTQyLjg3MzMyIHEgLTUuNjY3MTcsLTAuMTY0MjcgLTYuODE3MDIsLTAuNTc0OTMgLTEuMTQ5ODYsLTAuNDEwNjYgLTEuMTQ5ODYsLTIuMTM1NDUgMCwtMi42MjgyNSAzLjk0MjM3LC0yLjYyODI1IGwgNC45Mjc5NywwLjA4MjEgeiIKICAgICAgIGlkPSJwYXRoMTAxMiIgLz4KICAgIDxwYXRoCiAgICAgICBkPSJtIDI0Mi4wODI5LDE4Mi40NDcyNCBxIDEyLjk3Njk5LDAgMjUuMDUwNTEsNS41MDI4OSAxNy43NDA2OSw4LjEzMTE1IDI3LjEwMzgzLDI1LjA1MDUxIDcuNDc0MDgsMTMuNTUxOTEgNy40NzQwOCwyOS40ODU2OCAwLDEyLjgxMjcyIC01LjY2NzE2LDI0LjgwNDExIC04LjQ1OTY4LDE3LjkwNDk1IC0yNi4zNjQ2MywyNy4xODU5NiAtMTMuMTQxMjUsNi44MTcwMiAtMjcuNTk2NjMsNi44MTcwMiAtMTUuMjc2NywwIC0yOC45MTA3NCwtNy43MjA0OCAtMTguMTUxMzUsLTEwLjE4NDQ3IC0yNS44NzE4NCwtMjguNTgyMjIgLTQuNzYzNywtMTEuMjUyMiAtNC43NjM3LC0yMy4yNDM1OSAwLC0xNS4wMzAzIDcuNDc0MDgsLTI4LjY2NDM1IDkuMTk4ODgsLTE2Ljc1NTA5IDI2Ljg1NzQzLC0yNS4wNTA1IDExLjc0NDk5LC01LjUwMjkgMjUuMjE0NzcsLTUuNTg1MDMgeiBtIC02LjQ4ODQ5LDUuNTAyODkgLTAuNDkyNzksNTMuNDY4NDYgMC40MTA2Niw0NC40MzM4NSAwLjA4MjEsMTAuMDIwMiBxIDIuNzkyNTIsMC40OTI4IDUuMzM4NjQsMC40OTI4IDE4LjE1MTM1LDAgMzIuNDQyNDUsLTEwLjAyMDIgMTMuMDU5MTIsLTkuMTk4ODggMTguODkwNTUsLTIzLjY1NDI1IDQuMTA2NjQsLTEwLjEwMjM0IDQuMTA2NjQsLTIwLjk0Mzg3IDAsLTE0LjI5MTExIC02Ljg5OTE1LC0yNi42MTEwMyAtOC40NTk2OCwtMTUuMTEyNDMgLTIzLjgxODUyLC0yMi4yNTc5OSAtMTEuNDk4NTksLTUuNDIwNzYgLTI0LjIyOTE4LC01LjQyMDc2IC0yLjk1Njc4LDAgLTUuODMxNDMsMC40OTI3OSB6IgogICAgICAgaWQ9InBhdGgxMDE0IiAvPgogICAgPHBhdGgKICAgICAgIGQ9Im0gNDE1Ljc5MzgsMjQwLjM1MDg3IHYgLTEzLjcxNjE4IGwgLTAuMTY0MjcsLTIxLjc2NTIgLTAuMDgyMSwtOS45MzgwNyAtMC4wODIxLC02LjI0MjA5IHEgMCwtNC40MzUxNyAzLjAzODkxLC00LjQzNTE3IDEuODA2OTIsMCAyLjQ2Mzk4LDEuMDY3NzIgMC43MzkyLDAuOTg1NiAwLjczOTIsMy44NjAyNSB2IDEuMTQ5ODUgcSAtMC4wODIxLDEuNzI0NzkgLTAuMDgyMSw1LjY2NzE3IGwgLTAuMzI4NTMsMjcuNjc4NzYgLTAuMjQ2NCwyNS4zNzkwMyAwLjI0NjQsMjYuNjkzMTcgMC4zMjg1MywyNi43NzUyOSBxIC0xNi45MTkzNiwtMTAuNTk1MTMgLTQ5LjUyNjA5LC0yOS4yMzkyOCAtMzIuNjA2NzIsLTE4LjcyNjI4IC01Mi44MTEzOSwtMjkuNDAzNTQgbCAwLjA4MjEsNC4wMjQ1IDAuODIxMzMsNDIuMzgwNTMgMC4wODIxLDUuNjY3MTcgcSAwLDMuNTMxNzEgLTMuMjg1MzEsMy41MzE3MSAtMy4zNjc0NSwwIC0zLjM2NzQ1LC00LjM1MzA0IGwgMC4wODIxLC01Ljc0OTMgMC4wODIxLC05LjI4MTAxIDAuMzI4NTMsLTQyLjEzNDEzIC0wLjY1NzA2LC01Ni43NTM3NyBxIDMzLjI2Mzc4LDIwLjYxNTM0IDEwMi4zMzc0OCw1OS4xMzU2MyB6IgogICAgICAgaWQ9InBhdGgxMDE2IiAvPgogICAgPHBhdGgKICAgICAgIGQ9Im0gNTI5LjQ2NTYxLDI4OS42MzA1NSBxIDcuNDc0MDgsNi42NTI3NiAxOS43MTE4NywxNC4wNDQ3MSAyLjI5OTcyLDEuMzE0MTMgMi4yOTk3MiwyLjcxMDM4IDAsMS4wNjc3MyAtMC45MDM0NiwxLjk3MTE5IC0wLjkwMzQ2LDAuOTAzNDYgLTEuOTcxMTksMC45MDM0NiAtMi4yMTc1OSwwIC0xMC4xMDIzMywtNS4yNTY1IC03LjgwMjYyLC01LjI1NjUgLTE0LjEyNjg1LC0xMS4wMDU3OSAtMTUuMDMwMyw4LjI5NTQxIC0zMC44ODE5Myw4LjI5NTQxIC0xNS40NDA5NywwIC0yOS40MDM1NSwtNy44MDI2MiAtMTUuOTMzNzYsLTguODcwMzQgLTIzLjk4Mjc4LC0yNS4yOTY5IC02LjE1OTk2LC0xMi40MDIwNiAtNi4xNTk5NiwtMjYuMjgyNSAwLC0yMi45OTcxOSAxNS4yNzY3LC0zOS44MzQ0MSA4LjYyMzk1LC05LjYwOTU0IDIwLjUzMzIsLTE0LjcwMTc4IDExLjI1MjIsLTQuOTI3OTYgMjMuNjU0MjUsLTQuOTI3OTYgMTcuMDgzNjMsMCAzMS41MzksOC45NTI0NyAxNC43MDE3Nyw5LjE5ODg4IDIyLjI1Nzk5LDI1LjEzMjY0IDUuNzQ5MywxMi4xNTU2NiA1Ljc0OTMsMjUuNDYxMTcgMCwxMy43OTgzMSAtNi4zMjQyMywyNi42OTMxNiAtNi4zMjQyMiwxMi44MTI3MiAtMTcuMTY1NzUsMjAuOTQzODcgeiBtIC00LjI3MDkxLC0zLjQ0OTU4IHEgNi45ODEyOSwtNC42ODE1NyAxMy4xNDEyNSwtMTMuNTUxOTEgOS40NDUyNywtMTMuNTUxOTEgOS40NDUyNywtMzAuNTUzNDEgMCwtMTQuMzczMjQgLTcuMzA5ODIsLTI3LjM1MDIyIC03LjE0NTU1LC0xMi43MzA1OSAtMTkuNzExODcsLTE5Ljk1ODI3IC0xMi40ODQxOSwtNy4yMjc2OSAtMjcuMzUwMjMsLTcuMjI3NjkgLTMuMjg1MzEsMCAtNi40MDYzNiwwLjU3NDkzIHYgMTA3LjY3NjExIHEgMi44NzQ2NSwwLjU3NDkzIDUuNjY3MTcsMC41NzQ5MyAxNS41MjMxLDAgMjcuNTE0NDksLTcuMDYzNDIgLTE0LjUzNzUxLC0xNC40NTUzNyAtMTQuNTM3NTEsLTE3LjI0Nzg5IDAsLTAuOTAzNDYgMC44MjEzMywtMS43MjQ3OSAwLjgyMTMzLC0wLjgyMTMzIDEuNjQyNjYsLTAuODIxMzMgMS4zOTYyNSwwIDMuODYwMjQsMi45NTY3OCA3LjE0NTU1LDguNDU5NjggMTMuMjIzMzgsMTMuNzE2MTggeiIKICAgICAgIGlkPSJwYXRoMTAxOCIgLz4KICA8L2c+CiAgPHBhdGgKICAgICBpZD0icmVjdDU4MDMyLTAiCiAgICAgc3R5bGU9ImZpbGw6I2Y1ZjBlNjtzdHJva2U6dXJsKCNsaW5lYXJHcmFkaWVudDg2MjYpO3N0cm9rZS13aWR0aDowLjY2MjgyOTtzdHJva2UtbWl0ZXJsaW1pdDo0O3N0cm9rZS1kYXNoYXJyYXk6bm9uZSIKICAgICBkPSJtIDEwMTguNzc4Niw4MDMuMDYxODkgaCAyMi43NjA3IGMgMi44Nzk4LDAgNC4yODgzLDEuOTI2NDYgNC4yODgzLDQuMjg4MjUgdiAxMS42NTUyMiBjIDAsMi4zNjE4MSAtMS40MDg1LDQuMjkyOTUgLTQuMjg4Myw0LjI4ODI1IGggLTE0LjQ1OTEgbCAtNC42NzMsNC4xNzgyOCB2IC00LjE3ODI4IGggLTMuNjI4NiBjIC0yLjg3OTgsMCAtNC4yODgyLC0xLjkyNjQ0IC00LjI4ODIsLTQuMjg4MjUgdiAtMTEuNjU1MjIgYyAwLC0yLjM2MTc5IDEuNDA4NCwtNC4yODgyNSA0LjI4ODIsLTQuMjg4MjUgeiIKICAgICBzb2RpcG9kaTpub2RldHlwZXM9InNzc3NzY2Njc3NzcyIgLz4KICA8cGF0aAogICAgIGlkPSJyZWN0NTgwMzItNi0wIgogICAgIHN0eWxlPSJmaWxsOiNmNWYwZTY7c3Ryb2tlOnVybCgjbGluZWFyR3JhZGllbnQ4NjI4KTtzdHJva2Utd2lkdGg6MC4xNjU3MDc7c3Ryb2tlLW1pdGVybGltaXQ6NDtzdHJva2UtZGFzaGFycmF5Om5vbmUiCiAgICAgZD0ibSAxMDE4Ljc3ODYsODA0LjA1MTQ5IGggMjIuNzYwNyBjIDIuNTIxOCwwIDMuMjk4NiwxLjM0MjU1IDMuMjk4NiwzLjI5ODY1IHYgMTEuNjU1MjIgYyAwLDEuOTU2MSAtMC43ODAxLDMuNDI2NjQgLTMuMjk4NiwzLjI5ODY1IGggLTE0Ljg0MzkgbCAtMy4yOTg3LDIuOTY4NzkgdiAtMi45Njg3OSBoIC00LjYxODEgYyAtMi41MjE4LDAgLTMuMjk4NiwtMS4zNDI1NSAtMy4yOTg2LC0zLjI5ODY1IHYgLTExLjY1NTIyIGMgMCwtMS45NTYxIDAuNzc2OCwtMy4yOTg2NSAzLjI5ODYsLTMuMjk4NjUgeiIKICAgICBzb2RpcG9kaTpub2RldHlwZXM9InNzc3NzY2Njc3NzcyIgLz4KICA8dGV4dAogICAgIHhtbDpzcGFjZT0icHJlc2VydmUiCiAgICAgc3R5bGU9ImZvbnQtc3R5bGU6bm9ybWFsO2ZvbnQtdmFyaWFudDpub3JtYWw7Zm9udC13ZWlnaHQ6bm9ybWFsO2ZvbnQtc3RyZXRjaDpub3JtYWw7Zm9udC1zaXplOjkuMjQ3NjVweDtsaW5lLWhlaWdodDoxLjI1O2ZvbnQtZmFtaWx5OkJyb2Fkd2F5Oy1pbmtzY2FwZS1mb250LXNwZWNpZmljYXRpb246QnJvYWR3YXk7ZmlsbDojMTc3YTU5O2ZpbGwtb3BhY2l0eToxO3N0cm9rZTpub25lO3N0cm9rZS13aWR0aDowLjA0ODE2NTIiCiAgICAgeD0iMTA1NC43OTA0IgogICAgIHk9Ijc4Ni45MDY4NiIKICAgICBpZD0idGV4dDMzODY0LTAiCiAgICAgdHJhbnNmb3JtPSJzY2FsZSgwLjk2MzkxMDMzLDEuMDM3NDQwOSkiPjx0c3BhbgogICAgICAgc29kaXBvZGk6cm9sZT0ibGluZSIKICAgICAgIGlkPSJ0c3BhbjMzODYyLTQiCiAgICAgICB4PSIxMDU0Ljc5MDQiCiAgICAgICB5PSI3ODYuOTA2ODYiCiAgICAgICBzdHlsZT0iZmlsbDojMTc3YTU5O2ZpbGwtb3BhY2l0eToxO3N0cm9rZS13aWR0aDowLjA0ODE2NTIiPkdPTlE8L3RzcGFuPjwvdGV4dD4KICA8cGF0aAogICAgIGlkPSJyZWN0NTgwMzItMC01IgogICAgIHN0eWxlPSJmaWxsOiNmNWYwZTY7c3Ryb2tlOnVybCgjbGluZWFyR3JhZGllbnQ4NzAwKTtzdHJva2Utd2lkdGg6MS4zMjU2NjtzdHJva2UtbWl0ZXJsaW1pdDo0O3N0cm9rZS1kYXNoYXJyYXk6bm9uZSIKICAgICBkPSJtIDExMzguMjM5Miw3ODkuOTIxNjcgaCA0NS41MjE0IGMgNS43NTk2LDAgOC41NzY2LDMuODUyOTIgOC41NzY2LDguNTc2NSB2IDIzLjMxMDQyIGMgMCw0LjcyMzYxIC0yLjgxNyw4LjU4NTg5IC04LjU3NjYsOC41NzY0OSBoIC0yOC45MTgyIGwgLTkuMzQ2LDguMzU2NTUgdiAtOC4zNTY1NSBoIC03LjI1NzIgYyAtNS43NTk2LDAgLTguNTc2NCwtMy44NTI4OCAtOC41NzY0LC04LjU3NjQ5IHYgLTIzLjMxMDQyIGMgMCwtNC43MjM1OCAyLjgxNjgsLTguNTc2NSA4LjU3NjQsLTguNTc2NSB6IgogICAgIHNvZGlwb2RpOm5vZGV0eXBlcz0ic3Nzc3NjY2Nzc3NzIiAvPgogIDxwYXRoCiAgICAgaWQ9InJlY3Q1ODAzMi02LTAtNCIKICAgICBzdHlsZT0iZmlsbDojZjVmMGU2O3N0cm9rZTp1cmwoI2xpbmVhckdyYWRpZW50ODcwMik7c3Ryb2tlLXdpZHRoOjAuMzMxNDE0O3N0cm9rZS1taXRlcmxpbWl0OjQ7c3Ryb2tlLWRhc2hhcnJheTpub25lIgogICAgIGQ9Im0gMTEzOC4yMzkyLDc5MS45MDA4NyBoIDQ1LjUyMTQgYyA1LjA0MzYsMCA2LjU5NzIsMi42ODUxIDYuNTk3Miw2LjU5NzMgdiAyMy4zMTA0MiBjIDAsMy45MTIxOSAtMS41NjAyLDYuODUzMjcgLTYuNTk3Miw2LjU5NzI5IGggLTI5LjY4NzggbCAtNi41OTc0LDUuOTM3NTcgdiAtNS45Mzc1NyBoIC05LjIzNjIgYyAtNS4wNDM2LDAgLTYuNTk3MiwtMi42ODUxIC02LjU5NzIsLTYuNTk3MjkgdiAtMjMuMzEwNDIgYyAwLC0zLjkxMjIgMS41NTM2LC02LjU5NzMgNi41OTcyLC02LjU5NzMgeiIKICAgICBzb2RpcG9kaTpub2RldHlwZXM9InNzc3NzY2Njc3NzcyIgLz4KICA8dGV4dAogICAgIHhtbDpzcGFjZT0icHJlc2VydmUiCiAgICAgc3R5bGU9ImZvbnQtc3R5bGU6bm9ybWFsO2ZvbnQtdmFyaWFudDpub3JtYWw7Zm9udC13ZWlnaHQ6bm9ybWFsO2ZvbnQtc3RyZXRjaDpub3JtYWw7Zm9udC1zaXplOjE4LjQ5NTNweDtsaW5lLWhlaWdodDoxLjI1O2ZvbnQtZmFtaWx5OkJyb2Fkd2F5Oy1pbmtzY2FwZS1mb250LXNwZWNpZmljYXRpb246QnJvYWR3YXk7ZmlsbDojMTc3YTU5O2ZpbGwtb3BhY2l0eToxO3N0cm9rZTpub25lO3N0cm9rZS13aWR0aDowLjA5NjMzMDMiCiAgICAgeD0iMTE3Ni41OTE2IgogICAgIHk9Ijc4Ny4wNjgxOCIKICAgICBpZD0idGV4dDMzODY0LTAtMiIKICAgICB0cmFuc2Zvcm09InNjYWxlKDAuOTYzOTEwMzMsMS4wMzc0NDA5KSI+PHRzcGFuCiAgICAgICBzb2RpcG9kaTpyb2xlPSJsaW5lIgogICAgICAgaWQ9InRzcGFuMzM4NjItNC00IgogICAgICAgeD0iMTE3Ni41OTE2IgogICAgICAgeT0iNzg3LjA2ODE4IgogICAgICAgc3R5bGU9ImZpbGw6IzE3N2E1OTtmaWxsLW9wYWNpdHk6MTtzdHJva2Utd2lkdGg6MC4wOTYzMzAzIj5HT05RPC90c3Bhbj48L3RleHQ+CiAgPHBhdGgKICAgICBpZD0icmVjdDU4MDMyLTAtNS0yIgogICAgIHN0eWxlPSJmaWxsOiNmNWYwZTY7c3Ryb2tlOnVybCgjbGluZWFyR3JhZGllbnQ4Nzc0KTtzdHJva2Utd2lkdGg6MC45OTQyNDQ7c3Ryb2tlLW1pdGVybGltaXQ6NDtzdHJva2UtZGFzaGFycmF5Om5vbmUiCiAgICAgZD0ibSAxMDczLjkyOTQsNzk3LjAxNDgyIGggMzQuMTQxIGMgNC4zMTk3LDAgNi40MzI0LDIuODg5NjkgNi40MzI0LDYuNDMyMzcgdiAxNy40ODI4IGMgMCwzLjU0MjcgLTIuMTEyNyw2LjQzOTQxIC02LjQzMjQsNi40MzIzNiBoIC0yMS42ODg2IGwgLTcuMDA5NSw2LjI2NzQxIHYgLTYuMjY3NDEgaCAtNS40NDI5IGMgLTQuMzE5NywwIC02LjQzMjMsLTIuODg5NjYgLTYuNDMyMywtNi40MzIzNiB2IC0xNy40ODI4IGMgMCwtMy41NDI2OCAyLjExMjYsLTYuNDMyMzcgNi40MzIzLC02LjQzMjM3IHoiCiAgICAgc29kaXBvZGk6bm9kZXR5cGVzPSJzc3Nzc2NjY3Nzc3MiIC8+CiAgPHBhdGgKICAgICBpZD0icmVjdDU4MDMyLTYtMC00LTEiCiAgICAgc3R5bGU9ImZpbGw6I2Y1ZjBlNjtzdHJva2U6dXJsKCNsaW5lYXJHcmFkaWVudDg3NzYpO3N0cm9rZS13aWR0aDowLjI0ODU2O3N0cm9rZS1taXRlcmxpbWl0OjQ7c3Ryb2tlLWRhc2hhcnJheTpub25lIgogICAgIGQ9Im0gMTA3My45Mjk0LDc5OC40OTkyMiBoIDM0LjE0MSBjIDMuNzgyNywwIDQuOTQ3OSwyLjAxMzgyIDQuOTQ3OSw0Ljk0Nzk3IHYgMTcuNDgyOCBjIDAsMi45MzQxNCAtMS4xNzAxLDUuMTM5OTUgLTQuOTQ3OSw0Ljk0Nzk2IGggLTIyLjI2NTggbCAtNC45NDgxLDQuNDUzMTggdiAtNC40NTMxOCBoIC02LjkyNzEgYyAtMy43ODI3LDAgLTQuOTQ3OSwtMi4wMTM4MiAtNC45NDc5LC00Ljk0Nzk2IHYgLTE3LjQ4MjggYyAwLC0yLjkzNDE1IDEuMTY1MiwtNC45NDc5NyA0Ljk0NzksLTQuOTQ3OTcgeiIKICAgICBzb2RpcG9kaTpub2RldHlwZXM9InNzc3NzY2Njc3NzcyIgLz4KICA8dGV4dAogICAgIHhtbDpzcGFjZT0icHJlc2VydmUiCiAgICAgc3R5bGU9ImZvbnQtc3R5bGU6bm9ybWFsO2ZvbnQtdmFyaWFudDpub3JtYWw7Zm9udC13ZWlnaHQ6bm9ybWFsO2ZvbnQtc3RyZXRjaDpub3JtYWw7Zm9udC1zaXplOjEzLjg3MTVweDtsaW5lLWhlaWdodDoxLjI1O2ZvbnQtZmFtaWx5OkJyb2Fkd2F5Oy1pbmtzY2FwZS1mb250LXNwZWNpZmljYXRpb246QnJvYWR3YXk7ZmlsbDojMTc3YTU5O2ZpbGwtb3BhY2l0eToxO3N0cm9rZTpub25lO3N0cm9rZS13aWR0aDowLjA3MjI0NzciCiAgICAgeD0iMTExMC45NDAxIgogICAgIHk9Ijc4Ny40OTE2NCIKICAgICBpZD0idGV4dDMzODY0LTAtMi0wIgogICAgIHRyYW5zZm9ybT0ic2NhbGUoMC45NjM5MTAzMywxLjAzNzQ0MDkpIj48dHNwYW4KICAgICAgIHNvZGlwb2RpOnJvbGU9ImxpbmUiCiAgICAgICBpZD0idHNwYW4zMzg2Mi00LTQtNyIKICAgICAgIHg9IjExMTAuOTQwMSIKICAgICAgIHk9Ijc4Ny40OTE2NCIKICAgICAgIHN0eWxlPSJmaWxsOiMxNzdhNTk7ZmlsbC1vcGFjaXR5OjE7c3Ryb2tlLXdpZHRoOjAuMDcyMjQ3NyI+R09OUTwvdHNwYW4+PC90ZXh0Pgo8L3N2Zz4K';
+const logo=(w)=>`<img src="${LOGO}" alt="Gonq logo" width="${w}" height="${w}" style="display:block">`;
+
+/* ============ Icons ============ */
+const ICONS={
+chevL:'<path d="M15 18l-6-6 6-6"/>',chevR:'<path d="M9 18l6-6-6-6"/>',chevD:'<path d="M6 9l6 6 6-6"/>',
+more:'<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+file:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+branch:'<circle cx="6" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><path d="M6 3v12M18 9a9 9 0 0 1-9 9"/>',
+branchPlus:'<circle cx="6" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v6M18 4v8M14 8h8"/>',
+pr:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v6M13 6h3a2 2 0 0 1 2 2v7"/>',
+search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+refresh:'<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>',
+copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+check:'<path d="M20 6L9 17l-5-5"/>',x:'<path d="M18 6L6 18M6 6l12 12"/>',plus:'<path d="M12 5v14M5 12h14"/>',
+code:'<path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>',
+outline:'<path d="M4 6h16M8 12h12M12 18h8"/>',
+msg:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+sliders:'<path d="M4 6h8M18 6h2M4 12h2M12 12h8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="17" cy="18" r="2.2"/>',
+ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+undo:'<path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7"/>',redo:'<path d="M21 7v6h-6"/><path d="M21 13a9 9 0 1 1-3-7.7"/>',
+bold:'<path d="M6 12h8a4 4 0 0 1 0 8H6zM6 4h7a4 4 0 0 1 0 8H6z"/>',
+italic:'<path d="M19 4h-9M14 20H5M15 4L9 20"/>',
+underline:'<path d="M6 4v6a6 6 0 0 0 12 0V4M4 20h16"/>',
+strike:'<path d="M16 4H9a3 3 0 0 0-2.8 4M14 12a4 4 0 0 1 0 8H6M4 12h16"/>',
+link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+listNum:'<path d="M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>',
+listCheck:'<path d="M3 17l2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8"/>',
+table:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>',
+rowAbove:'<rect x="3" y="12" width="18" height="8" rx="1"/><path d="M12 2.5v7M8.5 6h7"/>',
+rowBelow:'<rect x="3" y="4" width="18" height="8" rx="1"/><path d="M12 14.5v7M8.5 18h7"/>',
+colLeft:'<rect x="12" y="3" width="8" height="18" rx="1"/><path d="M2.5 12h7M6 8.5v7"/>',
+colRight:'<rect x="4" y="3" width="8" height="18" rx="1"/><path d="M14.5 12h7M18 8.5v7"/>',
+alignL:'<path d="M21 6H3M15 12H3M17 18H3"/>',alignC:'<path d="M21 6H3M17 12H7M19 18H5"/>',alignR:'<path d="M21 6H3M21 12H9M21 18H7"/>',
+delRow:'<rect x="7" y="4" width="14" height="16" rx="1"/><path d="M7 9.3h14M7 14.6h14M1.5 12h3.5"/>',
+delCol:'<rect x="7" y="4" width="14" height="16" rx="1"/><path d="M11.7 4v16M16.3 4v16M1.5 12h3.5"/>',
+trash:'<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>',
+pencil:'<path d="M17 3l4 4L8 20H4v-4z"/>',
+inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/>'
+};
+const I=(n,s=20)=>`<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`;
+
+/* ============ Chrome ============ */
+const status=`<div class="status"><span>9:41</span><span class="r">5G ▮▮▮</span></div>`;
+const home=`<div class="home"><i></i></div>`;
+const ibtn=(n,cls='',label='')=>`<div class="ib ${cls}" ${label?`aria-label="${label}"`:''}>${I(n)}</div>`;
+const nav=(l,t,r='',sub='')=>`<div class="topbar">${l||'<div style="width:44px"></div>'}<div class="ttl c"><div class="t1">${t}</div>${sub?`<div class="t2" style="justify-content:center">${sub}</div>`:''}</div>${r||'<div style="width:44px"></div>'}</div>`;
+const back=()=>ibtn('chevL'), close=()=>ibtn('x');
+const over=(under,top)=>`<div style="display:contents">${under}</div><div class="scrim"></div>${top}`;
+const sheet=(title,body,right='')=>`<div class="sheet"><div class="handle"></div>${title?`<div class="sh-t"><span>${title}</span>${right}</div>`:''}${body}</div>`;
+const btn=(cls,txt,ic='')=>`<div class="btn ${cls}">${ic?I(ic,18):''}${txt}</div>`;
+const field=(v,cls='',ic='')=>`<div class="field ${cls}">${ic?I(ic,18):''}<span style="flex:1;min-width:0">${v}</span></div>`;
+const hlite=(s,q)=>q?s.replace(new RegExp('('+q+')','ig'),'<mark>$1</mark>'):s;
+const spin='<span class="spin"></span>';
+const errBanner=t=>`<div class="gerr" role="alert">${t}</div>`;
+const notice=t=>`<div class="gnote" role="status"><span class="t">${t}</span><span class="nx" aria-label="Dismiss notice">${I('x',16)}</span></div>`;
+
+/* ============ Editor ============ */
+const FILE='q3-rollout.md', PATH='docs/q3-rollout.md', REPO='northwind/platform-docs';
+const editorDoc=(marker)=>`
+  <h1>Q3 rollout plan</h1>
+  <p>Ship dates moved <b>up one week</b> after signoff. Finance confirmed budget on Tuesday, and the ${marker?'<span class="hl">rollout now targets the 14th</span><span class="marker" aria-label="Comment thread">'+I('msg',13)+'</span>':'rollout now targets the 14th'} instead of the 21st.</p>
+  <div class="h2">Open items</div>
+  <ul><li>Design review of onboarding</li><li>QA sign-off on export</li><li>Update support docs</li></ul>
+  <blockquote>Nothing ships until legal approves the new terms.</blockquote>`;
+const editorDocCaret=editorDoc(false)+`<p>Next steps are owned by the platform team<span class="caret"></span></p>`;
+const rawDoc=`<span class="mk"># </span>Q3 rollout plan
+
+Ship dates moved <span class="mk">**</span><span class="b">up one week</span><span class="mk">**</span> after
+signoff. Finance confirmed budget on
+Tuesday, and the rollout now targets
+the 14th instead of the 21st.
+
+<span class="mk">## </span>Open items
+
+<span class="mk">- </span>Design review of onboarding
+<span class="mk">- </span>QA sign-off on export
+<span class="mk">- </span>Update support docs
+
+<span class="mk">&gt; </span>Nothing ships until legal approves
+<span class="mk">&gt; </span>the new terms.`;
+
+/* Editor top bar: row 1 back / file name + branch / ⋯ ; row 2 mobile-only pane buttons (not registry commands) + Raw switch. */
+const ebar=({name=FILE,sub='gonq/q3-rollout',raw=false,on=''}={})=>`<div class="topbar">${back()}<div class="ttl"><div class="t1">${name}</div>${sub?`<div class="t2">${I('branch',12)}${sub}</div>`:''}</div>${ibtn('more','','More')}</div>
+<div class="toolrow">${ibtn('folder',on==='folder'?'on':'','Folder navigator')}${ibtn('outline',on==='outline'?'on':'','Outline')}${ibtn('msg',on==='comments'?'on':'','Comments')}<div style="flex:1"></div><div class="seg" role="switch" aria-label="Raw Markdown"><div class="${raw?'':'on'}">Aa</div><div class="${raw?'on':''}">${I('code',16)}</div></div></div>`;
+const tab=(label,{on=false,dirty=false}={})=>`<div class="tab-i ${on?'on':''}" title="${label}"><span class="tl">${label}</span>${dirty?'<span class="dirty" title="Unsaved changes" aria-label="unsaved changes">●</span>':''}<span class="tab-x" aria-label="Close ${label}">${I('x',15)}</span></div>`;
+const tabsBar=(list,cue=false)=>`<div class="tabs"><div class="tabs-sc">${list}${cue?'':`<div class="tab-add" aria-label="New tab">${I('plus',18)}</div>`}</div>${cue?`<div class="cue">${I('chevR',18)}</div>`:''}</div>`;
+const tabsOne=(dirty=true)=>tabsBar(tab(FILE,{on:true,dirty}));
+const tabsMany=tabsBar(tab(FILE,{on:true,dirty:true})+tab('README.md (main)')+tab('README.md (gonq/q3-rollout)',{dirty:true})+tab('onboarding.md'),true);
+
+/* Formatting bar = desktop EditToolbar: Undo, Redo | Bold, Italic, Underline, Strikethrough | Insert link, Bullet list, Numbered list, Checkbox list, Insert table. */
+const fb=(n,label,cls='')=>`<div class="tb ${cls}" aria-label="${label}">${I(n,20)}</div>`;
+const vd='<span class="vdiv"></span>';
+const FMT=fb('undo','Undo')+fb('redo','Redo','dis')+vd+fb('bold','Bold')+fb('italic','Italic')+fb('underline','Underline')+fb('strike','Strikethrough')+vd+fb('link','Insert link')+fb('list','Bullet list')+fb('listNum','Numbered list')+fb('listCheck','Checkbox list')+fb('table','Insert table');
+const scroller=(inner,cue=true,barW=0)=>`<div class="kb-wrap"><div class="kb-sc">${inner}</div>${cue?`<div class="kb-cue">${I('chevR',16)}</div>`:''}</div>`;
+const fmtBar=(inTable=false)=>`<div class="kbtool" role="toolbar" aria-label="Editing">${scroller(FMT)}${inTable?`${vd}<div class="swap" aria-label="Table toolbar">${I('table',18)}Table</div>`:''}</div>`;
+/* Table bar = desktop TableToolbar TOOLS, same order and labels. */
+const TBL=(o={})=>fb('rowAbove','Insert row above')+fb('rowBelow','Insert row below')+fb('colLeft','Insert column left')+fb('colRight','Insert column right')+vd+fb('alignL','Align column left',o.align==='left'?'pressed':'')+fb('alignC','Align column center',o.align==='center'?'pressed':'')+fb('alignR','Align column right',o.align==='right'?'pressed':'')+vd+fb('delRow','Delete row',o.header?'dis':'')+fb('delCol','Delete column')+fb('trash','Delete table');
+const tableBar=(o={})=>`<div class="kbtool" role="toolbar" aria-label="Table"><div class="swap" aria-label="Formatting toolbar">${I('chevL',16)}Format</div>${vd}${scroller(TBL(o))}</div>`;
+const keys=r=>r.split('').map(c=>`<div class="k">${c}</div>`).join('');
+const keyboard=`<div class="keyboard"><div class="kr">${keys('qwertyuiop')}</div><div class="kr">${keys('asdfghjkl')}</div><div class="kr"><div class="k w">⇧</div>${keys('zxcvbnm')}<div class="k w">⌫</div></div><div class="kr"><div class="k w">?123</div><div class="k space">space</div><div class="k w">↵</div></div></div>`;
+const editor=({kb=true,tabs=tabsOne(),banner='',body=editorDocCaret,raw=false,sub='gonq/q3-rollout',name=FILE,on='',tool=fmtBar()}={})=>
+  `${status}${ebar({raw,sub,name,on})}${tabs}${banner}<div class="canvas ${raw?'raw':''}">${body}</div>${kb?tool+keyboard:home}`;
+
+/* ============ Trees ============ */
+const tr=(depth,kind,name,o={})=>`<div class="tr ${o.sel?'sel':''}" style="padding-left:${14+depth*22}px"><span class="ch">${kind==='dir'?I(o.open?'chevD':'chevR',16):''}</span>${I(kind==='dir'?'folder':'file',18)}<span>${name}</span></div>`;
+const trMsg=(depth,t,e=false,action='')=>`<div class="tr msg ${e?'e':''}" style="padding-left:${38+depth*22}px;flex-wrap:wrap;padding-top:6px;padding-bottom:6px"><span style="flex:1;min-width:180px">${t}</span>${action}</div>`;
+const repoTree=()=>
+  tr(0,'dir','docs',{open:1})+tr(1,'file','architecture.md')+tr(1,'file','q3-rollout.md',{sel:1})+tr(1,'dir','runbooks',{open:1})+tr(2,'file','deploy.md')+tr(2,'file','rollback.md')+tr(1,'dir','api')+tr(0,'file','README.md')+tr(0,'file','CHANGELOG.md')+tr(0,'file','CONTRIBUTING.md');
+const repoCtl=(branch='gonq/q3-rollout',busy=false)=>`<div class="ctl"><div class="bsel" aria-label="Branch: ${branch}">${I('branch',18)}<span>${branch}</span><span class="ch">${I('chevD',18)}</span></div><div class="row">${btn(`b-out sm fl ${busy?'dis':''}`,busy?'Refreshing':'Refresh',busy?'':'refresh').replace('Refreshing',`${spin}Refresh`)}${btn('b-out sm fl','Create branch','branchPlus')}</div></div>`;
+const navScreen=(branch,body)=>`${status}${nav(close(),REPO,'')}${repoCtl(branch)}<div class="lbl-up" style="padding-top:12px">Project folder</div><div class="body">${body||repoTree()}</div>${home}`;
+const retryBtn=(t='Retry')=>`<div class="btn b-out sm" style="height:44px">${t}</div>`;
+
+/* ============ Folder nav (local) ============ */
+const folderHead=(name,dis=false)=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 8px 4px 20px;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0;font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="/storage/emulated/0/Documents/notes">${name}</div>${ibtn('refresh',dis?'dis':'','Refresh')}</div>`;
+const folderNav=(state='tree')=>`${status}${nav(back(),'Folder navigator','')}<div class="lbl-up" style="padding-top:12px">Project folder</div>${
+  state==='none'?`<div style="display:flex;align-items:center;gap:6px;padding:4px 8px 4px 20px"><div style="flex:1;color:var(--muted);font-size:15px">No folder open</div>${ibtn('refresh','dis','Refresh')}</div><div style="padding:6px 20px">${btn('b-out','Open Folder…','folder')}</div><div class="body"></div>`:
+  state==='empty'?`${folderHead('drafts')}<div class="body"><div class="tr msg" style="padding-left:20px">No Markdown files.</div></div>`:
+  state==='loading'?`${folderHead('notes',true)}<div class="body"><div class="tr msg" style="padding-left:20px">Loading…</div></div>`:
+  `${folderHead('notes')}<div class="body">${tr(0,'dir','meetings',{open:1})+tr(1,'file','2026-10-20 sync.md')+tr(1,'file','2026-10-27 sync.md')+tr(0,'dir','projects',{open:1})+tr(1,'file','q3-rollout.md',{sel:1})+tr(1,'file','onboarding.md')+tr(0,'dir','archive',{open:1})+trMsg(1,'Empty.')+tr(0,'file','ideas.md')+tr(0,'file','todo.md')}</div>`}${home}`;
+
+/* ============ Recents / Settings ============ */
+const rent=(ic,name,gh,when)=>`<div class="li pad2">${I(ic,20)}<div class="m"><div class="t">${name}${gh?` <span class="o" style="font-size:12px">${gh}</span>`:''}</div><div class="d">${when}</div></div><div class="rx" aria-label="Remove ${name} from recent documents">${I('x',16)}</div></div>`;
+const tabbar=(on)=>`<div class="tabwrap"><div class="tabbar"><div class="tab ${on==='r'?'on':''}">${I('clock',22)}Recents</div><div class="tab ${on==='s'?'on':''}">${I('sliders',22)}Settings</div></div>${home}</div>`;
+const recentsHead=`${status}<div class="dhead"><div class="big">Recents</div></div><div class="entry">${btn('b-out','Open Repo…','branch')}${btn('b-out','Open Folder…','folder')}</div>`;
+const recentRows=rent('file','q3-rollout.md','','just now')+rent('branch','q3-rollout.md','northwind/platform-docs @ gonq/q3-rollout','5 min ago')+rent('branch','architecture.md','northwind/platform-docs @ main','3 h ago')+rent('file','onboarding.md','','2 d ago')+rent('branch','README.md','northwind/docs-site @ main','10/14/2026');
+const recents=(state='list',banner='')=>`${recentsHead}${banner}${
+  state==='empty'?`<div class="lbl-up">Recent documents</div><div class="rlist"><div class="empty" style="padding-top:40px"><div class="ico">${I('clock',26)}</div><p>No recent documents.</p></div><div class="fab" aria-label="New">${I('plus',26)}</div></div>`:
+  state==='loading'?`<div class="lbl-up">Recent documents</div><div class="rlist">${skRows(5)}</div>`:
+  `<div class="lbl-up">Recent documents</div><div class="rlist">${recentRows}<div class="fab" aria-label="New">${I('plus',26)}</div></div>`}${tabbar('r')}`;
+const settings=({gh='in',author='R. Okafor',err='',inner=''}={})=>`${status}<div class="dhead"><div class="big">Settings</div></div><div class="body">
+  <div style="padding:14px 20px 0"><span class="lbl" style="color:var(--ink)">Author name</span>${field(author||'<span style="color:var(--muted)">User</span>',err?'bad':'')}<div class="hint ${err?'err':''}">${err||'Written on the comments and replies you add.'}</div></div>
+  <div style="padding:24px 20px 0"><div style="font-size:14px;font-weight:700;margin-bottom:8px">GitHub</div>
+  <div style="display:flex;align-items:center;gap:12px"><div style="flex:1;color:var(--muted);font-size:14.5px">${gh==='checking'?'Checking…':gh==='in'?'Signed in as okafor-r.':'Not signed in.'}</div>${gh==='in'?btn('b-out sm','Sign Out'):btn(`b-out sm ${gh==='checking'?'':''}`,'Sign In')}</div>${inner}</div></div>
+  <div class="foot" style="border-top:1px solid var(--line)">${btn('b-out fl','Cancel')}${btn(`b-primary fl ${err?'dis':''}`,'Save')}</div>${tabbar('s')}`;
+
+/* ============ ⋯ menu (built from the command registry; file.connect excluded on mobile; no shortcut column on touch) ============ */
+const mrow=(t,o={})=>`<div class="mrow ${o.dis?'dis':''}"><span class="mk">${o.check===true?I('check',18):o.check===false?'<span class="cbx"></span>':o.radio===true?'<span class="radio on" style="width:18px;height:18px"></span>':o.radio===false?'<span class="radio" style="width:18px;height:18px"></span>':''}</span><span style="${o.style||''}">${t}</span>${o.sub?`<span class="sub">${I('chevR',18)}</span>`:''}</div>`;
+const sep='<div class="msep"></div>';
+const MENU_FILE=`<div class="mgrp">File</div>${mrow('New')}${mrow('Open…')}${mrow('Open Folder…')}${mrow('Open Repo…')}${mrow('Open PR…')}${sep}${mrow('Save')}${mrow('Save As…')}${mrow('Commit…')}${sep}${mrow('Close Tab')}`;
+const MENU_EDIT=`<div class="mgrp">Edit</div>${mrow('Undo')}${mrow('Redo',{dis:1})}${sep}${mrow('Settings…')}`;
+const MENU_VIEW=`<div class="mgrp">View</div>${mrow('Raw Markdown',{check:false})}${mrow('Refresh Navigator')}${mrow('Theme',{sub:1})}`;
+const MENU_INSERT=`<div class="mgrp">Insert</div>${mrow('Image…')}${mrow('Table of Contents')}`;
+const MENU_FORMAT=`<div class="mgrp">Format</div>${mrow('Bold',{style:'font-weight:700'})}${mrow('Italic',{style:'font-style:italic'})}${mrow('Underline',{style:'text-decoration:underline'})}${mrow('Strikethrough',{style:'text-decoration:line-through'})}${mrow('Insert link')}${mrow('Bullet list')}${mrow('Numbered list')}${mrow('Checkbox list')}${sep}${mrow('Table',{sub:1})}`;
+const MENU_HELP=`<div class="mgrp">Help</div>${mrow('Agent skill…')}${mrow('About Gonq')}`;
+const menuSheet=(offset=0)=>sheet('',`<div style="height:680px;overflow:hidden;position:relative"><div style="margin-top:-${offset}px">${MENU_FILE}${MENU_EDIT}${MENU_VIEW}${MENU_INSERT}${MENU_FORMAT}${MENU_HELP}</div></div>`);
+const subSheet=(title,rows)=>sheet('',`<div class="topbar" style="border-bottom:1px solid var(--line);margin-top:-4px">${back()}<div class="ttl"><div class="t1">${title}</div></div></div><div style="padding-top:4px">${rows}</div>`);
+
+/* ============ Comments ============ */
+const thRow=(st,when,anchor,body)=>`<div class="th"><div style="display:flex;gap:8px;align-items:center"><span class="pill ${st==='open'?'open':'res'}">${st==='open'?'Open':'Resolved'}</span><span style="font-size:12px;color:var(--muted)">${when}</span></div>${anchor?`<div class="anchor">${anchor}</div>`:''}<div class="msgb" style="font-size:14.5px">${body}</div></div>`;
+const listBody=(empty=false,canAdd=true)=>`<div style="padding:0 20px 12px">${btn(`b-primary block ${canAdd?'':'dis'}`,'Add comment')}</div>${empty?`<p class="note" style="padding:4px 20px 40px;font-size:14px">No comments yet.</p>`:thRow('open','2h ago','rollout now targets the 14th','Can we confirm the 14th with logistics before publishing?')+thRow('resolved','1d ago','','Should the legal note move above the open items list?')}`;
+const commentsSheet=(body)=>over(editor({kb:false,body:editorDoc(true),on:'comments'}),sheet('Comments',body));
+const thHead=(st,when='2h ago')=>`<div style="display:flex;align-items:center;gap:8px;padding:0 8px 0 20px"><span class="pill ${st==='open'?'open':'res'}">${st==='open'?'Open':'Resolved'}</span><span style="font-size:12px;color:var(--muted)">${when}</span><span style="margin-left:auto;display:flex">${ibtn('pencil','','Edit thread')}${ibtn('trash','','Delete thread')}${ibtn('x','','Close thread')}</span></div>`;
+const msgs=`<div style="padding:4px 20px 0;display:flex;flex-direction:column;gap:12px"><div class="anchor">rollout now targets the 14th</div>
+  <div><div class="msgh">R. Okafor · 2h ago</div><div class="msgb">Can we confirm the 14th with logistics before publishing?</div></div>
+  <div><div class="msgh">M. Ibsen · 1h ago</div><div class="msgb">Confirmed. Moving to the 14th is fine on our end.</div></div></div>`;
+const replyBox=(st,typed='')=>`<div style="padding:14px 20px 0"><div class="field area ${typed?'focus':'ph'}" style="min-height:76px" aria-label="Reply">${typed||'Reply…'}</div><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px">${btn('b-out',st==='open'?'Resolve':'Reopen')}${btn('b-primary','Reply')}</div></div>`;
+
+/* ============ Screens ============ */
+const S={};
+S.editor=()=>editor();
+S.menu=()=>over(editor({kb:false}),menuSheet(0));
+S.menu2=()=>over(editor({kb:false}),menuSheet(560));
+S.menuTheme=()=>over(editor({kb:false}),subSheet('Theme',mrow('Light',{radio:false})+mrow('Dark',{radio:false})+mrow('Auto',{radio:true})));
+S.menuTable=()=>over(editor({kb:false}),subSheet('Table',mrow('Insert table')+sep+mrow('Insert row above',{dis:1})+mrow('Insert row below',{dis:1})+mrow('Insert column left',{dis:1})+mrow('Insert column right',{dis:1})+sep+mrow('Align column left',{dis:1})+mrow('Align column center',{dis:1})+mrow('Align column right',{dis:1})+sep+mrow('Delete row',{dis:1})+mrow('Delete column',{dis:1})+mrow('Delete table',{dis:1})));
+S.notice=()=>editor({kb:false,body:editorDoc(false),banner:notice('No changes to commit')});
+S.errBanner=()=>editor({kb:false,body:editorDoc(false),banner:errBanner('Could not check for an open pull request; try again.')});
+S.recents=()=>recents('list');
+S.recentsLoad=()=>recents('loading');
+S.recentsEmpty=()=>recents('empty');
+S.recentsErr=()=>recents('list',errBanner('/storage/emulated/0/Documents/old/plan.md no longer exists, so it was removed from recent documents.'));
+S.recentsSignedOut=()=>recents('list',notice('GitHub sign-in is no longer valid. Sign in again to open a repository.'));
+S.splash=()=>`${status}<div class="splash">${logo(200)}</div>${home}`;
+
+/* 1 GitHub sign-in (GitHubSignInPanel inside Settings > GitHub) */
+const signin=(title,inner)=>`${status}${nav(back(),'Settings','')}<div class="body pad"><div style="font-size:14px;font-weight:700;margin-bottom:8px">GitHub</div><div class="card"><div style="font-size:16px;font-weight:700;margin-bottom:10px">${title}</div>${inner}</div></div>${home}`;
+const idleBody=(problem='',again=false)=>`${problem?`<p class="err" role="alert" style="margin-bottom:12px">${problem}</p>`:''}<p class="note" style="font-size:14.5px;margin-bottom:18px">Gonq shows a code to type on github.com. Your password and token never pass through this window.</p><div class="col" style="display:flex;flex-direction:column;gap:8px">${btn('b-primary block',again?'Try again':'Start')}${btn('b-out block','Cancel')}</div>`;
+S.ghIdle=()=>signin('Sign in to GitHub',idleBody());
+S.ghStarting=()=>signin('Sign in to GitHub',`<p class="stline" role="status" style="padding:22px 0">${spin}Asking GitHub for a code…</p>${btn('b-out block','Cancel')}`);
+const waitBody=(copied=false,openFailed=false)=>`<p style="font-size:14.5px;margin-bottom:8px">Enter this code on GitHub:</p>
+  <div class="codebox"><span class="code" aria-label="User code">WDJB-MJHT</span>${btn('b-out sm',copied?'Copied':'Copy',copied?'check':'copy')}</div>
+  <div class="addr"><span>https://github.com/login/device</span>${btn('b-out sm','Copy address','copy')}</div>
+  ${openFailed?`<p class="err" role="alert" style="margin-bottom:12px">Could not open the browser (No app can open this link). Open the address above yourself and type the code.</p>`:''}
+  <p class="stline" role="status" style="margin-bottom:16px">${spin}Waiting for approval on github.com…</p>
+  <div style="display:flex;flex-direction:column;gap:8px">${btn('b-primary block','Open github.com/login/device','ext')}${btn('b-out block','Cancel')}</div>`;
+S.ghCode=()=>signin('Sign in to GitHub',waitBody());
+S.ghCodeFail=()=>signin('Sign in to GitHub',waitBody(true,true));
+S.ghIn=()=>signin('Signed in to GitHub',`<p role="status" style="font-size:14.5px;margin-bottom:18px">Approved. Signed in as okafor-r.</p>${btn('b-primary block','Done')}`);
+S.ghSession=()=>signin('Signed in to GitHub',`<p role="status" style="font-size:14.5px;margin-bottom:8px">Approved. Signed in as okafor-r.</p><p class="note" style="font-size:14.5px;margin-bottom:18px">No keychain is available, so this sign-in lasts for this session only.</p>${btn('b-primary block','Done')}`);
+S.ghDenied=()=>signin('Sign in to GitHub',idleBody('Sign-in was denied on github.com.',true));
+S.ghExpired=()=>signin('Sign in to GitHub',idleBody('The code expired before it was approved.',true));
+S.ghFailed=()=>signin('Sign in to GitHub',idleBody('Device sign-in is switched off for this GitHub app',true));
+
+/* 2 Repo picker */
+const repoRow=(o,n,priv,ro,q)=>`<div class="li slim"><div class="m"><div class="t" style="font-weight:500"><span class="o">${o}/</span>${hlite(n,q)}</div></div>${priv?'<span class="badge">private</span>':''}${ro?'<span class="badge">read-only for you</span>':''}</div>`;
+const pickerShell=(filter,inner,note=true)=>`${status}${nav(`<div class="act">Cancel</div>`,'Open repository','<div style="width:76px"></div>')}<div style="padding:12px 16px 8px">${filter}</div><div class="body" style="border-top:1px solid var(--line)">${inner}</div>${note?`<p class="note" style="padding:10px 20px 6px;border-top:1px solid var(--line)">Repositories from organisations that have not authorised the Gonq OAuth App may not appear here.</p>`:''}${home}`;
+const fFocus=(v)=>field(v,'focus','search');
+S.picker=()=>pickerShell(fFocus('docs'),repoRow('northwind','platform-docs',1,0,'docs')+repoRow('northwind','docs-site',0,0,'docs')+repoRow('okafor-r','design-docs',1,0,'docs')+repoRow('acme-oss','api-docs',0,1,'docs')+repoRow('northwind','onboarding-docs',1,1,'docs')+`<p class="stline" role="status" style="padding:14px 20px">${spin}Loading more…</p>`);
+const skRows=(n)=>Array.from({length:n},(_,i)=>`<div class="skrow"><div class="sk ico"></div><div style="flex:1"><div class="sk" style="width:${58-(i%3)*10}%;margin-bottom:8px"></div><div class="sk" style="width:${82-(i%2)*18}%;height:9px"></div></div></div>`).join('');
+
+/* 3 Navigator / Create branch */
+S.nav=()=>navScreen();
+const brRow=(b,cur)=>`<div class="li slim" style="${cur?'background:var(--sel)':''}"><span style="width:18px;display:flex;color:var(--link)">${cur?I('check',18):''}</span><span class="mono" style="font-size:14px;flex:1;word-break:break-all;${cur?'color:var(--link);font-weight:600':''}">${b}</span></div>`;
+S.branches=()=>over(navScreen(),sheet('Branches',`<div class="sh-b" style="padding-bottom:8px">${field('Filter branches','ph','search')}</div><div style="border-top:1px solid var(--line)">${['main','feature/q3-rollout','gonq/fix-typos','gonq/q3-rollout','release/q3'].map(b=>brRow(b,b==='gonq/q3-rollout')).join('')}</div><p class="stline" role="status" style="padding:12px 20px 0">${spin}Loading more…</p>`));
+S.branchesCap=()=>over(navScreen(),sheet('Branches',`<div class="sh-b" style="padding-bottom:8px">${field('Filter branches','ph','search')}</div><div style="border-top:1px solid var(--line)">${['dependabot/npm/vite-5.4.2','feature/q3-rollout','gonq/q3-rollout','main'].map(b=>brRow(b,b==='gonq/q3-rollout')).join('')}</div><p class="note" style="padding:12px 20px 0">Showing the first 100 of 412 branches. Type to narrow the list.</p>`));
+S.branchesNoMatch=()=>over(navScreen(),sheet('Branches',`<div class="sh-b" style="padding-bottom:8px">${field('zzz','focus','search')}</div><p class="note" style="padding:12px 20px 0;border-top:1px solid var(--line)">No branch matches.</p>`));
+S.branchesErr=()=>over(navScreen(),sheet('Branches',`<div class="sh-b" style="padding-bottom:8px">${field('Filter branches','ph','search')}</div><div style="border-top:1px solid var(--line);padding:12px 20px 0;display:flex;flex-direction:column;gap:10px;align-items:flex-start"><p class="err" role="alert">GitHub rate limit reached. Try again after 14:05.</p>${retryBtn()}</div>`));
+const cbSheet=({name='',reason='',exists=false,commit=false,error='',left=false,source='gonq/q3-rollout'}={})=>sheet('Create branch',`<div class="sh-b"><p class="note" style="font-size:14.5px;margin-bottom:12px;word-break:break-all">From ${source}</p>
+  <div class="field ${reason||exists?'bad':'focus'}" aria-label="Branch name"><span class="pfx" data-testid="branch-prefix">gonq/</span><span class="mono" style="font-size:14px;flex:1;margin-left:-6px">${name}<span class="caret"></span></span></div>
+  <p class="hint err" role="status" style="min-height:20px;margin-bottom:10px">${reason||(exists?'That branch already exists':'')}</p>
+  ${commit?`<p style="font-size:14.5px;line-height:1.45;margin-bottom:12px;overflow-wrap:anywhere">Creating this branch will also commit your changes in ${PATH} to it.</p>`:''}
+  ${error?`<p class="err" role="alert" style="margin-bottom:12px">${error}</p>`:''}
+  <div style="display:flex;gap:10px">${btn('b-out fl',left?'Close':'Cancel')}${btn(`b-primary fl ${reason||exists||left||!name?'dis':''}`,'Create')}</div></div>`);
+S.createBranch=()=>over(navScreen(),cbSheet({name:'q3-edits'}));
+S.createBranchBad=()=>over(navScreen(),cbSheet({name:'q3 edits',reason:'No spaces'}));
+S.createBranchExists=()=>over(navScreen(),cbSheet({name:'fix-typos',exists:true}));
+S.createBranchCommit=()=>over(editor({kb:false,sub:'main',body:editorDoc(false)}),cbSheet({name:'q3-edits',commit:true,source:'main'}));
+S.createBranchConflict=()=>over(editor({kb:false,sub:'main',body:editorDoc(false)}),cbSheet({name:'q3-edits',commit:true,source:'main',error:`${PATH} changed on GitHub since you opened it, so no branch was created. Nothing was committed.`}));
+S.createBranchPartial=()=>over(editor({kb:false,sub:'main',body:editorDoc(false)}),cbSheet({name:'q3-edits',commit:true,source:'main',left:true,error:`The branch gonq/q3-edits was created, but committing ${PATH} to it failed: the file changed on GitHub. The branch was left in place.`}));
+
+/* 4 Commit (CommitDialog) */
+const commitSheet=(branch)=>{const warn=!branch.startsWith('gonq/');return sheet(`Commit ${PATH}?`,`<div class="sh-b"><dl class="dl"><dt>File</dt><dd>${PATH}</dd><dt>Repository</dt><dd>${REPO}</dd><dt>Branch</dt><dd>${branch}</dd><dt>Message</dt><dd>Edit ${PATH} from Gonq</dd></dl>
+  ${warn?`<p role="note" class="err" style="margin-bottom:16px">This commits directly to ${branch}. Branch protection and review rules are GitHub’s; Gonq does not check them.</p>`:''}
+  <div style="display:flex;flex-direction:column;gap:8px">${btn('b-primary block','Commit')}${warn?btn('b-out block','Commit to new branch…','branchPlus'):''}${btn('b-text block','Cancel')}</div></div>`).replace('class="sh-t"','class="sh-t" style="font-size:17px;word-break:break-all"');};
+S.commitWarn=()=>over(editor({kb:false,sub:'main',body:editorDoc(false)}),commitSheet('main'));
+S.commitFeature=()=>over(editor({kb:false,sub:'feature/q3-rollout',body:editorDoc(false)}),commitSheet('feature/q3-rollout'));
+S.commitOk=()=>over(editor({kb:false,sub:'gonq/q3-rollout',body:editorDoc(false)}),commitSheet('gonq/q3-rollout'));
+S.commitErr=()=>editor({kb:false,sub:'main',body:editorDoc(false),banner:errBanner('GitHub returned 409: Repository rule violations found')});
+S.commitRefused=()=>editor({kb:false,sub:'gonq/fix-typos',body:editorDoc(false),banner:`<div class="banner" role="status"><span class="t">Pull request #41 is open for this branch. You can read this document but not change it.</span><span class="lnk">Open PR</span></div>`+errBanner('Pull request #41 is open for this branch. You can read this document but not change it.')});
+
+/* 5 Open PR (OpenPrDialog): Repository + Branch to merge + Merge into + Review changes on one screen, then details, then result */
+const prSteps=(n)=>`<div class="steps">${['Branch to merge','Merge into','Review changes'].map((s,i)=>`<div class="s ${i+1===n?'on':i+1<n?'done':''}"><div class="bar"></div><div class="nm">${s}</div></div>`).join('')}</div>`;
+const prShell=(step,inner,canOpen,showOpen=true,offset=0)=>`${status}${nav('','Open pull request','')}${prSteps(step)}<div class="body"><div style="margin-top:-${offset}px">${inner}</div></div><div class="foot">${btn('b-out fl','Cancel')}${showOpen?btn(`b-primary fl ${canOpen?'':'dis'}`,'Open PR'):''}</div><div style="height:30px;flex-shrink:0"></div>`;
+const repoSel=`<div style="padding:14px 20px 4px"><span class="lbl">Repository</span><div class="bsel" aria-label="Repository"><span>${REPO}</span><span class="ch">${I('chevD',18)}</span></div></div>`;
+const srcRow=(b,on,pull)=>`<div class="li slim" style="${on?'background:var(--sel)':''}"><div class="radio ${on?'on':''}"></div><span class="mono" style="font-size:14px;flex:1;word-break:break-all">${b}</span>${pull?`<span class="lnk" style="margin-right:-10px">#${pull}</span>`:''}</div>`;
+const srcList=(sel)=>`<div class="sech">Branch to merge</div><div style="border-top:1px solid var(--line)">${srcRow('gonq/q3-rollout',sel==='gonq/q3-rollout')}${srcRow('gonq/fix-typos',sel==='gonq/fix-typos',41)}${srcRow('feature/q3-rollout',sel==='feature/q3-rollout')}</div>`;
+const tgtList=(sel,src='gonq/q3-rollout')=>`<div class="sech" style="padding-top:18px">Merge into</div><div style="padding:0 20px 8px">${field('Filter branches','ph','search')}</div><div style="border-top:1px solid var(--line)">${['main','feature/q3-rollout','gonq/fix-typos','release/q3'].filter(b=>b!==src).map(b=>srcRow(b,b===sel)).join('')}</div>`;
+const fileRow=(n,st,a,d)=>`<div style="padding:9px 12px;border-bottom:1px solid var(--line)"><div style="font-size:14px;word-break:break-all">${n}</div><div class="note">${st} · +${a} −${d}</div></div>`;
+const review=`<div class="sech" style="padding-top:18px">Review changes</div><div style="padding:0 20px"><p style="font-size:14.5px;margin-bottom:4px">3 commits ahead, 0 commits behind main</p><p style="font-size:14.5px;margin-bottom:10px">2 files changed, +14 −3</p><div style="border:1px solid var(--line);border-radius:6px" aria-label="Changed files">${fileRow(PATH,'modified',12,3)}${fileRow('README.md','modified',2,0).replace('border-bottom:1px solid var(--line)','')}</div></div>`;
+S.pr1=()=>prShell(1,repoSel+srcList(''),false);
+S.pr1Empty=()=>prShell(1,repoSel+`<div class="sech">Branch to merge</div><p class="note" style="padding:0 20px;font-size:14.5px">No branches to merge from this session.</p>`,false);
+S.pr1Load=()=>prShell(1,repoSel+`<div class="sech">Branch to merge</div><p class="stline" role="status" style="padding:0 20px">${spin}Checking branches…</p>`,false);
+S.pr2=()=>prShell(2,repoSel+srcList('gonq/q3-rollout')+tgtList(''),false,true,0);
+S.pr3=()=>prShell(3,repoSel+srcList('gonq/q3-rollout')+tgtList('main')+review,true,true,276);
+S.pr2Load=()=>prShell(2,repoSel+srcList('gonq/q3-rollout')+`<div class="sech" style="padding-top:18px">Merge into</div><p class="stline" role="status" style="padding:0 20px">${spin}Loading branches…</p>`,false);
+S.pr3Comparing=()=>prShell(3,repoSel+srcList('gonq/q3-rollout')+tgtList('main')+`<div class="sech" style="padding-top:18px">Review changes</div><p class="stline" role="status" style="padding:0 20px">${spin}Comparing…</p>`,false,true,276);
+S.pr3Trunc=()=>prShell(3,repoSel+srcList('gonq/q3-rollout')+tgtList('main')+review.replace('<div style="border:1px','<p role="note" class="err" style="margin-bottom:10px">GitHub cut the file list off, so some changed files are not listed and the totals cover only those shown.</p><div style="border:1px'),true,true,276);
+S.prOpenAlready=()=>prShell(3,repoSel+srcList('gonq/fix-typos')+`<div class="sech" style="padding-top:18px">Merge into</div><div style="padding:0 20px">${field('Filter branches','ph','search')}</div><div class="sech" style="padding-top:18px">Review changes</div><p role="status" style="padding:0 20px;font-size:14.5px;line-height:1.5">Pull request #41 is already open for this branch: <span class="lnk" style="padding:0 2px;vertical-align:middle">#41</span></p>`,false,false,0);
+S.prNoChanges=()=>prShell(3,repoSel+srcList('feature/q3-rollout')+tgtList('main','feature/q3-rollout')+`<div class="sech" style="padding-top:18px">Review changes</div><p role="status" style="padding:0 20px;font-size:14.5px">No changes between these branches.</p>`,false,true,276);
+const prBody=`Merging gonq/q3-rollout into main
+
+2 files changed, +14 −3
+
+- modified: docs/q3-rollout.md (+12 −3)
+- modified: README.md (+2 −0)
+
+Opened from Gonq`;
+const prDetails=(error='')=>`${status}${nav('','Open pull request','')}<div class="body pad" style="padding-top:16px"><p class="note" style="font-size:14px;margin-bottom:14px;word-break:break-all">${REPO}: gonq/q3-rollout into main</p>
+  <div class="fg"><span class="lbl">Title</span>${field('q3-rollout','focus')}</div>
+  <div class="fg"><span class="lbl">Description</span><div class="field area mono" style="min-height:250px;display:block;white-space:pre-wrap;font-size:12.5px">${prBody}</div></div>
+  ${error?`<p class="err" role="alert">${error}</p>`:''}</div>
+  <div class="foot">${btn('b-out','Back')}<div style="flex:1"></div>${btn('b-out','Cancel')}${btn('b-primary','Open PR')}</div><div style="height:30px;flex-shrink:0"></div>`;
+S.prDetails=()=>prDetails();
+S.prDetailsErr=()=>prDetails('Validation Failed: A pull request already exists for northwind:gonq/q3-rollout.');
+const prDone=(warn=false)=>`${status}${nav('','Pull request opened','')}<div class="body pad"><p style="font-size:15px;line-height:1.5;margin-bottom:14px">Pull request <span class="lnk" style="padding:0 2px;vertical-align:middle">#43</span> was opened for gonq/q3-rollout.</p>${warn?`<p role="note" class="note" style="font-size:14px;margin-bottom:14px">Pull request created, but its label could not be added: GitHub returned 403: Resource not accessible by integration</p>`:''}</div><div class="foot">${btn('b-out fl','Close')}${btn('b-primary fl','Open in browser','ext')}</div><div style="height:30px;flex-shrink:0"></div>`;
+S.prDone=()=>prDone();
+S.prDoneWarn=()=>prDone(true);
+
+/* 6 Read-only banner, 7 Change branch */
+const roBanner=`<div class="banner" role="status"><span class="t">Pull request #43 is open for this branch. You can read this document but not change it.</span><span class="lnk">Open PR</span></div>`;
+S.readonly=()=>editor({kb:false,sub:'gonq/q3-rollout',banner:roBanner,body:editorDoc(false),tabs:tabsOne(false)});
+S.readonlyMenu=()=>over(editor({kb:false,banner:roBanner,body:editorDoc(false),tabs:tabsOne(false)}),menuSheet(0).replace(mrow('Commit…'),mrow('Commit…',{dis:1})).replace(mrow('Undo'),mrow('Undo',{dis:1})));
+S.readonlyCtx=()=>`${editor({kb:false,banner:roBanner,tabs:tabsOne(false),body:`<h1>Q3 rollout plan</h1><p>Ship dates moved <b>up one week</b> after signoff. Finance confirmed budget on Tuesday, and the <span class="selr">rollout now targets the 14th</span> instead of the 21st.</p>`})}${ctxMenu(true)}`;
+S.changeBranch=()=>over(navScreen('gonq/q3-rollout'),`<div class="dlg"><h3>Change branch?</h3><p>Changing branches will close ${FILE}, and any uncommitted changes will be permanently lost.</p><div class="row">${btn('b-out fl','Cancel')}${btn('b-destout fl','Close document')}</div></div>`);
+
+/* 8 Folder, 9 Tabs, 10 Outline, 11 Table, 12 Raw, 13 Context */
+S.folderLocal=()=>folderNav('tree');
+S.folderNone=()=>folderNav('none');
+S.folderEmpty=()=>folderNav('empty');
+S.folderLoading=()=>folderNav('loading');
+S.tabsOne=()=>editor({kb:false,body:editorDoc(false),tabs:tabsOne(false)});
+S.tabsMany=()=>editor({kb:false,tabs:tabsMany,body:editorDoc(false)});
+const outlineDrawer=(items)=>`<div class="drawer"><div class="lbl-up" style="padding:14px 20px 10px">Outline</div><div style="flex:1;overflow:hidden">${items}</div></div>`;
+S.outline=()=>over(editor({kb:false,body:editorDoc(false),on:'outline'}),outlineDrawer(`<div class="tr" style="padding-left:20px;font-weight:600">Q3 rollout plan</div><div class="tr" style="padding-left:32px;color:var(--muted)">Open items</div><div class="tr" style="padding-left:32px;color:var(--muted)">Owners</div><div class="tr" style="padding-left:44px;color:var(--muted)">Platform team</div><div class="tr" style="padding-left:44px;color:var(--muted)">Design</div><div class="tr" style="padding-left:32px;color:var(--muted)">Timeline</div><div class="tr" style="padding-left:32px;color:var(--muted)">Risks</div><div class="tr" style="padding-left:20px;font-weight:600">Appendix</div><div class="tr" style="padding-left:32px;color:var(--muted)">Budget notes</div>`));
+S.outlineEmpty=()=>over(editor({kb:false,body:'<p>Notes from the sync, no headings yet.</p>',on:'outline',name:'scratch.md',sub:''}),outlineDrawer(`<p class="note" style="padding:0 20px;font-size:14px">No headings.</p>`));
+const tableDoc=(hdr=false)=>`<h1>Rollout dates</h1><table class="tbl"><tr><th${hdr?' class="cellsel"':''}>Phase${hdr?'<span class="caret"></span>':''}</th><th>Owner</th><th>Date</th></tr><tr><td>Design review</td><td>Tran</td><td>Oct 8</td></tr><tr><td>QA sign-off</td><td${hdr?'':' class="cellsel"'}>Ibsen${hdr?'':'<span class="caret"></span>'}</td><td>Oct 11</td></tr><tr><td>Launch</td><td>Okafor</td><td>Oct 14</td></tr></table>`;
+S.fmtOutside=()=>editor();
+S.fmtInTable=()=>editor({body:tableDoc(),tool:fmtBar(true)});
+S.table=()=>editor({body:tableDoc(),tool:tableBar({align:'left'})});
+S.tableHeader=()=>editor({body:tableDoc(true),tool:tableBar({align:'left',header:true})});
+S.raw=()=>editor({raw:true,body:rawDoc});
+const ctxMenu=(ro=false)=>`<div class="pop" style="left:40px;top:${ro?380:326}px"><div class="pr ${ro?'dis':''}">Add Comment</div><hr><div class="pr">Cut</div><div class="pr">Copy</div><div class="pr">Paste</div><hr><div class="pr">Select All</div><hr><div class="pr" style="font-weight:700">Bold</div><div class="pr" style="font-style:italic">Italic</div></div>`;
+const ctxDoc=`<h1>Q3 rollout plan</h1><p>Ship dates moved <b>up one week</b> after signoff. Finance confirmed budget on Tuesday, and the <span class="selr">rollout now targets the 14th</span> instead of the 21st.</p><div class="h2">Open items</div><ul><li>Design review of onboarding</li><li>QA sign-off on export</li></ul>`;
+S.context=()=>`${editor({kb:false,body:ctxDoc})}${ctxMenu(false)}`;
+S.contextNoSel=()=>`${editor({kb:false,body:ctxDoc.replace('<span class="selr">rollout now targets the 14th</span>','rollout now targets<span class="caret"></span> the 14th')})}<div class="pop" style="left:40px;top:326px"><div class="pr">Add Comment</div><hr><div class="pr dis">Cut</div><div class="pr dis">Copy</div><div class="pr">Paste</div><hr><div class="pr">Select All</div><hr><div class="pr" style="font-weight:700">Bold</div><div class="pr" style="font-style:italic">Italic</div></div>`;
+
+/* 14 Unsaved / conflict */
+S.unsaved=()=>over(editor({kb:false,body:editorDoc(false)}),`<div class="dlg"><h3>Save changes to ${FILE}?</h3><p>Your changes will be lost if you don’t save them.</p><div class="col">${btn('b-primary block','Save')}${btn('b-destout block','Don’t save')}${btn('b-out block','Cancel')}</div></div>`);
+S.conflict=()=>over(editor({kb:false,sub:'main',body:editorDoc(false)}),`<div class="dlg"><h3>${FILE} changed on the server since you opened it.</h3><p>Overwrite replaces the server’s version with yours. Cancel keeps your changes unsaved.</p><div class="row">${btn('b-out fl','Cancel')}${btn('b-destout fl','Overwrite')}</div></div>`);
+
+/* 15 Settings */
+S.settings=()=>settings();
+S.settingsOut=()=>settings({gh:'out'});
+S.settingsChecking=()=>settings({gh:'checking'});
+S.settingsBad=()=>settings({author:'R. Okafor | QA',err:'The name cannot contain "|", "]" or line breaks.'});
+
+/* 16 About / Agent skill */
+S.about=()=>`${status}${nav(back(),'About Gonq','')}<div class="splash" style="gap:10px;padding:0 20px">${logo(224)}<div style="font-size:22px;font-weight:600;margin-top:6px">Gonq</div><div style="font-size:14px;color:var(--muted)">Version 0.1.5</div><span class="lnk" style="font-weight:500;font-size:14px">https://github.com/crashtest00/gonq</span></div><div style="padding:0 20px 8px">${btn('b-primary block','Close')}</div>${home}`;
+const skillPreview=`<div class="preview" role="region" aria-label="SKILL.md" style="height:300px"><h4>Gonq comment threads</h4><p>Gonq stores threaded comments inside the <code class="mono" style="font-size:12px">.md</code> file itself. A file with threads is still plain Markdown: edit it with ordinary file tools and keep everything outside the threads exactly as it is.</p><h5>Format</h5><p>An <b>anchor marker</b> sits inline in the prose, at the passage being discussed:</p><pre>The estimate holds through Q3 [💬](#md-thread-c20260910143022a3f9c1d7e2b4) but not beyond.</pre><p>The <b>thread body</b> is an HTML comment appended at the end of the file:</p><pre>&lt;!--
+@thread c20260910143022a3f9c1d7e2b4
+@status open</pre></div>`;
+S.skill=()=>over(editor({kb:false,body:editorDoc(false)}),sheet('Agent skill',`<div class="sh-b"><p class="note" style="font-size:14px;margin-bottom:12px">Give this to an AI agent so it can read and join comment threads in your Markdown files.</p>${skillPreview}<p class="note" role="status" style="min-height:20px;margin:10px 0">Copied to the clipboard.</p><div style="display:flex;gap:8px">${btn('b-out fl','Copy')}${btn('b-out fl','Save as…')}${btn('b-primary fl','Close')}</div></div>`));
+
+/* 17 States */
+S.stPickLoad=()=>pickerShell(field('Filter by owner/repo','ph','search'),skRows(6)+`<p class="stline" role="status" style="padding:14px 20px">${spin}Loading more…</p>`);
+S.stPickNone=()=>pickerShell(field('Filter by owner/repo','ph','search'),`<p class="note" role="status" style="padding:18px 20px;font-size:14.5px">No repositories found for this account.</p>`);
+S.stPickEmpty=()=>pickerShell(fFocus('zzz'),`<p class="note" role="status" style="padding:18px 20px;font-size:14.5px">No repositories match “zzz”.</p>`);
+S.stPickErr=()=>pickerShell(field('Filter by owner/repo','ph','search'),repoRow('northwind','platform-docs',1,0,'')+repoRow('northwind','docs-site',0,0,'')+`<div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px;align-items:flex-start"><p class="err" role="alert">Could not reach GitHub: connection timed out</p>${retryBtn()}</div>`);
+S.stNavLoad=()=>navScreen('main',`<div class="tr msg" style="padding-left:20px">Loading…</div>`);
+S.stNavEmpty=()=>navScreen('docs/api-v2',`<div class="tr msg" style="padding-left:20px">No Markdown files in this branch.</div>`);
+S.stNavEmptyRepo=()=>navScreen('main',`<div class="tr msg e" style="padding-left:20px">This repository is empty: it has no commits yet.</div>`);
+S.stNavGone=()=>navScreen('gonq/old-draft',`<div class="tr msg e" style="padding-left:20px;padding-right:20px">The branch “gonq/old-draft” no longer exists on GitHub. Choose another branch.</div>`);
+S.stNavRate=()=>navScreen('main',tr(0,'dir','docs',{open:1})+trMsg(1,'GitHub rate limit reached. Try again after 14:05.',true,retryBtn())+tr(0,'file','README.md'));
+S.stNavSignIn=()=>navScreen('main',`<div style="padding:8px 20px;display:flex;flex-direction:column;gap:10px;align-items:flex-start"><p class="err" role="alert">Sign in to GitHub to browse this repository.</p>${retryBtn('Sign in')}</div>`);
+S.stNavRefresh=()=>`${status}${nav(close(),REPO,'')}${repoCtl('gonq/q3-rollout',true)}<div class="lbl-up" style="padding-top:12px">Project folder</div><div class="body">${repoTree()}</div>${home}`;
+S.stNavRefreshErr=()=>navScreen('gonq/q3-rollout',`<div style="padding:4px 20px 8px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;border-bottom:1px solid var(--line)"><p class="err" role="alert">GitHub rate limit reached. Try again after 14:05.</p>${retryBtn()}</div>`+repoTree());
+S.stNavMore=()=>navScreen('main',tr(0,'dir','notes',{open:1})+tr(1,'file','2026-07-01.md')+tr(1,'file','2026-07-02.md')+tr(1,'file','2026-07-03.md')+`<div class="tr msg" style="padding-left:60px">Show more (148 more)</div>`+`<div class="tr msg" style="padding-left:60px">Showing what GitHub returned; the folder may have more.</div>`+tr(0,'file','README.md'));
+
+/* 18 Comments (CommentsSidebar) */
+S.cmList=()=>commentsSheet(listBody());
+S.cmEmpty=()=>commentsSheet(listBody(true));
+S.cmReadonly=()=>over(editor({kb:false,banner:roBanner,body:editorDoc(true),on:'comments',tabs:tabsOne(false)}),sheet('Comments',listBody(false,false)));
+S.cmThread=()=>commentsSheet(thHead('open')+msgs+replyBox('open'));
+S.cmReply=()=>over(editor({kb:false,body:editorDoc(true),on:'comments'}),sheet('',thHead('open')+msgs+replyBox('open','Thanks, publishing Friday.<span class="caret"></span>')));
+S.cmResolved=()=>commentsSheet(thHead('resolved','1d ago')+`<div style="padding:4px 20px 0;display:flex;flex-direction:column;gap:12px"><div><div class="msgh">J. Tran · 1d ago</div><div class="msgb">Should the legal note move above the open items list?</div></div><div><div class="msgh">R. Okafor · 1d ago</div><div class="msgb">Moved. Resolving.</div></div></div>`+replyBox('resolved'));
+S.cmEdit=()=>commentsSheet(thHead('open').replace('<div class="ib "','<div class="ib dis"')+`<div style="padding:4px 20px 0"><div class="anchor" style="margin-bottom:12px">rollout now targets the 14th</div><div class="field area focus" style="min-height:96px" aria-label="Edit comment">Can we confirm the 14th with logistics and support before publishing?<span class="caret"></span></div><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px">${btn('b-out','Cancel')}${btn('b-primary','Save')}</div></div>`);
+S.cmDelete=()=>over(editor({kb:false,body:editorDoc(true),on:'comments'}),`<div class="dlg"><h3>Delete thread “rollout now targets the 14th”?</h3><p>The whole thread, including its replies, is removed from the document.</p><div class="row">${btn('b-out fl','Cancel')}${btn('b-dest fl','Delete')}</div></div>`);
+S.cmNew=()=>over(editor({kb:false,body:ctxDoc,on:'comments'}),sheet('',`<div style="padding:6px 20px 0;display:flex;flex-direction:column;gap:14px"><span style="font-size:16px;font-weight:700">New comment</span><div class="anchor">On: 'rollout now targets the 14th'</div><div class="field area focus ph" style="min-height:96px" aria-label="Comment">Write a comment…</div><div style="display:flex;justify-content:flex-end;gap:10px">${btn('b-out','Cancel')}${btn('b-primary','Submit')}</div></div>`));
+
+/* ============ Layout ============ */
+const SECTIONS=[
+ {n:'—',t:'Core flow',src:'Recents (FolderSidebar) · editor · ⋯ menu (command registry) · App error/notice banner',pri:'',note:'Editor top bar: back, file name with the tab’s branch, ⋯. Second row: <b>mobile-only</b> buttons for Folder navigator, Outline and Comments (desktop has these as TabStrip toggles; they are not registry commands), then the Raw switch (accessible name “Raw Markdown”). The ⋯ menu is generated from the command registry in registry order (File, Edit, View, Insert, Format, Help), with the <code>file.connect</code> command excluded; shortcuts are not shown on touch. Disabled rows are greyed (here Redo, because there is nothing to redo). Recents: “Open Repo…” and “Open Folder…”; the + button is File > New. The error banner (red outline) and the dismissible notice are App’s two message lines, shown under the tab strip.',f:[['Editor · keyboard open (GitHub tab, unsaved ●)','editor'],['⋯ menu · File / Edit','menu'],['⋯ menu · scrolled: View / Insert / Format / Help','menu2'],['⋯ menu · View > Theme (radio, default Auto)','menuTheme'],['⋯ menu · Format > Table (ops greyed outside a table)','menuTable'],['Notice · dismissible','notice'],['Error banner','errBanner'],['Recents','recents'],['Recents · loading (mobile skeleton)','recentsLoad'],['Recents · empty','recentsEmpty'],['Recents · file gone (error banner)','recentsErr'],['Recents · signed out notice','recentsSignedOut'],['Splash · real logo, no tagline','splash']]},
+ {n:'1',t:'GitHub sign-in',src:'GitHubSignInPanel.tsx · SettingsDialog.tsx',pri:'high',note:'The panel lives in Settings > GitHub and starts idle; the code is requested only after Start. Open Repo… and Open PR… while signed out open this screen at the idle step and continue after approval. The session-only sentence appears only when the token could not go to a keychain. The text in brackets on the “browser failed” frame and the failed-step message are examples: the real text comes from the platform / GitHub.',f:[['Idle · Start (also the signed-out redirect)','ghIdle'],['Starting','ghStarting'],['Code · waiting','ghCode'],['Code · Copied + browser failed to open','ghCodeFail'],['Approved · keychain','ghIn'],['Approved · session-only notice','ghSession'],['Denied','ghDenied'],['Expired','ghExpired'],['Failed','ghFailed']]},
+ {n:'2',t:'Repo picker',src:'RepoPickerDialog.tsx',pri:'high',note:'Rows show owner/repo with “private” and “read-only for you” badges; no description, no date, no count. Pages arrive one by one (“Loading more…”). Loading, empty, no-match and error states are in #17. A revoked token closes the picker with the signed-out notice (Core flow).',f:[['Filtered list · loading more','picker']]},
+ {n:'3',t:'Repo navigator · Create branch',src:'RepoNavigator.tsx · CreateBranchDialog.tsx · createBranch.ts',pri:'high',note:'Branch list rows are check + name only (no “default” badge); branches created this session are merged in. Create branch always makes <code>gonq/&lt;name&gt;</code>: the prefix is fixed text. Live reasons come from validateBranchName (“Enter a name”, “No spaces”, “No control characters”, “No “..””, “No “@{””, “Not just “@””, “No “~”” etc., “Cannot start or end with “/””, “Cannot start or end with “.””, “No “//””, “A part cannot end with “.lock””, “A part cannot start with “.””). Create does not switch the navigator unless it also committed the tab; it is disabled while the request is in flight. Merge into in #5 uses the same cap with the note “Showing the first 100 of N; type to narrow the list.”',f:[['File tree','nav'],['Branches · loading more','branches'],['Branches · first-100 cap','branchesCap'],['Branches · no match (“No branches.” when the list is empty)','branchesNoMatch'],['Branches · error + Retry','branchesErr'],['Create branch','createBranch'],['Create branch · invalid name','createBranchBad'],['Create branch · already exists','createBranchExists'],['Create branch · from a dirty tab (commits too)','createBranchCommit'],['Create branch · file changed on GitHub','createBranchConflict'],['Create branch · partial failure (Close)','createBranchPartial']]},
+ {n:'4',t:'Commit confirmation',src:'CommitDialog.tsx · App.commitGithub',pri:'high',note:'Rule (desktop): the warning and “Commit to new branch…” appear on <b>every branch that does not start with <code>gonq/</code></b>, the default branch is not special. Commit is always primary, “Commit to new branch…” secondary, then Cancel. The message is fixed and read-only: “Edit &lt;path&gt; from Gonq”; there is no author line. A failed commit closes the sheet and shows GitHub’s own message in the error banner (the message shown is an example). Before the sheet: “No changes to commit” notice (Core flow), the open-PR refusal, and “Could not check for an open pull request; try again.”',f:[['main · warning','commitWarn'],['feature/q3-rollout · warning too','commitFeature'],['gonq/ branch · no warning','commitOk'],['Commit failed · GitHub message in banner','commitErr'],['Refused · pull request open','commitRefused']]},
+ {n:'5',t:'Open pull request',src:'OpenPrDialog.tsx · openPr.ts · prDefaults.ts',pri:'high',note:'One scrolling screen holds Repository, Branch to merge, Merge into and Review changes (each part appears once the one before it is chosen); its primary button is <b>Open PR</b>. Open PR leads to a separate title/description screen (defaults: title = branch without one leading <code>gonq/</code>; body from prDefaults), whose Open PR creates the pull request, then the result screen. <b>Back from the title screen discards edits</b>: the title and description are rebuilt from the defaults every time, as on desktop. “Branch to merge” lists only branches committed to in this session plus branches of open GitHub tabs, kept in memory: after Android kills the app it is empty until a file is opened from a branch. A row whose branch already has an open pull request carries a #N link. The GitHub messages on the error and label-warning frames are examples.',f:[['Branch to merge · session list (#41 already open)','pr1'],['Branch to merge · empty (after app restart)','pr1Empty'],['Branch to merge · checking','pr1Load'],['Merge into · loading','pr2Load'],['Merge into · filter','pr2'],['Review changes (scrolled) · Open PR enabled','pr3'],['Review · comparing','pr3Comparing'],['Review · file list cut off by GitHub','pr3Trunc'],['Already open · no Open PR','prOpenAlready'],['No changes · Open PR disabled','prNoChanges'],['Title and description','prDetails'],['Title and description · GitHub error','prDetailsErr'],['Result','prDone'],['Result · label warning','prDoneWarn']]},
+ {n:'6',t:'Read-only banner',src:'ReadOnlyBanner.tsx · openPulls.ts',pri:'high',note:'Same sentence as the Commit/Save refusal. On a read-only tab the text cannot be edited (no keyboard), Commit… and Add Comment are greyed; Raw/Formatted switching and reading still work. Desktop does not grey the Format commands on read-only tabs (story conflict C-2).',f:[['Pull request open','readonly'],['⋯ menu · Commit… greyed','readonlyMenu'],['Long-press · Add Comment greyed','readonlyCtx']]},
+ {n:'7',t:'Change branch?',src:'BranchChangeDialog.tsx',pri:'medium',note:'Asked only when the active GitHub document is unsaved and on another branch; only that document is closed.',f:[['Lost-changes warning','changeBranch']]},
+ {n:'8',t:'Folder navigator (local)',src:'FolderSidebar.tsx',pri:'medium',note:'Section “Project folder”; the title is the folder’s base name only (full path on long-press). Refresh is always shown, disabled with nothing open or while listing. Depends on the folder-access spike.',f:[['Local folder','folderLocal'],['No folder open','folderNone'],['Empty folder','folderEmpty'],['Loading · Refresh disabled','folderLoading']]},
+ {n:'9',t:'Tabs',src:'TabStrip.tsx',pri:'medium',note:'The ● appears after the label only on tabs with unsaved changes. Same-named GitHub tabs get their branch in brackets; same-named local tabs get enough of the folder path (“notes/todo.md”). Every tab has a 44 px close target; a fade + chevron marks that the strip scrolls.',f:[['One open document (saved)','tabsOne'],['Several · overflow cue','tabsMany']]},
+ {n:'10',t:'Outline',src:'OutlineSidebar.tsx',pri:'medium',note:'Opened from the Outline button in the editor top bar. No “current heading” state; tapping a heading jumps there.',f:[['Outline drawer','outline'],['No headings','outlineEmpty']]},
+ {n:'11',t:'Formatting bar · table bar',src:'EditToolbar.tsx · TableToolbar.tsx',pri:'medium',note:'Formatting bar (desktop EditToolbar): Undo, Redo | Bold, Italic, Underline, Strikethrough | Insert link, Bullet list, Numbered list, Checkbox list, Insert table. While the caret is in a table a pinned <b>Table</b> button appears at the end; tapping it <b>replaces</b> the formatting bar with the table bar, whose pinned <b>Format</b> button swaps back. Table bar (desktop TableToolbar, same order, labels are the accessible names): Insert row above, Insert row below, Insert column left, Insert column right | Align column left, Align column center, Align column right (current one shown pressed) | Delete row, Delete column, Delete table. An op the table cannot take is greyed (Delete row on the header row). Both bars scroll sideways; the fade + chevron is the cue.',f:[['Formatting bar · outside a table (no Table button)','fmtOutside'],['Formatting bar · caret in a table (Table button)','fmtInTable'],['Table bar · body cell, column aligned left','table'],['Table bar · header row: Delete row greyed','tableHeader']]},
+ {n:'12',t:'Raw / rendered switch',src:'RawSwitch.tsx',pri:'medium',note:'Document-wide, not per tab; accessible name “Raw Markdown”. Also View > Raw Markdown in the ⋯ menu.',f:[['Raw Markdown','raw']]},
+ {n:'13',t:'Editor context menu',src:'EditorContextMenu.tsx + registry contextMenu placements',pri:'medium',note:'Order by group: Add Comment | Cut, Copy, Paste | Select All | Bold, Italic. Cut and Copy need a selection; Add Comment is greyed on a read-only tab (#6).',f:[['Long-press · with selection','context'],['Long-press · no selection (Cut/Copy greyed)','contextNoSel']]},
+ {n:'14',t:'Unsaved changes · commit conflict',src:'UnsavedChangesDialog.tsx · ConflictDialog.tsx · App.commitGithub',pri:'medium',note:'There is no “changed on disk” dialog: desktop does not watch local files. The conflict dialog shown is what a GitHub commit conflict renders on desktop, which reuses the remote-save wording: desktop has <b>no GitHub-specific text</b>, so the title says “on the server”. For a GitHub commit both Cancel and Overwrite leave the tab unsaved and write nothing.',f:[['Unsaved changes','unsaved'],['Commit conflict (GitHub)','conflict']]},
+ {n:'15',t:'Settings',src:'SettingsDialog.tsx · platform/settings.ts',pri:'medium',note:'Only what SettingsDialog has: Author name (placeholder “User”) and the GitHub account, with Cancel and Save. Theme lives only in ⋯ > View > Theme. About and Agent skill are in ⋯ > Help.',f:[['Signed in','settings'],['Not signed in','settingsOut'],['Checking','settingsChecking'],['Invalid author name · Save disabled','settingsBad']]},
+ {n:'16',t:'About · Agent skill',src:'AboutDialog.tsx · AgentSkillDialog.tsx',pri:'low',note:'About: logo, “Gonq”, “Version 0.1.5” (from package.json; the Android number is owner input), the repository link and Close. Agent skill: the rendered skill (front matter stripped), a status line, Copy / Save as… / Close; Copy and Save as… use the full text including front matter.',f:[['About','about'],['Agent skill · after Copy','skill']]},
+ {n:'17',t:'Error, loading and empty states',src:'RepoPickerDialog.tsx · RepoNavigator.tsx',pri:'medium',note:'Network and GitHub error texts after the colon are examples; the prefix is the app’s. Retry and Sign in are 44 px buttons here (inline links on desktop).',f:[['Repo picker · loading','stPickLoad'],['Repo picker · no repositories','stPickNone'],['Repo picker · no match','stPickEmpty'],['Repo picker · error + Retry','stPickErr'],['Navigator · loading','stNavLoad'],['Navigator · no Markdown files','stNavEmpty'],['Navigator · empty repository','stNavEmptyRepo'],['Navigator · branch gone','stNavGone'],['Navigator · folder rate-limited','stNavRate'],['Navigator · signed out','stNavSignIn'],['Navigator · refreshing','stNavRefresh'],['Navigator · refresh failed','stNavRefreshErr'],['Navigator · show more / truncated','stNavMore']]},
+ {n:'18',t:'Comments',src:'CommentsSidebar.tsx · threads.ts · comments/index.ts',pri:'medium',note:'Opened from the Comments button in the editor top bar or by tapping a 💬 marker. No aggregate counts: each thread carries an Open/Resolved badge. Thread header icons: Edit thread, Delete thread, Close thread. Ctrl+Enter saves only with a hardware keyboard.',f:[['Thread list','cmList'],['No comments yet','cmEmpty'],['Read-only tab · Add comment greyed','cmReadonly'],['Thread','cmThread'],['Reply draft','cmReply'],['Resolved thread · Reopen','cmResolved'],['Edit thread','cmEdit'],['Delete confirmation','cmDelete'],['New comment on a selection','cmNew']]}
+];
+const root=document.getElementById('root');
+let count=0;
+SECTIONS.forEach(s=>{
+  const frames=s.f.map(([cap,k])=>{count++;return `<div class="cell"><div class="cap">${cap}</div><div class="pair">${['light','dark'].map(m=>`<div class="pw ${m}-w"><div class="phone ${m}" data-frame="${k}">${S[k]()}</div></div>`).join('')}</div></div>`;}).join('');
+  root.insertAdjacentHTML('beforeend',`<section class="sec"><div class="sec-h"><span class="n">${s.n==='—'?'':'#'+s.n}</span><h2>${s.t}</h2><span class="src">${s.src}</span>${s.pri?`<span class="pri ${s.pri}">${s.pri}</span>`:''}</div>${s.note?`<div class="sec-note">${s.note}</div>`:''}<div class="frames">${frames}</div></section>`);
+});
+document.querySelector('.page-head .sub').textContent=`${count} frames · light + dark · 390×844 portrait · Android`;
+document.getElementById('filter').addEventListener('click',e=>{
+  const m=e.target.dataset.m; if(!m) return;
+  document.body.classList.remove('only-light','only-dark'); if(m!=='both') document.body.classList.add('only-'+m);
+  document.querySelectorAll('#filter button').forEach(b=>b.classList.toggle('on',b===e.target));
+});
+</script>
+</body>
+</html>
