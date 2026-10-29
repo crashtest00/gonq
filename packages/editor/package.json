@@ -1,0 +1,7 @@
+{
+  "name": "@gonq/editor",
+  "private": true,
+  "version": "0.1.5",
+  "type": "module",
+  "description": "Empty workspace reserved for the shared editor package; M-04 moves the CodeMirror editor here."
+}

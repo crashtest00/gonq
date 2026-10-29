@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds the project map from the header comment at the top of every source file under src/, crates/gonq-core/src/ and
+// Builds the project map from the header comment at the top of every source file under apps/desktop/src/, packages/editor/src/, crates/gonq-core/src/ and
 // apps/desktop/src-tauri/src/. Each file's header is the source of truth; PROJECT_MAP.md is generated (gitignored).
 //
 //   node scripts/project-map.mjs          writes PROJECT_MAP.md, grouped by directory
@@ -9,17 +9,18 @@
 // A header is, ignoring leading blank lines: in .ts/.tsx a `/** ... */` block or a run of `//` lines;
 // in .rs a run of `//!` lines. The map shows its first paragraph, collapsed to one line.
 // Node 18+, no dependencies.
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SOURCE_DIRS = ['src', 'crates/gonq-core/src', 'apps/desktop/src-tauri/src'];
+const SOURCE_DIRS = ['apps/desktop/src', 'crates/gonq-core/src', 'apps/desktop/src-tauri/src', 'packages/editor/src'];
 const SOURCE_FILE = /\.(tsx?|rs)$/;
 const OUTPUT = 'PROJECT_MAP.md';
 
 function walk(dir) {
   const out = [];
+  if (!existsSync(join(ROOT, dir))) return out; // a planned root with no source yet (packages/editor/src)
   for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
     const path = `${dir}/${entry.name}`;
     if (entry.isDirectory()) out.push(...walk(path));
