@@ -1,0 +1,55 @@
+name: saf-spike-emulator
+
+# M-14 spike tooling, never merged: runs only on pushes to aigang/saf-spike-emulator. Installs a debug APK from a build-mobile run
+# on an x86_64 API 30 emulator (API 30 x86 images translate arm64 apps), seeds test trees, runs .emulator-saf scenarios, uploads evidence/.
+
+on:
+  push:
+    branches: [aigang/saf-spike-emulator]
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read parameters
+        run: cat .emulator-saf/params.env >> "$GITHUB_ENV"
+      - name: Download APK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p apk
+          gh run download "$APK_RUN_ID" -R "$GITHUB_REPOSITORY" -n "$APK_ARTIFACT" -D apk
+          find apk -name '*.apk' -exec ls -l {} \;
+          echo "APK_PATH=$(find "$PWD/apk" -name '*.apk' | head -1)" >> "$GITHUB_ENV"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright (Android API only, no browsers)
+        run: npm i --no-save --prefix .emulator playwright-core@1.56.1
+      - name: Start emulator and run scenarios
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: node .emulator-saf/run.cjs
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: saf-evidence-${{ github.sha }}
+          path: evidence/
