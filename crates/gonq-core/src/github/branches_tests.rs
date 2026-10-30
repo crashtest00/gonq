@@ -135,7 +135,7 @@ fn collision_serializes_with_kind_already_exists() {
 fn command_names_and_arguments_match_the_frontend_contract() {
     let _ = (super::github_branch_exists, super::github_create_branch);
     // The handler list is the desktop app's (gonq-core only defines the commands).
-    let handlers = include_str!("../../../../apps/desktop/src-tauri/src/lib.rs");
+    let handlers = include_str!("../../../../apps/desktop/src-tauri/src/bindings.rs");
     for name in ["github::github_branch_exists,", "github::github_create_branch,"] {
         assert!(handlers.contains(name), "{name} missing from the invoke handler list");
     }
