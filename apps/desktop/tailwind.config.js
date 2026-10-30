@@ -1,6 +1,12 @@
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+
+// The classes used by @gonq/editor's own components must not be purged: scan its source too.
+const editorSrc = join(dirname(createRequire(import.meta.url).resolve('@gonq/editor/package.json')), 'src');
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  content: ['./index.html', './src/**/*.{ts,tsx}', `${editorSrc}/**/*.{ts,tsx}`],
   theme: {
     extend: {
       colors: {

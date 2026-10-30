@@ -1,4 +1,4 @@
-//! Tests that send the exact JSON the frontend's invoke() sends (src/platform/settings.ts) through Tauri's real IPC
+//! Tests that send the exact JSON the frontend's invoke() sends (packages/editor/src/platform/settings.ts) through Tauri's real IPC
 //! into the plugin's `plugin:gonq|get_pane_widths` / `set_pane_width` (allowed by the app's real capability), so the argument names, `Option<u32>` null handling and return shape are pinned.
 use tauri::test::{get_ipc_response, mock_builder, INVOKE_KEY};
 use tauri::webview::InvokeRequest;

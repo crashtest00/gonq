@@ -2,20 +2,20 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { caretAt, type as typeText } from '../testing/editor';
+import { caretAt, type as typeText } from '@gonq/editor/testing/editor';
 import App from '../App';
 import pkg from '../../package.json';
 import tauriConf from '../../src-tauri/tauri.conf.json';
 import capability from '../../src-tauri/capabilities/default.json';
 import { APP_VERSION } from './AboutDialog';
 import logoSvg from '../assets/gonq-logo-OUTLINE.svg?raw';
-import { REPO_URL } from '../platform/external';
-import type { FileAccess } from '../platform/files';
+import { REPO_URL } from '@gonq/editor/platform/external';
+import type { FileAccess } from '@gonq/editor/platform/files';
 
 const native = vi.hoisted(() => ({ on: false }));
 const openUrl = vi.hoisted(() => vi.fn(async (_url: string) => {}));
-vi.mock('../platform/external', async (orig) => ({
-  ...(await orig<typeof import('../platform/external')>()),
+vi.mock('@gonq/editor/platform/external', async (orig) => ({
+  ...(await orig<typeof import('@gonq/editor/platform/external')>()),
   opensExternallyNatively: () => native.on,
 }));
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl }));

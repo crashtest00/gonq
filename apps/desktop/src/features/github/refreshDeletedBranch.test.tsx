@@ -1,10 +1,10 @@
 /** Navigator Refresh when the open GitHub branch was deleted: reported, switches to the default branch, warns before closing a dirty tab; a plain refresh never changes branch. */
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { settleEditors, type } from '../../testing/editor';
-import { openGithub } from '../../platform/files';
+import { settleEditors, type } from '@gonq/editor/testing/editor';
+import { openGithub } from '@gonq/editor/platform/files';
 import { menu, renderApp, type User } from '../../testing/renderApp';
-import { githubPath } from '../../platform/github';
+import { githubPath } from '@gonq/editor/platform/github';
 
 let deleted = false;
 const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>): Promise<unknown> => {
@@ -20,9 +20,9 @@ const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>): Promis
   if (cmd === 'github_read_file') return { path: args!.path, name: 'a.md', content: `# ${args!.branch}\n\nbody of ${args!.branch}`, sha: 's', commit_sha: 'c' };
   return undefined;
 });
-vi.mock('../../platform/bindings', async () => (await import('../../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
-vi.mock('../../platform/lifecycle', () => ({ guardClose: () => () => {} }));
-vi.mock('../../platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
 
 beforeEach(() => {

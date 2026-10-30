@@ -3,8 +3,8 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { MenuBar } from './MenuBar';
-import type { CommandContext } from '../commands';
-import type { TableTarget } from '../editor/tables';
+import type { CommandContext } from '@gonq/editor/commands';
+import type { TableTarget } from '@gonq/editor/editor/tables';
 import { EditToolbar } from './EditToolbar';
 import { TableToolbar } from './TableToolbar';
 

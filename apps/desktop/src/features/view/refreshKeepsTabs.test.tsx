@@ -1,10 +1,10 @@
 /** Navigator Refresh (plain, branch still exists) leaves open tabs, unsaved edits and the current-file highlight untouched and never switches branch. */
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { docText, settleEditors, type } from '../../testing/editor';
-import { openGithub } from '../../platform/files';
+import { docText, settleEditors, type } from '@gonq/editor/testing/editor';
+import { openGithub } from '@gonq/editor/platform/files';
 import { renderApp } from '../../testing/renderApp';
-import { githubPath } from '../../platform/github';
+import { githubPath } from '@gonq/editor/platform/github';
 
 const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>): Promise<unknown> => {
   if (cmd === 'recent_documents_list') return [{ path: githubPath({ owner: 'octo', repo: 'notes', branch: 'dev', path: 'a.md' }), opened_at: 1 }];
@@ -16,9 +16,9 @@ const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>): Promis
   if (cmd === 'github_read_file') return { path: args!.path, name: String(args!.path), content: `# ${args!.path}\n\nbody of ${args!.path}`, sha: 's', commit_sha: 'c' };
   return undefined;
 });
-vi.mock('../../platform/bindings', async () => (await import('../../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
-vi.mock('../../platform/lifecycle', () => ({ guardClose: () => () => {} }));
-vi.mock('../../platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
 
 beforeEach(() => {

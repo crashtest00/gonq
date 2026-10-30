@@ -2,8 +2,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
-import { editorView, select } from './testing/editor';
-import { NotUtf8Error, type FileAccess, type OpenedDocument } from './platform/files';
+import { editorView, select } from '@gonq/editor/testing/editor';
+import { NotUtf8Error, type FileAccess, type OpenedDocument } from '@gonq/editor/platform/files';
 
 // The live-preview decorations are built after mount; under full-suite load that can exceed waitFor's 1s default.
 const LOAD_TIMEOUT = 10000;

@@ -2,10 +2,10 @@
 import { fireEvent, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { lastSaved, openDocument, renderApp, testDoc, type User } from '../testing/renderApp';
-import { caretAt, docText, editorView, type as typeText } from '../testing/editor';
+import { caretAt, docText, editorView, type as typeText } from '@gonq/editor/testing/editor';
 
 vi.setConfig({ testTimeout: 30000 });
-vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
 
 beforeEach(() => localStorage.clear());
 

@@ -13,7 +13,7 @@ import {
   AlertDialogFooter,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { preview, relativeTime, type ThreadItem } from './threads';
+import { preview, relativeTime, type ThreadItem } from '@gonq/editor/model/threads';
 
 function Badge({ status }: { status: 'open' | 'resolved' }) {
   return (

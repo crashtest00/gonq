@@ -4,8 +4,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Loader2 } from 'lucide-react';
-import { copyText } from '../platform/clipboard';
-import { openExternal } from '../platform/external';
+import { copyText } from '@gonq/editor/platform/clipboard';
+import { openExternal } from '@gonq/editor/platform/external';
 import {
   pollSignIn,
   signOut,
@@ -13,7 +13,7 @@ import {
   toGitHubError,
   type DeviceStart,
   type GitHubStatus,
-} from '../platform/github';
+} from '@gonq/editor/platform/github';
 
 const button =
   'h-8 rounded-control border px-3 text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';

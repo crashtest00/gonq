@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { MenuBar } from '../components/MenuBar';
-import type { CommandContext } from '../commands';
+import type { CommandContext } from '@gonq/editor/commands';
 
 function setup(over: Partial<CommandContext> = {}) {
   const ctx = {

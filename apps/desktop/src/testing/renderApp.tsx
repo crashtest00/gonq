@@ -7,7 +7,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import App from '../App';
-import type { FileAccess, OpenedDocument } from '../platform/files';
+import type { FileAccess, OpenedDocument } from '@gonq/editor/platform/files';
 
 export type User = ReturnType<typeof userEvent.setup>;
 
@@ -30,7 +30,7 @@ export function testDoc(text: string, path: string | null = '/d/a.md'): OpenedDo
  * Renders the whole app. Save writes to the document's own path (or /d/new.md for one without);
  * Save As writes /d/copy.md. Both are vi.fn()s, so tests can read what was saved from their calls.
  *
- * Module mocks (e.g. vi.mock('../platform/lifecycle') to capture the window-close guard) are hoisted
+ * Module mocks (e.g. vi.mock('@gonq/editor/platform/lifecycle') to capture the window-close guard) are hoisted
  * per test file, so they stay in the test file.
  */
 export function renderApp({ docs, files: overrides = {} }: RenderAppOptions = {}) {

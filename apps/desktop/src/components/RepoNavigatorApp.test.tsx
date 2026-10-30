@@ -3,9 +3,9 @@ import { cleanup, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { menu, renderApp } from '../testing/renderApp';
 
-vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
 const invoke = vi.fn();
-vi.mock('../platform/bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 
 const repo = { owner: 'octo', name: 'notes', full_name: 'octo/notes', private: false, default_branch: 'trunk', can_push: true, pushed_at: null };
 

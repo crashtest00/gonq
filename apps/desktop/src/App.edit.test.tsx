@@ -3,15 +3,15 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import App from './App';
-import type { FileAccess, OpenedDocument } from './platform/files';
-import { at, settleEditors, caretAt, docText, editorView, queryEditor, select, selectText, shownText, type as typeText } from './testing/editor';
+import type { FileAccess, OpenedDocument } from '@gonq/editor/platform/files';
+import { at, settleEditors, caretAt, docText, editorView, queryEditor, select, selectText, shownText, type as typeText } from '@gonq/editor/testing/editor';
 
 // Each test drives the whole app through user-event; on slow CI they run close to the 5s default.
 vi.setConfig({ testTimeout: 30000 });
 
 // The window-close hook is captured so tests can play the native close request (the native side is in lifecycle.test.ts).
 const closeGuard = vi.hoisted(() => ({ confirm: null as null | (() => Promise<boolean>), destroyed: 0 }));
-vi.mock('./platform/lifecycle', () => ({
+vi.mock('@gonq/editor/platform/lifecycle', () => ({
   guardClose: (isDirty: () => boolean, confirm: () => Promise<boolean>) => {
     closeGuard.confirm = async () => {
       if (!isDirty()) return true;

@@ -3,9 +3,9 @@
  * branch and links to it (Open PR). Theme tokens only. Its text is openPullMessage, the same words Commit and
  * Ctrl+S refuse with.
  */
-import { openLink } from '../editor/openLink';
-import { openPullMessage } from '../features/github/openPulls';
-import type { OpenPull } from '../platform/github';
+import { openLink } from '@gonq/editor/editor/openLink';
+import { openPullMessage } from '@gonq/editor/features/github/openPulls';
+import type { OpenPull } from '@gonq/editor/platform/github';
 
 export function ReadOnlyBanner({ pull }: { pull: OpenPull }) {
   return (

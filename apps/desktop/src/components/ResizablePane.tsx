@@ -10,7 +10,7 @@
  * the pointer is still moving; the limits are in paneWidths.ts. Library choice: see docs/resizable-panes.md.
  */
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import type { PaneName } from '../platform/settings';
+import type { PaneName } from '@gonq/editor/platform/settings';
 import { PANE_MIN, type PaneLayout } from './paneWidths';
 
 const STEP = 16;

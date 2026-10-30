@@ -1,9 +1,9 @@
-/** The feature modules: a new feature file shows up in the rendered menu and no feature module imports isTauri. */
+/** The feature modules: a new feature file shows up in the rendered menu (the isTauri check lives with the features, in packages/editor). */
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MenuBar } from '../components/MenuBar';
-import type { CommandContext } from '../commands';
-import { fixtureRun } from '../commands/fixtureFeature';
+import type { CommandContext } from '@gonq/editor/commands';
+import { fixtureRun } from '@gonq/editor/commands/fixtureFeature';
 
 test('a fixture feature registering one command appears in the rendered File menu and runs', async () => {
   const ctx = { hasDocument: true, canUndo: false, canRedo: false, raw: false, theme: 'auto', tableTarget: null } as unknown as CommandContext;
@@ -16,12 +16,4 @@ test('a fixture feature registering one command appears in the rendered File men
   expect(names[names.length - 1]).toMatch(/^Fixture Hello/);
   fireEvent.click(item);
   expect(fixtureRun.calls).toBe(1);
-});
-
-const sources = import.meta.glob('./**/*.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
-
-test('no feature module imports isTauri: nothing is hidden or disabled by platform', () => {
-  const files = Object.entries(sources).filter(([name]) => !name.endsWith('.test.ts'));
-  expect(files.length).toBeGreaterThanOrEqual(3);
-  for (const [name, source] of files) expect(source, name).not.toMatch(/isTauri/);
 });

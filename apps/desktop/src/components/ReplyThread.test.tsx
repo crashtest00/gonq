@@ -2,10 +2,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { selectText } from '../testing/editor';
-import App from './../App';
-import { AGENT_GUIDANCE, AGENT_GUIDANCE_TITLE, parseCommentThreads } from '../comment-threads';
-import type { FileAccess } from '../platform/files';
+import { selectText } from '@gonq/editor/testing/editor';
+import App from '../App';
+import { AGENT_GUIDANCE, AGENT_GUIDANCE_TITLE, parseCommentThreads } from '@gonq/editor/comment-threads';
+import type { FileAccess } from '@gonq/editor/platform/files';
 
 vi.setConfig({ testTimeout: 30000 });
 

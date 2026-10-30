@@ -3,7 +3,7 @@ import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
 import { settleView } from '../testing/editor';
-import { applyFormat } from '../components/formatting';
+import { applyFormat } from '../model/formatting';
 import { focusCaretCell, focusTableCell, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
 
 /** A live-preview editor over `text` with the caret at `caret`; returns what is shown. */

@@ -2,9 +2,9 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import App from './../App';
-import type { FileAccess } from '../platform/files';
-import { AUTHOR_KEY } from '../platform/settings';
+import App from '../App';
+import type { FileAccess } from '@gonq/editor/platform/files';
+import { AUTHOR_KEY } from '@gonq/editor/platform/settings';
 
 vi.setConfig({ testTimeout: 30000 });
 

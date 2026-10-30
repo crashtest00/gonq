@@ -1,12 +1,12 @@
 /** Comment threads in the app: marker glyphs, hidden blocks, the comments sidebar list, opening and scrolling to a thread. */
-import { settleEditors } from '../testing/editor';
+import { settleEditors } from '@gonq/editor/testing/editor';
 import { EditorView } from '@codemirror/view';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import App from './../App';
-import { preview, relativeTime } from './threads';
-import type { FileAccess, OpenedDocument } from '../platform/files';
+import App from '../App';
+import { preview, relativeTime } from '@gonq/editor/model/threads';
+import type { FileAccess, OpenedDocument } from '@gonq/editor/platform/files';
 
 const block = (id: string, status: string, body: string, opts: { anchor?: string; author?: string; indent?: string } = {}) =>
   [

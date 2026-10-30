@@ -2,12 +2,12 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { docText, editorView, select, settleEditors, type as typeText, shownText } from '../testing/editor';
+import { docText, editorView, select, settleEditors, type as typeText, shownText } from '@gonq/editor/testing/editor';
 import App from '../App';
-import type { FileAccess, OpenedDocument } from '../platform/files';
+import type { FileAccess, OpenedDocument } from '@gonq/editor/platform/files';
 
 vi.setConfig({ testTimeout: 30000 });
-vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
 
 const ID = 'c20260910143022a3f9c1';
 const THREAD = `<!--\n@thread ${ID}\n@status open\n\n[User | 2026-09-10T14:30:22+02:00]\nWhy?\n-->`;

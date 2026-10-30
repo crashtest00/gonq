@@ -14,7 +14,7 @@ with the editor (right edge for navigator and outline, left edge for comments).
 Defaults / minimum / maximum: navigator 240 / 160 / 480 px, outline 240 / 160 / 480 px, comments 340 / 240 / 640 px.
 The editor keeps at least 360 px when the window allows it; in a smaller window the displayed width is
 clamped, but the saved width is never overwritten by that. Widths are saved only when the user resizes
-(`src/platform/settings.ts`: settings.json via `get_pane_widths` / `set_pane_width` on desktop, localStorage
+(`packages/editor/src/platform/settings.ts`: settings.json via `get_pane_widths` / `set_pane_width` on desktop, localStorage
 `gonq.paneWidths` in the browser) and are kept across closing a pane and restarting.
 
 ## Why not react-resizable-panels

@@ -6,7 +6,7 @@ import { ensureSyntaxTree } from '@codemirror/language';
 import { Annotation, EditorState, type Extension, StateField, type Text, Transaction, type TransactionSpec } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view';
 import { AGENT_GUIDANCE, OPEN_COMMENT_LABEL, parseCommentMarkers, parseCommentThreads } from '../comment-threads';
-import { findToc } from '../components/toc';
+import { findToc } from '../model/toc';
 import { tocMarkerHidden } from './toc';
 import { editorHost } from './host';
 

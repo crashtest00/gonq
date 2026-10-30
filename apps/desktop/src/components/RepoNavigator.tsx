@@ -6,8 +6,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, File, Folder, GitBranch, GitBranchPlus, Loader2, RefreshCw } from 'lucide-react';
-import { ListDirectoryError, listFolderPage, type FolderEntry } from '../platform/folders';
-import { ensureSignedIn, githubPath, listBranches, parseGithubPath, toGitHubError } from '../platform/github';
+import { ListDirectoryError, listFolderPage, type FolderEntry } from '@gonq/editor/platform/folders';
+import { ensureSignedIn, githubPath, listBranches, parseGithubPath, toGitHubError } from '@gonq/editor/platform/github';
 
 /** The repository and branch the navigator shows; App.tsx owns it. */
 export interface RepoState {

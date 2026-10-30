@@ -1,9 +1,9 @@
 /** The tab strip of open documents (unsaved and remote marks, close, +, sidebar toggles); exports tabLabels. */
 import { useEffect, useRef, useState } from 'react';
 import { FolderTree, ListTree, MessageSquare, Plus, Server, X } from 'lucide-react';
-import type { TabInfo } from '../document/useDocument';
-import { isSshPath } from '../platform/remote';
-import { isGithubPath } from '../platform/github';
+import type { TabInfo } from '@gonq/editor/document/useDocument';
+import { isSshPath } from '@gonq/editor/platform/remote';
+import { isGithubPath } from '@gonq/editor/platform/github';
 
 function segments(path: string): string[] {
   return path.split(/[\\/]/).filter((s) => s !== '');

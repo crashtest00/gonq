@@ -4,11 +4,11 @@
  */
 import { createContext, memo, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ChevronRight, File, Folder, Loader2, RefreshCw, X } from 'lucide-react';
-import { ListDirectoryError, listDirectory, type FolderEntry } from '../platform/folders';
-import type { RecentDocument } from '../platform/recents';
+import { ListDirectoryError, listDirectory, type FolderEntry } from '@gonq/editor/platform/folders';
+import type { RecentDocument } from '@gonq/editor/platform/recents';
 import { RepoNavigator, type RepoState } from './RepoNavigator';
-import { parseGithubPath } from '../platform/github';
-import { isSshPath, remoteAccount, remoteFileName } from '../platform/remote';
+import { parseGithubPath } from '@gonq/editor/platform/github';
+import { isSshPath, remoteAccount, remoteFileName } from '@gonq/editor/platform/remote';
 
 export function basename(path: string): string {
   const gh = parseGithubPath(path);

@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { menu, renderApp, openDocument, testDoc } from '../../testing/renderApp';
-import { settleEditors, type } from '../../testing/editor';
-import { openGithub, type FileAccess } from '../../platform/files';
-import { commitFile, githubPath, GitHubError } from '../../platform/github';
-import { clearSessionBranches, listSessionBranches } from './sessionBranches';
+import { settleEditors, type } from '@gonq/editor/testing/editor';
+import { openGithub, type FileAccess } from '@gonq/editor/platform/files';
+import { commitFile, githubPath, GitHubError } from '@gonq/editor/platform/github';
+import { clearSessionBranches, listSessionBranches } from '@gonq/editor/features/github/sessionBranches';
 
 let recentRows: { path: string; opened_at: number }[] = [];
 const reads: Record<string, unknown> = {};
@@ -24,9 +24,9 @@ const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>): Promis
   if (cmd === 'github_commit_file') return commitReply();
   return undefined;
 });
-vi.mock('../../platform/bindings', async () => (await import('../../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
-vi.mock('../../platform/lifecycle', () => ({ guardClose: () => () => {} }));
-vi.mock('../../platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
 
 const loc = { owner: 'octo', repo: 'notes' };

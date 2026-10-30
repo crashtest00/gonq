@@ -2,18 +2,18 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
-import { caretAt, type as typeText } from '../testing/editor';
+import { caretAt, type as typeText } from '@gonq/editor/testing/editor';
 import App from '../App';
 import { FolderSidebar, ROW_CHUNK, relativeTime } from './FolderSidebar';
-import type { FileAccess, OpenedDocument } from '../platform/files';
-import { RECENTS_KEY } from '../platform/recents';
+import type { FileAccess, OpenedDocument } from '@gonq/editor/platform/files';
+import { RECENTS_KEY } from '@gonq/editor/platform/recents';
 
 vi.setConfig({ testTimeout: 30000 });
 
 const listDirectory = vi.fn();
 const pathExists = vi.fn(async (_p: string) => true);
-vi.mock('../platform/folders', async (orig) => ({
-  ...(await orig<typeof import('../platform/folders')>()),
+vi.mock('@gonq/editor/platform/folders', async (orig) => ({
+  ...(await orig<typeof import('@gonq/editor/platform/folders')>()),
   listDirectory: (p: string) => listDirectory(p),
   pathExists: (p: string) => pathExists(p),
 }));
@@ -291,7 +291,7 @@ describe('remote root', () => {
   });
 
   test('an auth_required error row offers Log in, which reports the failing folder', async () => {
-    const { ListDirectoryError } = await import('../platform/folders');
+    const { ListDirectoryError } = await import('@gonq/editor/platform/folders');
     listDirectory.mockRejectedValue(new ListDirectoryError('auth_required', "Couldn't list docs on nas: you need to log in again."));
     const onLogin = vi.fn();
     render(<FolderSidebar {...props} folder={root} onLogin={onLogin} />);
@@ -300,7 +300,7 @@ describe('remote root', () => {
   });
 
   test('the row is listed again once the login succeeds, and not when it is cancelled', async () => {
-    const { ListDirectoryError } = await import('../platform/folders');
+    const { ListDirectoryError } = await import('@gonq/editor/platform/folders');
     listDirectory.mockRejectedValueOnce(new ListDirectoryError('auth_required', 'log in again'));
     listDirectory.mockResolvedValue([]);
     const onLogin = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);

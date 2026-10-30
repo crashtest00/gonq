@@ -6,8 +6,8 @@
  * and reports a branch as soon as it exists through `onCreated`.
  */
 import { useEffect, useRef, useState } from 'react';
-import { branchExists } from '../platform/github';
-import { BRANCH_PREFIX, runCreateBranch, validateBranchName, type CreateOutcome, type PendingCommit } from '../features/github/createBranch';
+import { branchExists } from '@gonq/editor/platform/github';
+import { BRANCH_PREFIX, runCreateBranch, validateBranchName, type CreateOutcome, type PendingCommit } from '@gonq/editor/features/github/createBranch';
 
 export const BRANCH_EXISTS_MESSAGE = 'That branch already exists';
 

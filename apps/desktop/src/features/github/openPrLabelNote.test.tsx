@@ -11,8 +11,8 @@ const invoke = vi.fn(async (cmd: string, args: Record<string, unknown> = {}): Pr
   if (!h) throw new Error(`unmocked ${cmd}`);
   return h(args);
 });
-vi.mock('../../platform/bindings', async () => (await import('../../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
-vi.mock('../../platform/external', () => ({ openExternal: vi.fn(), opensExternallyNatively: () => true, REPO_URL: '' }));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/external', () => ({ openExternal: vi.fn(), opensExternallyNatively: () => true, REPO_URL: '' }));
 
 const calls = (cmd: string) => invoke.mock.calls.filter((c) => c[0] === cmd);
 const file = (filename: string, status = 'modified', additions = 1, deletions = 0, previous_filename: string | null = null) => ({ filename, previous_filename, status, additions, deletions });

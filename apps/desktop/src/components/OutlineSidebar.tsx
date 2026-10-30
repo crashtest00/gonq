@@ -1,5 +1,5 @@
 /** The outline sidebar: the document's headings (from outline.ts); clicking one jumps the editor there. */
-import type { OutlineItem } from './outline';
+import type { OutlineItem } from '@gonq/editor/model/outline';
 
 export function OutlineSidebar({ items, onJump }: { items: OutlineItem[]; onJump: (from: number) => void }) {
   return (

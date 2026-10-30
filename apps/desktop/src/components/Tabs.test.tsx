@@ -2,15 +2,15 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { caretAt, docText, editorView, select, type as typeText } from '../testing/editor';
+import { caretAt, docText, editorView, select, type as typeText } from '@gonq/editor/testing/editor';
 import App from '../App';
-import { PathTakenError, type FileAccess, type OpenedDocument } from '../platform/files';
+import { PathTakenError, type FileAccess, type OpenedDocument } from '@gonq/editor/platform/files';
 import { tabLabels } from './TabStrip';
 
 vi.setConfig({ testTimeout: 30000 });
 
 const closeGuard = vi.hoisted(() => ({ confirm: null as null | (() => Promise<boolean>) }));
-vi.mock('../platform/lifecycle', () => ({
+vi.mock('@gonq/editor/platform/lifecycle', () => ({
   guardClose: (isDirty: () => boolean, confirm: () => Promise<boolean>) => {
     closeGuard.confirm = async () => (isDirty() ? confirm() : true);
     return () => {};

@@ -5,7 +5,7 @@
  * branch that is not a gonq/ branch a secondary "Commit to new branch…" button chooses 'new-branch'.
  */
 import { useEffect, useRef } from 'react';
-import { commitMessage } from '../platform/github';
+import { commitMessage } from '@gonq/editor/platform/github';
 
 export type CommitChoice = 'commit' | 'new-branch' | 'cancel';
 

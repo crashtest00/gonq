@@ -4,7 +4,7 @@
  * one clamped to the pane's limits and to the window, without ever writing the clamp back.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getPaneWidths, setPaneWidth, type PaneName, type PaneWidths } from '../platform/settings';
+import { getPaneWidths, setPaneWidth, type PaneName, type PaneWidths } from '@gonq/editor/platform/settings';
 
 export const PANE_DEFAULT: Record<PaneName, number> = { navigator: 240, outline: 240, comments: 340 };
 export const PANE_MIN: Record<PaneName, number> = { navigator: 160, outline: 160, comments: 240 };

@@ -1,11 +1,11 @@
 /** File > Open PR…: greyed without a repository, the three steps and their clearing rules, PR marks, empty and no-changes states, Back/Cancel, already-open, GitHub's errors unchanged, tabs turning read-only, and the web error. */
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { settleEditors } from '../../testing/editor';
+import { settleEditors } from '@gonq/editor/testing/editor';
 import { menu, renderApp, type User } from '../../testing/renderApp';
-import { openGithub } from '../../platform/files';
-import { branchesExist, compareBranches, createPull, githubPath } from '../../platform/github';
-import { addSessionBranch, clearSessionBranches } from './sessionBranches';
+import { openGithub } from '@gonq/editor/platform/files';
+import { branchesExist, compareBranches, createPull, githubPath } from '@gonq/editor/platform/github';
+import { addSessionBranch, clearSessionBranches } from '@gonq/editor/features/github/sessionBranches';
 
 type Replies = Record<string, (args: Record<string, unknown>) => unknown>;
 let recentRows: { path: string; opened_at: number }[] = [];
@@ -17,10 +17,10 @@ const invoke = vi.fn(async (cmd: string, args: Record<string, unknown> = {}): Pr
   if (!h) throw new Error(`unmocked ${cmd}`);
   return h(args);
 });
-vi.mock('../../platform/bindings', async () => (await import('../../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
-vi.mock('../../platform/lifecycle', () => ({ guardClose: () => () => {} }));
-vi.mock('../../platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
-vi.mock('../../platform/external', () => ({ openExternal: vi.fn(), opensExternallyNatively: () => true, REPO_URL: '' }));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
+vi.mock('@gonq/editor/platform/external', () => ({ openExternal: vi.fn(), opensExternallyNatively: () => true, REPO_URL: '' }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
 
 const calls = (cmd: string) => invoke.mock.calls.filter((c) => c[0] === cmd);

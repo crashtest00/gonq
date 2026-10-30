@@ -1,9 +1,9 @@
 /** Help > Agent skill… dialog: shows the bundled skill in MarkdownPreview with Copy and Save as SKILL.md. */
 import { useEffect, useRef, useState } from 'react';
-import { AGENT_SKILL, AGENT_SKILL_BODY, AGENT_SKILL_FILENAME } from '../agent-skill/skill';
-import { copyText } from '../platform/clipboard';
-import { MarkdownPreview } from '../editor/MarkdownPreview';
-import type { FileAccess } from '../platform/files';
+import { AGENT_SKILL, AGENT_SKILL_BODY, AGENT_SKILL_FILENAME } from '@gonq/editor/agent-skill/skill';
+import { copyText } from '@gonq/editor/platform/clipboard';
+import { MarkdownPreview } from '@gonq/editor/editor/MarkdownPreview';
+import type { FileAccess } from '@gonq/editor/platform/files';
 
 const button =
   'h-8 rounded-control border px-3 text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring';

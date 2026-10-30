@@ -4,8 +4,8 @@
 @import '@fontsource/public-sans/700.css';
 @import '@fontsource/jetbrains-mono/400.css';
 @import '@fontsource/jetbrains-mono/500.css';
-@import './tokens.css';
-@import './editor.css';
+@import '@gonq/editor/styles/tokens.css';
+@import '@gonq/editor/styles/editor.css';
 
 @tailwind base;
 @tailwind components;

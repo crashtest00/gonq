@@ -2,7 +2,7 @@
  * Registers every app dialog with DialogHost and exports the typed handles App.tsx opens them with. Each entry
  * adapts an existing dialog component (its props and wording are unchanged) to resolve through `close`.
  */
-import type { FileAccess } from '../platform/files';
+import type { FileAccess } from '@gonq/editor/platform/files';
 import { AboutDialog } from '../components/AboutDialog';
 import { AgentSkillDialog } from '../components/AgentSkillDialog';
 import { BranchChangeDialog } from '../components/BranchChangeDialog';
@@ -10,14 +10,14 @@ import { CommitDialog, type CommitChoice } from '../components/CommitDialog';
 import { ConflictDialog, type ConflictChoice } from '../components/ConflictDialog';
 import { ConnectDialog } from '../components/ConnectDialog';
 import { CreateBranchDialog, type CreateBranchResult } from '../components/CreateBranchDialog';
-import type { PendingCommit } from '../features/github/createBranch';
+import type { PendingCommit } from '@gonq/editor/features/github/createBranch';
 import { OpenPrDialog, type OpenedPr } from '../components/OpenPrDialog';
-import type { RepoRef } from '../features/github/openPr';
-import type { SessionBranch } from '../features/github/sessionBranches';
+import type { RepoRef } from '@gonq/editor/features/github/openPr';
+import type { SessionBranch } from '@gonq/editor/features/github/sessionBranches';
 import { SettingsDialog } from '../components/SettingsDialog';
 import { RepoPickerDialog, type RepoChoice } from '../components/RepoPickerDialog';
 import { UnsavedChangesDialog, type UnsavedChoice } from '../components/UnsavedChangesDialog';
-import { registerDialog, type DialogClose } from './DialogHost';
+import { registerDialog, type DialogClose } from '@gonq/editor/dialogs/DialogHost';
 
 /** Resolves true when the user is signed in to GitHub on the way out (Open Repo / Open PR wait on it). */
 export const settingsDialog = registerDialog(

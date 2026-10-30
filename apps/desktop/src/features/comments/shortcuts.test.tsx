@@ -2,7 +2,7 @@
 import { fireEvent, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { openDocument, renderApp, testDoc } from '../../testing/renderApp';
-import { caretAt, docText, selectText } from '../../testing/editor';
+import { caretAt, docText, selectText } from '@gonq/editor/testing/editor';
 
 vi.setConfig({ testTimeout: 30000 });
 
