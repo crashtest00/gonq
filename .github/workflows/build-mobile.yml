@@ -18,9 +18,9 @@ permissions:
 
 env:
   ANDROID_TARGET: aarch64-linux-android
-  # Pinned: compileSdk 37 is what the generated Gradle project (Tauri 2.12 template) asks for; the NDK matches rust-checks.yml.
-  ANDROID_PLATFORM: android-37
-  ANDROID_BUILD_TOOLS: 37.0.0
+  # Pinned: compileSdk 36 is the newest platform on the ubuntu-22.04 runner image (android-37 is not in its sdkmanager repository); the NDK matches rust-checks.yml.
+  ANDROID_PLATFORM: android-36
+  ANDROID_BUILD_TOOLS: 36.0.0
   ANDROID_NDK_VERSION: 27.2.12479018
 
 jobs:
@@ -76,6 +76,7 @@ jobs:
       - name: Install Android SDK platform, build-tools and NDK
         run: |
           sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$sdkmanager" --list 2>/dev/null | grep -E "platforms;|build-tools;|ndk;" | head -60 || true
           yes | "$sdkmanager" --licenses > /dev/null || true
           "$sdkmanager" "platforms;$ANDROID_PLATFORM" "build-tools;$ANDROID_BUILD_TOOLS" "ndk;$ANDROID_NDK_VERSION"
           ndk="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
