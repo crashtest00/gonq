@@ -5,7 +5,7 @@ const DOCS = 'primary:Documents/GonqSpike';
 const FALLBACK_TREE = 'content://com.android.externalstorage.documents/tree/primary%3ADocuments%2FGonqSpike';
 module.exports = async ({ device, L }) => {
   const phase = async (name, f) => { try { await f(); } catch (e) { L.log(name, false, String(e.stack || e).slice(0, 600)); try { L.shot(`${name}-error`); } catch {} } };
-  const getPage = async () => { const p = await L.webPage(device); await p.waitForSelector('#saf-out', { timeout: 60000 }); return p; };
+  const getPage = async () => { const p = await L.webPage(device); await p.waitForSelector('#saf-out', { state: 'attached', timeout: 60000 }); return p; };
   const out = (p) => p.evaluate(() => document.getElementById('saf-out').textContent);
   // Direct invoke with timing and the error text, for steps the panel has no button for.
   const saf = (p, command, args) => p.evaluate(async ([command, args]) => {
