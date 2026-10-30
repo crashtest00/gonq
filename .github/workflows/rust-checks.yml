@@ -9,7 +9,10 @@ run-name: rust-checks ${{ inputs.request_id }}
 # bindings (packages/editor/src/platform/bindings.ts) drift from the Rust. On the
 # ubuntu leg it also tests gonq-core without its default features (no `ssh`
 # feature, the mobile build) and fails if russh, russh-sftp or ssh2-config are in
-# that build's dependency tree. `request_id` is the correlation id Jenkins finds
+# that build's dependency tree. A separate `android` job (ubuntu) runs
+# `cargo check -p gonq-mobile --target aarch64-linux-android` and the same
+# no-SSH tree check against that target; it skips (logged) until crate
+# gonq-mobile exists (story M-06). `request_id` is the correlation id Jenkins finds
 # the run by (it is in the run name). Never add pull_request/push/tag triggers.
 on:
   workflow_dispatch:
@@ -110,9 +113,7 @@ jobs:
       # `ssh`): its tests must pass and its normal dependency tree must hold no
       # SSH crate. --prefix none prints one "name vX.Y.Z" per line, so the
       # anchored match below is on exact crate names only.
-      # Once crate gonq-mobile exists (story M-06), switch TREE_ARGS to
-      #   -p gonq-mobile --target aarch64-linux-android
-      # (and add that target with `rustup target add aarch64-linux-android`).
+      # The Android build of the same check is the `android` job below.
       - name: No-SSH build (tests + no SSH crates)
         if: matrix.label == 'ubuntu'
         env:
@@ -126,3 +127,106 @@ jobs:
             exit 1
           fi
           echo "No SSH crates in: cargo tree $TREE_ARGS -e normal"
+
+  android:
+    name: cargo check (android)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      ANDROID_TARGET: aarch64-linux-android
+    steps:
+      - name: Check out requested SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Verify checkout matches requested SHA
+        env:
+          REQUESTED_SHA: ${{ inputs.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$REQUESTED_SHA" ]; then
+            echo "::error::Checked out $actual but $REQUESTED_SHA was requested"
+            exit 1
+          fi
+
+      # Until crate gonq-mobile exists (story M-06) there is nothing to check;
+      # every later step is gated on this output.
+      - name: Detect gonq-mobile crate
+        id: crate
+        run: |
+          if grep -q '^name *= *"gonq-mobile"' apps/mobile/src-tauri/Cargo.toml 2>/dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::crate gonq-mobile not found; skipping the Android check"
+          fi
+
+      # Same system packages as the desktop legs: the workspace's desktop crate
+      # is resolved too, and tauri build scripts probe for the webkit libraries.
+      - name: Install Linux system packages
+        if: steps.crate.outputs.present == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf build-essential curl wget file libssl-dev \
+            libxdo-dev
+
+      - uses: actions/setup-node@v4
+        if: steps.crate.outputs.present == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.crate.outputs.present == 'true'
+        with:
+          targets: ${{ env.ANDROID_TARGET }}
+
+      - uses: swatinem/rust-cache@v2
+        if: steps.crate.outputs.present == 'true'
+        with:
+          workspaces: ". -> target"
+          key: android
+
+      # The ubuntu-22.04 image ships an NDK ($ANDROID_NDK_LATEST_HOME); install
+      # the SDK's own copy if a runner image ever lacks it. The cc/ar of the
+      # NDK's clang toolchain are what ring's build script needs.
+      - name: Set up Android NDK
+        if: steps.crate.outputs.present == 'true'
+        run: |
+          ndk="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}"
+          if [ -z "$ndk" ] || [ ! -d "$ndk" ]; then
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018"
+            ndk="$ANDROID_HOME/ndk/27.2.12479018"
+          fi
+          bin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
+          echo "$bin" >> "$GITHUB_PATH"
+          echo "CC_aarch64_linux_android=$bin/aarch64-linux-android24-clang" >> "$GITHUB_ENV"
+          echo "AR_aarch64_linux_android=$bin/llvm-ar" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android24-clang" >> "$GITHUB_ENV"
+
+      # tauri::generate_context! needs frontendDist to exist.
+      - name: Install dependencies
+        if: steps.crate.outputs.present == 'true'
+        run: npm ci
+
+      - name: Build frontend
+        if: steps.crate.outputs.present == 'true'
+        run: npm run build
+
+      - name: Cargo check (Android)
+        if: steps.crate.outputs.present == 'true'
+        run: cargo check --locked -p gonq-mobile --target "$ANDROID_TARGET"
+
+      - name: No SSH crates in the Android build
+        if: steps.crate.outputs.present == 'true'
+        run: |
+          cargo tree --locked -p gonq-mobile --target "$ANDROID_TARGET" -e normal --prefix none > no-ssh-tree.txt
+          if grep -E '^(russh|russh-sftp|ssh2-config) v' no-ssh-tree.txt | sort -u > ssh-found.txt && [ -s ssh-found.txt ]; then
+            echo "::error::SSH crates found in the Android build:"
+            cat ssh-found.txt
+            exit 1
+          fi
+          echo "No SSH crates in: cargo tree -p gonq-mobile --target $ANDROID_TARGET -e normal"
