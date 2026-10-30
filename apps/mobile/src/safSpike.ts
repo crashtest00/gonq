@@ -1,7 +1,7 @@
 /** M-14 SPIKE (throwaway, never merged): a debug panel with buttons that drive the Kotlin SAF plugin through the `safspike` command and print results. */
 type Inv = (cmd: string, args: unknown) => Promise<any>;
 const inv = (): Inv => (window as any).__TAURI_INTERNALS__.invoke;
-const saf = (command: string, args: object = {}) => inv()('plugin:safspike|saf', { command, args });
+const saf = (command: string, args: object = {}) => inv()('saf', { command, args });
 
 export function mountSafSpike(): void {
   const box = document.createElement('div');

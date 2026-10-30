@@ -23,7 +23,9 @@ pub fn run() {
     android_tls::init();
     let builder = tauri::Builder::default();
     #[cfg(debug_assertions)]
-    let builder = builder.invoke_handler(tauri::generate_handler![selftest::keychain_selftest]);
+    let builder = builder.invoke_handler(tauri::generate_handler![selftest::keychain_selftest, saf_spike::saf]);
+    #[cfg(not(debug_assertions))]
+    let builder = builder.invoke_handler(tauri::generate_handler![saf_spike::saf]);
     builder
         .setup(|app| {
             app.manage(DataPaths::resolve(app.handle()));

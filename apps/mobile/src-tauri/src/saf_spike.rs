@@ -7,13 +7,12 @@ use tauri::{Manager, Runtime};
 struct Handle<R: Runtime>(PluginHandle<R>);
 
 #[tauri::command]
-async fn saf<R: Runtime>(app: tauri::AppHandle<R>, command: String, args: Value) -> Result<Value, String> {
-    app.state::<Handle<R>>().0.run_mobile_plugin_async(&command, args).await.map_err(|e| e.to_string())
+pub async fn saf(app: tauri::AppHandle, command: String, args: Value) -> Result<Value, String> {
+    app.state::<Handle<tauri::Wry>>().0.run_mobile_plugin_async(&command, args).await.map_err(|e| e.to_string())
 }
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("safspike")
-        .invoke_handler(tauri::generate_handler![saf])
         .setup(|app, api| {
             #[cfg(target_os = "android")]
             app.manage(Handle(api.register_android_plugin("com.gonq.app", "SafPlugin")?));
