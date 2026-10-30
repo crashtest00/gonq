@@ -39,7 +39,9 @@ use error::GithubError;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
-use store::{KeyringStore, TokenStore};
+#[cfg(not(target_os = "android"))]
+use store::KeyringStore;
+use store::TokenStore;
 use tauri::State;
 use tokio::sync::watch;
 use zeroize::Zeroizing;
@@ -159,7 +161,12 @@ impl Github {
     }
 
     pub fn production() -> Self {
-        Self::new(Config::production(), Arc::new(KeyringStore))
+        #[cfg(not(target_os = "android"))]
+        let store: Arc<dyn TokenStore> = Arc::new(KeyringStore);
+        // keyring has no default store on Android (it would report Unavailable), so the Keystore store is used there.
+        #[cfg(target_os = "android")]
+        let store: Arc<dyn TokenStore> = Arc::new(store::AndroidStore::new());
+        Self::new(Config::production(), store)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {

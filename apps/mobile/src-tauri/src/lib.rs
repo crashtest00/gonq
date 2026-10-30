@@ -1,5 +1,12 @@
 //! The mobile Tauri app (`run`, the `mobile_entry_point`): installs the gonq-core plugin `gonq` (built without SSH) and the
-//! dialog, fs and opener plugins. It owns no commands of its own; the single-instance plugin and launch-path handling are desktop-only.
+//! dialog, fs and opener plugins. On Android it first initialises rustls-platform-verifier from the ndk-context (see
+//! `android_tls`). Its only command of its own is the debug-only `keychain_selftest` (selftest.rs, absent from release
+//! builds); the single-instance plugin and launch-path handling are desktop-only.
+#[cfg(target_os = "android")]
+mod android_tls;
+#[cfg(debug_assertions)]
+pub mod selftest;
+
 use gonq_core::DataPaths;
 use tauri::Manager;
 
@@ -10,7 +17,13 @@ fn context<R: tauri::Runtime>() -> tauri::Context<R> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    // Before the GitHub client exists: it verifies certificates through the platform verifier, which needs this.
+    #[cfg(target_os = "android")]
+    android_tls::init();
+    let builder = tauri::Builder::default();
+    #[cfg(debug_assertions)]
+    let builder = builder.invoke_handler(tauri::generate_handler![selftest::keychain_selftest]);
+    builder
         .setup(|app| {
             app.manage(DataPaths::resolve(app.handle()));
             Ok(())

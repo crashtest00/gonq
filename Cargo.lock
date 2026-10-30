@@ -76,6 +76,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "android-native-keyring-store"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48c6349ddff23194f8fdce2ea8849380f5a4868c1648965b70e801e104cba9b3"
+dependencies = [
+ "base64 0.22.1",
+ "jni 0.21.1",
+ "keyring-core",
+ "log",
+ "ndk-context",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tracing",
+]
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1866,12 +1884,14 @@ dependencies = [
 name = "gonq-core"
 version = "0.1.5"
 dependencies = [
+ "android-native-keyring-store",
  "base64 0.23.1",
  "dirs",
  "embed-resource",
  "futures",
  "hmac",
  "keyring",
+ "keyring-core",
  "rand",
  "reqwest",
  "russh",
@@ -1899,6 +1919,11 @@ name = "gonq-mobile"
 version = "0.1.5"
 dependencies = [
  "gonq-core",
+ "jni 0.22.4",
+ "keyring-core",
+ "ndk-context",
+ "rustls-platform-verifier",
+ "serde",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
