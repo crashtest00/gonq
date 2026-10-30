@@ -18,3 +18,14 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+
+# Android only: the platform certificate verifier's JNI init (rustls-platform-verifier is already in the tree via reqwest;
+# keep these in step with Cargo.lock) and the ndk-context pointers that Tauri's runtime (tao) sets.
+[target.'cfg(target_os = "android")'.dependencies]
+rustls-platform-verifier = "0.7.1"
+jni = { version = "0.22.4", default-features = false }
+ndk-context = "0.1"
+
+[dev-dependencies]
+keyring-core = "1"

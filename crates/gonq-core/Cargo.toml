@@ -36,9 +36,15 @@ url = "2"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "json"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 keyring = "4.2.0"
+keyring-core = "1"
 specta = { version = "=2.0.0-rc.26", features = ["derive", "function"] }
 specta-typescript = "0.0.13"
 tauri-specta = { version = "=2.0.0-rc.26", features = ["derive", "typescript"] }
+
+# The Android Keystore credential store for keyring-core; needs the ndk-context application context (set by the mobile
+# app's Tauri runtime). Android only, so the desktop tree and the no-SSH check do not see it.
+[target.'cfg(target_os = "android")'.dependencies]
+android-native-keyring-store = "1.0.0"
 
 [dev-dependencies]
 tempfile = "3"
