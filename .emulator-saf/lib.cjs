@@ -44,10 +44,11 @@ async function pickTree(segments, label) {
     for (let attempt = 1; attempt <= 4 && !ok; attempt++) {
       const b0 = findBounds(dump(), s);
       if (!b0) { await tapMatch(/show roots/i, 1500); await sleep(600); continue; }
-      const how = ['tap text', 'tap icon', 'press 120ms', 'tap text (again)'][attempt - 1];
-      if (attempt === 2) sh(`adb shell input tap 48 ${b0.y}`);
-      else if (attempt === 3) sh(`adb shell input swipe ${b0.x} ${b0.y} ${b0.x} ${b0.y} 120`);
-      else sh(`adb shell input tap ${b0.x} ${b0.y}`);
+      const how = ['touchscreen tap', 'mouse tap', 'list view then tap', 'dpad'][attempt - 1];
+      if (attempt === 1) sh(`adb shell input touchscreen tap ${b0.x} ${b0.y}`);
+      else if (attempt === 2) sh(`adb shell input mouse tap ${b0.x} ${b0.y}`);
+      else if (attempt === 3) { await tapMatch(/^list view$/i, 3000); await sleep(1500); shot(`${label}-listview`); const b1 = findBounds(dump(), s) || b0; sh(`adb shell input tap ${b1.x} ${b1.y}`); }
+      else { for (let k = 0; k < 14; k++) sh('adb shell input keyevent KEYCODE_DPAD_DOWN'); sh('adb shell input keyevent KEYCODE_DPAD_CENTER'); }
       log(`${label}: ${s} input method`, true, `${how} at ${b0.x},${b0.y}; focus: ${sh('adb shell dumpsys window | grep -m1 mCurrentFocus || true')}`);
       await sleep(1800);
       const bb = findBounds(dump(), s);          // navigated when the folder name is now in the title bar (top of the screen)
