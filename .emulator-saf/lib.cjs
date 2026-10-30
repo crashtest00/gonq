@@ -35,32 +35,36 @@ async function tapMatch(re, timeout = 6000) {
     await sleep(700);
   }
 }
-// Drive DocumentsUI after the app opened ACTION_OPEN_DOCUMENT_TREE: browse to `path` segments, then "Use this folder" + "Allow".
-// The picker may open on Recent/Downloads, so when a segment is not visible the roots drawer is opened and the internal-storage root tried.
+// Touch taps do not register on the emulator's DocumentsUI (found by probe: tap, touchscreen, mouse all ignored; DPAD works), so the
+// picker is driven by keyboard: move focus with DPAD until the focused node's bounds contain the target text, then press Enter.
+function focusedBounds(xml) {
+  const m = /<node [^>]*?focused="true"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/.exec(xml);
+  return m ? { l: +m[1], t: +m[2], r: +m[3], b: +m[4] } : null;
+}
+async function kbSelect(text, label) {
+  const keys = [...Array(14).fill('DPAD_DOWN'), 'DPAD_RIGHT', ...Array(14).fill('DPAD_UP'), 'DPAD_LEFT', ...Array(14).fill('DPAD_DOWN')];
+  for (let i = 0; i <= keys.length; i++) {
+    const xml = dump(); const tb = findBounds(xml, text); const fb = focusedBounds(xml);
+    if (tb && fb && tb.x >= fb.l && tb.x <= fb.r && tb.y >= fb.t && tb.y <= fb.b) { shot(`${label}-focus-${text.replace(/\W+/g, '_')}`); sh('adb shell input keyevent KEYCODE_ENTER'); return true; }
+    if (i === keys.length) break;
+    sh(`adb shell input keyevent KEYCODE_${keys[i]}`); await sleep(250);
+  }
+  fs.writeFileSync(`${EV}/${label}-kb-no-${text.replace(/\W+/g, '_')}.xml`, dump()); return false;
+}
+// Drive DocumentsUI after the app opened ACTION_OPEN_DOCUMENT_TREE: browse to `segments`, then "Use this folder" + "Allow".
 async function pickTree(segments, label) {
   await sleep(2500); shot(`${label}-picker-start`); fs.writeFileSync(`${EV}/${label}-picker-start.xml`, dump());
   for (const s of segments) {
-    let ok = false;
-    for (let attempt = 1; attempt <= 4 && !ok; attempt++) {
-      const b0 = findBounds(dump(), s);
-      if (!b0) { await tapMatch(/show roots/i, 1500); await sleep(600); continue; }
-      const how = ['touchscreen tap', 'mouse tap', 'list view then tap', 'dpad'][attempt - 1];
-      if (attempt === 1) sh(`adb shell input touchscreen tap ${b0.x} ${b0.y}`);
-      else if (attempt === 2) sh(`adb shell input mouse tap ${b0.x} ${b0.y}`);
-      else if (attempt === 3) { await tapMatch(/^list view$/i, 3000); await sleep(1500); shot(`${label}-listview`); const b1 = findBounds(dump(), s) || b0; sh(`adb shell input tap ${b1.x} ${b1.y}`); }
-      else { for (let k = 0; k < 14; k++) sh('adb shell input keyevent KEYCODE_DPAD_DOWN'); sh('adb shell input keyevent KEYCODE_DPAD_CENTER'); }
-      log(`${label}: ${s} input method`, true, `${how} at ${b0.x},${b0.y}; focus: ${sh('adb shell dumpsys window | grep -m1 mCurrentFocus || true')}`);
-      await sleep(1800);
-      const bb = findBounds(dump(), s);          // navigated when the folder name is now in the title bar (top of the screen)
-      ok = !!bb && bb.y < 130;
-      log(`${label}: enter ${s} attempt ${attempt}`, ok, bb ? `y=${bb.y}` : 'name not on screen'); shot(`${label}-enter-${s}-${attempt}`);
-    }
-    if (!ok) { log(`${label}: navigate to ${s}`, false, 'not entered'); shot(`${label}-nav-fail`); fs.writeFileSync(`${EV}/${label}-nav-fail.xml`, dump()); return false; }
+    const ok = await kbSelect(s, label); await sleep(1800);
+    const bb = findBounds(dump(), s); shot(`${label}-enter-${s}`);
+    const entered = ok && !!bb && bb.y < 130;      // folder name now in the title bar
+    log(`${label}: enter ${s} (keyboard)`, entered, bb ? `y=${bb.y}` : 'name not on screen');
+    if (!entered) { fs.writeFileSync(`${EV}/${label}-nav-fail.xml`, dump()); return false; }
   }
   shot(`${label}-picker-in-folder`);
-  const use = (await tapText('Use this folder', 6000)) || (await tapText('USE THIS FOLDER', 3000));
-  await sleep(1200); shot(`${label}-picker-grant-dialog`);
-  const allow = (await tapText('Allow', 6000)) || (await tapText('ALLOW', 3000));
+  const use = (await kbSelect('Use this folder', label)) || (await kbSelect('USE THIS FOLDER', label));
+  await sleep(1500); shot(`${label}-picker-grant-dialog`);
+  const allow = (await kbSelect('Allow', label)) || (await kbSelect('ALLOW', label));
   await sleep(1500);
   log(`${label}: picker use+allow`, use && allow, `use=${use} allow=${allow}`);
   return use && allow;
