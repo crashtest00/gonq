@@ -6,7 +6,10 @@ run-name: rust-checks ${{ inputs.request_id }}
 # not in build-desktop on dev). Dispatched only by Jenkins (Jenkinsfile,
 # stage "Rust checks", PR builds against dev), which awaits the run and fails
 # the PR build when it fails. It also fails when the committed generated
-# bindings (packages/editor/src/platform/bindings.ts) drift from the Rust. `request_id` is the correlation id Jenkins finds
+# bindings (packages/editor/src/platform/bindings.ts) drift from the Rust. On the
+# ubuntu leg it also tests gonq-core without its default features (no `ssh`
+# feature, the mobile build) and fails if russh, russh-sftp or ssh2-config are in
+# that build's dependency tree. `request_id` is the correlation id Jenkins finds
 # the run by (it is in the run name). Never add pull_request/push/tag triggers.
 on:
   workflow_dispatch:
@@ -102,3 +105,24 @@ jobs:
             echo "::error file=packages/editor/src/platform/bindings.ts::bindings.ts is out of date with the Rust commands; run 'cargo test -p gonq export_bindings' and commit the result"
             exit 1
           fi
+
+      # The no-SSH build (the mobile app compiles gonq-core without feature
+      # `ssh`): its tests must pass and its normal dependency tree must hold no
+      # SSH crate. --prefix none prints one "name vX.Y.Z" per line, so the
+      # anchored match below is on exact crate names only.
+      # Once crate gonq-mobile exists (story M-06), switch TREE_ARGS to
+      #   -p gonq-mobile --target aarch64-linux-android
+      # (and add that target with `rustup target add aarch64-linux-android`).
+      - name: No-SSH build (tests + no SSH crates)
+        if: matrix.label == 'ubuntu'
+        env:
+          TREE_ARGS: -p gonq-core --no-default-features
+        run: |
+          cargo test --locked -p gonq-core --no-default-features
+          cargo tree --locked $TREE_ARGS -e normal --prefix none > no-ssh-tree.txt
+          if grep -E '^(russh|russh-sftp|ssh2-config) v' no-ssh-tree.txt | sort -u > ssh-found.txt && [ -s ssh-found.txt ]; then
+            echo "::error::SSH crates found in the no-SSH build ($TREE_ARGS):"
+            cat ssh-found.txt
+            exit 1
+          fi
+          echo "No SSH crates in: cargo tree $TREE_ARGS -e normal"
