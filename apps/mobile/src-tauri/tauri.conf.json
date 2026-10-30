@@ -4,14 +4,28 @@
   "version": "0.1.5",
   "identifier": "com.gonq.app",
   "build": {
-    "frontendDist": "../web"
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1421",
+    "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "title": "Gonq" }],
-    "security": { "csp": null }
+    "windows": [
+      {
+        "title": "Gonq",
+        "useHttpsScheme": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": false,
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.png"]
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.png"
+    ]
   }
 }

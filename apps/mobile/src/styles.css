@@ -1,0 +1,72 @@
+@import '@fontsource/public-sans/400.css';
+@import '@fontsource/public-sans/500.css';
+@import '@fontsource/public-sans/600.css';
+@import '@fontsource/public-sans/700.css';
+@import '@gonq/editor/styles/tokens.css';
+
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-body);
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+* { box-sizing: border-box; }
+::selection { background: var(--selection); color: var(--selection-foreground); }
+.theme-switching, .theme-switching * { transition: none !important; animation: none !important; }
+
+/* Every interactive element has at least a 44x44 CSS px hit area. */
+.m-tap {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 44px; min-height: 44px; padding: 0 var(--space-3);
+  border: 0; border-radius: var(--radius-control); background: transparent; color: inherit;
+  font: inherit; cursor: pointer;
+}
+.m-tap:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.m-tap:disabled { opacity: .5; cursor: default; }
+.m-tap-primary { background: var(--primary); color: var(--primary-foreground); font-weight: var(--weight-semibold); }
+
+.m-shell { display: flex; flex-direction: column; height: 100%; }
+.m-topbar {
+  display: flex; align-items: center; gap: var(--space-2); flex: none;
+  min-height: calc(56px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) max(var(--space-2), env(safe-area-inset-right)) 0 max(var(--space-2), env(safe-area-inset-left));
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.m-topbar h1 { flex: 1; min-width: 0; margin: 0; font-size: 17px; font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-banners { flex: none; display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) var(--space-3) 0; }
+.m-banner { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); font-size: var(--text-caption); }
+.m-banner > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.m-banner-error { border-color: var(--destructive); color: var(--destructive); }
+.m-content {
+  flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column;
+  padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* A row wider than the screen scrolls sideways; the edge fades show there is more. */
+.m-hscroll {
+  display: flex; gap: var(--space-2); overflow-x: auto; scrollbar-width: thin;
+  background:
+    linear-gradient(to right, var(--background) 30%, transparent) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--background) 30%, transparent) right center / 24px 100% no-repeat local,
+    linear-gradient(to right, var(--border), transparent) left center / 10px 100% no-repeat scroll,
+    linear-gradient(to left, var(--border), transparent) right center / 10px 100% no-repeat scroll;
+}
+.m-hscroll > * { flex: none; }
+
+.m-scrim { position: fixed; inset: 0; z-index: 20; border: 0; padding: 0; background: var(--scrim); }
+.m-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 85%; overflow-y: auto;
+  padding: var(--space-2) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+  background: var(--surface); color: var(--foreground);
+  border-radius: var(--radius-container) var(--radius-container) 0 0; box-shadow: var(--shadow-dialog);
+}
+.m-sheet-head { display: flex; align-items: center; gap: var(--space-2); }
+.m-sheet-head h2 { flex: 1; margin: 0; font-size: 17px; font-weight: var(--weight-semibold); }
+
+.m-splash { flex: 1; display: flex; align-items: center; justify-content: center; }
+.m-splash img { width: min(200px, 60vw); height: auto; }
+.m-label { padding: var(--space-4) var(--space-4) var(--space-2); font-size: var(--text-caption); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: .04em; color: var(--muted-foreground); }
+.m-empty { padding: var(--space-7) var(--space-5) 0; text-align: center; color: var(--muted-foreground); line-height: 1.5; }
