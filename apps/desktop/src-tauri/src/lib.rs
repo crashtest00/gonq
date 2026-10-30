@@ -8,6 +8,11 @@ mod launch;
 mod pane_width_ipc_tests;
 
 use gonq_core::DataPaths;
+
+/// The app's Tauri context (config + capabilities). `generate_context!` may expand only once per crate on macOS, so tests reuse this.
+pub(crate) fn context<R: tauri::Runtime>() -> tauri::Context<R> {
+    tauri::generate_context!()
+}
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_fs::FsExt;
@@ -66,7 +71,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![take_launch_paths])
-        .build(tauri::generate_context!())
+        .build(context())
         .expect("error while building tauri application");
     app.run(|#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(unused_variables))] app, event| match event {
         // macOS delivers files opened from Finder (file association) as events, not arguments.

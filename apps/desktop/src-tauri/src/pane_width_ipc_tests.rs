@@ -37,7 +37,7 @@ fn frontend_arguments_reach_the_pane_width_commands() {
             settings: Ok(dir.path().join("settings.json")),
             recents: Ok(dir.path().join("recent.json")),
         })
-        .build(tauri::generate_context!())
+        .build(crate::context())
         .unwrap();
     // The app's own context, so the real capability (`gonq:default` in capabilities/default.json) decides what is allowed.
     let w = WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
