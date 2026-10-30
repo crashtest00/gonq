@@ -5,7 +5,8 @@ run-name: rust-checks ${{ inputs.request_id }}
 # desktop targets, so a platform-specific Rust failure is caught before merge,
 # not in build-desktop on dev). Dispatched only by Jenkins (Jenkinsfile,
 # stage "Rust checks", PR builds against dev), which awaits the run and fails
-# the PR build when it fails. `request_id` is the correlation id Jenkins finds
+# the PR build when it fails. It also fails when the committed generated
+# bindings (apps/desktop/src/platform/bindings.ts) drift from the Rust. `request_id` is the correlation id Jenkins finds
 # the run by (it is in the run name). Never add pull_request/push/tag triggers.
 on:
   workflow_dispatch:
@@ -87,3 +88,17 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      # The export test rewrites bindings.ts from the Rust command list; any
+      # difference from the committed file means it was not regenerated. Ubuntu
+      # only: on Windows actions/checkout applies autocrlf (CRLF working tree)
+      # while the generated file is LF, so a diff there would be line-ending
+      # noise. The file is the same on every OS, one leg is enough.
+      - name: Bindings drift check
+        if: matrix.label == 'ubuntu'
+        run: |
+          cargo test --locked -p gonq export_bindings
+          if ! git diff --exit-code -- apps/desktop/src/platform/bindings.ts; then
+            echo "::error file=apps/desktop/src/platform/bindings.ts::bindings.ts is out of date with the Rust commands; run 'cargo test -p gonq export_bindings' and commit the result"
+            exit 1
+          fi

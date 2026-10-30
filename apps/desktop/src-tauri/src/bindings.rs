@@ -1,7 +1,8 @@
 //! The one list of the 38 commands the webview can invoke (`builder`), from which both the Tauri invoke handler and
 //! the generated TypeScript contract `apps/desktop/src/platform/bindings.ts` come. The `export_bindings` test below
 //! rewrites that file (always with ssh compiled in) and the error-shape tests pin what GithubError, RemoteError and
-//! ListError serialise to. Regenerate with `cargo test -p gonq export_bindings`.
+//! ListError serialise to. Regenerate with `cargo test -p gonq export_bindings`;
+//! the rust-checks workflow fails a PR whose committed bindings.ts differs from what that test writes.
 use tauri::{ipc::Invoke, Runtime};
 use tauri_specta::{collect_commands, Commands};
 
