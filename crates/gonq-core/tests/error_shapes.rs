@@ -3,6 +3,7 @@
 //! `toRemoteError` (remote.ts) reads `{kind, message}`. The generated bindings.ts types the same shapes.
 use gonq_core::folder::ListError;
 use gonq_core::github::error::GithubError;
+#[cfg(feature = "ssh")]
 use gonq_core::ssh::fs::RemoteError;
 use serde_json::json;
 
@@ -19,10 +20,15 @@ fn github_error_is_kind_tagged_with_flat_fields() {
     assert_eq!(v(GithubError::AlreadyExists), json!({"kind": "already_exists"}));
 }
 
+#[cfg(feature = "ssh")]
 #[test]
-fn remote_and_list_errors_are_kind_and_message() {
+fn remote_errors_are_kind_and_message() {
     assert_eq!(serde_json::to_value(RemoteError::AuthRequired("me@host".into())).unwrap(), json!({"kind": "auth_required", "message": "me@host"}));
     assert_eq!(serde_json::to_value(RemoteError::NotAFolder("/x".into())).unwrap(), json!({"kind": "not_a_folder", "message": "/x"}));
+}
+
+#[test]
+fn list_errors_are_kind_and_message() {
     assert_eq!(serde_json::to_value(ListError::NotAllowed("/y".into())).unwrap(), json!({"kind": "not_allowed", "message": "/y"}));
     assert_eq!(serde_json::to_value(ListError::PermissionDenied("/z".into())).unwrap(), json!({"kind": "permission_denied", "message": "/z"}));
 }

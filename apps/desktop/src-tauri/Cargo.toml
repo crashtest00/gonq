@@ -13,7 +13,7 @@ tauri-build = { version = "2", features = [] }
 embed-resource = "3"
 
 [dependencies]
-gonq-core = { path = "../../../crates/gonq-core" }
+gonq-core = { path = "../../../crates/gonq-core", features = ["ssh"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
