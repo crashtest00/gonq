@@ -1,6 +1,6 @@
 /** Toolbar formats applied to an EditorView (formatView, diff) and the formatting keymap (Ctrl+B/I/U/K/Shift+X). */
 import { keymap, type Command, type EditorView } from '@codemirror/view';
-import { applyFormat, type Format } from '../components/formatting';
+import { applyFormat, type Format } from '../model/formatting';
 
 /** The smallest single change turning `a` into `b`; only the differing middle is touched. */
 export function diff(a: string, b: string): { from: number; to: number; insert: string } {

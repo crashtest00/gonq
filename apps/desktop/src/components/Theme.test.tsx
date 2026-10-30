@@ -3,9 +3,9 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import App from '../App';
-import type { FileAccess } from '../platform/files';
-import { THEME_KEY } from '../platform/settings';
-import { caretAt, docText, editorView, type as typeText } from '../testing/editor';
+import type { FileAccess } from '@gonq/editor/platform/files';
+import { THEME_KEY } from '@gonq/editor/platform/settings';
+import { caretAt, docText, editorView, type as typeText } from '@gonq/editor/testing/editor';
 
 vi.setConfig({ testTimeout: 30000 });
 

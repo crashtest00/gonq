@@ -2,16 +2,16 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import App from './../App';
-import { parseCommentThreads } from '../comment-threads';
-import type { FileAccess } from '../platform/files';
+import App from '../App';
+import { parseCommentThreads } from '@gonq/editor/comment-threads';
+import type { FileAccess } from '@gonq/editor/platform/files';
 
 vi.setConfig({ testTimeout: 30000 });
 
 // Lets one test make the library refuse the edit, as it does for an ambiguous id.
 const refuse = vi.hoisted(() => ({ on: false }));
-vi.mock('../comment-threads', async (importActual) => {
-  const actual = await importActual<typeof import('../comment-threads')>();
+vi.mock('@gonq/editor/comment-threads', async (importActual) => {
+  const actual = await importActual<typeof import('@gonq/editor/comment-threads')>();
   return {
     ...actual,
     setThreadStatus: (...args: Parameters<typeof actual.setThreadStatus>) => {

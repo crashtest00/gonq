@@ -3,9 +3,9 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
 import { EditorView } from '@codemirror/view';
-import { at, docText, editorView, select, type as typeText } from '../testing/editor';
+import { at, docText, editorView, select, type as typeText } from '@gonq/editor/testing/editor';
 import App from '../App';
-import type { FileAccess, OpenedDocument } from '../platform/files';
+import type { FileAccess, OpenedDocument } from '@gonq/editor/platform/files';
 
 // Each test drives the whole app through user-event; on slow CI they run close to the 5s default.
 vi.setConfig({ testTimeout: 30000 });

@@ -17,8 +17,8 @@ import {
   remoteUri,
   sshPathOf,
   type ConnectResult,
-} from '../platform/connect';
-import { RemoteFileError, remoteAccount } from '../platform/remote';
+} from '@gonq/editor/platform/connect';
+import { RemoteFileError, remoteAccount } from '@gonq/editor/platform/remote';
 import { ROW_CHUNK } from './FolderSidebar';
 
 const button =

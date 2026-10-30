@@ -2,11 +2,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { caretAt, type as typeText } from '../testing/editor';
+import { caretAt, type as typeText } from '@gonq/editor/testing/editor';
 import App from '../App';
 import { FolderSidebar } from './FolderSidebar';
-import { RemoteConflictError, RemoteFileError, type RemoteStat } from '../platform/remote';
-import type { FileAccess, OpenedDocument } from '../platform/files';
+import { RemoteConflictError, RemoteFileError, type RemoteStat } from '@gonq/editor/platform/remote';
+import type { FileAccess, OpenedDocument } from '@gonq/editor/platform/files';
 
 vi.setConfig({ testTimeout: 30000 });
 

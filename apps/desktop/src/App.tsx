@@ -4,10 +4,10 @@
  * connect, GitHub sign-in, repo picker and its open repo/branch, GitHub files in tabs and the navigator following them, launch paths). Errors land in its banner.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useTheme } from './lib/useTheme';
+import { useTheme } from '@gonq/editor/lib/useTheme';
 import { MenuBar } from './components/MenuBar';
-import { registry, type CommandContext } from './commands';
-import { DialogHost, openDialog, type DialogRef } from './dialogs/DialogHost';
+import { registry, type CommandContext } from '@gonq/editor/commands';
+import { DialogHost, openDialog, type DialogRef } from '@gonq/editor/dialogs/DialogHost';
 import {
   aboutDialog,
   agentSkillDialog,
@@ -21,38 +21,38 @@ import {
   unsavedChangesDialog,
   branchChangeDialog,
 } from './dialogs/dialogs';
-import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from './platform/settings';
+import { DEFAULT_AUTHOR, getAuthorName, setAuthorName } from '@gonq/editor/platform/settings';
 import { TabStrip } from './components/TabStrip';
 import { EditToolbar } from './components/EditToolbar';
 import { EditorContextMenu } from './components/EditorContextMenu';
 import { TableToolbar } from './components/TableToolbar';
-import type { TableTarget } from './editor/tables';
+import type { TableTarget } from '@gonq/editor/editor/tables';
 import { ResizablePane } from './components/ResizablePane';
 import { usePaneWidths } from './components/paneWidths';
 import { OutlineSidebar } from './components/OutlineSidebar';
-import { outlineOf } from './components/outline';
+import { outlineOf } from '@gonq/editor/model/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
-import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from './platform/remote';
+import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from '@gonq/editor/platform/remote';
 import type { RepoState } from './components/RepoNavigator';
-import { GitHubError, commitFile, ensureSignedIn, parseGithubPath, setSignInHandler, signOut as githubSignOut, type GithubDocument } from './platform/github';
+import { GitHubError, commitFile, ensureSignedIn, parseGithubPath, setSignInHandler, signOut as githubSignOut, type GithubDocument } from '@gonq/editor/platform/github';
 import type { RepoChoice } from './components/RepoPickerDialog';
-import { assertConnectAvailable } from './platform/connect';
-import { listThreads, threadKey } from './components/threads';
-import { isCommentableAt, selectionRange, type ThreadTarget } from './components/newThread';
-import { parseCommentMarkers, appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus } from './comment-threads';
+import { assertConnectAvailable } from '@gonq/editor/platform/connect';
+import { listThreads, threadKey } from '@gonq/editor/model/threads';
+import { isCommentableAt, selectionRange, type ThreadTarget } from '@gonq/editor/model/newThread';
+import { parseCommentMarkers, appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus } from '@gonq/editor/comment-threads';
 import { RawSwitch } from './components/RawSwitch';
-import { MarkdownEditor, type EditorHandle, type EditorSelection } from './editor/MarkdownEditor';
-import { useDocument, type DocumentMeta } from './document/useDocument';
-import { files as defaultFiles, type FileAccess } from './platform/files';
-import { guardClose } from './platform/lifecycle';
-import { pickImage } from './platform/images';
-import { addSessionBranch, listSessionBranches, type SessionBranch } from './features/github/sessionBranches';
-import { PULL_CHECK_FAILED, openPullMessage, useOpenPulls } from './features/github/openPulls';
+import { MarkdownEditor, type EditorHandle, type EditorSelection } from '@gonq/editor/editor/MarkdownEditor';
+import { useDocument, type DocumentMeta } from '@gonq/editor/document/useDocument';
+import { files as defaultFiles, type FileAccess } from '@gonq/editor/platform/files';
+import { guardClose } from '@gonq/editor/platform/lifecycle';
+import { pickImage } from '@gonq/editor/platform/images';
+import { addSessionBranch, listSessionBranches, type SessionBranch } from '@gonq/editor/features/github/sessionBranches';
+import { PULL_CHECK_FAILED, openPullMessage, useOpenPulls } from '@gonq/editor/features/github/openPulls';
 import { ReadOnlyBanner } from './components/ReadOnlyBanner';
-import { listenOpenPaths, takePendingOpenPaths } from './platform/openPaths';
+import { listenOpenPaths, takePendingOpenPaths } from '@gonq/editor/platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
-import { pathExists, pickFolder } from './platform/folders';
-import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from './platform/recents';
+import { pathExists, pickFolder } from '@gonq/editor/platform/folders';
+import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from '@gonq/editor/platform/recents';
 
 function parentDir(path: string): string | null {
   const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));

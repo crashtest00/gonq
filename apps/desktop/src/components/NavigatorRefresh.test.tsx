@@ -6,14 +6,14 @@ import { FolderSidebar } from './FolderSidebar';
 import { RepoNavigator } from './RepoNavigator';
 
 const listDirectory = vi.fn();
-vi.mock('../platform/folders', async (orig) => ({
-  ...(await orig<typeof import('../platform/folders')>()),
+vi.mock('@gonq/editor/platform/folders', async (orig) => ({
+  ...(await orig<typeof import('@gonq/editor/platform/folders')>()),
   listDirectory: (p: string) => listDirectory(p),
 }));
 const listFolder = vi.fn();
 const listBranches = vi.fn();
-vi.mock('../platform/github', async (orig) => ({
-  ...(await orig<typeof import('../platform/github')>()),
+vi.mock('@gonq/editor/platform/github', async (orig) => ({
+  ...(await orig<typeof import('@gonq/editor/platform/github')>()),
   listFolder: (...a: unknown[]) => listFolder(...a),
   listBranches: (...a: unknown[]) => listBranches(...a),
 }));
@@ -105,7 +105,7 @@ it('refreshSignal refreshes like the button', async () => {
 });
 
 it('a deleted branch on refresh switches to the default branch', async () => {
-  const { GitHubError } = await import('../platform/github');
+  const { GitHubError } = await import('@gonq/editor/platform/github');
   const onBranchChange = vi.fn();
   listBranches.mockResolvedValue({ defaultBranch: 'main', branches: ['main', 'old'], nextPage: null });
   listFolder.mockResolvedValueOnce({ entries: [{ name: 'a.md', path: 'a.md', kind: 'file' }], truncated: false });

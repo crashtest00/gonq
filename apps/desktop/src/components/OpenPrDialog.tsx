@@ -7,7 +7,7 @@
  * dialog resolves when closed and reports an opened pull request through `onOpened`.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { openLink } from '../editor/openLink';
+import { openLink } from '@gonq/editor/editor/openLink';
 import {
   branchesExist,
   compareBranches,
@@ -18,10 +18,10 @@ import {
   type Comparison,
   type CreatedPull,
   type OpenPull,
-} from '../platform/github';
-import { NO_CHANGES, NO_SOURCES, describeFile, repoKey, repoOptions, sameRepo, sourceCandidates, type RepoRef } from '../features/github/openPr';
-import { defaultPrBody, defaultPrTitle } from '../features/github/prDefaults';
-import type { SessionBranch } from '../features/github/sessionBranches';
+} from '@gonq/editor/platform/github';
+import { NO_CHANGES, NO_SOURCES, describeFile, repoKey, repoOptions, sameRepo, sourceCandidates, type RepoRef } from '@gonq/editor/features/github/openPr';
+import { defaultPrBody, defaultPrTitle } from '@gonq/editor/features/github/prDefaults';
+import type { SessionBranch } from '@gonq/editor/features/github/sessionBranches';
 import { BRANCH_RENDER_CAP } from './RepoNavigator';
 
 const button =

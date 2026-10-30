@@ -2,11 +2,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { at, caretAt, docText, editorView, select as selectRange, selectText } from '../testing/editor';
-import App from './../App';
-import { isCommentableAt } from './newThread';
-import { parseCommentThreads } from '../comment-threads';
-import type { FileAccess, OpenedDocument } from '../platform/files';
+import { at, caretAt, docText, editorView, select as selectRange, selectText } from '@gonq/editor/testing/editor';
+import App from '../App';
+import { isCommentableAt } from '@gonq/editor/model/newThread';
+import { parseCommentThreads } from '@gonq/editor/comment-threads';
+import type { FileAccess, OpenedDocument } from '@gonq/editor/platform/files';
 
 vi.setConfig({ testTimeout: 30000 });
 

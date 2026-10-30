@@ -1,14 +1,14 @@
 /** Help > Agent skill…: the bundled SKILL.md and its rules, the read-only preview, Copy (with clipboard fallback) and Save. */
-import { settleEditors } from '../testing/editor';
+import { settleEditors } from '@gonq/editor/testing/editor';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import App from './../App';
-import { AGENT_SKILL, AGENT_SKILL_BODY } from '../agent-skill/skill';
-import fixture from '../agent-skill/fixtures/agent-edited.md?raw';
-import { parseCommentThreads, parseCommentMarkers, danglingMarkers } from '../comment-threads';
-import { AGENT_GUIDANCE } from '../comment-threads/guidance';
-import type { FileAccess } from '../platform/files';
+import App from '../App';
+import { AGENT_SKILL, AGENT_SKILL_BODY } from '@gonq/editor/agent-skill/skill';
+import fixture from '@gonq/editor/agent-skill/fixtures/agent-edited.md?raw';
+import { parseCommentThreads, parseCommentMarkers, danglingMarkers } from '@gonq/editor/comment-threads';
+import { AGENT_GUIDANCE } from '@gonq/editor/comment-threads/guidance';
+import type { FileAccess } from '@gonq/editor/platform/files';
 
 vi.setConfig({ testTimeout: 30000 });
 

@@ -1,13 +1,13 @@
 /**
- * The Format menu: the formatting toolbar's actions (EditToolbar's FORMATS) and a Table sub-menu with insert table
- * and the table toolbar's actions (TableToolbar's TOOLS), registered with the command registry as a side effect of
+ * The Format menu: the formatting toolbar's actions (editor/formatTools' FORMATS) and a Table sub-menu with insert table
+ * and the table toolbar's actions (editor/tableTools' TOOLS), registered with the command registry as a side effect of
  * being imported (see commands/index.ts). The key of an inline format belongs to the editor, so it is only a hint.
  * Closing the menu returns the focus to the table cell the actions act on, or to the editor.
  */
 import { askUrl } from '../../editor/formatCommands';
 import { defineCommand, defineMenu } from '../../commands/registry';
-import { FORMATS } from '../../components/EditToolbar';
-import { TOOLS } from '../../components/TableToolbar';
+import { FORMATS } from '../../editor/formatTools';
+import { TOOLS } from '../../editor/tableTools';
 
 defineMenu({
   id: 'format',

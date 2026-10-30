@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
-import { settleEditors, type, editorView, docText, select } from '../../testing/editor';
-import { openGithub, type FileAccess } from '../../platform/files';
-import { GitHubError, githubPath, openPullForBranch, openPullsForBranches } from '../../platform/github';
-import { clearSessionBranches } from './sessionBranches';
+import { settleEditors, type, editorView, docText, select } from '@gonq/editor/testing/editor';
+import { openGithub, type FileAccess } from '@gonq/editor/platform/files';
+import { GitHubError, githubPath, openPullForBranch, openPullsForBranches } from '@gonq/editor/platform/github';
+import { clearSessionBranches } from '@gonq/editor/features/github/sessionBranches';
 
 let recentRows: { path: string; opened_at: number }[] = [];
 const reads: Record<string, unknown> = {};
@@ -31,9 +31,9 @@ const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>): Promis
   if (cmd === 'github_commit_file') return { status: 'committed', sha: 'blob2', commit_sha: 'tip2' };
   return undefined;
 });
-vi.mock('../../platform/bindings', async () => (await import('../../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
-vi.mock('../../platform/lifecycle', () => ({ guardClose: () => () => {} }));
-vi.mock('../../platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
 
 const loc = { owner: 'octo', repo: 'notes' };

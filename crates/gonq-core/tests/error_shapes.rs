@@ -1,5 +1,5 @@
 //! Pins the JSON that GithubError, RemoteError and ListError reach the webview as, against what the frontend parses:
-//! `toGitHubError` (apps/desktop/src/platform/github.ts) reads `{kind, message?, status?, reset_at?}` and
+//! `toGitHubError` (packages/editor/src/platform/github.ts) reads `{kind, message?, status?, reset_at?}` and
 //! `toRemoteError` (remote.ts) reads `{kind, message}`. The generated bindings.ts types the same shapes.
 use gonq_core::folder::ListError;
 use gonq_core::github::error::GithubError;

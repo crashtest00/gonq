@@ -3,10 +3,10 @@ import { fireEvent, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { EditorView } from '@codemirror/view';
 import { openDocument, renderApp, testDoc } from '../testing/renderApp';
-import { caretAt, selectText, settleEditors, editorView } from '../testing/editor';
+import { caretAt, selectText, settleEditors, editorView } from '@gonq/editor/testing/editor';
 
 const state = vi.hoisted(() => ({ tauri: false }));
-vi.mock('../platform/tauri', () => ({ isTauri: () => state.tauri }));
+vi.mock('@gonq/editor/platform/tauri', () => ({ isTauri: () => state.tauri }));
 vi.setConfig({ testTimeout: 60000 });
 
 const DOC = [

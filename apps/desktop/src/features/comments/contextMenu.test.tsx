@@ -1,6 +1,6 @@
 /** The editor right-click menu is built from commands' contextMenu placement: a command defined in a test shows up in it, in its group, and runs. */
 import { fireEvent, screen, within } from '@testing-library/react';
-import { defineCommand } from '../../commands/registry';
+import { defineCommand } from '@gonq/editor/commands/registry';
 import { openDocument, renderApp, testDoc } from '../../testing/renderApp';
 
 const calls: string[] = [];

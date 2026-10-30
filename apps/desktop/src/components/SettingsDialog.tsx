@@ -6,8 +6,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { GitHubSignInPanel } from './GitHubSignInPanel';
-import { signInStatus, type GitHubStatus } from '../platform/github';
-import { DEFAULT_AUTHOR, MAX_AUTHOR_CHARS, authorNameProblem } from '../platform/settings';
+import { signInStatus, type GitHubStatus } from '@gonq/editor/platform/github';
+import { DEFAULT_AUTHOR, MAX_AUTHOR_CHARS, authorNameProblem } from '@gonq/editor/platform/settings';
 
 const button =
   'h-8 rounded-control border px-3 text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring';

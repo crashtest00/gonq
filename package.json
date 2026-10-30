@@ -11,11 +11,12 @@
     "dev": "npm run dev -w @gonq/desktop",
     "build": "npm run build --workspaces --if-present",
     "preview": "npm run preview -w @gonq/desktop",
-    "test": "npm run test --workspaces --if-present && npm run map:check",
+    "test": "npm run test --workspaces --if-present && npm run map:check && npm run boundaries:check",
     "test:e2e": "npm run test:e2e -w @gonq/desktop",
     "tauri": "npm run tauri -w @gonq/desktop --",
     "map": "node scripts/project-map.mjs",
-    "map:check": "node scripts/project-map.mjs --check"
+    "map:check": "node scripts/project-map.mjs --check",
+    "boundaries:check": "node scripts/check-boundaries.mjs"
   },
   "engines": {
     "node": ">=20"

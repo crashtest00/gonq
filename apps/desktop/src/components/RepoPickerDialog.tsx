@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { listRepos, toGitHubError, type RepoSummary } from '../platform/github';
+import { listRepos, toGitHubError, type RepoSummary } from '@gonq/editor/platform/github';
 
 const button =
   'h-8 rounded-control border px-3 text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring';

@@ -4,9 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { menu } from '../../testing/renderApp';
-import { settleEditors } from '../../testing/editor';
-import { openGithub, type FileAccess } from '../../platform/files';
-import { githubPath, parseGithubPath, readFile } from '../../platform/github';
+import { settleEditors } from '@gonq/editor/testing/editor';
+import { openGithub, type FileAccess } from '@gonq/editor/platform/files';
+import { githubPath, parseGithubPath, readFile } from '@gonq/editor/platform/github';
 
 let recentRows: { path: string; opened_at: number }[] = [];
 const reads: Record<string, unknown> = {};
@@ -31,9 +31,9 @@ const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>): Promis
   }
   return undefined;
 });
-vi.mock('../../platform/bindings', async () => (await import('../../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
-vi.mock('../../platform/lifecycle', () => ({ guardClose: () => () => {} }));
-vi.mock('../../platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
 
 const file = (path: string, content: string, sha = 'blob1', commit = 'tip1') => ({
@@ -199,7 +199,7 @@ describe('in the app', () => {
     });
     const { user } = setup();
     // The sign-in dialog is not rendered by this test's registry hook: signing in is simulated by the handler.
-    const { setSignInHandler } = await import('../../platform/github');
+    const { setSignInHandler } = await import('@gonq/editor/platform/github');
     setSignInHandler(async () => {
       status = { signed_in: true, login: 'me', storage: 'keychain' };
       reads['main:docs/a.md'] = file('docs/a.md', 'after sign-in');

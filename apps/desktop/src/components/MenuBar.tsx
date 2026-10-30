@@ -4,8 +4,8 @@
  * CommandContext App.tsx passes. Adding a menu item never edits this file.
  */
 import { useRef } from 'react';
-import { registry, type CommandContext } from '../commands';
-import type { CommandSpec, MenuEntry } from '../commands/registry';
+import { registry, type CommandContext } from '@gonq/editor/commands';
+import type { CommandSpec, MenuEntry } from '@gonq/editor/commands/registry';
 import {
   Menubar,
   MenubarCheckboxItem,

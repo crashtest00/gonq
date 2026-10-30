@@ -4,11 +4,11 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from '../App';
 import { GitHubSignInPanel } from './GitHubSignInPanel';
-import { ensureSignedIn, type GitHubStatus } from '../platform/github';
+import { ensureSignedIn, type GitHubStatus } from '@gonq/editor/platform/github';
 
-vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
 const invoke = vi.fn();
-vi.mock('../platform/bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 const openUrl = vi.fn();
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: (...a: unknown[]) => openUrl(...a) }));
 

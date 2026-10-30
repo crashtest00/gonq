@@ -1,14 +1,14 @@
 /** App tests for paths the OS hands to Gonq: queued and live launch paths open in tabs, dedupe, and errors. */
 import { act, render, screen, waitFor } from '@testing-library/react';
 import App from './App';
-import { NotUtf8Error, type FileAccess, type OpenedDocument } from './platform/files';
+import { NotUtf8Error, type FileAccess, type OpenedDocument } from '@gonq/editor/platform/files';
 
 const LOAD_TIMEOUT = 10000;
 
 let pending: string[] = [];
 let gate: Promise<void> = Promise.resolve();
 let emit: (paths: string[]) => void = () => {};
-vi.mock('./platform/openPaths', () => ({
+vi.mock('@gonq/editor/platform/openPaths', () => ({
   takePendingOpenPaths: async () => {
     await gate;
     const p = pending;

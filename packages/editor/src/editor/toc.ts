@@ -1,7 +1,7 @@
 /** Formatted-mode widgets for the table of contents (Contents label with Refresh, hidden end marker); refreshToc. */
 import { type Extension, RangeSetBuilder, StateField, type EditorState } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view';
-import { buildToc, findToc } from '../components/toc';
+import { buildToc, findToc } from '../model/toc';
 
 /**
  * Formatted mode: the table of contents' start marker is a "Contents" label with a Refresh button and its

@@ -3,8 +3,8 @@
  * and registers the dialog that item opens. It is loaded by fixtureFeature.test.tsx through import.meta.glob (the
  * mechanism commands/index.ts uses), so it never ships in the app.
  */
-import { defineCommand } from '../../commands/registry';
-import { openDialog, registerDialog, type DialogClose } from '../../dialogs/DialogHost';
+import { defineCommand } from '@gonq/editor/commands/registry';
+import { openDialog, registerDialog, type DialogClose } from '@gonq/editor/dialogs/DialogHost';
 
 export const fixtureDialog = registerDialog(
   'fixture-hello',

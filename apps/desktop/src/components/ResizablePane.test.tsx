@@ -2,7 +2,7 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, test } from 'vitest';
 import { menu, openDocument, renderApp, testDoc } from '../testing/renderApp';
-import { PANE_WIDTHS_KEY } from '../platform/settings';
+import { PANE_WIDTHS_KEY } from '@gonq/editor/platform/settings';
 
 const doc = testDoc('# Title\n\nbody\n');
 

@@ -1,25 +1,14 @@
 /**
- * The main formatting toolbar (undo/redo, inline and block formats, table); exports FORMATS, which MenuBar's
- * Format menu mirrors.
+ * The main formatting toolbar (undo/redo, inline and block formats, table); renders FORMATS (editor/formatTools in
+ * @gonq/editor), which the Format menu mirrors.
  */
-import { Bold, Italic, Link, List, ListChecks, ListOrdered, Redo2, Strikethrough, Table, Underline, Undo2, type LucideIcon } from 'lucide-react';
-import { askUrl } from '../editor/formatCommands';
-import type { Format } from './formatting';
+import { Redo2, Undo2 } from 'lucide-react';
+import { askUrl } from '@gonq/editor/editor/formatCommands';
+import type { Format } from '@gonq/editor/model/formatting';
+import { FORMATS } from '@gonq/editor/editor/formatTools';
 
 const button =
   'flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-control border-0 bg-transparent p-0 text-foreground hover:bg-surface disabled:pointer-events-none disabled:text-muted-foreground disabled:opacity-50';
-
-export const FORMATS: { format: Format; label: string; shortcut?: string; icon: LucideIcon; effect?: string; divider?: boolean }[] = [
-  { format: 'bold', effect: 'font-bold', label: 'Bold', shortcut: 'Ctrl+B', icon: Bold, divider: true },
-  { format: 'italic', effect: 'italic', label: 'Italic', shortcut: 'Ctrl+I', icon: Italic },
-  { format: 'underline', effect: 'underline', label: 'Underline', shortcut: 'Ctrl+U', icon: Underline },
-  { format: 'strike', effect: 'line-through', label: 'Strikethrough', shortcut: 'Ctrl+Shift+X', icon: Strikethrough },
-  { format: 'link', label: 'Insert link', shortcut: 'Ctrl+K', icon: Link, divider: true },
-  { format: 'bullet', label: 'Bullet list', icon: List },
-  { format: 'numbered', label: 'Numbered list', icon: ListOrdered },
-  { format: 'task', label: 'Checkbox list', icon: ListChecks },
-  { format: 'table', label: 'Insert table', icon: Table },
-];
 
 export function EditToolbar({
   canUndo,

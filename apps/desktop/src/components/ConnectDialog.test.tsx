@@ -5,15 +5,15 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { act } from 'react';
 import App from '../App';
 import { ConnectDialog } from './ConnectDialog';
-import { RECENT_FOLDERS_KEY, parseConnectInput } from '../platform/connect';
-import { RemoteFileError, setConnectHandler, withConnect } from '../platform/remote';
-import type { FileAccess } from '../platform/files';
+import { RECENT_FOLDERS_KEY, parseConnectInput } from '@gonq/editor/platform/connect';
+import { RemoteFileError, setConnectHandler, withConnect } from '@gonq/editor/platform/remote';
+import type { FileAccess } from '@gonq/editor/platform/files';
 
 vi.setConfig({ testTimeout: 30000 });
 
 const invoke = vi.fn();
-vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
-vi.mock('../platform/bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 
 type Handler = (args: Record<string, unknown>) => unknown;
 let handlers: Record<string, Handler>;

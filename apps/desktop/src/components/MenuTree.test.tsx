@@ -3,14 +3,14 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { isolateHistory } from '@codemirror/commands';
 import { vi } from 'vitest';
 import { renderApp, testDoc, type User } from '../testing/renderApp';
-import { editorView, settleEditors } from '../testing/editor';
+import { editorView, settleEditors } from '@gonq/editor/testing/editor';
 
 vi.setConfig({ testTimeout: 60000 });
 
 // `desktop` flips what the platform reports; the desktop commands the app calls at start-up are answered here.
 const platform = vi.hoisted(() => ({ desktop: false, theme: 'auto' }));
-vi.mock('../platform/files', async (importActual) => ({
-  ...(await importActual<typeof import('../platform/files')>()),
+vi.mock('@gonq/editor/platform/files', async (importActual) => ({
+  ...(await importActual<typeof import('@gonq/editor/platform/files')>()),
   isTauri: () => platform.desktop,
 }));
 const invoke = async (cmd: string, args?: { theme?: string }) => {
@@ -21,9 +21,9 @@ const invoke = async (cmd: string, args?: { theme?: string }) => {
   return undefined;
 };
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: [string, { theme?: string }?]) => invoke(...a) }));
-vi.mock('../platform/bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
+vi.mock('@gonq/editor/platform/bindings', async () => (await import('@gonq/editor/testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 vi.mock('@tauri-apps/api/event', () => ({ listen: async () => () => {} }));
-vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
+vi.mock('@gonq/editor/platform/lifecycle', () => ({ guardClose: () => () => {} }));
 
 const DOC = '# Title\n\nSome text.\n\n| a | b |\n| - | - |\n| 1 | 2 |\n';
 

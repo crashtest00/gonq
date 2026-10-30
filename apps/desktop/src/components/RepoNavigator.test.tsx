@@ -3,22 +3,22 @@ import { useState } from 'react';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GitHubError } from '../platform/github';
+import { GitHubError } from '@gonq/editor/platform/github';
 import { FolderSidebar } from './FolderSidebar';
 import { BRANCH_RENDER_CAP, RepoNavigator, type RepoState } from './RepoNavigator';
 
 const listBranches = vi.fn();
 const listFolder = vi.fn();
 const ensureSignedIn = vi.fn(async () => true);
-vi.mock('../platform/github', async (orig) => ({
-  ...(await orig<typeof import('../platform/github')>()),
+vi.mock('@gonq/editor/platform/github', async (orig) => ({
+  ...(await orig<typeof import('@gonq/editor/platform/github')>()),
   listBranches: (...a: unknown[]) => listBranches(...a),
   listFolder: (...a: unknown[]) => listFolder(...a),
   ensureSignedIn: () => ensureSignedIn(),
 }));
 // The platform boundary is exercised for real: folders.ts routes github:// paths to the mocked github.ts.
-vi.mock('../platform/files', () => ({ isTauri: () => true }));
-vi.mock('../platform/tauri', () => ({ isTauri: () => true }));
+vi.mock('@gonq/editor/platform/files', () => ({ isTauri: () => true }));
+vi.mock('@gonq/editor/platform/tauri', () => ({ isTauri: () => true }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
 

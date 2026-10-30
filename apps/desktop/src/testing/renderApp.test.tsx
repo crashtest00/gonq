@@ -1,7 +1,7 @@
 /** renderApp: opens a document in a tab, saves it, and opens a queue of documents in turn. */
 import { screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
-import { docText } from './editor';
+import { docText } from '@gonq/editor/testing/editor';
 import { lastSaved, menu, openDocument, renderApp, testDoc } from './renderApp';
 
 vi.setConfig({ testTimeout: 30000 });

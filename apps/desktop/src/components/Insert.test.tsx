@@ -4,14 +4,14 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 import { vi } from 'vitest';
-import { caretAt, docText, editorView, select, settleEditors, shownText, type } from '../testing/editor';
-import App from './../App';
-import type { FileAccess } from '../platform/files';
+import { caretAt, docText, editorView, select, settleEditors, shownText, type } from '@gonq/editor/testing/editor';
+import App from '../App';
+import type { FileAccess } from '@gonq/editor/platform/files';
 
 vi.setConfig({ testTimeout: 30000 });
 
 const mocks = vi.hoisted(() => ({ pickImage: vi.fn(), loadImage: vi.fn() }));
-vi.mock('../platform/images', () => ({ pickImage: mocks.pickImage, loadImage: mocks.loadImage }));
+vi.mock('@gonq/editor/platform/images', () => ({ pickImage: mocks.pickImage, loadImage: mocks.loadImage }));
 
 const DOC = '# One\n\ntext\n\n## Two\n\n### Three\n\n## Four\n';
 

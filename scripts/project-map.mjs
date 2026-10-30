@@ -20,7 +20,7 @@ const OUTPUT = 'PROJECT_MAP.md';
 
 function walk(dir) {
   const out = [];
-  if (!existsSync(join(ROOT, dir))) return out; // a planned root with no source yet (packages/editor/src)
+  if (!existsSync(join(ROOT, dir))) return out; // a configured root that does not exist (yet)
   for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
     const path = `${dir}/${entry.name}`;
     if (entry.isDirectory()) out.push(...walk(path));

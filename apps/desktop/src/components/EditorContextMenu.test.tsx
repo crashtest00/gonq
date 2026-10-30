@@ -3,9 +3,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { EditorView } from '@codemirror/view';
-import { caretAt, docText, editorView, selectText } from '../testing/editor';
-import App from './../App';
-import type { FileAccess } from '../platform/files';
+import { caretAt, docText, editorView, selectText } from '@gonq/editor/testing/editor';
+import App from '../App';
+import type { FileAccess } from '@gonq/editor/platform/files';
 
 vi.setConfig({ testTimeout: 30000 });
 

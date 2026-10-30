@@ -9,7 +9,7 @@ import { EditorView } from '@codemirror/view';
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { caretOffset, keepCaretVisible } from './caretAnchor';
 import { focusCaretCell, focusTableCell, releaseTable, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
-import { type Format } from '../components/formatting';
+import { type Format } from '../model/formatting';
 import { diff, formatView } from './formatCommands';
 import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCommentThread, effectiveCommentCreationPosition, AGENT_GUIDANCE, hasAgentGuidance } from '../comment-threads';
 import { commentThreadCreationChanges } from '../comment-threads/editor/codemirror';
@@ -17,7 +17,7 @@ import { createEditorState, modeCompartment, modeExtension, readOnlyCompartment,
 import { editorHost } from './host';
 import { threadEdit } from './threads';
 import { refreshToc } from './toc';
-import { tocChange } from '../components/toc';
+import { tocChange } from '../model/toc';
 
 export interface EditorChange {
   text: string;
