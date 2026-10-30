@@ -43,6 +43,18 @@ async function shot(device, name) { fs.writeFileSync(`${EV}/${name}.png`, await 
   // 2. sign in
   let p = await launch(device);
   await p.getByText('Sign in to GitHub').click();
+  await p.getByRole('button', { name: /^Start$/ }).waitFor({ timeout: 60000 });
+  await shot(device, 'ready');
+  await comment(`READY FOR CODE (emulator run ${process.env.GITHUB_RUN_ID}): app installed and on the sign-in Start screen. Reply with a commit comment "GO" to request the device code; waits up to ${process.env.GO_WAIT_MIN || 60} min.`);
+  const goDeadline = Date.now() + (Number(process.env.GO_WAIT_MIN || 60)) * 60000;
+  let go = false;
+  while (!go && Date.now() < goDeadline) {
+    try { go = sh(`gh api repos/${process.env.GITHUB_REPOSITORY}/commits/${process.env.GITHUB_SHA}/comments -q '.[].body'`).split('\n').some((b) => b.trim() === 'GO'); } catch (e) {}
+    if (!go) await sleep(20000);
+  }
+  log('go-signal', go);
+  if (!go) { fs.writeFileSync(`${EV}/results.json`, JSON.stringify({ info, results }, null, 1)); await device.close(); process.exit(1); }
+  p = await page(device);
   await p.getByRole('button', { name: /^Start$/ }).click();
   const code = (await p.getByLabel('User code').textContent({ timeout: 60000 })).trim();
   await shot(device, 'code');
