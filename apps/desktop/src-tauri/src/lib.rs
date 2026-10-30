@@ -1,6 +1,6 @@
 //! The desktop Tauri app (`run`): defines the launch-only pieces (focus_main, deliver_paths, take_launch_paths, the
 //! app's one own command) and installs the gonq-core plugin `gonq` (every other command, with its managed state), plus the
-//! single-instance, dialog, fs and opener plugins. The shared logic and `DataPaths` live in the gonq-core crate.
+//! single-instance (desktop only), dialog, fs and opener plugins. The shared logic and `DataPaths` live in the gonq-core crate.
 #[cfg(test)]
 mod bindings;
 mod launch;
@@ -53,11 +53,14 @@ fn take_launch_paths(launch: tauri::State<'_, launch::LaunchPaths>) -> Vec<Strin
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-            focus_main(app);
-            deliver_paths(app, launch::paths_from_args(&argv, std::path::Path::new(&cwd)));
-        }))
+    let builder = tauri::Builder::default();
+    // Single-instance is a desktop-only plugin (no second process exists on Android/iOS).
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+        focus_main(app);
+        deliver_paths(app, launch::paths_from_args(&argv, std::path::Path::new(&cwd)));
+    }));
+    let app = builder
         .manage(launch::LaunchPaths::default())
         .setup(|app| {
             app.manage(DataPaths::resolve(app.handle()));
