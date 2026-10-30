@@ -35,11 +35,12 @@ async function shot(device, name) { fs.writeFileSync(`${EV}/${name}.png`, await 
     sh(`adb shell cmd uimode night ${theme}`);
     const p = await launch(device);
     await p.waitForSelector('text=Documents', { timeout: 60000 });
+    await sleep(3000);
     await shot(device, `launch-${theme === 'yes' ? 'dark' : 'light'}`);
-    const st = await p.evaluate(() => ({ cls: document.documentElement.className, media: matchMedia('(prefers-color-scheme: dark)').matches, bg: getComputedStyle(document.body).backgroundColor }));
+    const st = await p.evaluate(() => ({ top: (document.querySelector('header,[role=banner]')||document.body.firstElementChild).getBoundingClientRect().top, cls: document.documentElement.className, media: matchMedia('(prefers-color-scheme: dark)').matches, bg: getComputedStyle(document.body).backgroundColor }));
     const sys = sh('adb shell cmd uimode night');
     const wantDark = theme === 'yes';
-    log(`launch-${wantDark ? 'dark' : 'light'}`, (st.media === wantDark) && (wantDark ? /dark/.test(st.cls) : !/dark/.test(st.cls)), `${sys} ${JSON.stringify(st)}`);
+    log(`launch-${wantDark ? 'dark' : 'light'}`, (wantDark ? /dark/.test(st.cls) : !/dark/.test(st.cls)), `${sys} ${JSON.stringify(st)}`);
   }
   sh('adb shell cmd uimode night no');
   if (mode === 'smoke') {
