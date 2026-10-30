@@ -14,89 +14,84 @@ export const commands = {
 	 *  relative images load. Refuses any path the user has not chosen in a dialog,
 	 *  so the fs scope can only grow to the folder of a user-chosen file.
 	 */
-	allowDocumentFolder: (path: string) => __TAURI_INVOKE<null>("allow_document_folder", { path }),
+	allowDocumentFolder: (path: string) => __TAURI_INVOKE<null>("plugin:gonq|allow_document_folder", { path }),
 	/**
 	 *  Read-only listing of one folder. Only folders already in the fs scope (the folder of an
 	 *  opened document, or one chosen with Open Folder, and their subfolders) can be listed.
 	 */
-	listDirectory: (path: string) => __TAURI_INVOKE<FolderEntry[]>("list_directory", { path }),
+	listDirectory: (path: string) => __TAURI_INVOKE<FolderEntry[]>("plugin:gonq|list_directory", { path }),
 	/**  Whether a path still exists (metadata only; reads nothing). */
-	pathExists: (path: string) => __TAURI_INVOKE<boolean>("path_exists", { path }),
-	recentDocumentsAdd: (path: string) => __TAURI_INVOKE<Recent[]>("recent_documents_add", { path }),
-	recentDocumentsList: () => __TAURI_INVOKE<Recent[]>("recent_documents_list"),
-	recentDocumentsRemove: (path: string) => __TAURI_INVOKE<Recent[]>("recent_documents_remove", { path }),
+	pathExists: (path: string) => __TAURI_INVOKE<boolean>("plugin:gonq|path_exists", { path }),
+	recentDocumentsAdd: (path: string) => __TAURI_INVOKE<Recent[]>("plugin:gonq|recent_documents_add", { path }),
+	recentDocumentsList: () => __TAURI_INVOKE<Recent[]>("plugin:gonq|recent_documents_list"),
+	recentDocumentsRemove: (path: string) => __TAURI_INVOKE<Recent[]>("plugin:gonq|recent_documents_remove", { path }),
 	/**
 	 *  A recent document from an earlier session is no longer in the fs scope. Re-grants its
 	 *  folder, but only for a path the app itself recorded as opened.
 	 */
-	allowRecentDocument: (path: string) => __TAURI_INVOKE<null>("allow_recent_document", { path }),
+	allowRecentDocument: (path: string) => __TAURI_INVOKE<null>("plugin:gonq|allow_recent_document", { path }),
 	/**  The saved author name for comments; "User" when none is saved or it can't be read. */
-	getAuthorName: () => __TAURI_INVOKE<string>("get_author_name"),
+	getAuthorName: () => __TAURI_INVOKE<string>("plugin:gonq|get_author_name"),
 	/**
 	 *  Saves the author name (trimmed; blank or containing `|`, `]`, CR, LF is refused) and
 	 *  returns what is stored.
 	 */
-	setAuthorName: (name: string) => __TAURI_INVOKE<string>("set_author_name", { name }),
+	setAuthorName: (name: string) => __TAURI_INVOKE<string>("plugin:gonq|set_author_name", { name }),
 	/**  The saved theme ("light", "dark" or "auto"); "auto" when none is saved or it can't be read. */
-	getTheme: () => __TAURI_INVOKE<string>("get_theme"),
+	getTheme: () => __TAURI_INVOKE<string>("plugin:gonq|get_theme"),
 	/**  Saves the theme ("light", "dark" or "auto"; anything else is refused) and returns what is stored. */
-	setTheme: (theme: string) => __TAURI_INVOKE<string>("set_theme", { theme }),
+	setTheme: (theme: string) => __TAURI_INVOKE<string>("plugin:gonq|set_theme", { theme }),
 	/**  The saved widths (px) of the navigator, outline and comments side panes; null for a pane with none saved (or when it can't be read). */
-	getPaneWidths: () => __TAURI_INVOKE<PaneWidths_Serialize>("get_pane_widths"),
+	getPaneWidths: () => __TAURI_INVOKE<PaneWidths_Serialize>("plugin:gonq|get_pane_widths"),
 	/**
 	 *  Saves one pane's width ("navigator", "outline" or "comments"; 120..=800 px, anything else is refused);
 	 *  a null width clears it. Returns all the stored widths.
 	 */
-	setPaneWidth: (pane: string, width: number | null) => __TAURI_INVOKE<PaneWidths_Serialize>("set_pane_width", { pane, width }),
-	/**
-	 *  The Markdown files the app was launched with (and any opened before the frontend asked).
-	 *  After this call further launch paths arrive as `launch-open-paths` events.
-	 */
-	takeLaunchPaths: () => __TAURI_INVOKE<string[]>("take_launch_paths"),
-	githubStart: () => __TAURI_INVOKE<DeviceStart>("github_start"),
+	setPaneWidth: (pane: string, width: number | null) => __TAURI_INVOKE<PaneWidths_Serialize>("plugin:gonq|set_pane_width", { pane, width }),
+	githubStart: () => __TAURI_INVOKE<DeviceStart>("plugin:gonq|github_start"),
 	/**  Waits (cancellably) until the code is approved, refused or expired. */
-	githubPoll: () => __TAURI_INVOKE<AuthStatus_Serialize>("github_poll"),
-	githubStatus: () => __TAURI_INVOKE<AuthStatus_Serialize>("github_status"),
-	githubSignOut: () => __TAURI_INVOKE<null>("github_sign_out"),
-	githubListRepos: (page: number | null) => __TAURI_INVOKE<RepoPage_Serialize>("github_list_repos", { page }),
-	githubListBranches: (owner: string, repo: string, page: number | null) => __TAURI_INVOKE<BranchPage_Serialize>("github_list_branches", { owner, repo, page }),
-	githubListFolder: (owner: string, repo: string, branch: string, path: string) => __TAURI_INVOKE<FolderListing>("github_list_folder", { owner, repo, branch, path }),
-	githubReadFile: (owner: string, repo: string, branch: string, path: string) => __TAURI_INVOKE<RepoFile>("github_read_file", { owner, repo, branch, path }),
+	githubPoll: () => __TAURI_INVOKE<AuthStatus_Serialize>("plugin:gonq|github_poll"),
+	githubStatus: () => __TAURI_INVOKE<AuthStatus_Serialize>("plugin:gonq|github_status"),
+	githubSignOut: () => __TAURI_INVOKE<null>("plugin:gonq|github_sign_out"),
+	githubListRepos: (page: number | null) => __TAURI_INVOKE<RepoPage_Serialize>("plugin:gonq|github_list_repos", { page }),
+	githubListBranches: (owner: string, repo: string, page: number | null) => __TAURI_INVOKE<BranchPage_Serialize>("plugin:gonq|github_list_branches", { owner, repo, page }),
+	githubListFolder: (owner: string, repo: string, branch: string, path: string) => __TAURI_INVOKE<FolderListing>("plugin:gonq|github_list_folder", { owner, repo, branch, path }),
+	githubReadFile: (owner: string, repo: string, branch: string, path: string) => __TAURI_INVOKE<RepoFile>("plugin:gonq|github_read_file", { owner, repo, branch, path }),
 	/**  Commits `text` to `path` on `branch`; see [`commit::CommitOutcome`] for the result shape. */
-	githubCommitFile: (owner: string, repo: string, branch: string, path: string, text: string, sha: string) => __TAURI_INVOKE<CommitOutcome>("github_commit_file", { owner, repo, branch, path, text, sha }),
+	githubCommitFile: (owner: string, repo: string, branch: string, path: string, text: string, sha: string) => __TAURI_INVOKE<CommitOutcome>("plugin:gonq|github_commit_file", { owner, repo, branch, path, text, sha }),
 	/**  The open PR (if any) from each of `branches` of `owner/repo`; see [`pulls`] for the shape. */
-	githubOpenPullsForBranches: (owner: string, repo: string, branches: string[]) => __TAURI_INVOKE<BranchPull_Serialize[]>("github_open_pulls_for_branches", { owner, repo, branches }),
+	githubOpenPullsForBranches: (owner: string, repo: string, branches: string[]) => __TAURI_INVOKE<BranchPull_Serialize[]>("plugin:gonq|github_open_pulls_for_branches", { owner, repo, branches }),
 	/**  Whether `gonq/<name>` already exists in `owner/repo` (advisory); see [`branches`]. */
-	githubBranchExists: (owner: string, repo: string, name: string) => __TAURI_INVOKE<boolean>("github_branch_exists", { owner, repo, name }),
+	githubBranchExists: (owner: string, repo: string, name: string) => __TAURI_INVOKE<boolean>("plugin:gonq|github_branch_exists", { owner, repo, name }),
 	/**  Creates `gonq/<name>` from the current tip of `source`; see [`branches::CreatedBranch`]. */
-	githubCreateBranch: (owner: string, repo: string, name: string, source: string) => __TAURI_INVOKE<CreatedBranch>("github_create_branch", { owner, repo, name, source }),
+	githubCreateBranch: (owner: string, repo: string, name: string, source: string) => __TAURI_INVOKE<CreatedBranch>("plugin:gonq|github_create_branch", { owner, repo, name, source }),
 	/**  The subset of `branches` that exist in `owner/repo`; see [`open_pr`]. */
-	githubBranchesExist: (owner: string, repo: string, branches: string[]) => __TAURI_INVOKE<string[]>("github_branches_exist", { owner, repo, branches }),
+	githubBranchesExist: (owner: string, repo: string, branches: string[]) => __TAURI_INVOKE<string[]>("plugin:gonq|github_branches_exist", { owner, repo, branches }),
 	/**  Commits ahead/behind and changed files between `base` and `head`; see [`open_pr::Comparison`]. */
-	githubCompare: (owner: string, repo: string, base: string, head: string) => __TAURI_INVOKE<Comparison_Serialize>("github_compare", { owner, repo, base, head }),
+	githubCompare: (owner: string, repo: string, base: string, head: string) => __TAURI_INVOKE<Comparison_Serialize>("plugin:gonq|github_compare", { owner, repo, base, head }),
 	/**  Opens a pull request from `head` into `base`; see [`open_pr::CreatedPull`]. */
-	githubCreatePull: (owner: string, repo: string, title: string, body: string, head: string, base: string) => __TAURI_INVOKE<CreatedPull_Serialize>("github_create_pull", { owner, repo, title, body, head, base }),
+	githubCreatePull: (owner: string, repo: string, title: string, body: string, head: string, base: string) => __TAURI_INVOKE<CreatedPull_Serialize>("plugin:gonq|github_create_pull", { owner, repo, title, body, head, base }),
 	/**  `Host` names from `~/.ssh/config` (wildcard patterns left out); empty when there is no file. */
-	sshListHosts: () => __TAURI_INVOKE<string[]>("ssh_list_hosts"),
+	sshListHosts: () => __TAURI_INVOKE<string[]>("plugin:gonq|ssh_list_hosts"),
 	/**  Connects and opens an SFTP channel, or returns the one answer still needed (see [`ConnectResult`]). */
-	sshConnect: (target: string, answers: Answers_Deserialize | null) => __TAURI_INVOKE<ConnectResult>("ssh_connect", { target, answers }),
+	sshConnect: (target: string, answers: Answers_Deserialize | null) => __TAURI_INVOKE<ConnectResult>("plugin:gonq|ssh_connect", { target, answers }),
 	/**  Closes the session for `host` (what was typed in the Connect box) and takes back its folder grants. */
-	sshDisconnect: (host: string) => __TAURI_INVOKE<null>("ssh_disconnect", { host }),
+	sshDisconnect: (host: string) => __TAURI_INVOKE<null>("plugin:gonq|ssh_disconnect", { host }),
 	/**  Subfolder names of a folder anywhere on a connected host, for the folder picker. Never files. */
-	remoteListFolders: (uri: string) => __TAURI_INVOKE<RemoteFolderListing>("remote_list_folders", { uri }),
+	remoteListFolders: (uri: string) => __TAURI_INVOKE<RemoteFolderListing>("plugin:gonq|remote_list_folders", { uri }),
 	/**  The picked folder joins the allow-list and becomes the navigator root. */
-	remoteOpenRoot: (uri: string) => __TAURI_INVOKE<null>("remote_open_root", { uri }),
+	remoteOpenRoot: (uri: string) => __TAURI_INVOKE<null>("plugin:gonq|remote_open_root", { uri }),
 	/**  Same rows and order as `list_directory`; inside an allowed folder only. */
-	remoteListDirectory: (uri: string) => __TAURI_INVOKE<FolderEntry[]>("remote_list_directory", { uri }),
+	remoteListDirectory: (uri: string) => __TAURI_INVOKE<FolderEntry[]>("plugin:gonq|remote_list_directory", { uri }),
 	/**
 	 *  The file's raw bytes, behind a 12-byte header: the server mtime (u32) and size (u64), big-endian.
 	 *  A raw response avoids turning the bytes into a JSON array.
 	 */
-	remoteRead: (uri: string) => __TAURI_INVOKE<ArrayBuffer>("remote_read", { uri }),
+	remoteRead: (uri: string) => __TAURI_INVOKE<ArrayBuffer>("plugin:gonq|remote_read", { uri }),
 	/**  Saves `text` exactly as given. `expected` is the stat from the last read or save; `force` is Overwrite. */
-	remoteWrite: (uri: string, text: string, expected: RemoteStat, force: boolean) => __TAURI_INVOKE<WriteOutcome_Serialize>("remote_write", { uri, text, expected, force }),
+	remoteWrite: (uri: string, text: string, expected: RemoteStat, force: boolean) => __TAURI_INVOKE<WriteOutcome_Serialize>("plugin:gonq|remote_write", { uri, text, expected, force }),
 	/**  Backs `pathExists` for remote recents: false when the file is gone or the host cannot be reached. */
-	remoteExists: (uri: string) => __TAURI_INVOKE<boolean>("remote_exists", { uri }),
+	remoteExists: (uri: string) => __TAURI_INVOKE<boolean>("plugin:gonq|remote_exists", { uri }),
 };
 
 /* Types */
