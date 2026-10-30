@@ -8,7 +8,7 @@ import { ensureSignedIn, type GitHubStatus } from '../platform/github';
 
 vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
 const invoke = vi.fn();
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
+vi.mock('../platform/bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 const openUrl = vi.fn();
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: (...a: unknown[]) => openUrl(...a) }));
 

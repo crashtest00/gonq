@@ -31,7 +31,7 @@ const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>): Promis
   if (cmd === 'github_commit_file') return { status: 'committed', sha: 'blob2', commit_sha: 'tip2' };
   return undefined;
 });
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: [string, Record<string, unknown>?]) => invoke(...a) }));
+vi.mock('../../platform/bindings', async () => (await import('../../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 vi.mock('../../platform/lifecycle', () => ({ guardClose: () => () => {} }));
 vi.mock('../../platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));

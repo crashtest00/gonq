@@ -17,7 +17,7 @@ const invoke = vi.fn(async (cmd: string, args: Record<string, unknown> = {}): Pr
   if (!h) throw new Error(`unmocked ${cmd}`);
   return h(args);
 });
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: [string, Record<string, unknown>?]) => invoke(...a) }));
+vi.mock('../../platform/bindings', async () => (await import('../../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 vi.mock('../../platform/lifecycle', () => ({ guardClose: () => () => {} }));
 vi.mock('../../platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
 vi.mock('../../platform/external', () => ({ openExternal: vi.fn(), opensExternallyNatively: () => true, REPO_URL: '' }));

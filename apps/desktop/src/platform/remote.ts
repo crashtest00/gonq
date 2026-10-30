@@ -1,6 +1,6 @@
-// ssh:// documents: the native calls and error wording for remote files. Components never invoke.
+// ssh:// documents: the native calls and error wording for remote files. Components never call commands.
 // Kept free of imports from files.ts / folders.ts so both can build on it.
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
 
 /** The server's version of a file when the tab last read or wrote it (SFTP v3: whole seconds). */
 export interface RemoteStat {
@@ -124,7 +124,7 @@ export function remoteErrorMessage(kind: RemoteErrorKind, op: RemoteOp, path: st
   return `${head}: ${reason}.${tail}`;
 }
 
-/** Turns whatever invoke rejected with into a RemoteFileError. */
+/** Turns whatever the command rejected with into a RemoteFileError. */
 export function toRemoteError(e: unknown, op: RemoteOp, path: string): RemoteFileError {
   if (e instanceof RemoteFileError) return e;
   const raw = e as { kind?: string; message?: string } | string | null;
@@ -170,7 +170,7 @@ export async function withConnect<T>(path: string, op: RemoteOp, run: () => Prom
 /** The bytes of a remote file and the stat they were read at (12-byte header: mtime u32, size u64, big-endian). */
 export async function remoteRead(path: string): Promise<{ bytes: Uint8Array; stat: RemoteStat }> {
   return withConnect(path, 'open', async () => {
-    const raw = await invoke<ArrayBuffer | Uint8Array | number[]>('remote_read', { uri: path });
+    const raw = (await commands.remoteRead(path)) as ArrayBuffer | Uint8Array | number[];
     const all = raw instanceof ArrayBuffer ? new Uint8Array(raw) : new Uint8Array(raw);
     const view = new DataView(all.buffer, all.byteOffset, all.byteLength);
     const stat = { mtime: view.getUint32(0), size: Number(view.getBigUint64(4)) };
@@ -188,17 +188,14 @@ export interface RemoteSaved {
 /** Writes the text exactly as held. Throws RemoteConflictError when the server's copy moved on, unless `force`. */
 export async function remoteWrite(path: string, text: string, expected: RemoteStat, force: boolean): Promise<RemoteSaved> {
   return withConnect(path, 'save', async () => {
-    const out = await invoke<
-      | { status: 'saved'; stat: RemoteStat; in_place: boolean; warn: boolean }
-      | { status: 'conflict'; deleted: boolean; current: RemoteStat | null }
-    >('remote_write', { uri: path, text, expected, force });
+    const out = await commands.remoteWrite(path, text, expected, force);
     if (out.status === 'conflict') throw new RemoteConflictError(remoteFileName(path), out.deleted);
     return { stat: out.stat, inPlace: out.in_place, warn: out.warn };
   });
 }
 
 export async function remoteExists(path: string): Promise<boolean> {
-  return invoke<boolean>('remote_exists', { uri: path });
+  return commands.remoteExists(path);
 }
 
 export interface RemoteRow {
@@ -208,5 +205,5 @@ export interface RemoteRow {
 }
 
 export async function remoteList(path: string): Promise<RemoteRow[]> {
-  return withConnect(path, 'list', () => invoke<RemoteRow[]>('remote_list_directory', { uri: path }));
+  return withConnect(path, 'list', () => commands.remoteListDirectory(path));
 }

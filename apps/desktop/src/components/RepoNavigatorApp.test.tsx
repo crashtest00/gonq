@@ -5,7 +5,7 @@ import { menu, renderApp } from '../testing/renderApp';
 
 vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
 const invoke = vi.fn();
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
+vi.mock('../platform/bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 
 const repo = { owner: 'octo', name: 'notes', full_name: 'octo/notes', private: false, default_branch: 'trunk', can_push: true, pushed_at: null };
 

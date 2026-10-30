@@ -7,7 +7,7 @@ import { RepoPickerDialog } from './RepoPickerDialog';
 
 vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
 const invoke = vi.fn();
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
+vi.mock('../platform/bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 
 const out = { signed_in: false, login: null, storage: null };
 const inn = { signed_in: true, login: 'octo', storage: 'keychain' };

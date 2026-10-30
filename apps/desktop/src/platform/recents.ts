@@ -1,6 +1,6 @@
 // Recently opened files, persisted outside any document: recent.json in the app data dir
 // on desktop, localStorage in the browser.
-import { invoke } from '@tauri-apps/api/core';
+import { commands, type Recent } from './bindings';
 import { isTauri } from './files';
 import { isSshPath } from './remote';
 
@@ -13,8 +13,7 @@ export interface RecentDocument {
 export const MAX_RECENTS = 10;
 export const RECENTS_KEY = 'gonq.recentDocuments';
 
-type Raw = { path: string; opened_at: number };
-const fromRaw = (rows: Raw[]): RecentDocument[] => rows.map((r) => ({ path: r.path, openedAt: r.opened_at }));
+const fromRaw = (rows: Recent[]): RecentDocument[] => rows.map((r) => ({ path: r.path, openedAt: r.opened_at }));
 
 function readLocal(): RecentDocument[] {
   try {
@@ -40,7 +39,7 @@ function writeLocal(list: RecentDocument[]): void {
 /** Newest first. Empty when nothing is stored or the store is unreadable. */
 export async function listRecents(): Promise<RecentDocument[]> {
   if (!isTauri()) return readLocal();
-  return fromRaw(await invoke<Raw[]>('recent_documents_list'));
+  return fromRaw(await commands.recentDocumentsList());
 }
 
 /** Moves the path to the top (deduped, capped at 10) and stamps it. Returns the new list. */
@@ -50,7 +49,7 @@ export async function addRecent(path: string): Promise<RecentDocument[]> {
     writeLocal(list);
     return list;
   }
-  return fromRaw(await invoke<Raw[]>('recent_documents_add', { path }));
+  return fromRaw(await commands.recentDocumentsAdd(path));
 }
 
 export async function removeRecent(path: string): Promise<RecentDocument[]> {
@@ -59,10 +58,10 @@ export async function removeRecent(path: string): Promise<RecentDocument[]> {
     writeLocal(list);
     return list;
   }
-  return fromRaw(await invoke<Raw[]>('recent_documents_remove', { path }));
+  return fromRaw(await commands.recentDocumentsRemove(path));
 }
 
 /** Desktop only: lets a recent file from an earlier session be read again. Rejects for paths not in the list. */
 export async function allowRecentDocument(path: string): Promise<void> {
-  if (isTauri()) await invoke('allow_recent_document', { path });
+  if (isTauri()) await commands.allowRecentDocument(path);
 }

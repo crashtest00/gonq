@@ -13,15 +13,15 @@ vi.mock('../platform/files', async (importActual) => ({
   ...(await importActual<typeof import('../platform/files')>()),
   isTauri: () => platform.desktop,
 }));
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: async (cmd: string, args?: { theme?: string }) => {
-    if (cmd === 'get_theme') return platform.theme;
-    if (cmd === 'set_theme') return (platform.theme = args?.theme ?? 'auto');
-    if (cmd === 'get_author_name') return 'Author';
-    if (cmd === 'take_launch_paths' || cmd.startsWith('recent_documents')) return [];
-    return undefined;
-  },
-}));
+const invoke = async (cmd: string, args?: { theme?: string }) => {
+  if (cmd === 'get_theme') return platform.theme;
+  if (cmd === 'set_theme') return (platform.theme = args?.theme ?? 'auto');
+  if (cmd === 'get_author_name') return 'Author';
+  if (cmd === 'take_launch_paths' || cmd.startsWith('recent_documents')) return [];
+  return undefined;
+};
+vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: [string, { theme?: string }?]) => invoke(...a) }));
+vi.mock('../platform/bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 vi.mock('@tauri-apps/api/event', () => ({ listen: async () => () => {} }));
 vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
 

@@ -13,7 +13,7 @@ vi.setConfig({ testTimeout: 30000 });
 
 const invoke = vi.fn();
 vi.mock('../platform/lifecycle', () => ({ guardClose: () => () => {} }));
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
+vi.mock('../platform/bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 
 type Handler = (args: Record<string, unknown>) => unknown;
 let handlers: Record<string, Handler>;

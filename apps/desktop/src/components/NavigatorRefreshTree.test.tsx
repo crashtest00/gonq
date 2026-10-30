@@ -7,7 +7,7 @@ import { RepoNavigator } from './RepoNavigator';
 
 type Args = Record<string, unknown> | undefined;
 const invoke = vi.fn<(cmd: string, args?: Args) => Promise<unknown>>();
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (cmd: string, args?: Args) => invoke(cmd, args) }));
+vi.mock('../platform/bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 
 beforeEach(() => {
   (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};

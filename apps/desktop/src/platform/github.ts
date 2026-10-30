@@ -1,8 +1,8 @@
-// The only place the frontend invokes the GitHub commands (OAuth device flow, repository list, branches and
+// The only place the frontend calls the GitHub commands (OAuth device flow, repository list, branches and
 // folder listings, file reads with worded errors, committing a file, open pull requests per branch, creating a branch, comparing two branches, opening a pull request), and the home of the github:// path format (a repository file is a document identity). The token and the device code stay in
 // Rust: JS gets the user code to show, the login and whether a token exists. Desktop only; on the web every
 // call throws a GitHubError of kind unavailable_on_web, which the caller shows in the error banner.
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
 import { isTauri } from './tauri';
 
 export type GitHubErrorKind =
@@ -118,25 +118,25 @@ export function toGitHubError(e: unknown): GitHubError {
   return new GitHubError('other', typeof e === 'string' ? e : e instanceof Error ? e.message : String(e));
 }
 
-async function call<T>(cmd: string, args?: Record<string, unknown>, unavailable = GITHUB_UNAVAILABLE): Promise<T> {
+async function call<T>(run: () => Promise<T>, unavailable = GITHUB_UNAVAILABLE): Promise<T> {
   if (!isTauri()) throw new GitHubError('unavailable_on_web', unavailable);
   try {
-    return await (args === undefined ? invoke<T>(cmd) : invoke<T>(cmd, args));
+    return await run();
   } catch (e) {
     throw toGitHubError(e);
   }
 }
 
 /** Asks GitHub for a code and cancels any earlier sign-in. Opens nothing. */
-export const startSignIn = (): Promise<DeviceStart> => call('github_start');
+export const startSignIn = (): Promise<DeviceStart> => call(commands.githubStart);
 
 /** Waits until the code is approved (resolves signed in), refused (denied), or expired. */
-export const pollSignIn = (): Promise<GitHubStatus> => call('github_poll');
+export const pollSignIn = (): Promise<GitHubStatus> => call(commands.githubPoll);
 
-export const signInStatus = (): Promise<GitHubStatus> => call('github_status');
+export const signInStatus = (): Promise<GitHubStatus> => call(commands.githubStatus);
 
 /** Deletes the stored token (and stops a sign-in being polled). Fine when already signed out. */
-export const signOut = (): Promise<void> => call('github_sign_out');
+export const signOut = (): Promise<void> => call(commands.githubSignOut) as Promise<unknown> as Promise<void>;
 
 export interface RepoSummary {
   owner: string;
@@ -173,7 +173,7 @@ interface RawRepoPage {
  * caller follows `nextPage` until it is null. A revoked token rejects with kind not_signed_in.
  */
 export async function listRepos(page: number): Promise<RepoPage> {
-  const raw = await call<RawRepoPage>('github_list_repos', { page });
+  const raw = await call(() => commands.githubListRepos(page));
   return {
     repos: raw.repos.map((r) => ({
       owner: r.owner,
@@ -198,11 +198,7 @@ export interface BranchPage {
 
 /** One page (1-based, 100 per page) of a repository's branch names; the caller follows `nextPage`. */
 export async function listBranches(owner: string, repo: string, page: number): Promise<BranchPage> {
-  const raw = await call<{ default_branch: string; branches: string[]; next_page: number | null }>('github_list_branches', {
-    owner,
-    repo,
-    page,
-  });
+  const raw = await call(() => commands.githubListBranches(owner, repo, page));
   return { defaultBranch: raw.default_branch, branches: raw.branches, nextPage: raw.next_page ?? null };
 }
 
@@ -222,7 +218,7 @@ export interface RepoListing {
 
 /** The folders and Markdown files directly inside `path` ('' = the root) on `branch`. */
 export async function listFolder(owner: string, repo: string, branch: string, path: string): Promise<RepoListing> {
-  const raw = await call<{ entries: RepoEntry[]; truncated: boolean }>('github_list_folder', { owner, repo, branch, path });
+  const raw = await call(() => commands.githubListFolder(owner, repo, branch, path));
   return { entries: raw.entries, truncated: raw.truncated === true };
 }
 
@@ -295,12 +291,7 @@ function describeReadError(e: GitHubError, owner: string, repo: string, branch: 
  */
 export async function readFile(owner: string, repo: string, branch: string, path: string): Promise<GithubFile> {
   try {
-    const raw = await call<{ path: string; name: string; content: string; sha: string; commit_sha: string }>('github_read_file', {
-      owner,
-      repo,
-      branch,
-      path,
-    });
+    const raw = await call(() => commands.githubReadFile(owner, repo, branch, path));
     return { path: raw.path, name: raw.name, content: raw.content, sha: raw.sha, commitSha: raw.commit_sha };
   } catch (e) {
     throw e instanceof GitHubError ? describeReadError(e, owner, repo, branch, path) : e;
@@ -312,7 +303,7 @@ export async function readFile(owner: string, repo: string, branch: string, path
  * missing from the list or differing only in case is judged by GitHub). Advisory: createBranch decides.
  */
 export async function branchExists(owner: string, repo: string, name: string): Promise<boolean> {
-  return call<boolean>('github_branch_exists', { owner, repo, name }, GITHUB_BRANCH_UNAVAILABLE);
+  return call(() => commands.githubBranchExists(owner, repo, name), GITHUB_BRANCH_UNAVAILABLE);
 }
 
 /**
@@ -320,7 +311,7 @@ export async function branchExists(owner: string, repo: string, name: string): P
  * already_exists (nothing is overwritten) or any other failure; on the web, with kind unavailable_on_web.
  */
 export async function createBranch(owner: string, repo: string, source: string, name: string): Promise<void> {
-  await call<void>('github_create_branch', { owner, repo, source, name }, GITHUB_BRANCH_UNAVAILABLE);
+  await call(() => commands.githubCreateBranch(owner, repo, name, source), GITHUB_BRANCH_UNAVAILABLE);
 }
 
 /** What committing a file answers: the new blob and commit shas, or a conflict (nothing was written). */
@@ -337,7 +328,7 @@ export const commitMessage = (path: string): string => `Edit ${path} from Gonq`;
 export async function commitFile(args: { owner: string; repo: string; branch: string; path: string; text: string; sha: string }): Promise<CommitResult> {
   if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_COMMIT_UNAVAILABLE);
   try {
-    const raw = await invoke<{ status: string; sha?: string; commit_sha?: string }>('github_commit_file', args);
+    const raw = await commands.githubCommitFile(args.owner, args.repo, args.branch, args.path, args.text, args.sha);
     if (raw.status === 'conflict') return { status: 'conflict' };
     return { status: 'committed', sha: raw.sha ?? '', commitSha: raw.commit_sha ?? '' };
   } catch (e) {
@@ -370,7 +361,7 @@ export async function openPullsForBranches(owner: string, repo: string, branches
   if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_PULLS_UNAVAILABLE);
   const out = new Map<string, OpenPull | null>(branches.map((b) => [b, null]));
   if (branches.length === 0) return out;
-  const raw = await call<{ branch: string; pull: { number: number; html_url: string; draft?: boolean } | null }[] | undefined>('github_open_pulls_for_branches', { owner, repo, branches });
+  const raw = await call(() => commands.githubOpenPullsForBranches(owner, repo, branches));
   for (const e of Array.isArray(raw) ? raw : []) {
     if (out.has(e.branch) && e.pull) out.set(e.branch, { number: e.pull.number, url: e.pull.html_url, draft: e.pull.draft === true });
   }
@@ -391,7 +382,7 @@ export const GITHUB_OPEN_PR_UNAVAILABLE = 'Opening a pull request needs the Gonq
 export async function branchesExist(owner: string, repo: string, branches: string[]): Promise<string[]> {
   if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_OPEN_PR_UNAVAILABLE);
   if (branches.length === 0) return [];
-  const raw = await call<string[] | undefined>('github_branches_exist', { owner, repo, branches }, GITHUB_OPEN_PR_UNAVAILABLE);
+  const raw = await call(() => commands.githubBranchesExist(owner, repo, branches), GITHUB_OPEN_PR_UNAVAILABLE);
   return Array.isArray(raw) ? raw : [];
 }
 
@@ -421,12 +412,7 @@ export interface Comparison {
  * on the web with kind unavailable_on_web.
  */
 export async function compareBranches(owner: string, repo: string, base: string, head: string): Promise<Comparison> {
-  const raw = await call<{
-    ahead_by: number;
-    behind_by: number;
-    files: { filename: string; previous_filename: string | null; status: FileStatus; additions: number; deletions: number }[];
-    truncated: boolean;
-  }>('github_compare', { owner, repo, base, head }, GITHUB_OPEN_PR_UNAVAILABLE);
+  const raw = await call(() => commands.githubCompare(owner, repo, base, head), GITHUB_OPEN_PR_UNAVAILABLE);
   return {
     aheadBy: raw.ahead_by,
     behindBy: raw.behind_by,
@@ -456,7 +442,7 @@ export interface CreatedPull {
 export async function createPull(args: { owner: string; repo: string; title: string; body: string; head: string; base: string }): Promise<CreatedPull> {
   if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_OPEN_PR_UNAVAILABLE);
   try {
-    const raw = await invoke<{ number: number; html_url: string; label_warning?: string | null }>('github_create_pull', args);
+    const raw = await commands.githubCreatePull(args.owner, args.repo, args.title, args.body, args.head, args.base);
     const warning = typeof raw.label_warning === 'string' && raw.label_warning !== '' ? raw.label_warning : undefined;
     return { number: raw.number, url: raw.html_url, ...(warning !== undefined ? { labelWarning: warning } : {}) };
   } catch (e) {
