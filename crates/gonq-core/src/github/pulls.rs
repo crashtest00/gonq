@@ -22,7 +22,7 @@ use super::Github;
 use serde::{Deserialize, Serialize};
 
 /// An open pull request whose head is the asked-for branch.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct OpenPull {
     pub number: u64,
     pub html_url: String,
@@ -31,7 +31,7 @@ pub struct OpenPull {
 }
 
 /// The answer for one requested branch.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct BranchPull {
     pub branch: String,
     pub pull: Option<OpenPull>,

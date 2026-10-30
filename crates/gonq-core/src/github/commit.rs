@@ -22,7 +22,7 @@ use serde_json::{json, Value};
 pub const NEEDS_WRITE: &str = "This version of Gonq needs write access to the repository.";
 
 /// The result of a commit attempt. `Conflict` is not an error: the frontend opens its ConflictDialog.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum CommitOutcome {
     /// Written: the file's new blob sha and the new commit's sha.

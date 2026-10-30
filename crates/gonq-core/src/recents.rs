@@ -6,7 +6,7 @@ use std::path::Path;
 
 pub const MAX_RECENTS: usize = 10;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct Recent {
     pub path: String,
     /// Unix epoch milliseconds when the file was last opened.

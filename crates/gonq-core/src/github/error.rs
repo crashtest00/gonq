@@ -3,7 +3,7 @@
 
 use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum GithubError {
     /// The user refused the sign-in on github.com.

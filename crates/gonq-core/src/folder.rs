@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 /// One row of the folder navigator. Deliberately lightweight: no metadata, no sizes.
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, PartialEq, Eq, specta::Type)]
 pub struct FolderEntry {
     pub name: String,
     pub path: String,
@@ -14,7 +14,7 @@ pub struct FolderEntry {
 }
 
 /// Typed so the UI can show an error row instead of the app panicking.
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(tag = "kind", content = "message", rename_all = "snake_case")]
 pub enum ListError {
     NotFound(String),

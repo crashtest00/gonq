@@ -31,18 +31,21 @@ use uri::RemotePath;
 
 /// `Host` names from `~/.ssh/config` (wildcard patterns left out); empty when there is no file.
 #[tauri::command]
+#[specta::specta]
 pub async fn ssh_list_hosts(pool: State<'_, Pool>) -> Result<Vec<String>, String> {
     Ok(SshConfigFile::load(&pool.env().config_path).list_hosts())
 }
 
 /// Connects and opens an SFTP channel, or returns the one answer still needed (see [`ConnectResult`]).
 #[tauri::command]
+#[specta::specta]
 pub async fn ssh_connect(pool: State<'_, Pool>, target: String, answers: Option<Answers>) -> Result<ConnectResult, String> {
     Ok(pool.connect(&target, answers.unwrap_or_default()).await)
 }
 
 /// Closes the session for `host` (what was typed in the Connect box) and takes back its folder grants.
 #[tauri::command]
+#[specta::specta]
 pub async fn ssh_disconnect(pool: State<'_, Pool>, remote: State<'_, Remote>, host: String) -> Result<(), String> {
     let key = pool.key_for(&host).map_err(|e| e.to_string())?;
     remote.allow.revoke(&key);
@@ -52,18 +55,21 @@ pub async fn ssh_disconnect(pool: State<'_, Pool>, remote: State<'_, Remote>, ho
 
 /// Subfolder names of a folder anywhere on a connected host, for the folder picker. Never files.
 #[tauri::command]
+#[specta::specta]
 pub async fn remote_list_folders(pool: State<'_, Pool>, uri: String) -> Result<FolderListing, RemoteError> {
     fs::list_folders(&pool, &uri).await
 }
 
 /// The picked folder joins the allow-list and becomes the navigator root.
 #[tauri::command]
+#[specta::specta]
 pub async fn remote_open_root(pool: State<'_, Pool>, remote: State<'_, Remote>, uri: String) -> Result<(), RemoteError> {
     fs::open_root(&pool, &remote, &uri).await
 }
 
 /// Same rows and order as `list_directory`; inside an allowed folder only.
 #[tauri::command]
+#[specta::specta]
 pub async fn remote_list_directory(pool: State<'_, Pool>, remote: State<'_, Remote>, uri: String) -> Result<Vec<FolderEntry>, RemoteError> {
     fs::list_directory(&pool, &remote, &uri).await
 }
@@ -71,9 +77,27 @@ pub async fn remote_list_directory(pool: State<'_, Pool>, remote: State<'_, Remo
 /// The file's raw bytes, behind a 12-byte header: the server mtime (u32) and size (u64), big-endian.
 /// A raw response avoids turning the bytes into a JSON array.
 #[tauri::command]
-pub async fn remote_read(pool: State<'_, Pool>, remote: State<'_, Remote>, uri: String) -> Result<tauri::ipc::Response, RemoteError> {
+#[specta::specta]
+pub async fn remote_read(pool: State<'_, Pool>, remote: State<'_, Remote>, uri: String) -> Result<RawBytes, RemoteError> {
     let (stat, bytes) = fs::read(&pool, &remote, &uri).await?;
-    Ok(tauri::ipc::Response::new(read_payload(stat, bytes)))
+    Ok(RawBytes(tauri::ipc::Response::new(read_payload(stat, bytes))))
+}
+
+/// A raw binary IPC response (`tauri::ipc::Response`, which the webview receives as an `ArrayBuffer`). It sends exactly
+/// what the wrapped response would; the wrapper exists only so the generated bindings can type it as `ArrayBuffer`,
+/// which specta cannot derive for the foreign type.
+pub struct RawBytes(pub tauri::ipc::Response);
+
+impl tauri::ipc::IpcResponse for RawBytes {
+    fn body(self) -> tauri::Result<tauri::ipc::InvokeResponseBody> {
+        self.0.body()
+    }
+}
+
+impl specta::Type for RawBytes {
+    fn definition(_types: &mut specta::Types) -> specta::datatype::DataType {
+        specta::datatype::DataType::Reference(specta_typescript::define("ArrayBuffer"))
+    }
 }
 
 pub fn read_payload(stat: RemoteStat, bytes: Vec<u8>) -> Vec<u8> {
@@ -86,6 +110,7 @@ pub fn read_payload(stat: RemoteStat, bytes: Vec<u8>) -> Vec<u8> {
 
 /// Saves `text` exactly as given. `expected` is the stat from the last read or save; `force` is Overwrite.
 #[tauri::command]
+#[specta::specta]
 pub async fn remote_write(
     pool: State<'_, Pool>,
     remote: State<'_, Remote>,
@@ -99,6 +124,7 @@ pub async fn remote_write(
 
 /// Backs `pathExists` for remote recents: false when the file is gone or the host cannot be reached.
 #[tauri::command]
+#[specta::specta]
 pub async fn remote_exists(paths: State<'_, crate::commands::DataPaths>, pool: State<'_, Pool>, remote: State<'_, Remote>, uri: String) -> Result<bool, String> {
     let recorded = crate::commands::is_recent(&paths, &uri)?;
     Ok(fs::exists(&pool, &remote, &uri, recorded).await)

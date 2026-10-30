@@ -34,7 +34,7 @@ const PR_LABEL_DESCRIPTION: &str = "Pull request opened from the Gonq editor";
 /// GitHub lists at most this many files in a compare reply.
 const COMPARE_FILE_CAP: usize = 300;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum FileStatus {
     Added,
@@ -47,7 +47,7 @@ pub enum FileStatus {
     Changed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct ChangedFile {
     pub filename: String,
     #[serde(default)]
@@ -59,7 +59,7 @@ pub struct ChangedFile {
     pub deletions: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct Comparison {
     pub ahead_by: u64,
     pub behind_by: u64,
@@ -75,7 +75,7 @@ struct RawComparison {
 }
 
 /// The pull request that was opened.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct CreatedPull {
     pub number: u64,
     pub html_url: String,
