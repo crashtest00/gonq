@@ -1,6 +1,7 @@
 // The Connect to Server flow's native calls: host list, ssh_connect with answers, the folder picker's
 // listing, the navigator root grant, and the last folders opened. Desktop only; the web beta has none.
 // Passwords and passphrases pass through here once and are never stored.
+import { appKind, CONNECT_UNAVAILABLE_MOBILE } from './app';
 import { commands } from './bindings';
 import { isTauri } from './files';
 import { remoteAccount, toRemoteError } from './remote';
@@ -24,8 +25,11 @@ export interface ConnectAnswers {
 /** Shown in the error banner when Connect to Server is chosen on the web. */
 export const CONNECT_UNAVAILABLE = 'Connecting to a server needs the desktop app.';
 
-/** Throws on the web, where there is no Connect flow; the caller shows the message. */
+export { CONNECT_UNAVAILABLE_MOBILE };
+
+/** Throws on the web and in the mobile app, where there is no Connect flow; the caller shows the message. */
 export function assertConnectAvailable(): void {
+  if (appKind() === 'mobile') throw new Error(CONNECT_UNAVAILABLE_MOBILE);
   if (!isTauri()) throw new Error(CONNECT_UNAVAILABLE);
 }
 

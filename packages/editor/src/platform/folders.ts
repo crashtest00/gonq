@@ -26,6 +26,7 @@ export type ListErrorKind =
   | 'auth_required'
   | 'unreachable'
   | 'host_key_changed'
+  | 'unavailable'
   | GitHubErrorKind;
 
 /** Rejection of listDirectory; the UI shows it as an error row. */

@@ -42,6 +42,7 @@
     "./features/view/*": "./src/features/view/*.ts",
     "./lib/*": "./src/lib/*.ts",
     "./model/*": "./src/model/*.ts",
+    "./platform/app": "./src/platform/app.ts",
     "./platform/*": "./src/platform/*.ts",
     "./testing/*": "./src/testing/*.ts"
   },

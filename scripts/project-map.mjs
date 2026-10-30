@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds the project map from the header comment at the top of every source file under apps/desktop/src/, packages/editor/src/, crates/gonq-core/src/ and
+// Builds the project map from the header comment at the top of every source file under apps/desktop/src/, apps/mobile/src/, packages/editor/src/, crates/gonq-core/src/ and
 // apps/desktop/src-tauri/src/. Each file's header is the source of truth; PROJECT_MAP.md is generated (gitignored).
 //
 //   node scripts/project-map.mjs          writes PROJECT_MAP.md, grouped by directory
@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SOURCE_DIRS = ['apps/desktop/src', 'crates/gonq-core/src', 'apps/desktop/src-tauri/src', 'packages/editor/src'];
+const SOURCE_DIRS = ['apps/desktop/src', 'crates/gonq-core/src', 'apps/desktop/src-tauri/src', 'packages/editor/src', 'apps/mobile/src'];
 const SOURCE_FILE = /\.(tsx?|rs)$/;
 const OUTPUT = 'PROJECT_MAP.md';
 
