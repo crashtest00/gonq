@@ -1,7 +1,7 @@
 /**
  * The app shell: owns the open tabs (useDocument), the one MarkdownEditor, the menu bar and toolbars, the
- * folder/outline/comments sidebars and <DialogHost/> (every dialog is opened with openDialog, see dialogs/), builds the CommandContext the command registry's menus and shortcuts run against, and wires its actions to platform/ calls (open, save,
- * connect, GitHub sign-in, repo picker and its open repo/branch, GitHub files in tabs and the navigator following them, launch paths). Errors land in its banner.
+ * folder/outline/comments sidebars and <DialogHost/> (every dialog is opened with openDialog, see dialogs/), builds the CommandContext the command registry's menus and shortcuts run against, and wires its actions to platform/ calls (document open/save/close come from
+ * useDocumentController; connect, GitHub sign-in, repo picker and its open repo/branch, GitHub files in tabs and the navigator following them, launch paths). Errors land in its banner.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '@gonq/editor/lib/useTheme';
@@ -32,9 +32,9 @@ import { usePaneWidths } from './components/paneWidths';
 import { OutlineSidebar } from './components/OutlineSidebar';
 import { outlineOf } from '@gonq/editor/model/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
-import { RemoteConflictError, RemoteFileError, isSshPath, remoteAccount, remoteHost, setConnectHandler } from '@gonq/editor/platform/remote';
+import { isSshPath, remoteAccount, setConnectHandler } from '@gonq/editor/platform/remote';
 import type { RepoState } from './components/RepoNavigator';
-import { GitHubError, commitFile, ensureSignedIn, parseGithubPath, setSignInHandler, signOut as githubSignOut, type GithubDocument } from '@gonq/editor/platform/github';
+import { commitFile, ensureSignedIn, parseGithubPath, setSignInHandler, signOut as githubSignOut, type GithubDocument } from '@gonq/editor/platform/github';
 import type { RepoChoice } from './components/RepoPickerDialog';
 import { assertConnectAvailable } from '@gonq/editor/platform/connect';
 import { listThreads, threadKey } from '@gonq/editor/model/threads';
@@ -42,17 +42,16 @@ import { isCommentableAt, selectionRange, type ThreadTarget } from '@gonq/editor
 import { parseCommentMarkers, appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus } from '@gonq/editor/comment-threads';
 import { RawSwitch } from './components/RawSwitch';
 import { MarkdownEditor, type EditorHandle, type EditorSelection } from '@gonq/editor/editor/MarkdownEditor';
-import { useDocument, type DocumentMeta } from '@gonq/editor/document/useDocument';
+import { type DocumentMeta } from '@gonq/editor/document/useDocument';
 import { files as defaultFiles, type FileAccess } from '@gonq/editor/platform/files';
-import { guardClose } from '@gonq/editor/platform/lifecycle';
+import { useDocumentController } from '@gonq/editor/controllers/document';
 import { pickImage } from '@gonq/editor/platform/images';
 import { addSessionBranch, listSessionBranches, type SessionBranch } from '@gonq/editor/features/github/sessionBranches';
 import { PULL_CHECK_FAILED, openPullMessage, useOpenPulls } from '@gonq/editor/features/github/openPulls';
 import { ReadOnlyBanner } from './components/ReadOnlyBanner';
 import { listenOpenPaths, takePendingOpenPaths } from '@gonq/editor/platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
-import { pathExists, pickFolder } from '@gonq/editor/platform/folders';
-import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from '@gonq/editor/platform/recents';
+import { pickFolder } from '@gonq/editor/platform/folders';
 
 function parentDir(path: string): string | null {
   const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
@@ -61,7 +60,22 @@ function parentDir(path: string): string | null {
 }
 
 export default function App({ files = defaultFiles }: { files?: FileAccess }) {
-  const session = useDocument();
+  const [error, setError] = useState<string | null>(null);
+  // A remote save slower than a second says where it is going; an in-place save says it was not atomic.
+  const [savingTo, setSavingTo] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  // Save on a GitHub tab commits through commitGithub, defined below (it needs the session this returns).
+  const commitGithubRef = useRef<(id: number, gh: GithubDocument, text: string, dirty: boolean, meta: DocumentMeta) => Promise<boolean>>();
+  const doc = useDocumentController({
+    files,
+    confirmUnsaved: (name) => openDialog(unsavedChangesDialog, { name }),
+    confirmConflict: (conflict) => openDialog(conflictDialog, conflict),
+    commitGithub: (...args) => commitGithubRef.current!(...args),
+    onError: setError,
+    onNotice: setNotice,
+    onSaving: setSavingTo,
+  });
+  const { session, recents, remember } = doc;
   const { meta, text } = session;
   // A GitHub tab whose branch has an open pull request is read-only (features/github/openPulls.ts).
   const opens = useOpenPulls(meta?.github ?? null, session.activeId);
@@ -69,7 +83,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   opensRef.current = opens;
   const readOnlyPull = opens.pullFor(meta?.github ?? null);
   const rawAll = session.raw;
-  const [error, setError] = useState<string | null>(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const paneLayout = usePaneWidths();
   const [outlineOpen, setOutlineOpen] = useState(false);
@@ -78,7 +91,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [folder, setFolder] = useState<string | null>(null);
   // Once the user picks a folder with Open Folder…, opening documents no longer moves the Project folder.
   const folderChosen = useRef(false);
-  const [recents, setRecents] = useState<RecentDocument[]>([]);
   // The GitHub repository and branch the navigator shows; null when a folder (or nothing) is shown.
   const [repo, setRepo] = useState<RepoState | null>(null);
   // Branches made with Create branch in this session (the session list in sessionBranches.ts, kept as state to re-render the dropdown).
@@ -89,9 +101,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [selection, setSelection] = useState<EditorSelection | null>(null);
   const [caret, setCaret] = useState<number | null>(null);
   const editor = useRef<EditorHandle>(null);
-  // A remote save slower than a second says where it is going; an in-place save says it was not atomic.
-  const [savingTo, setSavingTo] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const activeId = session.activeId;
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
   const [theme, setThemeChoice] = useTheme(useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []));
@@ -104,7 +113,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   useEffect(() => {
     let live = true;
     getAuthorName().then((n) => live && setAuthor(n));
-    listRecents().then((list) => live && setRecents(list), () => {});
     return () => {
       live = false;
     };
@@ -127,9 +135,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     if (ghOwner === undefined || ghRepo === undefined || ghBranch === undefined) return;
     setRepo((r) => (r !== null && r.owner === ghOwner && r.repo === ghRepo && r.branch === ghBranch ? r : { owner: ghOwner, repo: ghRepo, branch: ghBranch }));
   }, [activeId, ghOwner, ghRepo, ghBranch]);
-  const remember = useCallback((path: string | null) => {
-    if (path !== null) addRecent(path).then(setRecents, () => {});
-  }, []);
 
   const launchError = useRef<string | null>(null);
   // Switching tabs: the comments sidebar goes back to All threads.
@@ -376,97 +381,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     },
     [session.saved, makeBranch],
   );
-
-  /** Writes tab `id`; true when it is on disk, false when cancelled or failed. */
-  const doWrite = useCallback(
-    async (id: number, as: boolean): Promise<boolean> => {
-      const tab = session.peek(id);
-      if (tab === null) return true;
-      // What is written is what is marked saved, even if typing continues meanwhile.
-      const snapshot = tab.text;
-      // Save on a GitHub tab commits (after a confirmation); Save As is not offered for GitHub files yet.
-      if (!as && tab.meta.github !== undefined) return commitGithub(id, tab.meta.github, snapshot, tab.dirty, tab.meta);
-      // Save As may not land on a file another tab holds.
-      const taken = (path: string) => session.peekTabs().some((t) => t.id !== id && t.path === path);
-      const remotePath = !as && tab.meta.path !== null && isSshPath(tab.meta.path) ? tab.meta.path : null;
-      const slow = remotePath === null ? null : setTimeout(() => setSavingTo(remoteHost(remotePath)), 1000);
-      try {
-        const doc = { name: tab.meta.name, path: tab.meta.path, text: snapshot, remote: tab.meta.remote };
-        let saved;
-        if (as) saved = await files.saveDocumentAs({ name: tab.meta.name, text: snapshot }, taken);
-        else if (tab.meta.path === null) saved = await files.saveDocument({ ...doc, path: null }, taken);
-        else {
-          try {
-            saved = await files.saveDocument(doc);
-          } catch (e) {
-            if (!(e instanceof RemoteConflictError)) throw e;
-            if (slow !== null) clearTimeout(slow);
-            setSavingTo(null);
-            const choice = await openDialog(conflictDialog, { name: e.name_, deleted: e.deleted });
-            // Cancel leaves the tab unsaved, text intact.
-            if (choice === 'cancel') return false;
-            saved = await files.saveDocument(doc, undefined, { force: true });
-          }
-        }
-        if (saved === null) return false;
-        if (saved.path !== null && saved.path !== tab.meta.path && taken(saved.path)) {
-          setError(`${saved.path} is already open in another tab, so it was not saved there. Choose another name.`);
-          return false;
-        }
-        setError(null);
-        if (saved.inPlaceHost !== undefined) {
-          setNotice(`Saved in place on ${remoteHost(saved.inPlaceHost)} (not atomic): the server can't swap files safely, so a dropped connection could leave the file half written.`);
-        }
-        session.saved(id, { name: saved.name, path: saved.path, remote: saved.remote }, snapshot);
-        if (saved.path !== tab.meta.path) remember(saved.path);
-        return true;
-      } catch (e) {
-        failed(e);
-        return false;
-      } finally {
-        if (slow !== null) clearTimeout(slow);
-        setSavingTo(null);
-      }
-    },
-    [files, session.peek, session.peekTabs, session.saved, remember, commitGithub],
-  );
-  // One save per tab at a time: a request made while one is pending joins it (no parallel write, no second dialog).
-  const pendingSaves = useRef(new Map<number, Promise<boolean>>());
-  const write = useCallback(
-    (id: number, as: boolean): Promise<boolean> => {
-      const pending = pendingSaves.current.get(id);
-      if (pending !== undefined && !as) return pending;
-      const run = (pending ?? Promise.resolve(true)).then(() => doWrite(id, as));
-      const tracked = run.finally(() => {
-        if (pendingSaves.current.get(id) === tracked) pendingSaves.current.delete(id);
-      });
-      pendingSaves.current.set(id, tracked);
-      return tracked;
-    },
-    [doWrite],
-  );
-  const save = useCallback(() => (activeId === null ? Promise.resolve(true) : write(activeId, false)), [write, activeId]);
-  const saveAs = useCallback(() => (activeId === null ? Promise.resolve(true) : write(activeId, true)), [write, activeId]);
-
-  /** Resolves true when it is fine to close tab `id`: clean, saved or discarded. Shows the tab while it asks. */
-  const confirmTab = useCallback(
-    async (id: number): Promise<boolean> => {
-      const tab = session.peek(id);
-      if (tab === null || !tab.dirty) return true;
-      session.activate(id);
-      const choice = await openDialog(unsavedChangesDialog, { name: tab.meta.name });
-      if (choice === 'save') return write(id, false);
-      return choice === 'discard';
-    },
-    [session.peek, session.activate, write],
-  );
-
-  const closeTab = useCallback(
-    async (id: number) => {
-      if (await confirmTab(id)) session.close(id);
-    },
-    [confirmTab, session.close],
-  );
+  commitGithubRef.current = commitGithub;
 
   /**
    * The navigator's branch dropdown. A GitHub document open on another branch is closed first (after a
@@ -485,65 +400,15 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     [session.activeId, session.peek, session.closeSelectingNone],
   );
 
-  const newFile = useCallback(() => {
-    setError(null);
-    session.openUntitled();
-  }, [session.openUntitled]);
-
-  const openFile = useCallback(async () => {
-    try {
-      const opened = await files.pickDocument();
-      if (opened === null) return;
-      setError(null);
-      session.open(opened);
-      remember(opened.path);
-    } catch (e) {
-      // A file that cannot be opened leaves whatever is already open untouched.
-      failed(e);
-    }
-  }, [files, session.open, remember]);
-
-  /** Opens a file chosen in the folder navigator or the recent list. */
   const openKnownPath = useCallback(
-    async (path: string, fromRecents: boolean) => {
-      if (files.openPath === undefined) return;
-      const github = parseGithubPath(path);
-      // Reopening a GitHub recent shows its repository and branch in the navigator.
-      if (github !== null && fromRecents) {
+    (path: string, fromRecents: boolean) =>
+      doc.openKnownPath(path, fromRecents, (github) => {
+        // Reopening a GitHub recent shows its repository and branch in the navigator.
         setRepo((r) => (r !== null && r.owner === github.owner && r.repo === github.repo && r.branch === github.branch ? r : { owner: github.owner, repo: github.repo, branch: github.branch }));
         folderChosen.current = true;
         setFolderOpen(true);
-      }
-      // A file that is already open is shown as it is, unsaved changes and all.
-      const existing = session.findByPath(path);
-      if (existing !== null) return session.activate(existing);
-      try {
-        if (fromRecents && github === null) {
-          await allowRecentDocument(path);
-          // A remote file stays in the list when its host is unreachable; opening it reports why.
-          if (!isSshPath(path) && !(await pathExists(path))) {
-            await removeRecent(path).then(setRecents, () => {});
-            return setError(`${path} no longer exists, so it was removed from recent documents.`);
-          }
-        }
-        let opened;
-        try {
-          opened = await files.openPath(path);
-        } catch (e) {
-          // Not signed in: run the sign-in, then read the file once more.
-          if (!(e instanceof GitHubError && e.kind === 'not_signed_in' && (await ensureSignedIn()))) throw e;
-          opened = await files.openPath(path);
-        }
-        setError(null);
-        session.open(opened);
-        remember(opened.path);
-      } catch (e) {
-        // Only a file the server says is gone leaves the recent list.
-        if (fromRecents && e instanceof RemoteFileError && e.kind === 'not_found') await removeRecent(path).then(setRecents, () => {});
-        failed(e);
-      }
-    },
-    [files, session.findByPath, session.activate, session.open, remember],
+      }),
+    [doc.openKnownPath],
   );
 
   /** Opens one path the OS delivered; resolves the reason it was not opened, else null. */
@@ -765,11 +630,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   }, []);
   openedRemoteFolderRef.current = openedRemoteFolder;
 
-  const activeIdRef = useRef(activeId);
-  activeIdRef.current = activeId;
-  const closeActive = useCallback(() => {
-    if (activeIdRef.current !== null) void closeTab(activeIdRef.current);
-  }, [closeTab]);
   const openSingle = useCallback(<P, R>(dialog: DialogRef<P, R>, props: P) => {
     if (singles.current.has(dialog.id)) return;
     singles.current.add(dialog.id);
@@ -802,7 +662,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     }
   };
   const commandContext: CommandContext = {
-    hasDocument: meta !== null,
+    hasDocument: doc.hasDocument,
     canUndo: session.canUndo,
     canRedo: session.canRedo,
     raw: rawAll,
@@ -813,14 +673,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     files,
     setError,
     openDialog,
-    save: () => void save(),
-    saveAs: () => void saveAs(),
+    save: () => void doc.save(),
+    saveAs: () => void doc.saveAs(),
     isGithubTab: meta?.github !== undefined,
     readOnly: readOnlyPull !== null,
-    commit: () => void save(),
-    newFile,
-    openFile: () => void openFile(),
-    closeTab: closeActive,
+    commit: () => void doc.save(),
+    newFile: doc.newFile,
+    openFile: () => void doc.openFile(),
+    closeTab: doc.closeTab,
     openFolder: () => void openFolder(),
     openConnect: () => void openConnect(),
     openRepo: () => void openRepo(),
@@ -844,23 +704,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   commandContextRef.current = commandContext;
   useEffect(() => registry.installShortcuts(() => commandContextRef.current), []);
 
-  // Closing the window with unsaved changes asks first.
-  // Every unsaved tab is asked about in turn; Cancel on any of them keeps the window open.
-  const confirmWindowClose = useCallback(async () => {
-    for (const id of session.dirtyIds()) if (!(await confirmTab(id))) return false;
-    return true;
-  }, [session.dirtyIds, confirmTab]);
-  const guard = useRef({ anyDirty: session.dirtyIds, confirmWindowClose });
-  guard.current = { anyDirty: session.dirtyIds, confirmWindowClose };
-  useEffect(() => guardClose(() => guard.current.anyDirty().length > 0, () => guard.current.confirmWindowClose()), []);
-
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background font-sans text-foreground">
       <MenuBar ctx={commandContext} />
       <TabStrip tabs={session.tabs} activeId={activeId} onSelect={(id) => {
         session.activate(id);
         editor.current?.focus();
-      }} onClose={(id) => void closeTab(id)} onNew={newFile} onMove={session.move} outlineOpen={outlineOpen} onToggleOutline={() => {
+      }} onClose={(id) => void doc.closeTabById(id)} onNew={doc.newFile} onMove={session.move} outlineOpen={outlineOpen} onToggleOutline={() => {
           setOutlineOpen((o) => !o);
           setFolderOpen(false);
         }} folderOpen={folderOpen} onToggleFolder={() => {
@@ -888,7 +738,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
             onOpenFile={openFromFolder}
             onLogin={(path) => openConnect(remoteAccount(path))}
             onOpenRecent={(path) => void openKnownPath(path, true)}
-            onRemoveRecent={(path) => void removeRecent(path).then(setRecents, () => {})}
+            onRemoveRecent={(path) => void doc.forgetRecent(path)}
           />
           </ResizablePane>
         )}
