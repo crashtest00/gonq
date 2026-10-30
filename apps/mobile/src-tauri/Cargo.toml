@@ -1,0 +1,20 @@
+[package]
+name = "gonq-mobile"
+version = "0.1.5"
+description = "Gonq mobile (Android) Tauri entry point"
+edition = "2021"
+
+[lib]
+name = "gonq_mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# No ssh feature: SSH remote folders are not available on mobile (and russh must not be built for Android).
+gonq-core = { path = "../../../crates/gonq-core", default-features = false }
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-opener = "2"
