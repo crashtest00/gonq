@@ -26,15 +26,32 @@ async function tapText(text, timeout = 15000) {
     await sleep(800);
   }
 }
+async function tapMatch(re, timeout = 6000) {
+  const end = Date.now() + timeout;
+  for (;;) {
+    const xml = dump(); const rx = /<node [^>]*?(?:text|content-desc)="([^"]*)"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/g; let m;
+    while ((m = rx.exec(xml))) if (m[1] && re.test(m[1])) { sh(`adb shell input tap ${(+m[2] + +m[4]) / 2} ${(+m[3] + +m[5]) / 2}`); return m[1]; }
+    if (Date.now() > end) return null;
+    await sleep(700);
+  }
+}
 // Drive DocumentsUI after the app opened ACTION_OPEN_DOCUMENT_TREE: browse to `path` segments, then "Use this folder" + "Allow".
+// The picker may open on Recent/Downloads, so when a segment is not visible the roots drawer is opened and the internal-storage root tried.
 async function pickTree(segments, label) {
-  await sleep(1500); shot(`${label}-picker-start`);
-  // hamburger -> pick root by name when the folder is under a non-default root (e.g. Downloads)
-  for (const s of segments) { if (!(await tapText(s))) { log(`${label}: navigate to ${s}`, false, 'not found in picker'); return false; } await sleep(800); }
+  await sleep(2500); shot(`${label}-picker-start`); fs.writeFileSync(`${EV}/${label}-picker-start.xml`, dump());
+  for (const s of segments) {
+    let ok = await tapText(s, 4000);
+    if (!ok) { await tapMatch(/show roots/i, 3000); await sleep(800); shot(`${label}-roots`); fs.writeFileSync(`${EV}/${label}-roots.xml`, dump());
+      const root = await tapMatch(/sdk|internal|emulator|gphone|sdk_gphone/i, 4000); log(`${label}: root tapped`, !!root, root); await sleep(900);
+      ok = await tapText(s, 6000); }
+    if (!ok) { log(`${label}: navigate to ${s}`, false, 'not found in picker'); shot(`${label}-nav-fail`); return false; }
+    await sleep(900);
+  }
   shot(`${label}-picker-in-folder`);
-  const use = (await tapText('Use this folder')) || (await tapText('USE THIS FOLDER'));
-  await sleep(1000); shot(`${label}-picker-grant-dialog`);
-  const allow = await tapText('Allow') || await tapText('ALLOW');
+  const use = (await tapText('Use this folder', 6000)) || (await tapText('USE THIS FOLDER', 3000));
+  await sleep(1200); shot(`${label}-picker-grant-dialog`);
+  const allow = (await tapText('Allow', 6000)) || (await tapText('ALLOW', 3000));
+  await sleep(1500);
   log(`${label}: picker use+allow`, use && allow, `use=${use} allow=${allow}`);
   return use && allow;
 }
@@ -53,4 +70,4 @@ function forceStop() { sh(`adb shell am force-stop ${PKG}`); }
 function externalWrite(devicePath, text) { sh(`adb shell "printf '%s' '${text.replace(/'/g, "'\\''")}' > ${devicePath}"`); }
 async function webPage(device) { const wv = await device.webView({ pkg: PKG }, { timeout: 60000 }); return wv.page(); }
 function finish(info) { fs.writeFileSync(`${EV}/results.json`, JSON.stringify({ info, results }, null, 1)); }
-module.exports = { sh, sleep, log, shot, dump, tapText, pickTree, logcat, persistedGrants, launch, forceStop, externalWrite, webPage, finish, results, PKG, EV };
+module.exports = { sh, sleep, log, shot, dump, tapText, pickTree, tapMatch, logcat, persistedGrants, launch, forceStop, externalWrite, webPage, finish, results, PKG, EV };
