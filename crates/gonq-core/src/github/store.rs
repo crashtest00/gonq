@@ -5,7 +5,6 @@
 //! never promise that a sign-in outlives a reinstall.
 
 use super::error::GithubError;
-use keyring_core::api::CredentialStoreApi;
 
 pub const SERVICE: &str = "Gonq GitHub";
 pub const ACCOUNT: &str = "oauth-token";
