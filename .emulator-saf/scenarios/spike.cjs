@@ -10,7 +10,7 @@ module.exports = async ({ device, L }) => {
   // Direct invoke with timing and the error text, for steps the panel has no button for.
   const saf = (p, command, args) => p.evaluate(async ([command, args]) => {
     const t0 = performance.now();
-    try { const v = await window.__TAURI_INTERNALS__.invoke('plugin:safspike|saf', { command, args }); return { ok: true, ms: Math.round(performance.now() - t0), v }; }
+    try { const v = await window.__TAURI_INTERNALS__.invoke('saf', { command, args }); return { ok: true, ms: Math.round(performance.now() - t0), v }; }
     catch (e) { return { ok: false, ms: Math.round(performance.now() - t0), err: String(e && e.message || e) }; }
   }, [command, args]);
   const click = async (p, label, waitFor, ms = 30000) => {
