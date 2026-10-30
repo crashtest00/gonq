@@ -1,9 +1,10 @@
 /**
  * The app shell: owns the open tabs (useDocument), the one MarkdownEditor, the menu bar and toolbars, the
  * folder/outline/comments sidebars and <DialogHost/> (every dialog is opened with openDialog, see dialogs/), builds the CommandContext the command registry's menus and shortcuts run against, and wires its actions to platform/ calls (document open/save/close come from
- * useDocumentController; connect, GitHub sign-in, repo picker and its open repo/branch, GitHub files in tabs and the navigator following them, launch paths). Errors land in its banner.
+ * useDocumentController and the GitHub flows (sign-in handler, Open Repo/PR, branches, commit, read-only) from useGithubController, which
+ * get their dialogs injected here; connect, launch paths stay in this file). Errors land in its banner.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '@gonq/editor/lib/useTheme';
 import { MenuBar } from './components/MenuBar';
 import { registry, type CommandContext } from '@gonq/editor/commands';
@@ -33,9 +34,7 @@ import { OutlineSidebar } from './components/OutlineSidebar';
 import { outlineOf } from '@gonq/editor/model/outline';
 import { CommentsSidebar } from './components/CommentsSidebar';
 import { isSshPath, remoteAccount, setConnectHandler } from '@gonq/editor/platform/remote';
-import type { RepoState } from './components/RepoNavigator';
-import { commitFile, ensureSignedIn, parseGithubPath, setSignInHandler, signOut as githubSignOut, type GithubDocument } from '@gonq/editor/platform/github';
-import type { RepoChoice } from './components/RepoPickerDialog';
+import { parseGithubPath, signOut as githubSignOut, type GithubDocument } from '@gonq/editor/platform/github';
 import { assertConnectAvailable } from '@gonq/editor/platform/connect';
 import { listThreads, threadKey } from '@gonq/editor/model/threads';
 import { isCommentableAt, selectionRange, type ThreadTarget } from '@gonq/editor/model/newThread';
@@ -46,8 +45,7 @@ import { type DocumentMeta } from '@gonq/editor/document/useDocument';
 import { files as defaultFiles, type FileAccess } from '@gonq/editor/platform/files';
 import { useDocumentController } from '@gonq/editor/controllers/document';
 import { pickImage } from '@gonq/editor/platform/images';
-import { addSessionBranch, listSessionBranches, type SessionBranch } from '@gonq/editor/features/github/sessionBranches';
-import { PULL_CHECK_FAILED, openPullMessage, useOpenPulls } from '@gonq/editor/features/github/openPulls';
+import { useGithubController } from '@gonq/editor/controllers/github';
 import { ReadOnlyBanner } from './components/ReadOnlyBanner';
 import { listenOpenPaths, takePendingOpenPaths } from '@gonq/editor/platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
@@ -66,6 +64,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [notice, setNotice] = useState<string | null>(null);
   // Save on a GitHub tab commits through commitGithub, defined below (it needs the session this returns).
   const commitGithubRef = useRef<(id: number, gh: GithubDocument, text: string, dirty: boolean, meta: DocumentMeta) => Promise<boolean>>();
+  const signInRef = useRef<() => Promise<boolean>>();
   const doc = useDocumentController({
     files,
     confirmUnsaved: (name) => openDialog(unsavedChangesDialog, { name }),
@@ -77,24 +76,35 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   });
   const { session, recents, remember } = doc;
   const { meta, text } = session;
-  // A GitHub tab whose branch has an open pull request is read-only (features/github/openPulls.ts).
-  const opens = useOpenPulls(meta?.github ?? null, session.activeId);
-  const opensRef = useRef(opens);
-  opensRef.current = opens;
-  const readOnlyPull = opens.pullFor(meta?.github ?? null);
+  const gh = useGithubController({
+    session,
+    dialogs: {
+      signIn: () => signInRef.current!(),
+      pickRepo: () => openDialog(repoPickerDialog, {}),
+      confirmBranchChange: (name) => openDialog(branchChangeDialog, { name }),
+      chooseCommit: (target) => openDialog(commitDialog, target),
+      showConflict: (conflict) => openDialog(conflictDialog, conflict),
+      createBranch: (args) => openDialog(createBranchDialog, args),
+      openPr: (args) => openDialog(openPrDialog, args),
+    },
+    onError: setError,
+    onNotice: setNotice,
+    onRepoChosen: () => {
+      folderChosen.current = true;
+      setOutlineOpen(false);
+      setFolderOpen(true);
+    },
+  });
+  const { repo, setRepo, readOnlyPull } = gh;
+  commitGithubRef.current = gh.commitGithub;
   const rawAll = session.raw;
   const [commentsOpen, setCommentsOpen] = useState(false);
   const paneLayout = usePaneWidths();
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
-  const [navRefresh, setNavRefresh] = useState(0);
   const [folder, setFolder] = useState<string | null>(null);
   // Once the user picks a folder with Open Folder…, opening documents no longer moves the Project folder.
   const folderChosen = useRef(false);
-  // The GitHub repository and branch the navigator shows; null when a folder (or nothing) is shown.
-  const [repo, setRepo] = useState<RepoState | null>(null);
-  // Branches made with Create branch in this session (the session list in sessionBranches.ts, kept as state to re-render the dropdown).
-  const [createdBranches, setCreatedBranches] = useState<SessionBranch[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ target: ThreadTarget; text: string; anchor?: string } | null>(null);
   const [tableTarget, setTableTarget] = useState<TableTarget | null>(null);
@@ -105,8 +115,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const [authorName, setAuthor] = useState(DEFAULT_AUTHOR);
   const [theme, setThemeChoice] = useTheme(useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []));
   // Dialogs are opened through openDialog and shown by <DialogHost/>; see dialogs/dialogs.tsx.
-  // The GitHub sign-in runs inside the Settings dialog: ensureSignedIn (platform/github.ts) opens Settings already signing in.
-  const githubOpen = useRef<Promise<boolean> | null>(null);
   const threads = useMemo(() => (meta === null ? [] : listThreads(text)), [meta, text]);
   const outline = useMemo(() => (outlineOpen && meta !== null ? outlineOf(text) : []), [outlineOpen, meta, text]);
 
@@ -126,16 +134,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     const parent = parentDir(docPath);
     if (parent !== null) setFolder(parent);
   }, [docPath]);
-  // Activating a GitHub tab shows its repository and branch in the navigator, even after Open Folder or Open Repo.
-  const gh = meta?.github;
-  const ghOwner = gh?.owner;
-  const ghRepo = gh?.repo;
-  const ghBranch = gh?.branch;
-  useEffect(() => {
-    if (ghOwner === undefined || ghRepo === undefined || ghBranch === undefined) return;
-    setRepo((r) => (r !== null && r.owner === ghOwner && r.repo === ghRepo && r.branch === ghBranch ? r : { owner: ghOwner, repo: ghRepo, branch: ghBranch }));
-  }, [activeId, ghOwner, ghRepo, ghBranch]);
-
   const launchError = useRef<string | null>(null);
   // Switching tabs: the comments sidebar goes back to All threads.
   useEffect(() => {
@@ -287,118 +285,6 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const jumpToHeading = useCallback((from: number) => editor.current?.reveal(from, true), []);
 
   const failed = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
-
-  /**
-   * Opens the Create branch dialog for the open repository. `tab` is the active GitHub tab, if any: its branch is
-   * the source, and when it is dirty the dialog also commits its file to the new branch, after which the tab
-   * (and the navigator) move to it. Otherwise only the branch is made and nothing else moves. Returns true when
-   * the tab's changes were committed to the new branch.
-   */
-  const makeBranch = useCallback(
-    async (tab: { id: number; gh: GithubDocument; meta: DocumentMeta; text: string; dirty: boolean } | null): Promise<boolean> => {
-      const base = tab?.gh ?? repo;
-      if (base === null) return false;
-      const source = tab !== null ? tab.gh.branch : repo!.branch;
-      const commit = tab !== null && tab.dirty ? { path: tab.gh.path, text: tab.text, sha: tab.gh.sha } : null;
-      const result = await openDialog(createBranchDialog, {
-        owner: base.owner,
-        repo: base.repo,
-        source,
-        commit,
-        onCreated: (branch: string) => {
-          const b = { owner: base.owner, repo: base.repo, branch };
-          addSessionBranch(b);
-          setCreatedBranches((prev) => (prev.some((p) => p.owner === b.owner && p.repo === b.repo && p.branch === b.branch) ? prev : [...prev, b]));
-        },
-      });
-      if (result === null || result.commit === null || tab === null) return false;
-      setError(null);
-      setNotice(null);
-      session.saved(tab.id, { ...tab.meta, github: { ...tab.gh, branch: result.branch, sha: result.commit.sha, commitSha: result.commit.commitSha } }, tab.text);
-      setRepo({ owner: tab.gh.owner, repo: tab.gh.repo, branch: result.branch });
-      return true;
-    },
-    [repo, session.saved],
-  );
-
-  const openCreateBranch = useCallback(() => {
-    const id = session.activeId;
-    const tab = id === null ? null : session.peek(id);
-    const gh = tab?.meta.github;
-    void makeBranch(id !== null && tab !== null && gh !== undefined ? { id, gh, meta: tab.meta, text: tab.text, dirty: tab.dirty } : null);
-  }, [session.activeId, session.peek, makeBranch]);
-
-  /**
-   * Commits a GitHub tab's saved text to the branch it was opened from; true when committed. Nothing is
-   * called when there is nothing to commit; a conflict opens the ConflictDialog and writes nothing.
-   * The dialog's 'Commit to new branch…' choice hands over to makeBranch (branch-and-commit).
-   * A pull request open for the branch (found by a fresh check) refuses before the dialog is shown, and so does a
-   * check that cannot complete.
-   */
-  const commitGithub = useCallback(
-    async (id: number, gh: GithubDocument, text: string, dirty: boolean, meta: DocumentMeta): Promise<boolean> => {
-      const noChanges = () => {
-        setNotice('No changes to commit');
-        return true;
-      };
-      const known = opensRef.current.pullFor(gh);
-      if (!dirty && known === null) return noChanges();
-      let pull = known;
-      try {
-        pull = await opensRef.current.checkNow(gh);
-      } catch {
-        // Fail closed: with no answer, nothing is written.
-        if (known === null) {
-          setError(PULL_CHECK_FAILED);
-          return false;
-        }
-      }
-      if (pull !== null) {
-        setError(openPullMessage(pull));
-        return false;
-      }
-      if (!dirty) return noChanges();
-      const choice = await openDialog(commitDialog, { owner: gh.owner, repo: gh.repo, branch: gh.branch, path: gh.path });
-      if (choice === 'new-branch') return makeBranch({ id, gh, meta, text, dirty });
-      if (choice !== 'commit') return false;
-      try {
-        const result = await commitFile({ owner: gh.owner, repo: gh.repo, branch: gh.branch, path: gh.path, text, sha: gh.sha });
-        if (result.status === 'conflict') {
-          // The file changed on GitHub: the same dialog as a remote save. Overwrite has nothing to force, so
-          // either answer leaves the tab unsaved and writes nothing.
-          await openDialog(conflictDialog, { name: meta.name, deleted: false });
-          return false;
-        }
-        setError(null);
-        setNotice(null);
-        addSessionBranch({ owner: gh.owner, repo: gh.repo, branch: gh.branch });
-        session.saved(id, { ...meta, github: { ...gh, sha: result.sha, commitSha: result.commitSha } }, text);
-        return true;
-      } catch (e) {
-        failed(e);
-        return false;
-      }
-    },
-    [session.saved, makeBranch],
-  );
-  commitGithubRef.current = commitGithub;
-
-  /**
-   * The navigator's branch dropdown. A GitHub document open on another branch is closed first (after a
-   * warning when it has unsaved changes) and no tab is selected; Cancel leaves the repo, branch and tabs as they were.
-   */
-  const changeBranch = useCallback(
-    async (branch: string) => {
-      const id = session.activeId;
-      const tab = id === null ? null : session.peek(id);
-      if (id !== null && tab?.meta.github && tab.meta.github.branch !== branch) {
-        if (tab.dirty && !(await openDialog(branchChangeDialog, { name: tab.meta.name }))) return;
-        session.closeSelectingNone(id);
-      }
-      setRepo((r) => (r === null ? r : { ...r, branch }));
-    },
-    [session.activeId, session.peek, session.closeSelectingNone],
-  );
 
   const openKnownPath = useCallback(
     (path: string, fromRecents: boolean) =>
@@ -555,57 +441,13 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
   const authorNameRef = useRef(authorName);
   authorNameRef.current = authorName;
   const saveAuthor = useCallback(async (n: string) => setAuthor(await setAuthorName(n)), []);
-  const requestGithubSignIn = useCallback((): Promise<boolean> => {
-    if (githubOpen.current !== null) return githubOpen.current;
+  // The sign-in handler itself (ensureSignedIn, one dialog at a time) lives in useGithubController; this opens the Settings dialog it asks for.
+  signInRef.current = (): Promise<boolean> => {
     if (singles.current.has(settingsDialog.id)) return Promise.resolve(false);
     singles.current.add(settingsDialog.id);
     const asked = openDialog(settingsDialog, { authorName: authorNameRef.current, onSave: saveAuthor, startSignIn: true, onSignOut: doGithubSignOut });
-    githubOpen.current = asked;
-    void asked.finally(() => {
-      githubOpen.current = null;
-      singles.current.delete(settingsDialog.id);
-    });
+    void asked.finally(() => singles.current.delete(settingsDialog.id));
     return asked;
-  }, [saveAuthor, doGithubSignOut]);
-  useEffect(() => setSignInHandler(requestGithubSignIn), [requestGithubSignIn]);
-  // File > Open Repo…: sign in first if needed, then the picker. The navigator (a later story) takes the choice.
-  const openRepo = useCallback(async () => {
-    try {
-      if (!(await ensureSignedIn())) return;
-      const result = await openDialog(repoPickerDialog, {});
-      if (result.kind === 'chosen') repoChosen(result.choice);
-      else if (result.kind === 'signed-out') repoSignedOut();
-    } catch (e) {
-      failed(e);
-    }
-  }, []);
-  // File > Open PR…: sign in first if needed, then the three-step dialog on the navigator's repository (or the active GitHub tab's).
-  const openPr = useCallback(async () => {
-    try {
-      if (!(await ensureSignedIn())) return;
-      const gh = session.tabs.filter((t) => t.github !== undefined).map((t) => ({ owner: t.github!.owner, repo: t.github!.repo, branch: t.github!.branch }));
-      const active = meta?.github;
-      await openDialog(openPrDialog, {
-        preferred: repo !== null ? { owner: repo.owner, repo: repo.repo } : active !== undefined ? { owner: active.owner, repo: active.repo } : null,
-        tabBranches: gh,
-        sessionBranches: listSessionBranches(),
-        // Every tab on the branch turns read-only at once (the same mechanism as the open-PR guard).
-        onOpened: ({ owner, repo: name, branch, pull }) => opensRef.current.markOpen({ owner, repo: name, branch }, { number: pull.number, url: pull.url, draft: false }),
-      });
-    } catch (e) {
-      failed(e);
-    }
-  }, [session.tabs, meta, repo]);
-  const repoChosen = (choice: RepoChoice) => {
-    // The navigator opens on the default branch; a document or folder chosen later replaces the repository.
-    folderChosen.current = true;
-    setRepo({ owner: choice.owner, repo: choice.repo, branch: choice.defaultBranch });
-    setError(null);
-    setOutlineOpen(false);
-    setFolderOpen(true);
-  };
-  const repoSignedOut = () => {
-    setNotice('GitHub sign-in is no longer valid. Sign in again to open a repository.');
   };
   // A save or a folder expand that needs a login waits on the Connect dialog, then runs again.
   const connectPending = useRef(new Map<string, Promise<boolean>>());
@@ -683,11 +525,11 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     closeTab: doc.closeTab,
     openFolder: () => void openFolder(),
     openConnect: () => void openConnect(),
-    openRepo: () => void openRepo(),
+    openRepo: () => void gh.openRepo(),
     canRefreshNavigator: folderOpen && (repo !== null || folder !== null),
-    refreshNavigator: () => setNavRefresh((n) => n + 1),
-    canOpenPr: repo !== null || session.tabs.some((t) => t.github !== undefined),
-    openPr: () => void openPr(),
+    refreshNavigator: gh.refreshNavigator,
+    canOpenPr: gh.canOpenPr,
+    openPr: () => void gh.openPr(),
     openSettings: openPrefs,
     insertImage,
     insertToc,
@@ -728,10 +570,10 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
           <FolderSidebar
             folder={folder}
             repo={repo}
-            createdBranches={createdBranches.filter((b) => b.owner === repo?.owner && b.repo === repo?.repo).map((b) => b.branch)}
-            refreshSignal={navRefresh}
-            onBranchChange={(branch) => void changeBranch(branch)}
-            onCreateBranch={openCreateBranch}
+            createdBranches={gh.createdBranches.filter((b) => b.owner === repo?.owner && b.repo === repo?.repo).map((b) => b.branch)}
+            refreshSignal={gh.navRefresh}
+            onBranchChange={(branch) => void gh.changeBranch(branch)}
+            onCreateBranch={gh.openCreateBranch}
             recents={recents}
             currentPath={meta?.path ?? null}
             onOpenFolder={() => void openFolder()}
