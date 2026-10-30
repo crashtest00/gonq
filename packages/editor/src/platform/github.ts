@@ -2,6 +2,7 @@
 // folder listings, file reads with worded errors, committing a file, open pull requests per branch, creating a branch, comparing two branches, opening a pull request), and the home of the github:// path format (a repository file is a document identity). The token and the device code stay in
 // Rust: JS gets the user code to show, the login and whether a token exists. Desktop only; on the web every
 // call throws a GitHubError of kind unavailable_on_web, which the caller shows in the error banner.
+import { appKind } from './app';
 import { commands } from './bindings';
 import { isTauri } from './tauri';
 
@@ -41,6 +42,10 @@ export class GitHubError extends Error {
 export const GITHUB_UNAVAILABLE = 'Signing in to GitHub needs the Gonq desktop app';
 export const GITHUB_BRANCH_UNAVAILABLE = 'Creating a GitHub branch needs the Gonq desktop app';
 export const GITHUB_COMMIT_UNAVAILABLE = 'Committing to GitHub needs the Gonq desktop app';
+
+/** The unavailable messages name the desktop app; the mobile app calls itself "the Gonq app". Read on every call. */
+const forApp = (message: string): string =>
+  appKind() === 'mobile' ? message.replace('the Gonq desktop app', 'the Gonq app') : message;
 
 /** What `startSignIn` gives: the code to type at the verification address. */
 export interface DeviceStart {
@@ -119,7 +124,7 @@ export function toGitHubError(e: unknown): GitHubError {
 }
 
 async function call<T>(run: () => Promise<T>, unavailable = GITHUB_UNAVAILABLE): Promise<T> {
-  if (!isTauri()) throw new GitHubError('unavailable_on_web', unavailable);
+  if (!isTauri()) throw new GitHubError('unavailable_on_web', forApp(unavailable));
   try {
     return await run();
   } catch (e) {
@@ -335,7 +340,7 @@ export const commitMessage = (path: string): string => `Edit ${path} from Gonq`;
  * with kind unavailable_on_web.
  */
 export async function commitFile(args: { owner: string; repo: string; branch: string; path: string; text: string; sha: string }): Promise<CommitResult> {
-  if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_COMMIT_UNAVAILABLE);
+  if (!isTauri()) throw new GitHubError('unavailable_on_web', forApp(GITHUB_COMMIT_UNAVAILABLE));
   try {
     const raw = await commands.githubCommitFile(args.owner, args.repo, args.branch, args.path, args.text, args.sha);
     if (raw.status === 'conflict') return { status: 'conflict' };
@@ -367,7 +372,7 @@ export interface OpenPull {
  * Rejects with a GitHubError on a network or rate-limit failure; on the web with kind unavailable_on_web.
  */
 export async function openPullsForBranches(owner: string, repo: string, branches: string[]): Promise<Map<string, OpenPull | null>> {
-  if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_PULLS_UNAVAILABLE);
+  if (!isTauri()) throw new GitHubError('unavailable_on_web', forApp(GITHUB_PULLS_UNAVAILABLE));
   const out = new Map<string, OpenPull | null>(branches.map((b) => [b, null]));
   if (branches.length === 0) return out;
   const raw = await call(() => commands.githubOpenPullsForBranches(owner, repo, branches));
@@ -389,7 +394,7 @@ export const GITHUB_OPEN_PR_UNAVAILABLE = 'Opening a pull request needs the Gonq
  * Any failure other than a missing branch rejects. On the web: kind unavailable_on_web.
  */
 export async function branchesExist(owner: string, repo: string, branches: string[]): Promise<string[]> {
-  if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_OPEN_PR_UNAVAILABLE);
+  if (!isTauri()) throw new GitHubError('unavailable_on_web', forApp(GITHUB_OPEN_PR_UNAVAILABLE));
   if (branches.length === 0) return [];
   const raw = await call(() => commands.githubBranchesExist(owner, repo, branches), GITHUB_OPEN_PR_UNAVAILABLE);
   return Array.isArray(raw) ? raw : [];
@@ -449,7 +454,7 @@ export interface CreatedPull {
  * GitHub's own message unchanged.
  */
 export async function createPull(args: { owner: string; repo: string; title: string; body: string; head: string; base: string }): Promise<CreatedPull> {
-  if (!isTauri()) throw new GitHubError('unavailable_on_web', GITHUB_OPEN_PR_UNAVAILABLE);
+  if (!isTauri()) throw new GitHubError('unavailable_on_web', forApp(GITHUB_OPEN_PR_UNAVAILABLE));
   try {
     const raw = await commands.githubCreatePull(args.owner, args.repo, args.title, args.body, args.head, args.base);
     const warning = typeof raw.label_warning === 'string' && raw.label_warning !== '' ? raw.label_warning : undefined;
