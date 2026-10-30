@@ -1,7 +1,24 @@
-/** The Documents home, empty for now: the "Recent documents" label and its empty state (recents and entry points arrive with M-18). */
+/** The Documents home: the "Recent documents" label and its empty state (recents arrive with M-18), plus the interim "Sign in to GitHub" row that opens SignInInterim. */
+import { signInInterimScreen } from './SignInInterim';
+import { useNavigator } from '../shell/StackNavigator';
+
 export function DocumentsHome() {
+  const { push } = useNavigator();
   return (
     <>
+      <button
+        type="button"
+        className="m-tap"
+        style={{
+          width: '100%',
+          justifyContent: 'flex-start',
+          borderBottom: '1px solid var(--border)',
+          borderRadius: 0,
+        }}
+        onClick={() => push(signInInterimScreen)}
+      >
+        Sign in to GitHub
+      </button>
       <div className="m-label">Recent documents</div>
       <div className="m-empty">
         <p>No recent documents.</p>
