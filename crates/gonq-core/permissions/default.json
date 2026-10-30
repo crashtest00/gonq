@@ -17,6 +17,7 @@
       "allow-set-pane-width",
       "allow-github-start",
       "allow-github-poll",
+      "allow-github-pending",
       "allow-github-status",
       "allow-github-sign-out",
       "allow-github-list-repos",

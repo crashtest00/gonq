@@ -40,6 +40,7 @@ command_lists! {
         "set_pane_width",
         "github_start",
         "github_poll",
+        "github_pending",
         "github_status",
         "github_sign_out",
         "github_list_repos",

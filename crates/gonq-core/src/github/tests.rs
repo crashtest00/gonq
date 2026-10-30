@@ -3,10 +3,10 @@
 use super::error::GithubError;
 use super::fake_github::{Fake, Reply};
 use super::store::{StoreError, TokenStore};
-use super::{Config, Github, Storage};
+use super::{Clock, Config, Github, Storage};
 use serde_json::json;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 const TOKEN: &str = "gho_SECRETTOKEN0123456789";
 const DEVICE: &str = "devcode_SECRET_9876543210";
@@ -785,4 +785,69 @@ async fn read_file_403_without_rate_limit_is_no_access() {
     // A 403 that is a rate limit stays one.
     fake.script(FILE, vec![Reply::json(403, json!({"message": "API rate limit exceeded"})).header("x-ratelimit-remaining", "0")]);
     assert!(matches!(gh.read_file("o", "r", "dev", "docs/a.md").await, Err(GithubError::RateLimited { .. })));
+}
+
+/// A wall clock the test moves by hand.
+fn fake_clock() -> (Clock, Arc<Mutex<SystemTime>>) {
+    let t = Arc::new(Mutex::new(SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000)));
+    let t2 = t.clone();
+    (Clock::from_fn(move || *t2.lock().unwrap()), t)
+}
+
+async fn started_with_clock(expires_in: u64) -> (Fake, Arc<Github>, Arc<Mutex<SystemTime>>) {
+    let fake = Fake::start().await;
+    fake.script(CODE, vec![device_reply(expires_in, 1)]);
+    fake.script(TOKEN_PATH, vec![err("authorization_pending")]);
+    let (clock, t) = fake_clock();
+    let mut cfg = Config::production();
+    cfg.device_code_url = format!("{}{CODE}", fake.base);
+    cfg.token_url = format!("{}{TOKEN_PATH}", fake.base);
+    cfg.api_base = fake.base.clone();
+    cfg.time_unit = UNIT;
+    cfg.clock = clock;
+    let gh = Arc::new(Github::new(cfg, Arc::new(MockStore::default())));
+    gh.start().await.unwrap();
+    (fake, gh, t)
+}
+
+#[tokio::test]
+async fn expiry_is_judged_on_the_wall_clock_not_elapsed_monotonic_time() {
+    // 1000 units (20 s) of real time would pass before a monotonic deadline; the wall clock jumps instead.
+    let (_fake, gh, t) = started_with_clock(1000).await;
+    let poll = tokio::spawn({
+        let gh = gh.clone();
+        async move { gh.poll().await }
+    });
+    tokio::time::sleep(UNIT * 3).await;
+    assert!(!poll.is_finished());
+    *t.lock().unwrap() += UNIT * 1001; // the app was suspended past the deadline
+    let r = tokio::time::timeout(UNIT * 20, poll).await.expect("poll must notice the wall clock").unwrap();
+    assert_eq!(r.unwrap_err(), GithubError::Expired);
+    assert!(!gh.pending_status().pending);
+}
+
+#[tokio::test]
+async fn an_already_expired_code_returns_expired_without_a_network_request() {
+    let (fake, gh, t) = started_with_clock(1000).await;
+    *t.lock().unwrap() += UNIT * 1000;
+    let started = std::time::Instant::now();
+    assert_eq!(gh.poll().await.unwrap_err(), GithubError::Expired);
+    assert!(started.elapsed() < UNIT * 5, "no waiting either");
+    assert!(fake.hits(TOKEN_PATH).is_empty());
+    assert_eq!(gh.poll().await.unwrap_err(), GithubError::NoSignInInProgress);
+}
+
+#[tokio::test]
+async fn github_pending_reports_the_wall_clock_deadline() {
+    let fake = Fake::start().await;
+    let gh = setup(&fake, Arc::new(MockStore::default()));
+    assert_eq!(gh.pending_status(), super::flow::PendingStatus { pending: false, expires_at_ms: None });
+
+    let (_f, gh, t) = started_with_clock(900).await;
+    let start_ms = 1_000_000_000u64;
+    let s = gh.pending_status();
+    assert_eq!((s.pending, s.expires_at_ms), (true, Some(start_ms + (UNIT * 900).as_millis() as u64)));
+
+    *t.lock().unwrap() += UNIT * 900; // expired
+    assert_eq!(gh.pending_status(), super::flow::PendingStatus { pending: false, expires_at_ms: None });
 }
