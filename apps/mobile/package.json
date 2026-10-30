@@ -3,14 +3,30 @@
   "private": true,
   "version": "0.1.5",
   "type": "module",
-  "description": "The Gonq mobile app. For now only the list of registry commands its menus skip; screens arrive with M-07.",
+  "description": "The Gonq mobile app: phone shell (safe-area top bar, stack navigator, bottom sheet, notice banner) and its placeholder screens; the Android app wraps it with Tauri (src-tauri), Beta serves the web build at /mobile/.",
   "scripts": {
-    "test": "vitest run"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "tauri": "tauri"
   },
   "dependencies": {
-    "@gonq/editor": "*"
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/public-sans": "^5.3.0",
+    "@gonq/editor": "*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
     "jsdom": "^24.1.1",
     "typescript": "^5.5.4",
     "vite": "^5.4.0",
