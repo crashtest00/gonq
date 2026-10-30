@@ -6,14 +6,12 @@ UNVERIFIED on a device until M-13. The Gradle half landed with M-09 (`apps/mobil
 ## What M-09 added to the generated Gradle project
 
 Done in `apps/mobile/src-tauri/gen/android/app/build.gradle.kts` (the template is Kotlin DSL, so the crate README's `.gradle.kts`
-variant): the Maven repository (restricted to group `rustls`), a `RustlsVersion` value source that reads the version of
+variant): the Maven repository (restricted to group `org.rustls`), a `RustlsVersion` value source that reads the version of
 `rustls-platform-verifier-android` from the repo's `Cargo.lock` (0.2.0 today, so it tracks the lock file), and
-`implementation("rustls:rustls-platform-verifier:<that version>")`. The proguard keep rule is in `app/proguard-rules.pro`.
+`implementation("org.rustls:rustls-platform-verifier:<that version>")`. The proguard keep rule is in `app/proguard-rules.pro`.
 
 The open question is resolved: `Cargo.lock` is `../../../../../../Cargo.lock` relative to the `app/` directory (app, android, gen,
-src-tauri, mobile, apps, repo root). Two deliberate differences from the README snippet: the dependency is declared with the
-version directly instead of through `resolutionStrategy`, because the README matches group `org.rustls` while the artifact it
-asks for is group `rustls`, so that rule would never fire. UNVERIFIED on a device until M-13.
+src-tauri, mobile, apps, repo root). The dependency is declared with the version directly instead of through the README's `resolutionStrategy`. The Maven group is `org.rustls` (the maven-archive branch publishes it under `org/rustls/`; the first CI run showed group `rustls` does not resolve). UNVERIFIED on a device until M-13.
 
 If `tauri android init` is ever re-run, re-apply these edits.
 

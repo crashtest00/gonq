@@ -15,13 +15,13 @@ val tauriProperties = Properties().apply {
 }
 
 android {
-    compileSdk = 37
+    compileSdk = 36
     namespace = "com.gonq.app"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "com.gonq.app"
         minSdk = 24
-        targetSdk = 37
+        targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
@@ -63,7 +63,7 @@ repositories {
     // The Kotlin half of rustls-platform-verifier (see docs/android-tls-gradle.md).
     maven {
         url = uri("https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/")
-        content { includeGroup("rustls") }
+        content { includeGroup("org.rustls") }
     }
 }
 
@@ -110,7 +110,7 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.lifecycle:lifecycle-process:2.10.0")
-    implementation("rustls:rustls-platform-verifier:${rustlsPlatformVerifierVersion.get()}")
+    implementation("org.rustls:rustls-platform-verifier:${rustlsPlatformVerifierVersion.get()}")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")
