@@ -11,7 +11,7 @@ const L = require('./lib.cjs');
   console.log(info);
   L.sh('bash .emulator-saf/seed.sh');
   L.sh('adb logcat -c');
-  await L.launch(); L.shot('00-launch'); L.logcat('00-launch');
+  await L.launch(); try { const pg = await L.webPage(device); await pg.waitForSelector('text=Documents', { timeout: 60000 }); } catch (e) { console.log('webview wait', e.message); } L.shot('00-launch'); L.logcat('00-launch');
   const ctx = { device, L };
   for (const s of (process.env.SCENARIOS || '').split(',').filter(Boolean)) {
     try { await require(`./scenarios/${s}.cjs`)(ctx); } catch (e) { L.log(`scenario ${s}`, false, String(e.stack || e)); L.shot(`${s}-error`); }
