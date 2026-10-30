@@ -42,7 +42,13 @@ async function pickTree(segments, label) {
   for (const s of segments) {
     let ok = false;
     for (let attempt = 1; attempt <= 4 && !ok; attempt++) {
-      if (!(await tapText(s, 6000))) { await tapMatch(/show roots/i, 1500); await sleep(600); continue; }
+      const b0 = findBounds(dump(), s);
+      if (!b0) { await tapMatch(/show roots/i, 1500); await sleep(600); continue; }
+      const how = ['tap text', 'tap icon', 'press 120ms', 'tap text (again)'][attempt - 1];
+      if (attempt === 2) sh(`adb shell input tap 48 ${b0.y}`);
+      else if (attempt === 3) sh(`adb shell input swipe ${b0.x} ${b0.y} ${b0.x} ${b0.y} 120`);
+      else sh(`adb shell input tap ${b0.x} ${b0.y}`);
+      log(`${label}: ${s} input method`, true, `${how} at ${b0.x},${b0.y}; focus: ${sh('adb shell dumpsys window | grep -m1 mCurrentFocus || true')}`);
       await sleep(1800);
       const bb = findBounds(dump(), s);          // navigated when the folder name is now in the title bar (top of the screen)
       ok = !!bb && bb.y < 130;
