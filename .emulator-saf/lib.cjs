@@ -40,12 +40,15 @@ async function tapMatch(re, timeout = 6000) {
 async function pickTree(segments, label) {
   await sleep(2500); shot(`${label}-picker-start`); fs.writeFileSync(`${EV}/${label}-picker-start.xml`, dump());
   for (const s of segments) {
-    let ok = await tapText(s, 4000);
-    if (!ok) { await tapMatch(/show roots/i, 3000); await sleep(800); shot(`${label}-roots`); fs.writeFileSync(`${EV}/${label}-roots.xml`, dump());
-      const root = await tapMatch(/sdk|internal|emulator|gphone|sdk_gphone/i, 4000); log(`${label}: root tapped`, !!root, root); await sleep(900);
-      ok = await tapText(s, 6000); }
-    if (!ok) { log(`${label}: navigate to ${s}`, false, 'not found in picker'); shot(`${label}-nav-fail`); return false; }
-    await sleep(900);
+    let ok = false;
+    for (let attempt = 1; attempt <= 4 && !ok; attempt++) {
+      if (!(await tapText(s, 6000))) { await tapMatch(/show roots/i, 1500); await sleep(600); continue; }
+      await sleep(1800);
+      const bb = findBounds(dump(), s);          // navigated when the folder name is now in the title bar (top of the screen)
+      ok = !!bb && bb.y < 130;
+      log(`${label}: enter ${s} attempt ${attempt}`, ok, bb ? `y=${bb.y}` : 'name not on screen'); shot(`${label}-enter-${s}-${attempt}`);
+    }
+    if (!ok) { log(`${label}: navigate to ${s}`, false, 'not entered'); shot(`${label}-nav-fail`); fs.writeFileSync(`${EV}/${label}-nav-fail.xml`, dump()); return false; }
   }
   shot(`${label}-picker-in-folder`);
   const use = (await tapText('Use this folder', 6000)) || (await tapText('USE THIS FOLDER', 3000));
