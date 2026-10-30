@@ -1,12 +1,18 @@
 /**
  * Puts text on the clipboard. navigator.clipboard exists only in a secure context
  * (https, localhost, the desktop webview), so over plain http fall back to a
- * hidden textarea and execCommand('copy'). Rejects if neither works.
+ * hidden textarea and execCommand('copy'). The same fallback runs when writeText rejects (the Android WebView
+ * denies it with "Write permission denied."). Rejects if nothing works.
  */
 export async function copyText(text: string): Promise<void> {
+  let denied: unknown;
   if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (e) {
+      denied = e;
+    }
   }
   const area = document.createElement('textarea');
   area.value = text;
@@ -18,7 +24,7 @@ export async function copyText(text: string): Promise<void> {
   try {
     area.select();
     if (typeof document.execCommand !== 'function' || !document.execCommand('copy')) {
-      throw new Error('the browser refused to copy');
+      throw denied ?? new Error('the browser refused to copy');
     }
   } finally {
     area.remove();
