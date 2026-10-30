@@ -200,7 +200,7 @@ impl Github {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum Storage {
     Keychain,
@@ -208,7 +208,7 @@ pub enum Storage {
 }
 
 /// What JS may know: never the token.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct AuthStatus {
     pub signed_in: bool,
     pub login: Option<String>,
@@ -227,27 +227,32 @@ pub struct User {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn github_start(gh: State<'_, Github>) -> Result<flow::DeviceStart, GithubError> {
     gh.start().await
 }
 
 /// Waits (cancellably) until the code is approved, refused or expired.
 #[tauri::command]
+#[specta::specta]
 pub async fn github_poll(gh: State<'_, Github>) -> Result<AuthStatus, GithubError> {
     gh.poll().await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn github_status(gh: State<'_, Github>) -> Result<AuthStatus, GithubError> {
     gh.status().await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn github_list_repos(gh: State<'_, Github>, page: Option<u32>) -> Result<repos::RepoPage, GithubError> {
     gh.list_repos(page).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn github_list_branches(
     gh: State<'_, Github>,
     owner: String,
@@ -258,6 +263,7 @@ pub async fn github_list_branches(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn github_list_folder(
     gh: State<'_, Github>,
     owner: String,
@@ -269,6 +275,7 @@ pub async fn github_list_folder(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn github_read_file(
     gh: State<'_, Github>,
     owner: String,
@@ -281,6 +288,7 @@ pub async fn github_read_file(
 
 /// Commits `text` to `path` on `branch`; see [`commit::CommitOutcome`] for the result shape.
 #[tauri::command]
+#[specta::specta]
 pub async fn github_commit_file(
     gh: State<'_, Github>,
     owner: String,
@@ -295,6 +303,7 @@ pub async fn github_commit_file(
 
 /// The open PR (if any) from each of `branches` of `owner/repo`; see [`pulls`] for the shape.
 #[tauri::command]
+#[specta::specta]
 pub async fn github_open_pulls_for_branches(
     gh: State<'_, Github>,
     owner: String,
@@ -306,12 +315,14 @@ pub async fn github_open_pulls_for_branches(
 
 /// Whether `gonq/<name>` already exists in `owner/repo` (advisory); see [`branches`].
 #[tauri::command]
+#[specta::specta]
 pub async fn github_branch_exists(gh: State<'_, Github>, owner: String, repo: String, name: String) -> Result<bool, GithubError> {
     gh.gonq_branch_exists(&owner, &repo, &name).await
 }
 
 /// Creates `gonq/<name>` from the current tip of `source`; see [`branches::CreatedBranch`].
 #[tauri::command]
+#[specta::specta]
 pub async fn github_create_branch(
     gh: State<'_, Github>,
     owner: String,
@@ -324,18 +335,21 @@ pub async fn github_create_branch(
 
 /// The subset of `branches` that exist in `owner/repo`; see [`open_pr`].
 #[tauri::command]
+#[specta::specta]
 pub async fn github_branches_exist(gh: State<'_, Github>, owner: String, repo: String, branches: Vec<String>) -> Result<Vec<String>, GithubError> {
     gh.branches_exist(&owner, &repo, &branches).await
 }
 
 /// Commits ahead/behind and changed files between `base` and `head`; see [`open_pr::Comparison`].
 #[tauri::command]
+#[specta::specta]
 pub async fn github_compare(gh: State<'_, Github>, owner: String, repo: String, base: String, head: String) -> Result<open_pr::Comparison, GithubError> {
     gh.compare(&owner, &repo, &base, &head).await
 }
 
 /// Opens a pull request from `head` into `base`; see [`open_pr::CreatedPull`].
 #[tauri::command]
+#[specta::specta]
 pub async fn github_create_pull(
     gh: State<'_, Github>,
     owner: String,
@@ -349,6 +363,7 @@ pub async fn github_create_pull(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn github_sign_out(gh: State<'_, Github>) -> Result<(), GithubError> {
     gh.sign_out().await
 }

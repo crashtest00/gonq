@@ -20,7 +20,7 @@ struct Settings {
 }
 
 /// Saved widths of the side panes, in px; `None` (JSON null) when nothing valid is saved, so the frontend uses its default.
-#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq, specta::Type)]
 pub struct PaneWidths {
     pub navigator: Option<u32>,
     pub outline: Option<u32>,

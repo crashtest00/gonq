@@ -80,19 +80,21 @@ impl Env {
 }
 
 /// What the user has answered so far. The secrets are zeroised when dropped.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct Answers {
     /// The fingerprint the user confirmed for an unknown host.
     pub trust_fingerprint: Option<String>,
+    #[specta(type = Option<String>)]
     pub passphrase: Option<Zeroizing<String>>,
+    #[specta(type = Option<String>)]
     pub password: Option<Zeroizing<String>>,
     /// Encrypted key files the user chose not to unlock; they are left out so the flow moves on.
     pub skip_passphrase: Vec<String>,
 }
 
 /// The result of `ssh_connect`: connected, or the one thing needed to go on.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ConnectResult {
     /// `home` is the SFTP realpath of `.`; `authority` is the canonical `user@host[:port]`.

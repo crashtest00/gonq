@@ -24,7 +24,7 @@ use serde_json::{json, Value};
 const PREFIX: &str = "gonq/";
 
 /// The branch that was created and the commit it points at.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct CreatedBranch {
     pub branch: String,
     pub sha: String,

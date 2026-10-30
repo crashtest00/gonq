@@ -37,7 +37,7 @@ pub(super) fn encode_path(path: &str) -> String {
     path.split('/').filter(|s| !s.is_empty()).map(encode).collect::<Vec<_>>().join("/")
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct BranchPage {
     pub default_branch: String,
     /// Names; on the first page the default branch comes first, and it is listed nowhere else.
@@ -56,21 +56,21 @@ struct RawRepo {
     default_branch: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum EntryKind {
     Folder,
     File,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct RepoEntry {
     pub name: String,
     pub path: String,
     pub kind: EntryKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct FolderListing {
     pub entries: Vec<RepoEntry>,
     /// GitHub may have cut the folder off (very large folders): the list can be incomplete.
@@ -105,7 +105,7 @@ fn shown(raw: Vec<RawEntry>) -> Vec<RepoEntry> {
 }
 
 /// A file read from a branch: its text, the blob sha (for a later update) and the commit it was read at.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct RepoFile {
     /// The path of the file in the repository, as GitHub reports it.
     pub path: String,

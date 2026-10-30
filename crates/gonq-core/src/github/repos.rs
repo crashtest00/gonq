@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 const QUERY: &str = "/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member";
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct Repo {
     pub owner: String,
     pub name: String,
@@ -58,7 +58,7 @@ impl From<RawRepo> for Repo {
 }
 
 /// One page of repositories; `next_page` is `None` on the last page.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct RepoPage {
     pub repos: Vec<Repo>,
     pub next_page: Option<u32>,

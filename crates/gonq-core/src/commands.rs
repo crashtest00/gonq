@@ -16,6 +16,7 @@ use tauri_plugin_fs::FsExt;
 /// relative images load. Refuses any path the user has not chosen in a dialog,
 /// so the fs scope can only grow to the folder of a user-chosen file.
 #[tauri::command]
+#[specta::specta]
 pub fn allow_document_folder<R: Runtime>(app: AppHandle<R>, path: String) -> Result<(), String> {
     let file = PathBuf::from(path);
     let scope = app.fs_scope();
@@ -60,6 +61,7 @@ fn settings_file(paths: &DataPaths) -> Result<PathBuf, String> {
 
 /// The saved author name for comments; "User" when none is saved or it can't be read.
 #[tauri::command]
+#[specta::specta]
 pub fn get_author_name(paths: tauri::State<'_, DataPaths>) -> String {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     match settings_file(&paths) {
@@ -71,6 +73,7 @@ pub fn get_author_name(paths: tauri::State<'_, DataPaths>) -> String {
 /// Saves the author name (trimmed; blank or containing `|`, `]`, CR, LF is refused) and
 /// returns what is stored.
 #[tauri::command]
+#[specta::specta]
 pub fn set_author_name(paths: tauri::State<'_, DataPaths>, name: String) -> Result<String, String> {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     settings::set_author_name(&settings_file(&paths)?, &name)
@@ -78,6 +81,7 @@ pub fn set_author_name(paths: tauri::State<'_, DataPaths>, name: String) -> Resu
 
 /// The saved theme ("light", "dark" or "auto"); "auto" when none is saved or it can't be read.
 #[tauri::command]
+#[specta::specta]
 pub fn get_theme(paths: tauri::State<'_, DataPaths>) -> String {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     match settings_file(&paths) {
@@ -88,6 +92,7 @@ pub fn get_theme(paths: tauri::State<'_, DataPaths>) -> String {
 
 /// Saves the theme ("light", "dark" or "auto"; anything else is refused) and returns what is stored.
 #[tauri::command]
+#[specta::specta]
 pub fn set_theme(paths: tauri::State<'_, DataPaths>, theme: String) -> Result<String, String> {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     settings::set_theme(&settings_file(&paths)?, &theme)
@@ -95,6 +100,7 @@ pub fn set_theme(paths: tauri::State<'_, DataPaths>, theme: String) -> Result<St
 
 /// The saved widths (px) of the navigator, outline and comments side panes; null for a pane with none saved (or when it can't be read).
 #[tauri::command]
+#[specta::specta]
 pub fn get_pane_widths(paths: tauri::State<'_, DataPaths>) -> settings::PaneWidths {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     match settings_file(&paths) {
@@ -106,6 +112,7 @@ pub fn get_pane_widths(paths: tauri::State<'_, DataPaths>) -> settings::PaneWidt
 /// Saves one pane's width ("navigator", "outline" or "comments"; 120..=800 px, anything else is refused);
 /// a null width clears it. Returns all the stored widths.
 #[tauri::command]
+#[specta::specta]
 pub fn set_pane_width(paths: tauri::State<'_, DataPaths>, pane: String, width: Option<u32>) -> Result<settings::PaneWidths, String> {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     settings::set_pane_width(&settings_file(&paths)?, &pane, width)
@@ -114,6 +121,7 @@ pub fn set_pane_width(paths: tauri::State<'_, DataPaths>, pane: String, width: O
 /// Read-only listing of one folder. Only folders already in the fs scope (the folder of an
 /// opened document, or one chosen with Open Folder, and their subfolders) can be listed.
 #[tauri::command]
+#[specta::specta]
 pub fn list_directory<R: Runtime>(app: AppHandle<R>, path: String) -> Result<Vec<FolderEntry>, ListError> {
     let dir = PathBuf::from(&path);
     if !app.fs_scope().is_allowed(&dir) {
@@ -124,11 +132,13 @@ pub fn list_directory<R: Runtime>(app: AppHandle<R>, path: String) -> Result<Vec
 
 /// Whether a path still exists (metadata only; reads nothing).
 #[tauri::command]
+#[specta::specta]
 pub fn path_exists(path: String) -> bool {
     PathBuf::from(path).exists()
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn recent_documents_add(paths: tauri::State<'_, DataPaths>, path: String) -> Result<Vec<Recent>, String> {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
     let _guard = RECENTS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -136,12 +146,14 @@ pub fn recent_documents_add(paths: tauri::State<'_, DataPaths>, path: String) ->
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn recent_documents_list(paths: tauri::State<'_, DataPaths>) -> Result<Vec<Recent>, String> {
     let _guard = RECENTS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     Ok(recents::load(&recents_file(&paths)?))
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn recent_documents_remove(paths: tauri::State<'_, DataPaths>, path: String) -> Result<Vec<Recent>, String> {
     let _guard = RECENTS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     recents::remove(&recents_file(&paths)?, &path)
@@ -156,6 +168,7 @@ pub(crate) fn is_recent(paths: &DataPaths, path: &str) -> Result<bool, String> {
 /// A recent document from an earlier session is no longer in the fs scope. Re-grants its
 /// folder, but only for a path the app itself recorded as opened.
 #[tauri::command]
+#[specta::specta]
 pub fn allow_recent_document<R: Runtime>(
     app: AppHandle<R>,
     paths: tauri::State<'_, DataPaths>,

@@ -26,7 +26,7 @@ pub const MAX_READ: u64 = 32 * 1024 * 1024;
 const POSIX_RENAME: &str = "posix-rename@openssh.com";
 
 /// What the server reports for a file. SFTP v3 times are whole seconds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct RemoteStat {
     pub mtime: u32,
     pub size: u64,
@@ -38,7 +38,7 @@ impl RemoteStat {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", content = "message", rename_all = "snake_case")]
 pub enum RemoteError {
     /// DNS, refused, timeout, or the host could not be reached again after a loss.
@@ -58,7 +58,7 @@ pub enum RemoteError {
 }
 
 /// How a save ended. A conflict is an expected answer, not a failure: nothing was written.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum WriteOutcome {
     Saved {
@@ -76,7 +76,8 @@ pub enum WriteOutcome {
 }
 
 /// A folder for the picker: the canonical address of what was listed, and its subfolders' names.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename = "RemoteFolderListing")]
 pub struct FolderListing {
     pub uri: String,
     pub folders: Vec<String>,

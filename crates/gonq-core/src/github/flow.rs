@@ -9,7 +9,7 @@ use std::time::Instant;
 use tokio::sync::watch;
 
 /// What JS gets from `start`: the code to type at `verification_uri`. No device code.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct DeviceStart {
     pub user_code: String,
     pub verification_uri: String,
