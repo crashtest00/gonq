@@ -12,14 +12,20 @@ name = "gonq_core"
 embed-resource = "3"
 tauri-plugin = { version = "2", features = ["build"] }
 
+[features]
+# SSH remote folders (ssh/, the 9 ssh_*/remote_* commands). On by default so the desktop build and a plain `cargo test` keep it;
+# a build that cannot use SSH (Android) sets default-features = false.
+default = ["ssh"]
+ssh = ["dep:russh", "dep:russh-sftp", "dep:ssh2-config"]
+
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-russh = { version = "0.64.1", default-features = false, features = ["ring", "rsa", "flate2"] }
-russh-sftp = "3.0.1"
-ssh2-config = "0.8.1"
+russh = { version = "0.64.1", default-features = false, features = ["ring", "rsa", "flate2"], optional = true }
+russh-sftp = { version = "3.0.1", optional = true }
+ssh2-config = { version = "0.8.1", optional = true }
 zeroize = { version = "1.9.1", features = ["serde"] }
 dirs = "7.0.0"
 hmac = "0.13.0"

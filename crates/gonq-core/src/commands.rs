@@ -5,6 +5,7 @@
 use crate::folder::{self, FolderEntry, ListError};
 use crate::recents::{self, Recent};
 use crate::settings;
+#[cfg(feature = "ssh")]
 use crate::ssh;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -165,6 +166,15 @@ pub(crate) fn is_recent(paths: &DataPaths, path: &str) -> Result<bool, String> {
     Ok(recents::load(&recents_file(paths)?).iter().any(|r| r.path == path))
 }
 
+/// Without the `ssh` feature a recent `ssh://` document cannot be reopened.
+#[cfg(not(feature = "ssh"))]
+fn refuse_ssh(path: &str) -> Result<(), String> {
+    if path.get(..6).is_some_and(|s| s.eq_ignore_ascii_case("ssh://")) {
+        return Err("SSH is not available in this build.".into());
+    }
+    Ok(())
+}
+
 /// A recent document from an earlier session is no longer in the fs scope. Re-grants its
 /// folder, but only for a path the app itself recorded as opened.
 #[tauri::command]
@@ -172,15 +182,30 @@ pub(crate) fn is_recent(paths: &DataPaths, path: &str) -> Result<bool, String> {
 pub fn allow_recent_document<R: Runtime>(
     app: AppHandle<R>,
     paths: tauri::State<'_, DataPaths>,
-    remote: tauri::State<'_, ssh::fs::Remote>,
     path: String,
 ) -> Result<(), String> {
     if !is_recent(&paths, &path)? {
         return Err("not a recent document".into());
     }
+    #[cfg(feature = "ssh")]
     if ssh::is_ssh_path(&path) {
-        return ssh::allow_recent(&remote, &path);
+        return ssh::allow_recent(&app.state::<ssh::fs::Remote>(), &path);
     }
+    #[cfg(not(feature = "ssh"))]
+    refuse_ssh(&path)?;
     let folder = PathBuf::from(&path).parent().map(PathBuf::from).ok_or("file has no folder")?;
     app.fs_scope().allow_directory(folder, true).map_err(|e| e.to_string())
+}
+
+#[cfg(all(test, not(feature = "ssh")))]
+mod no_ssh_tests {
+    use super::refuse_ssh;
+
+    /// Without the `ssh` feature a recent ssh:// document is refused with a fixed message; other paths pass on.
+    #[test]
+    fn allow_recent_document_refuses_ssh_paths() {
+        assert_eq!(refuse_ssh("ssh://me@host/a.md"), Err("SSH is not available in this build.".to_string()));
+        assert_eq!(refuse_ssh("SSH://me@host/a.md"), Err("SSH is not available in this build.".to_string()));
+        assert_eq!(refuse_ssh("/home/me/a.md"), Ok(()));
+    }
 }

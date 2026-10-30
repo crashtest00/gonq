@@ -11,7 +11,11 @@ mod command_names;
 
 fn main() {
     println!("cargo:rerun-if-changed=src/command_names.rs");
-    tauri_plugin::Builder::new(command_names::COMMANDS).build();
+    // Permissions are generated for every command, SSH ones included, whatever the `ssh` feature: permissions/default.json
+    // is one committed file naming them all, and a permission for a command a build lacks is inert. (The feature is not
+    // a cfg of this script anyway, so `COMMANDS` here would be the base list only.)
+    let commands: Vec<&str> = command_names::BASE.iter().chain(command_names::SSH).copied().collect();
+    tauri_plugin::Builder::new(&commands).build();
 
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../../apps/desktop/src-tauri/windows-app.manifest");
     println!("cargo:rerun-if-changed={}", manifest.display());
