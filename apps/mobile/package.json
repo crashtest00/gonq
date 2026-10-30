@@ -1,0 +1,22 @@
+{
+  "name": "@gonq/mobile",
+  "private": true,
+  "version": "0.1.5",
+  "type": "module",
+  "description": "The Gonq mobile app. For now only the list of registry commands its menus skip; screens arrive with M-07.",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gonq/editor": "*"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0",
+    "vitest": "^2.0.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

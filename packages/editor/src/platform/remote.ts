@@ -1,5 +1,6 @@
 // ssh:// documents: the native calls and error wording for remote files. Components never call commands.
 // Kept free of imports from files.ts / folders.ts so both can build on it.
+import { appKind, CONNECT_UNAVAILABLE_MOBILE } from './app';
 import { commands } from './bindings';
 
 /** The server's version of a file when the tab last read or wrote it (SFTP v3: whole seconds). */
@@ -17,7 +18,8 @@ export type RemoteErrorKind =
   | 'permission_denied'
   | 'not_a_folder'
   | 'not_allowed'
-  | 'io';
+  | 'io'
+  | 'unavailable';
 
 export type RemoteOp = 'open' | 'save' | 'list';
 
@@ -85,6 +87,7 @@ const KINDS: RemoteErrorKind[] = [
   'not_a_folder',
   'not_allowed',
   'io',
+  'unavailable',
 ];
 
 /** One sentence for a RemoteError kind, naming the host and the file. */
@@ -97,6 +100,8 @@ export function remoteErrorMessage(kind: RemoteErrorKind, op: RemoteOp, path: st
   switch (kind) {
     case 'unreachable':
       return op === 'save' ? `${head}: can't reach the server.${tail}` : `Couldn't reach ${host}. ${file} was not ${op === 'open' ? 'opened' : 'listed'}.`;
+    case 'unavailable':
+      return CONNECT_UNAVAILABLE_MOBILE;
     case 'auth_required':
       reason = 'you need to log in again';
       break;
@@ -149,8 +154,14 @@ export function setConnectHandler(handler: ConnectHandler | null): () => void {
   };
 }
 
+/** The mobile app has no ssh:// support: every remote call fails with this before reaching a command. */
+function assertRemoteAvailable(): void {
+  if (appKind() === 'mobile') throw new RemoteFileError('unavailable', CONNECT_UNAVAILABLE_MOBILE);
+}
+
 /** Runs a remote command; on auth_required waits for the Connect flow, then tries once more. */
 export async function withConnect<T>(path: string, op: RemoteOp, run: () => Promise<T>): Promise<T> {
+  assertRemoteAvailable();
   try {
     return await run();
   } catch (e) {
@@ -195,6 +206,7 @@ export async function remoteWrite(path: string, text: string, expected: RemoteSt
 }
 
 export async function remoteExists(path: string): Promise<boolean> {
+  assertRemoteAvailable();
   return commands.remoteExists(path);
 }
 
