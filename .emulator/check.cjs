@@ -36,10 +36,24 @@ async function shot(device, name) { fs.writeFileSync(`${EV}/${name}.png`, await 
     const p = await launch(device);
     await p.waitForSelector('text=Documents', { timeout: 60000 });
     await shot(device, `launch-${theme === 'yes' ? 'dark' : 'light'}`);
-    log(`launch-${theme === 'yes' ? 'dark' : 'light'}`, true, await p.evaluate(() => document.documentElement.className));
+    const st = await p.evaluate(() => ({ cls: document.documentElement.className, media: matchMedia('(prefers-color-scheme: dark)').matches, bg: getComputedStyle(document.body).backgroundColor }));
+    const sys = sh('adb shell cmd uimode night');
+    const wantDark = theme === 'yes';
+    log(`launch-${wantDark ? 'dark' : 'light'}`, (st.media === wantDark) && (wantDark ? /dark/.test(st.cls) : !/dark/.test(st.cls)), `${sys} ${JSON.stringify(st)}`);
   }
   sh('adb shell cmd uimode night no');
-  if (mode === 'smoke') { fs.writeFileSync(`${EV}/results.json`, JSON.stringify({ info, results }, null, 1)); await device.close(); process.exit(0); }
+  if (mode === 'smoke') {
+    const sp = await launch(device);
+    await sp.getByText('Sign in to GitHub').click();
+    // copy check: request a code (never approved; it simply expires) and tap Copy code
+    await sp.getByRole('button', { name: /^Start$/ }).click();
+    await sp.getByLabel('User code').waitFor({ timeout: 60000 });
+    await sp.getByRole('button', { name: /Copy code/ }).click();
+    await sleep(1500);
+    const t = await sp.evaluate(() => document.body.innerText);
+    await shot(device, 'after-copy');
+    log('copy code', /Copied/.test(t) && !/Copy failed|Write permission denied/.test(t), (t.match(/Cop(y|ied)[^\n]*/g) || []).join(' | '));
+    await sp.getByRole('button', { name: /^Cancel$/ }).click().catch(() => {}); fs.writeFileSync(`${EV}/results.json`, JSON.stringify({ info, results }, null, 1)); await device.close(); process.exit(results.every((r) => r.ok) ? 0 : 1); }
   // 2. sign in
   let p = await launch(device);
   await p.getByText('Sign in to GitHub').click();
@@ -59,6 +73,10 @@ async function shot(device, name) { fs.writeFileSync(`${EV}/${name}.png`, await 
   const code = (await p.getByLabel('User code').textContent({ timeout: 60000 })).trim();
   await shot(device, 'code');
   await p.getByRole('button', { name: /Copy code/ }).click();
+  await sleep(1500);
+  const copyState = await p.evaluate(() => document.body.innerText);
+  await shot(device, 'after-copy');
+  log('copy code', /Copied/.test(copyState) && !/Copy failed|Write permission denied/.test(copyState), (copyState.match(/Cop(y|ied)[^\n]*/g) || []).join(' | '));
   await comment(`DEVICE CODE ${code} — approve at https://github.com/login/device (emulator run ${process.env.GITHUB_RUN_ID}; waits up to 14 min)`);
   log('device-code', !!code, code);
   try { await p.getByRole('button', { name: /Open github.com\/login\/device/ }).click(); await sleep(3000); } catch (e) { log('open-github', false, e.message); }
