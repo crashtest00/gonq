@@ -519,3 +519,4 @@ warn: boolean } | { status: "conflict";
 /**  The file is gone from the server. */
 deleted: boolean; current: RemoteStat | null };
 
+// drift
