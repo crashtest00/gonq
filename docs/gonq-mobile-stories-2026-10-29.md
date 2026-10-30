@@ -87,20 +87,14 @@ There is one deliberate exception. SSH is not a mobile feature (decision 2), so 
 | I-4 | **Android `applicationId` and app name.** Desktop uses `com.gonq.app` (`src-tauri/tauri.conf.json`). Changing either after testers install forces an uninstall | M-07 (value), M-09 (first APK) |
 | I-5 | **The version number for the first mobile RC**, greater than the app version on `dev` when M-33 is dispatched (0.1.5 at the time of this revision) | M-33 |
 
-**I-1 detail: frames still missing, and the stories each blocks.** A story is dispatched only when its frames exist; until then its criteria (which already carry the desktop strings and states) are the specification for the frame. The corrected mockup removes the SSH section, so its later sections are numbered one lower than in the original mockup.
+**I-1 detail: frames still missing, and the stories each blocks.** The corrected mockup at `docs/mobile/gonq-mobile-mockup.html` (v4, 125 frames) now holds every frame the earlier table listed, except the two below. **The desktop implementation still wins over it.** A story is dispatched only when its frames exist; until then its criteria are the specification for the frame.
 
-| Missing frames | Blocks |
-|---|---|
-| Comment thread list, new-comment draft, resolve/reopen, edit, delete confirmation, the empty state "No comments yet.", the read-only state | M-26, M-27 |
-| Open PR details screen separate from review, the result screen, already-open, no sources, no changes, truncation, errors | M-23 |
-| The full ⋯ tree: submenus, checkbox and radio rows, disabled rows, a long-scroll layout | M-25 |
-| Sign-in idle, starting, denied, failed, approved, and copy feedback | M-17, M-12 |
-| Recents loading, error, remove-a-recent, and the Open Folder entry | M-18 |
-| Tree error and empty-repo states, branch-list caps and errors, the branch-gone fallback, refresh busy and error | M-19, M-20 |
-| The commit-conflict dialog in its real wording, and the read-only disabled states | M-22 |
-| Settings validation with Save/Cancel, and the "Not signed in." row | M-29 |
-| Local folder empty, error and "No folder open" states | M-31 |
-| The global error/notice banner pattern | M-17 to M-23 and every story that reports a failure |
+| Still missing | Why | Blocks |
+|---|---|---|
+| The Open Folder… "not available yet" error on Android before M-31 | Desktop has no wording for it: the browser build's "Opening a folder needs the desktop app." is wrong for the app. M-18 must fix the text. The frame is then the existing error-banner pattern (Core flow "Error banner") | M-18 (criterion 5 text only) |
+| The "{name} was deleted on the server since you opened it." conflict variant | Not reachable on GitHub: desktop's commit conflict always passes `deleted: false` (`App.tsx`). M-22 criterion 4's "(or … was deleted …)" should be dropped, or kept only as untestable parity | None (M-22 criterion wording) |
+
+No other story waits on frames. M-17, M-12, M-19, M-20, M-23, M-25, M-26, M-27, M-28, M-29 and M-31 have all the frames the earlier table listed.
 
 ### Assumptions still open (correct any that are wrong)
 
@@ -863,7 +857,7 @@ On Beta `/mobile/`, native actions show the web error. The flow logic is verifie
    - If the PR check fails: "Could not check for an open pull request; try again."
    - The sheet closes before the commit runs. A failed commit shows GitHub's own message in the global error banner (section 5), not as a sheet state. There is no invented "main is protected" copy.
 4. **Commit conflict dialog (decision D8, GitHub only).** The real `ConflictDialog.tsx`, not the mockup's "File changed on disk" dialog, which is deleted from the design (desktop has no external-change detection for local files).
-   - Title: "{name} changed on the server since you opened it." (or "{name} was deleted on the server since you opened it.").
+   - Title: "{name} changed on the server since you opened it." The "was deleted on the server" variant is not reachable on GitHub (desktop's commit conflict always passes `deleted: false`), so it is not part of this story.
    - Body: "Overwrite replaces the server’s version with yours. Cancel keeps your changes unsaved." (deleted: "Overwrite writes your version back as a new file.").
    - Buttons: Cancel (focused) and Overwrite (destructive). On a GitHub commit conflict both leave the tab unsaved and write nothing, as `App.tsx` does.
 5. **Read-only banner.**
