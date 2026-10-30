@@ -18,7 +18,7 @@ const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>): Promis
     return { path: args!.path, name: 'a.md', content: `# ${args!.branch}\n\nbody of ${args!.branch}`, sha: 's', commit_sha: 'c' };
   return undefined;
 });
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: [string, Record<string, unknown>?]) => invoke(...a) }));
+vi.mock('../../platform/bindings', async () => (await import('../../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 vi.mock('../../platform/lifecycle', () => ({ guardClose: () => () => {} }));
 vi.mock('../../platform/openPaths', () => ({ takePendingOpenPaths: async () => [], listenOpenPaths: () => () => {} }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));

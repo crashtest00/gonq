@@ -2,7 +2,7 @@
 // in a browser, File > Open falls back to an <input type="file">. Exports FileAccess and `files`
 // (desktop or web); ssh:// paths are routed to remote.ts, github:// paths to github.ts (openGithub; saving one
 // is not available yet).
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { isTauri } from './tauri';
@@ -91,7 +91,7 @@ async function tauriWrite(path: string, text: string): Promise<SavedDocument> {
   await writeTextFile(path, text);
   try {
     // A document saved to a new place can show its relative images from there.
-    await invoke('allow_document_folder', { path });
+    await commands.allowDocumentFolder(path);
   } catch {
     // Images are a nicety; the save itself succeeded.
   }
@@ -148,7 +148,7 @@ const tauriFiles: FileAccess = {
     const name = basename(path);
     const text = decodeUtf8(await readFile(path), name);
     // Lets the document's own folder (only) be read, for relative images.
-    await invoke('allow_document_folder', { path });
+    await commands.allowDocumentFolder(path);
     return { name, path, text };
   },
 
@@ -157,7 +157,7 @@ const tauriFiles: FileAccess = {
     if (isSshPath(path)) return openRemote(path);
     const name = basename(path);
     const text = decodeUtf8(await readFile(path), name);
-    await invoke('allow_document_folder', { path });
+    await commands.allowDocumentFolder(path);
     return { name, path, text };
   },
 

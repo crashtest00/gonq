@@ -1,7 +1,7 @@
 // Folder navigator access (pickFolder, listDirectory, listFolderPage, pathExists): native calls stay behind
 // this boundary; the web beta degrades gracefully. ssh:// paths are routed to remote.ts, github:// paths
 // (a repository folder on a branch) to github.ts.
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
 import { open } from '@tauri-apps/plugin-dialog';
 import { isTauri } from './files';
 import { GitHubError, isGithubPath, githubPath, listFolder, parseGithubPath, type GitHubErrorKind } from './github';
@@ -76,7 +76,7 @@ export async function listFolderPage(path: string): Promise<FolderPage> {
     }
   }
   try {
-    const rows = await invoke<{ name: string; path: string; is_dir: boolean }[]>('list_directory', { path });
+    const rows = await commands.listDirectory(path);
     return { entries: rows.map((r) => ({ name: r.name, path: r.path, isDir: r.is_dir })), truncated: false };
   } catch (e) {
     const err = e as { kind?: ListErrorKind; message?: string };
@@ -112,5 +112,5 @@ export async function pathExists(path: string): Promise<boolean> {
   if (!isTauri()) return true;
   if (isSshPath(path)) return remoteExists(path);
   if (isGithubPath(path)) return true;
-  return invoke<boolean>('path_exists', { path });
+  return commands.pathExists(path);
 }

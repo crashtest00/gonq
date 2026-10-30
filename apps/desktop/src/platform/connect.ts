@@ -1,7 +1,7 @@
 // The Connect to Server flow's native calls: host list, ssh_connect with answers, the folder picker's
 // listing, the navigator root grant, and the last folders opened. Desktop only; the web beta has none.
 // Passwords and passphrases pass through here once and are never stored.
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
 import { isTauri } from './files';
 import { remoteAccount, toRemoteError } from './remote';
 
@@ -33,7 +33,7 @@ export function assertConnectAvailable(): void {
 export async function listHosts(): Promise<string[]> {
   if (!isTauri()) return [];
   try {
-    return await invoke<string[]>('ssh_list_hosts');
+    return await commands.sshListHosts();
   } catch {
     return [];
   }
@@ -43,7 +43,7 @@ export async function listHosts(): Promise<string[]> {
 export async function connectHost(target: string, answers: ConnectAnswers = {}): Promise<ConnectResult> {
   if (!isTauri()) return { kind: 'unreachable', reason: CONNECT_UNAVAILABLE };
   try {
-    return await invoke<ConnectResult>('ssh_connect', { target, answers });
+    return await commands.sshConnect(target, answers);
   } catch (e) {
     return { kind: 'unreachable', reason: typeof e === 'string' ? e : e instanceof Error ? e.message : String(e) };
   }
@@ -53,7 +53,7 @@ export async function connectHost(target: string, answers: ConnectAnswers = {}):
 export async function disconnectHost(target: string): Promise<void> {
   if (!isTauri()) return;
   try {
-    await invoke('ssh_disconnect', { host: target });
+    await commands.sshDisconnect(target);
   } catch {
     // Nothing to close.
   }
@@ -94,7 +94,7 @@ export interface FolderListing {
 /** Subfolder names of a folder anywhere on a connected host. Rejects with a RemoteFileError. */
 export async function listFolders(uri: string): Promise<FolderListing> {
   try {
-    return await invoke<FolderListing>('remote_list_folders', { uri });
+    return await commands.remoteListFolders(uri);
   } catch (e) {
     throw toRemoteError(e, 'list', uri);
   }
@@ -103,7 +103,7 @@ export async function listFolders(uri: string): Promise<FolderListing> {
 /** The picked folder becomes the navigator root. Rejects with a RemoteFileError. */
 export async function openRoot(uri: string): Promise<void> {
   try {
-    await invoke('remote_open_root', { uri });
+    await commands.remoteOpenRoot(uri);
   } catch (e) {
     throw toRemoteError(e, 'list', uri);
   }

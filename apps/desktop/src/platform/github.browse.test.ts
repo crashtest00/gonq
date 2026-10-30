@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 
 let tauri = true;
 const invoke = vi.fn();
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
+vi.mock('./bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 vi.mock('./files', () => ({ isTauri: () => tauri }));
 vi.mock('./tauri', () => ({ isTauri: () => tauri }));
 

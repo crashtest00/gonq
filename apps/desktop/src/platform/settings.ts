@@ -1,6 +1,6 @@
 // The author name, the theme choice (light|dark|auto) and the side panes' widths, persisted outside any
 // document: settings.json in the app config dir on desktop, localStorage in the browser.
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from './bindings';
 import { isTauri } from './files';
 
 export const DEFAULT_AUTHOR = 'User';
@@ -22,7 +22,7 @@ export function authorNameProblem(name: string): string | null {
 /** The saved name, or the default when none is set or the store is unreadable. */
 export async function getAuthorName(): Promise<string> {
   try {
-    const stored = isTauri() ? await invoke<string>('get_author_name') : localStorage.getItem(AUTHOR_KEY);
+    const stored = isTauri() ? await commands.getAuthorName() : localStorage.getItem(AUTHOR_KEY);
     return stored && stored.trim() !== '' && authorNameProblem(stored) === null ? stored.trim() : DEFAULT_AUTHOR;
   } catch {
     return DEFAULT_AUTHOR;
@@ -35,7 +35,7 @@ export async function setAuthorName(name: string): Promise<string> {
   if (problem !== null) throw new Error(problem);
   const trimmed = name.trim();
   if (isTauri()) {
-    return await invoke<string>('set_author_name', { name: trimmed });
+    return await commands.setAuthorName(trimmed);
   }
   localStorage.setItem(AUTHOR_KEY, trimmed);
   return trimmed;
@@ -71,7 +71,7 @@ function mirrorTheme(theme: ThemeChoice) {
 export async function getTheme(): Promise<ThemeChoice> {
   if (!isTauri()) return readStoredTheme();
   try {
-    const theme = parseTheme(await invoke<string>('get_theme'));
+    const theme = parseTheme(await commands.getTheme());
     mirrorTheme(theme);
     return theme;
   } catch {
@@ -82,7 +82,7 @@ export async function getTheme(): Promise<ThemeChoice> {
 /** Saves the choice. Rejects with the error (backend: its string) on failure. */
 export async function setTheme(theme: ThemeChoice): Promise<ThemeChoice> {
   if (isTauri()) {
-    const saved = parseTheme(await invoke<string>('set_theme', { theme }));
+    const saved = parseTheme(await commands.setTheme(theme));
     mirrorTheme(saved);
     return saved;
   }
@@ -118,7 +118,7 @@ function readBrowserPaneWidths(): PaneWidths {
 export async function getPaneWidths(): Promise<PaneWidths> {
   if (!isTauri()) return readBrowserPaneWidths();
   try {
-    return parsePaneWidths(await invoke<unknown>('get_pane_widths'));
+    return parsePaneWidths(await commands.getPaneWidths());
   } catch {
     return {};
   }
@@ -127,7 +127,7 @@ export async function getPaneWidths(): Promise<PaneWidths> {
 /** Saves one pane's width in pixels; null clears it back to the default. Rejects with the error on failure. */
 export async function setPaneWidth(pane: PaneName, width: number | null): Promise<void> {
   if (isTauri()) {
-    await invoke('set_pane_width', { pane, width });
+    await commands.setPaneWidth(pane, width);
     return;
   }
   const next = readBrowserPaneWidths();

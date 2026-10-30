@@ -2,7 +2,7 @@
 import { vi } from 'vitest';
 
 const invoke = vi.fn();
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invoke(...a) }));
+vi.mock('./bindings', async () => (await import('../testing/mockBindings')).bindingsMock((...a: [string, Record<string, unknown>?]) => invoke(...a)));
 vi.mock('./files', () => ({ isTauri: () => true }));
 
 import { getPaneWidths, setPaneWidth } from './settings';
