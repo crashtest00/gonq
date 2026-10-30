@@ -1,65 +1,15 @@
-//! The one list of the 38 commands the webview can invoke (`builder`), from which both the Tauri invoke handler and
-//! the generated TypeScript contract `apps/desktop/src/platform/bindings.ts` come. The `export_bindings` test below
-//! rewrites that file (always with ssh compiled in) and the error-shape tests pin what GithubError, RemoteError and
-//! ListError serialise to. Regenerate with `cargo test -p gonq export_bindings`;
+//! The generated TypeScript contract `apps/desktop/src/platform/bindings.ts` for the 37 commands of the `gonq` plugin
+//! (the one list, `gonq_core::plugin::commands`; each is invoked as `plugin:gonq|<name>`). The app's own
+//! `take_launch_paths` is not a plugin command and is not in the contract. The `export_bindings` test below rewrites that
+//! file and pins the command count. Regenerate with `cargo test -p gonq export_bindings`;
 //! the rust-checks workflow fails a PR whose committed bindings.ts differs from what that test writes.
-use tauri::{ipc::Invoke, Runtime};
-use tauri_specta::{collect_commands, Commands};
 
-/// Every command, in the order the handler has always listed them. Add a new command here, nowhere else.
-fn commands<R: Runtime>() -> Commands<R> {
-    collect_commands![
-            gonq_core::commands::allow_document_folder::<tauri::Wry>,
-            gonq_core::commands::list_directory::<tauri::Wry>,
-            gonq_core::commands::path_exists,
-            gonq_core::commands::recent_documents_add,
-            gonq_core::commands::recent_documents_list,
-            gonq_core::commands::recent_documents_remove,
-            gonq_core::commands::allow_recent_document::<tauri::Wry>,
-            gonq_core::commands::get_author_name,
-            gonq_core::commands::set_author_name,
-            gonq_core::commands::get_theme,
-            gonq_core::commands::set_theme,
-            gonq_core::commands::get_pane_widths,
-            gonq_core::commands::set_pane_width,
-            crate::take_launch_paths,
-            gonq_core::github::github_start,
-            gonq_core::github::github_poll,
-            gonq_core::github::github_status,
-            gonq_core::github::github_sign_out,
-            gonq_core::github::github_list_repos,
-            gonq_core::github::github_list_branches,
-            gonq_core::github::github_list_folder,
-            gonq_core::github::github_read_file,
-            gonq_core::github::github_commit_file,
-            gonq_core::github::github_open_pulls_for_branches,
-            gonq_core::github::github_branch_exists,
-            gonq_core::github::github_create_branch,
-            gonq_core::github::github_branches_exist,
-            gonq_core::github::github_compare,
-            gonq_core::github::github_create_pull,
-            gonq_core::ssh::ssh_list_hosts,
-            gonq_core::ssh::ssh_connect,
-            gonq_core::ssh::ssh_disconnect,
-            gonq_core::ssh::remote_list_folders,
-            gonq_core::ssh::remote_open_root,
-            gonq_core::ssh::remote_list_directory,
-            gonq_core::ssh::remote_read,
-            gonq_core::ssh::remote_write,
-            gonq_core::ssh::remote_exists,
-    ]
-}
-
-/// The bindings builder: the commands plus how their errors reach TypeScript (thrown, as `invoke` rejects).
-#[cfg(test)]
-pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
-    tauri_specta::Builder::<R>::new().error_handling(tauri_specta::ErrorHandlingMode::Throw).commands(commands::<R>())
-}
-
-/// Tauri's invoke handler for the commands. Taken from the commands directly, so it does not borrow a `Builder`.
-pub fn invoke_handler<R: Runtime>() -> impl Fn(Invoke<R>) -> bool + Send + Sync + 'static {
-    let handler = commands::<R>().0;
-    move |invoke| handler(invoke)
+/// The bindings builder: the plugin's commands, named `plugin:gonq|<name>`, and how their errors reach TypeScript (thrown, as `invoke` rejects).
+pub fn builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
+    tauri_specta::Builder::<R>::new()
+        .plugin_name(gonq_core::plugin::NAME)
+        .error_handling(tauri_specta::ErrorHandlingMode::Throw)
+        .commands(gonq_core::plugin::commands::<R>())
 }
 
 #[cfg(test)]
@@ -78,6 +28,6 @@ mod tests {
             .export(Typescript::default().header(HEADER), &path)
             .expect("export bindings");
         let ts = std::fs::read_to_string(&path).unwrap();
-        assert_eq!(ts.matches("__TAURI_INVOKE<").count(), 38, "bindings.ts must cover all 38 commands");
+        assert_eq!(ts.matches("__TAURI_INVOKE<").count(), 37, "bindings.ts must cover all 37 commands");
     }
 }

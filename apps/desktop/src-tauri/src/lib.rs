@@ -1,13 +1,18 @@
-//! The desktop Tauri app (`run`): defines the launch-only pieces (focus_main, deliver_paths, take_launch_paths),
-//! registers the one command list (`invoke_handler`, built in `bindings` and shared with the IPC tests) from gonq-core
-//! (local, github_* and ssh_*/remote_* commands, by path) plus its own, and installs the single-instance, dialog, fs and opener plugins.
-//! The shared logic and `DataPaths` live in the gonq-core crate.
+//! The desktop Tauri app (`run`): defines the launch-only pieces (focus_main, deliver_paths, take_launch_paths, the
+//! app's one own command) and installs the gonq-core plugin `gonq` (every other command, with its managed state), plus the
+//! single-instance, dialog, fs and opener plugins. The shared logic and `DataPaths` live in the gonq-core crate.
+#[cfg(test)]
 mod bindings;
 mod launch;
 #[cfg(test)]
 mod pane_width_ipc_tests;
 
-use gonq_core::{github, ssh, DataPaths};
+use gonq_core::DataPaths;
+
+/// The app's Tauri context (config + capabilities). `generate_context!` may expand only once per crate on macOS, so tests reuse this.
+pub(crate) fn context<R: tauri::Runtime>() -> tauri::Context<R> {
+    tauri::generate_context!()
+}
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_fs::FsExt;
@@ -46,12 +51,6 @@ fn take_launch_paths(launch: tauri::State<'_, launch::LaunchPaths>) -> Vec<Strin
     launch.take()
 }
 
-/// The one list of commands the webview can invoke (defined in `bindings`, which also generates bindings.ts from it).
-/// `run` installs it and the IPC tests use it too, so a command missing here is missing in both.
-fn invoke_handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
-    bindings::invoke_handler::<R>()
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
@@ -67,14 +66,12 @@ pub fn run() {
             deliver_paths(app.handle(), launch::paths_from_args(&args, &cwd));
             Ok(())
         })
-        .manage(ssh::new_pool())
-        .manage(github::Github::production())
-        .manage(ssh::fs::Remote::default())
+        .plugin(gonq_core::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(invoke_handler())
-        .build(tauri::generate_context!())
+        .invoke_handler(tauri::generate_handler![take_launch_paths])
+        .build(context())
         .expect("error while building tauri application");
     app.run(|#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(unused_variables))] app, event| match event {
         // macOS delivers files opened from Finder (file association) as events, not arguments.

@@ -1,6 +1,6 @@
 //! Tests that send the exact JSON the frontend's invoke() sends (src/platform/settings.ts) through Tauri's real IPC
-//! into get_pane_widths / set_pane_width, so the argument names, `Option<u32>` null handling and return shape are pinned.
-use tauri::test::{get_ipc_response, mock_builder, mock_context, noop_assets, INVOKE_KEY};
+//! into the plugin's `plugin:gonq|get_pane_widths` / `set_pane_width` (allowed by the app's real capability), so the argument names, `Option<u32>` null handling and return shape are pinned.
+use tauri::test::{get_ipc_response, mock_builder, INVOKE_KEY};
 use tauri::webview::InvokeRequest;
 use tauri::{ipc::InvokeBody, WebviewWindowBuilder};
 
@@ -32,29 +32,30 @@ fn call(
 fn frontend_arguments_reach_the_pane_width_commands() {
     let dir = tempfile::tempdir().unwrap();
     let app = mock_builder()
-        .invoke_handler(crate::invoke_handler())
+        .plugin(gonq_core::init())
         .manage(gonq_core::DataPaths {
             settings: Ok(dir.path().join("settings.json")),
             recents: Ok(dir.path().join("recent.json")),
         })
-        .build(mock_context(noop_assets()))
+        .build(crate::context())
         .unwrap();
+    // The app's own context, so the real capability (`gonq:default` in capabilities/default.json) decides what is allowed.
     let w = WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
     let none = serde_json::json!({"navigator": null, "outline": null, "comments": null});
 
     // Nothing saved: every pane is null (the frontend then uses its default).
-    assert_eq!(call(&w, "get_pane_widths", serde_json::json!({})).unwrap(), none);
+    assert_eq!(call(&w, "plugin:gonq|get_pane_widths", serde_json::json!({})).unwrap(), none);
 
-    call(&w, "set_author_name", serde_json::json!({"name": "Ann"})).unwrap();
-    call(&w, "set_theme", serde_json::json!({"theme": "dark"})).unwrap();
+    call(&w, "plugin:gonq|set_author_name", serde_json::json!({"name": "Ann"})).unwrap();
+    call(&w, "plugin:gonq|set_theme", serde_json::json!({"theme": "dark"})).unwrap();
 
     // Exact payloads of setPaneWidth(pane, width), one per pane.
-    let r = call(&w, "set_pane_width", serde_json::json!({"pane": "navigator", "width": 300})).unwrap();
+    let r = call(&w, "plugin:gonq|set_pane_width", serde_json::json!({"pane": "navigator", "width": 300})).unwrap();
     assert_eq!(r, serde_json::json!({"navigator": 300, "outline": null, "comments": null}));
-    call(&w, "set_pane_width", serde_json::json!({"pane": "outline", "width": 280})).unwrap();
-    call(&w, "set_pane_width", serde_json::json!({"pane": "comments", "width": 500})).unwrap();
+    call(&w, "plugin:gonq|set_pane_width", serde_json::json!({"pane": "outline", "width": 280})).unwrap();
+    call(&w, "plugin:gonq|set_pane_width", serde_json::json!({"pane": "comments", "width": 500})).unwrap();
     let all = serde_json::json!({"navigator": 300, "outline": 280, "comments": 500});
-    assert_eq!(call(&w, "get_pane_widths", serde_json::json!({})).unwrap(), all);
+    assert_eq!(call(&w, "plugin:gonq|get_pane_widths", serde_json::json!({})).unwrap(), all);
 
     // A null width clears exactly that pane, for each of the three, and leaves the others and author/theme alone.
     for (pane, expect) in [
@@ -62,15 +63,15 @@ fn frontend_arguments_reach_the_pane_width_commands() {
         ("outline", serde_json::json!({"navigator": null, "outline": null, "comments": 500})),
         ("comments", none.clone()),
     ] {
-        let r = call(&w, "set_pane_width", serde_json::json!({"pane": pane, "width": null})).unwrap();
+        let r = call(&w, "plugin:gonq|set_pane_width", serde_json::json!({"pane": pane, "width": null})).unwrap();
         assert_eq!(r, expect, "clearing {pane}");
-        assert_eq!(call(&w, "get_pane_widths", serde_json::json!({})).unwrap(), expect);
+        assert_eq!(call(&w, "plugin:gonq|get_pane_widths", serde_json::json!({})).unwrap(), expect);
     }
-    assert_eq!(call(&w, "get_author_name", serde_json::json!({})).unwrap(), "Ann");
-    assert_eq!(call(&w, "get_theme", serde_json::json!({})).unwrap(), "dark");
+    assert_eq!(call(&w, "plugin:gonq|get_author_name", serde_json::json!({})).unwrap(), "Ann");
+    assert_eq!(call(&w, "plugin:gonq|get_theme", serde_json::json!({})).unwrap(), "dark");
 
     // Refused through the command too: the stored widths do not change.
-    call(&w, "set_pane_width", serde_json::json!({"pane": "outline", "width": 300})).unwrap();
+    call(&w, "plugin:gonq|set_pane_width", serde_json::json!({"pane": "outline", "width": 300})).unwrap();
     for bad in [
         serde_json::json!({"pane": "folder", "width": 300}),
         serde_json::json!({"pane": "outline", "width": 119}),
@@ -80,10 +81,10 @@ fn frontend_arguments_reach_the_pane_width_commands() {
         serde_json::json!({"pane": "outline", "width": 300.5}),
         serde_json::json!({"width": 300}),
     ] {
-        assert!(call(&w, "set_pane_width", bad.clone()).is_err(), "{bad} should be refused");
+        assert!(call(&w, "plugin:gonq|set_pane_width", bad.clone()).is_err(), "{bad} should be refused");
     }
     assert_eq!(
-        call(&w, "get_pane_widths", serde_json::json!({})).unwrap(),
+        call(&w, "plugin:gonq|get_pane_widths", serde_json::json!({})).unwrap(),
         serde_json::json!({"navigator": null, "outline": 300, "comments": null})
     );
 
@@ -92,14 +93,14 @@ fn frontend_arguments_reach_the_pane_width_commands() {
     assert!(settings.is_file());
     std::fs::write(&settings, r#"{"author_name":"Ann","theme":"dark","pane_widths":{"folder":333,"outline":300}}"#).unwrap();
     assert_eq!(
-        call(&w, "get_pane_widths", serde_json::json!({})).unwrap(),
+        call(&w, "plugin:gonq|get_pane_widths", serde_json::json!({})).unwrap(),
         serde_json::json!({"navigator": null, "outline": 300, "comments": null})
     );
-    call(&w, "set_pane_width", serde_json::json!({"pane": "comments", "width": 400})).unwrap();
+    call(&w, "plugin:gonq|set_pane_width", serde_json::json!({"pane": "comments", "width": 400})).unwrap();
     // Ignored, not migrated: the stale value never becomes the navigator width.
     assert_eq!(
-        call(&w, "get_pane_widths", serde_json::json!({})).unwrap(),
+        call(&w, "plugin:gonq|get_pane_widths", serde_json::json!({})).unwrap(),
         serde_json::json!({"navigator": null, "outline": 300, "comments": 400})
     );
-    assert_eq!(call(&w, "get_author_name", serde_json::json!({})).unwrap(), "Ann");
+    assert_eq!(call(&w, "plugin:gonq|get_author_name", serde_json::json!({})).unwrap(), "Ann");
 }
