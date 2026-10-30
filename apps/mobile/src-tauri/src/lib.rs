@@ -6,6 +6,7 @@
 mod android_tls;
 #[cfg(debug_assertions)]
 pub mod selftest;
+pub mod saf_spike;
 
 use gonq_core::DataPaths;
 use tauri::Manager;
@@ -32,6 +33,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(saf_spike::init())
         .run(context())
         .expect("error while running tauri application");
 }
