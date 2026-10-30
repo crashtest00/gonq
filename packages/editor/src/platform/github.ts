@@ -133,6 +133,15 @@ export const startSignIn = (): Promise<DeviceStart> => call(commands.githubStart
 /** Waits until the code is approved (resolves signed in), refused (denied), or expired. */
 export const pollSignIn = (): Promise<GitHubStatus> => call(commands.githubPoll);
 
+/** Whether a device code is outstanding (not expired by the wall clock) and when it expires, in ms since the epoch. */
+export interface PendingSignIn {
+  pending: boolean;
+  expires_at_ms: number | null;
+}
+
+/** Asks Rust whether a sign-in is still being waited on; false after the process was killed or the code expired. */
+export const pendingSignIn = (): Promise<PendingSignIn> => call(commands.githubPending);
+
 export const signInStatus = (): Promise<GitHubStatus> => call(commands.githubStatus);
 
 /** Deletes the stored token (and stops a sign-in being polled). Fine when already signed out. */

@@ -1,39 +1,19 @@
 /**
- * The GitHub device-flow sign-in panel (copyable code, open github.com/login/device, waiting/approved/denied/
+ * The GitHub device-flow sign-in panel, drawn from the shared useSignInController (copyable code, open github.com/login/device, waiting/approved/denied/
  * expired states). It is not a dialog: SettingsDialog shows it inside Settings > GitHub.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Check, Copy, Loader2 } from 'lucide-react';
-import { copyText } from '@gonq/editor/platform/clipboard';
-import { openExternal } from '@gonq/editor/platform/external';
-import {
-  pollSignIn,
-  signOut,
-  startSignIn,
-  toGitHubError,
-  type DeviceStart,
-  type GitHubStatus,
-} from '@gonq/editor/platform/github';
+import { useSignInController } from '@gonq/editor/controllers/signIn';
 
 const button =
   'h-8 rounded-control border px-3 text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
 const primary = `${button} border-primary bg-primary text-primary-foreground`;
 const plain = `${button} border-border bg-transparent`;
 
-export const DEVICE_URL = 'https://github.com/login/device';
-
-type Step =
-  | { name: 'idle' }
-  | { name: 'starting' }
-  | { name: 'waiting'; start: DeviceStart; openFailed: string | null }
-  | { name: 'approved'; status: GitHubStatus }
-  | { name: 'denied' }
-  | { name: 'expired' }
-  | { name: 'failed'; message: string };
-
 const SESSION_ONLY = 'No keychain is available, so this sign-in lasts for this session only.';
 
-function Copyable({ label, text }: { label: string; text: string }) {
+function Copyable({ label, text, copy }: { label: string; text: string; copy: (text: string) => Promise<void> }) {
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
   return (
@@ -41,7 +21,7 @@ function Copyable({ label, text }: { label: string; text: string }) {
       type="button"
       aria-label={label}
       onClick={() => {
-        copyText(text).then(
+        copy(text).then(
           () => {
             setFailed(false);
             setCopied(true);
@@ -69,69 +49,11 @@ export function GitHubSignInPanel({
   onApproved?: () => void;
   onClose: (signedIn: boolean) => void;
 }) {
-  const [step, setStep] = useState<Step>({ name: 'idle' });
-  const live = useRef(true);
-  /** Bumped by every Start and by Cancel/unmount, so a late reply from an abandoned sign-in is ignored. */
-  const run = useRef(0);
-  const polling = useRef(false);
-
-  /** Stops the sign-in being polled: Rust ends it when a sign out arrives (nothing is stored yet). */
-  const stopPolling = () => {
-    run.current++;
-    if (!polling.current) return;
-    polling.current = false;
-    signOut().catch(() => {});
-  };
-
-  useEffect(() => {
-    live.current = true;
-    return () => {
-      live.current = false;
-      stopPolling();
-    };
-  }, []);
-
-  const start = async () => {
-    const mine = ++run.current;
-    setStep({ name: 'starting' });
-    let begun: DeviceStart;
-    try {
-      begun = await startSignIn();
-    } catch (e) {
-      if (live.current && run.current === mine) setStep({ name: 'failed', message: toGitHubError(e).message });
-      return;
-    }
-    if (!live.current || run.current !== mine) return;
-    setStep({ name: 'waiting', start: begun, openFailed: null });
-    polling.current = true;
-    try {
-      const done = await pollSignIn();
-      if (!live.current || run.current !== mine) return;
-      polling.current = false;
-      setStep({ name: 'approved', status: done });
-      onApproved?.();
-    } catch (e) {
-      if (!live.current || run.current !== mine) return;
-      polling.current = false;
-      const err = toGitHubError(e);
-      if (err.kind === 'denied') setStep({ name: 'denied' });
-      else if (err.kind === 'expired') setStep({ name: 'expired' });
-      else setStep({ name: 'failed', message: err.message });
-    }
-  };
+  const { step, start, stop, copy, openBrowser } = useSignInController({ onApproved });
 
   const cancel = () => {
-    stopPolling();
+    stop();
     onClose(step.name === 'approved');
-  };
-
-  const openBrowser = async () => {
-    try {
-      await openExternal(DEVICE_URL);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setStep((s) => (s.name === 'waiting' ? { ...s, openFailed: message } : s));
-    }
   };
 
   let title = 'Sign in to GitHub';
@@ -194,11 +116,11 @@ export function GitHubSignInPanel({
             <code aria-label="User code" className="select-all break-all font-mono text-[26px] font-semibold tracking-widest">
               {step.start.user_code}
             </code>
-            <Copyable label="Copy code" text={step.start.user_code} />
+            <Copyable label="Copy code" text={step.start.user_code} copy={copy} />
           </div>
           <div className="mb-3 flex items-center justify-between gap-3 text-[12px] text-muted-foreground">
             <span className="min-w-0 select-all break-all">{step.start.verification_uri}</span>
-            <Copyable label="Copy address" text={step.start.verification_uri} />
+            <Copyable label="Copy address" text={step.start.verification_uri} copy={copy} />
           </div>
           {step.openFailed !== null && (
             <p role="alert" className="m-0 mb-3 text-[13px] text-destructive">

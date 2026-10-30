@@ -8,6 +8,7 @@
     "./agent-skill/SKILL.md": "./src/agent-skill/SKILL.md",
     "./commands": "./src/commands/index.ts",
     "./controllers/document": "./src/controllers/document.ts",
+    "./controllers/signIn": "./src/controllers/signIn.ts",
     "./comment-threads": "./src/comment-threads/index.ts",
     "./dialogs/DialogHost": "./src/dialogs/DialogHost.tsx",
     "./editor/MarkdownEditor": "./src/editor/MarkdownEditor.tsx",
