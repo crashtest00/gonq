@@ -1,11 +1,13 @@
-//! The device-flow half: `start` and `poll`.
+//! The device-flow half: `start`, `poll` and `pending_status`. The code's deadline is wall-clock
+//! (`Config.clock`), so a suspended-and-resumed app expires it correctly; exports `DeviceStart`
+//! and `PendingStatus`.
 
 use super::error::{network, GithubError};
 use super::store::StoreError;
 use super::{AuthStatus, Github, Pending, Secret, Storage, SCOPE};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::Instant;
+use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::watch;
 
 /// What JS gets from `start`: the code to type at `verification_uri`. No device code.
@@ -15,6 +17,14 @@ pub struct DeviceStart {
     pub verification_uri: String,
     pub expires_in: u64,
     pub interval: u64,
+}
+
+/// What JS gets from `github_pending`: whether a code is outstanding and its wall-clock deadline.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+pub struct PendingStatus {
+    pub pending: bool,
+    /// Milliseconds since the Unix epoch; `None` when nothing is pending (or it has expired).
+    pub expires_at_ms: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -92,11 +102,23 @@ impl Github {
         g.pending = Some(Pending {
             device_code: Secret::new(r.device_code),
             interval: r.interval,
-            deadline: Instant::now() + self.cfg.time_unit * r.expires_in as u32,
+            deadline: self.cfg.clock.now() + self.cfg.time_unit * r.expires_in as u32,
             id,
             cancel: tx,
         }); // the old Pending (if any) is dropped here, cancelling its poll
         Ok(out)
+    }
+
+    /// Whether a device code is outstanding and unexpired, and its wall-clock deadline.
+    pub fn pending_status(&self) -> PendingStatus {
+        let now = self.cfg.clock.now();
+        match self.lock().pending.as_ref().map(|p| p.deadline) {
+            Some(d) if d > now => PendingStatus {
+                pending: true,
+                expires_at_ms: Some(d.duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)),
+            },
+            _ => PendingStatus { pending: false, expires_at_ms: None },
+        }
     }
 
     /// Polls until approved, refused or expired. A newer `start`, `poll` or `sign_out` ends this
@@ -111,15 +133,21 @@ impl Github {
             (p.device_code.clone(), p.interval, p.deadline, p.id, rx)
         };
         let unit = self.cfg.time_unit;
+        let clock = &self.cfg.clock;
+        // A resume after a long suspend: judge on the wall clock before any wait or request.
+        if clock.now() >= deadline {
+            return self.expire(id, &cancel);
+        }
         let outcome: Result<Secret, GithubError> = loop {
             // Never faster than the interval (GitHub also wants a wait before the first poll).
-            let wake = Instant::now() + unit * interval as u32;
-            let sleep_until = wake.min(deadline);
+            // The wait is monotonic but short; the deadline is re-read from the wall clock on waking.
+            let left = deadline.duration_since(clock.now()).unwrap_or(Duration::ZERO);
+            let wait = (unit * interval as u32).min(left);
             tokio::select! {
-                _ = tokio::time::sleep_until(sleep_until.into()) => {}
+                _ = tokio::time::sleep(wait) => {}
                 _ = cancel.changed() => return Err(GithubError::Cancelled),
             }
-            if Instant::now() >= deadline {
+            if clock.now() >= deadline {
                 break Err(GithubError::Expired);
             }
             let sent = self
@@ -167,6 +195,18 @@ impl Github {
         }
         let token = outcome?;
         self.finish_sign_in(token).await
+    }
+
+    /// Ends the sign-in `id` as expired (unless superseded) without any request.
+    fn expire(&self, id: u64, cancel: &watch::Receiver<()>) -> Result<AuthStatus, GithubError> {
+        if cancel.has_changed().is_err() {
+            return Err(GithubError::Cancelled);
+        }
+        let mut g = self.lock();
+        if g.pending.as_ref().map(|p| p.id) == Some(id) {
+            g.pending = None;
+        }
+        Err(GithubError::Expired)
     }
 
     /// Keeps the token (keychain, else this session's memory) and reports who signed in.

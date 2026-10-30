@@ -38,7 +38,7 @@ mod tests;
 use error::GithubError;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 use store::{KeyringStore, TokenStore};
 use tauri::State;
 use tokio::sync::watch;
@@ -77,6 +77,31 @@ pub struct Config {
     pub api_base: String,
     /// One "second" of GitHub's `interval`/`expires_in`/`slow_down` arithmetic.
     pub time_unit: Duration,
+    /// Wall-clock source for the device-code deadline (tests swap in a fake).
+    pub clock: Clock,
+}
+
+/// A source of wall-clock time. The device-code deadline is judged on this, not on a monotonic
+/// clock, because Android suspends the app and `CLOCK_MONOTONIC` stops in deep sleep.
+#[derive(Clone)]
+pub struct Clock(Arc<dyn Fn() -> SystemTime + Send + Sync>);
+
+impl Clock {
+    pub fn system() -> Self {
+        Clock(Arc::new(SystemTime::now))
+    }
+    pub fn from_fn(f: impl Fn() -> SystemTime + Send + Sync + 'static) -> Self {
+        Clock(Arc::new(f))
+    }
+    pub fn now(&self) -> SystemTime {
+        (self.0)()
+    }
+}
+
+impl std::fmt::Debug for Clock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Clock")
+    }
 }
 
 impl Config {
@@ -87,6 +112,7 @@ impl Config {
             token_url: "https://github.com/login/oauth/access_token".into(),
             api_base: "https://api.github.com".into(),
             time_unit: Duration::from_secs(1),
+            clock: Clock::system(),
         }
     }
 }
@@ -94,7 +120,8 @@ impl Config {
 struct Pending {
     device_code: Secret,
     interval: u64,
-    deadline: Instant,
+    /// Wall-clock moment the device code stops being valid.
+    deadline: SystemTime,
     id: u64,
     /// Dropping the sender (a newer start/poll, or sign out) cancels the poll loop.
     cancel: watch::Sender<()>,
@@ -237,6 +264,13 @@ pub async fn github_start(gh: State<'_, Github>) -> Result<flow::DeviceStart, Gi
 #[specta::specta]
 pub async fn github_poll(gh: State<'_, Github>) -> Result<AuthStatus, GithubError> {
     gh.poll().await
+}
+
+/// Whether a device code is outstanding, and when it expires (wall clock, ms since the epoch).
+#[tauri::command]
+#[specta::specta]
+pub async fn github_pending(gh: State<'_, Github>) -> Result<flow::PendingStatus, GithubError> {
+    Ok(gh.pending_status())
 }
 
 #[tauri::command]

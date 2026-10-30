@@ -51,6 +51,8 @@ export const commands = {
 	githubStart: () => __TAURI_INVOKE<DeviceStart>("plugin:gonq|github_start"),
 	/**  Waits (cancellably) until the code is approved, refused or expired. */
 	githubPoll: () => __TAURI_INVOKE<AuthStatus_Serialize>("plugin:gonq|github_poll"),
+	/**  Whether a device code is outstanding, and when it expires (wall clock, ms since the epoch). */
+	githubPending: () => __TAURI_INVOKE<PendingStatus_Serialize>("plugin:gonq|github_pending"),
 	githubStatus: () => __TAURI_INVOKE<AuthStatus_Serialize>("plugin:gonq|github_status"),
 	githubSignOut: () => __TAURI_INVOKE<null>("plugin:gonq|github_sign_out"),
 	githubListRepos: (page: number | null) => __TAURI_INVOKE<RepoPage_Serialize>("plugin:gonq|github_list_repos", { page }),
@@ -399,6 +401,23 @@ export type PaneWidths_Serialize = {
 	navigator: number | null,
 	outline: number | null,
 	comments: number | null,
+};
+
+/**  What JS gets from `github_pending`: whether a code is outstanding and its wall-clock deadline. */
+export type PendingStatus = PendingStatus_Serialize | PendingStatus_Deserialize;
+
+/**  What JS gets from `github_pending`: whether a code is outstanding and its wall-clock deadline. */
+export type PendingStatus_Deserialize = {
+	pending: boolean,
+	/**  Milliseconds since the Unix epoch; `None` when nothing is pending (or it has expired). */
+	expires_at_ms?: number | null,
+};
+
+/**  What JS gets from `github_pending`: whether a code is outstanding and its wall-clock deadline. */
+export type PendingStatus_Serialize = {
+	pending: boolean,
+	/**  Milliseconds since the Unix epoch; `None` when nothing is pending (or it has expired). */
+	expires_at_ms: number | null,
 };
 
 export type Recent = {

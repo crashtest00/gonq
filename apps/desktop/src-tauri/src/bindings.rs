@@ -1,4 +1,4 @@
-//! The generated TypeScript contract `packages/editor/src/platform/bindings.ts` for the 37 commands of the `gonq` plugin
+//! The generated TypeScript contract `packages/editor/src/platform/bindings.ts` for the 38 commands of the `gonq` plugin
 //! (the one list, `gonq_core::plugin::commands`; each is invoked as `plugin:gonq|<name>`). The app's own
 //! `take_launch_paths` is not a plugin command and is not in the contract. The `export_bindings` test below rewrites that
 //! file and pins the command count. Regenerate with `cargo test -p gonq export_bindings`;
@@ -28,6 +28,6 @@ mod tests {
             .export(Typescript::default().header(HEADER), &path)
             .expect("export bindings");
         let ts = std::fs::read_to_string(&path).unwrap();
-        assert_eq!(ts.matches("__TAURI_INVOKE<").count(), 37, "bindings.ts must cover all 37 commands");
+        assert_eq!(ts.matches("__TAURI_INVOKE<").count(), 38, "bindings.ts must cover all 38 commands");
     }
 }
