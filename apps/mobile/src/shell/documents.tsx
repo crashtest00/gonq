@@ -1,12 +1,14 @@
 /**
  * The mobile document session: <DocumentProvider/> runs the shared useDocumentController (files from the platform
  * seam, errors and notices into the shell's banner) and useDocuments() hands it to screens. Unsaved-changes and
- * conflict questions are answered by the choice sheets of shell/dialogs.tsx. runFileCommand(id, ctx) runs a registry
+ * conflict questions are answered by the choice sheets of shell/dialogs.tsx. Save on a GitHub tab commits through
+ * `commitGithub`, which the GithubProvider (below this one) fills in through useCommitGithubRef(). runFileCommand(id, ctx) runs a registry
  * command by id (File > New for the "+" button) without adding any command.
  */
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useRef, type MutableRefObject, type ReactNode } from 'react';
 import { registry, type CommandContext } from '@gonq/editor/commands';
 import { useDocumentController } from '@gonq/editor/controllers/document';
+import type { useGithubController } from '@gonq/editor/controllers/github';
 import { files } from '@gonq/editor/platform/files';
 import { useDialogs } from './dialogs';
 import { useNotices } from './notices';
@@ -15,18 +17,34 @@ export type Documents = ReturnType<typeof useDocumentController>;
 
 const DocumentsContext = createContext<Documents | null>(null);
 
+type CommitGithub = ReturnType<typeof useGithubController>['commitGithub'];
+const CommitRefContext = createContext<MutableRefObject<CommitGithub | null> | null>(null);
+
+/** The slot the GithubProvider puts the GitHub controller's commitGithub in (the document session is created first). */
+export function useCommitGithubRef(): MutableRefObject<CommitGithub | null> {
+  const ref = useContext(CommitRefContext);
+  if (!ref) throw new Error('useCommitGithubRef needs a <DocumentProvider>');
+  return ref;
+}
+
 export function DocumentProvider({ children }: { children: ReactNode }) {
   const { setError, setNotice } = useNotices();
   const { confirmUnsaved, confirmConflict } = useDialogs();
+  const commitRef = useRef<CommitGithub | null>(null);
   const doc = useDocumentController({
     files,
+    commitGithub: (...args) => commitRef.current!(...args),
     confirmUnsaved,
     confirmConflict,
     onError: setError,
     onNotice: setNotice,
     onSaving: () => {},
   });
-  return <DocumentsContext.Provider value={doc}>{children}</DocumentsContext.Provider>;
+  return (
+    <CommitRefContext.Provider value={commitRef}>
+      <DocumentsContext.Provider value={doc}>{children}</DocumentsContext.Provider>
+    </CommitRefContext.Provider>
+  );
 }
 
 export function useDocuments(): Documents {

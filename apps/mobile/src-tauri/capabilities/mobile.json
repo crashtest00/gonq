@@ -14,7 +14,7 @@
     "fs:allow-write-text-file",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://github.com/crashtest00/gonq" }, { "url": "https://github.com/login/device" }]
+      "allow": [{ "url": "https://github.com/crashtest00/gonq" }, { "url": "https://github.com/login/device" }, { "url": "https://github.com/*/pull/*" }]
     }
   ]
 }

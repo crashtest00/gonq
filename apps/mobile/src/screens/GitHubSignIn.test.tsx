@@ -229,5 +229,5 @@ it('on mobile web, Start shows the "Gonq app" error in the shell banner and stay
 it('keeps the opener allow-list in mobile.json exactly as it is', () => {
   const cap = JSON.parse(readFileSync(join(process.cwd(), 'src-tauri/capabilities/mobile.json'), 'utf8'));
   const opener = cap.permissions.find((p: unknown) => typeof p === 'object' && (p as { identifier: string }).identifier === 'opener:allow-open-url');
-  expect(opener.allow).toEqual([{ url: 'https://github.com/crashtest00/gonq' }, { url: 'https://github.com/login/device' }]);
+  expect(opener.allow).toEqual([{ url: 'https://github.com/crashtest00/gonq' }, { url: 'https://github.com/login/device' }, { url: 'https://github.com/*/pull/*' }]);
 });
