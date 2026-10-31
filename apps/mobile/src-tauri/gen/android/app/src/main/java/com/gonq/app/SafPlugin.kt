@@ -21,12 +21,19 @@ import java.io.FileNotFoundException
 // path of names). Registered by the gonq-mobile crate's `gonq-saf` plugin (src/saf.rs forwards the local_* commands here);
 // packages/editor/src/platform/local.ts is the only caller. Every call is confined to a tree Android still holds a
 // persisted grant for; names are resolved segment by segment, so a document id (provider-private) is never stored.
+// M-31 adds a single-document grant (local_create_document, Save as outside an opened folder): the "tree" is then a document
+// URI (not a tree URI) and rel is '' or the one file name; every other command treats that document as the whole root.
 // Rejections carry a code that saf.rs passes on as the error kind: not-found, permission, outside, conflict, exists, io.
 
 @InvokeArg
 class NodeArgs {
   var tree: String = ""
   var rel: String = ""
+}
+
+@InvokeArg
+class CreateDocArgs {
+  var name: String = ""
 }
 
 @InvokeArg
@@ -89,6 +96,38 @@ class SafPlugin(private val activity: Activity) : Plugin(activity) {
       val rootName = cr.query(DocumentsContract.buildDocumentUriUsingTree(uri, treeId), arrayOf(Document.COLUMN_DISPLAY_NAME), null, null, null)
         ?.use { if (it.moveToFirst()) it.getString(0) else null }
       invoke.resolve(JSObject().put("picked", true).put("tree", uri.toString()).put("name", rootName ?: treeId.substringAfterLast('/').substringAfterLast(':')))
+    } catch (e: Exception) {
+      fail(invoke, e)
+    }
+  }
+
+  /** Save as: the system create-document picker with a suggested name; the new document's grant is persisted. */
+  @Command
+  fun local_create_document(invoke: Invoke) {
+    val a = invoke.parseArgs(CreateDocArgs::class.java)
+    val i = Intent(Intent.ACTION_CREATE_DOCUMENT)
+    i.addCategory(Intent.CATEGORY_OPENABLE)
+    i.type = "text/markdown"
+    i.putExtra(Intent.EXTRA_TITLE, a.name)
+    i.addFlags(
+      Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+    )
+    startActivityForResult(invoke, i, "createDocumentResult")
+  }
+
+  @ActivityCallback
+  fun createDocumentResult(invoke: Invoke, r: ActivityResult) {
+    val uri = r.data?.data
+    if (r.resultCode != Activity.RESULT_OK || uri == null) {
+      invoke.resolve(JSObject().put("picked", false))
+      return
+    }
+    try {
+      cr.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+      // The name the user confirmed (the provider may have changed the suggestion); the last path piece is the fallback.
+      val name = cr.query(uri, arrayOf(Document.COLUMN_DISPLAY_NAME), null, null, null)
+        ?.use { if (it.moveToFirst()) it.getString(0) else null }
+      invoke.resolve(JSObject().put("picked", true).put("tree", uri.toString()).put("name", name ?: uri.lastPathSegment ?: "Untitled.md"))
     } catch (e: Exception) {
       fail(invoke, e)
     }
@@ -206,7 +245,10 @@ class SafPlugin(private val activity: Activity) : Plugin(activity) {
     return uri
   }
 
-  private fun docUri(tree: Uri, id: String): Uri = DocumentsContract.buildDocumentUriUsingTree(tree, id)
+  /** A grant on one document (from local_create_document) rather than a folder tree. */
+  private fun isSingleDoc(tree: Uri) = !DocumentsContract.isTreeUri(tree)
+
+  private fun docUri(tree: Uri, id: String): Uri = if (isSingleDoc(tree)) tree else DocumentsContract.buildDocumentUriUsingTree(tree, id)
 
   /** Path segments; "..", "." and empty names are refused so a name can never climb out of the tree. */
   private fun segments(rel: String): List<String> {
@@ -216,7 +258,7 @@ class SafPlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   private fun rootNode(tree: Uri): Node {
-    val id = DocumentsContract.getTreeDocumentId(tree)
+    val id = if (isSingleDoc(tree)) DocumentsContract.getDocumentId(tree) else DocumentsContract.getTreeDocumentId(tree)
     val root = cr.query(docUri(tree, id), projection, null, null, null)?.use { if (it.moveToFirst()) node(it) else null }
     return root ?: throw SafFailure("not-found", "The opened folder is no longer available.")
   }
@@ -232,6 +274,11 @@ class SafPlugin(private val activity: Activity) : Plugin(activity) {
   /** Walks the names from the tree root. The first sibling with a name wins. */
   private fun resolve(tree: Uri, rel: String): Node {
     val parts = segments(rel)
+    // A single document is the root itself, addressed with rel '' or its one file name.
+    if (isSingleDoc(tree)) {
+      if (parts.size > 1) throw SafFailure("not-found", "${parts.last()} was not found.")
+      return rootNode(tree)
+    }
     var cur = rootNode(tree)
     for (name in parts) {
       if (!cur.isDir) throw SafFailure("not-found", "${cur.name} is not a folder.")

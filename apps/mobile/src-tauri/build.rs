@@ -12,6 +12,7 @@ fn main() {
             "local_write",
             "local_create",
             "local_exists",
+            "local_create_document",
         ])
         .default_permission(tauri_build::DefaultPermissionRule::AllowAllCommands);
     tauri_build::try_build(tauri_build::Attributes::new().plugin("gonq-saf", saf)).expect("failed to run tauri-build");
