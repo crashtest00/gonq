@@ -11,6 +11,7 @@ vi.mock('@gonq/editor/platform/bindings', async () =>
 
 import { renderMobileApp } from '../testing/renderMobileApp';
 import { DocumentProvider } from '../shell/documents';
+import { GithubProvider } from '../shell/github';
 import { NoticesProvider } from '../shell/notices';
 import { ThemeProvider } from '../shell/theme';
 import { NavigatorProvider, StackNavigator } from '../shell/StackNavigator';
@@ -87,10 +88,12 @@ it('keeps the Raw switch working on a read-only tab', async () => {
       <ThemeProvider>
         <DocumentProvider>
           <NavigatorProvider initial={documentsScreen}>
-            <Open />
-            <PhoneShell>
-              <StackNavigator />
-            </PhoneShell>
+            <GithubProvider>
+              <Open />
+              <PhoneShell>
+                <StackNavigator />
+              </PhoneShell>
+            </GithubProvider>
           </NavigatorProvider>
         </DocumentProvider>
       </ThemeProvider>

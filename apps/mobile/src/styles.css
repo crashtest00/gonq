@@ -88,3 +88,8 @@ body {
 .m-raw:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .m-raw > span { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 var(--space-2); }
 .m-raw > span[data-active='true'] { background: var(--primary); color: var(--primary-foreground); }
+
+/* Repo picker and repo tree (M-19). */
+.m-field { width: calc(100% - 2 * var(--space-4)); margin: 0 var(--space-4); box-sizing: border-box; justify-content: flex-start; border: 1px solid var(--border); background: var(--background); }
+.m-tree-row { width: 100%; justify-content: flex-start; gap: var(--space-2); text-align: left; border-radius: 0; white-space: nowrap; }
+.m-tree-row[aria-current='true'] { background: var(--surface); font-weight: var(--weight-semibold); }

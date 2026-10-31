@@ -1,5 +1,5 @@
 /**
- * The Documents home: the entry points (Open Repo… through ensureSignedIn, Open Folder… which says it is not
+ * The Documents home: the entry points (Open Repo… = the shared controller's openRepo (sign-in, then the picker), Open Folder… which says it is not
  * available yet until M-31, and the "+" button = File > New), the interim "Sign in to GitHub" row, and the recent
  * documents (listRecents through the document controller, at most MAX_RECENTS) with an icon per source, the file
  * name, "owner/repo @ branch" for GitHub files and the relative time. Tapping a row reopens it
@@ -9,8 +9,9 @@
 import type { ReactNode } from 'react';
 import { basename, githubDetail, relativeTime } from '@gonq/editor/model/recentRow';
 import { MAX_RECENTS } from '@gonq/editor/platform/recents';
-import { ensureSignedIn, parseGithubPath, toGitHubError } from '@gonq/editor/platform/github';
+import { parseGithubPath } from '@gonq/editor/platform/github';
 import { githubSignInScreen } from './GitHubSignIn';
+import { useGithub } from '../shell/github';
 import { runFileCommand, useDocuments } from '../shell/documents';
 import { useNotices } from '../shell/notices';
 import { useNavigator } from '../shell/StackNavigator';
@@ -48,27 +49,18 @@ const PlusIcon = () => (
 const outline = { border: '1px solid var(--border)' } as const;
 
 export const OPEN_FOLDER_UNAVAILABLE = 'Opening a folder is not available yet in the Gonq app.';
-export const OPEN_REPO_PICKER_PENDING = 'You are signed in to GitHub. The repository picker is not available yet.';
 
 export function DocumentsHome() {
   const { push } = useNavigator();
-  const { setError, setNotice } = useNotices();
+  const { setError } = useNotices();
   const doc = useDocuments();
 
-  const openRepo = async () => {
-    try {
-      if (!(await ensureSignedIn())) return;
-      setError(null);
-      setNotice(OPEN_REPO_PICKER_PENDING);
-    } catch (e) {
-      setError(toGitHubError(e).message);
-    }
-  };
+  const gh = useGithub();
 
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ display: 'flex', gap: 'var(--space-2)', padding: 'var(--space-3) var(--space-4) 0' }}>
-        <button type="button" className="m-tap" style={{ ...outline, flex: 1 }} onClick={() => void openRepo()}>
+        <button type="button" className="m-tap" style={{ ...outline, flex: 1 }} onClick={() => void gh.openRepo()}>
           Open Repo…
         </button>
         <button type="button" className="m-tap" style={{ ...outline, flex: 1 }} onClick={() => setError(OPEN_FOLDER_UNAVAILABLE)}>
