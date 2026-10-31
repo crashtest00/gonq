@@ -1,30 +1,17 @@
 /**
  * The folder navigator sidebar: Project folder tree (local or ssh://, listed lazily in chunks; or the GitHub
- * repo navigator when `repo` is set; both have a Refresh button (shown disabled when nothing is open), also View > Refresh Navigator via `refreshSignal`, that re-lists the tree in place keeping expanded folders and scroll, shows a busy state and keeps the rows when the re-list fails) and Recent documents. Exports basename, relativeTime and the row-chunk/spinner constants.
+ * repo navigator when `repo` is set; both have a Refresh button (shown disabled when nothing is open), also View > Refresh Navigator via `refreshSignal`, that re-lists the tree in place keeping expanded folders and scroll, shows a busy state and keeps the rows when the re-list fails) and Recent documents. Re-exports basename and relativeTime (now in @gonq/editor/model/recentRow) and exports the row-chunk/spinner constants.
  */
 import { createContext, memo, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ChevronRight, File, Folder, Loader2, RefreshCw, X } from 'lucide-react';
 import { ListDirectoryError, listDirectory, type FolderEntry } from '@gonq/editor/platform/folders';
 import type { RecentDocument } from '@gonq/editor/platform/recents';
+import { basename, relativeTime } from '@gonq/editor/model/recentRow';
 import { RepoNavigator, type RepoState } from './RepoNavigator';
 import { parseGithubPath } from '@gonq/editor/platform/github';
 import { isSshPath, remoteAccount, remoteFileName } from '@gonq/editor/platform/remote';
 
-export function basename(path: string): string {
-  const gh = parseGithubPath(path);
-  if (gh !== null) return gh.path.split('/').pop() || `${gh.owner}/${gh.repo}`;
-  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
-}
-
-/** "just now", "5 min ago", "3 h ago", "2 d ago", else the date. */
-export function relativeTime(then: number, now: number = Date.now()): string {
-  const s = Math.max(0, Math.round((now - then) / 1000));
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
-  if (s < 7 * 86400) return `${Math.floor(s / 86400)} d ago`;
-  return new Date(then).toLocaleDateString();
-}
+export { basename, relativeTime };
 
 /** The last segment of a remote folder; "/" for the root. */
 function remoteFolderName(uri: string): string {
