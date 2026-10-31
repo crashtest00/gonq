@@ -1,6 +1,6 @@
 /**
  * <PhoneShell/>: the frame every screen sits in: a safe-area top bar (env(safe-area-inset-*)) with a Back button when
- * the stack is deeper than one and the screen's title, the NoticeBanner, and the scrolling content area. A screen with
+ * the stack is deeper than one and the screen's title and actions, the NoticeBanner, and the scrolling content area. A screen with
  * no title (the splash) gets no top bar.
  */
 import type { ReactNode } from 'react';
@@ -19,6 +19,7 @@ export function PhoneShell({ children }: { children: ReactNode }) {
             </button>
           )}
           <h1>{top.title}</h1>
+          {top.actions?.()}
         </header>
       )}
       <NoticeBanner />

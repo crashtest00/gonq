@@ -10,6 +10,8 @@ export interface Screen {
   /** Shown in the top bar; null shows no top bar (the splash). */
   title: string | null;
   render(): ReactNode;
+  /** Controls shown at the end of the top bar (the editor's Raw switch). */
+  actions?(): ReactNode;
 }
 
 export interface Navigator {
