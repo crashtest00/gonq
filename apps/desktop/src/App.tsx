@@ -38,7 +38,8 @@ import { parseGithubPath, signOut as githubSignOut, type GithubDocument } from '
 import { assertConnectAvailable } from '@gonq/editor/platform/connect';
 import { listThreads, threadKey } from '@gonq/editor/model/threads';
 import { isCommentableAt, selectionRange, type ThreadTarget } from '@gonq/editor/model/newThread';
-import { parseCommentMarkers, appendToThread, deleteThread, editThreadMessage, normalizeAnchor, setThreadStatus } from '@gonq/editor/comment-threads';
+import { parseCommentMarkers, deleteThread, editThreadMessage, normalizeAnchor } from '@gonq/editor/comment-threads';
+import { replyText, statusText } from '@gonq/editor/controllers/threadEdits';
 import { RawSwitch } from './components/RawSwitch';
 import { MarkdownEditor, type EditorHandle, type EditorSelection } from '@gonq/editor/editor/MarkdownEditor';
 import { type DocumentMeta } from '@gonq/editor/document/useDocument';
@@ -207,7 +208,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined || body.trim() === '') return;
       try {
-        editor.current?.setText(appendToThread(text, { id: item.thread.id, ordinal: item.ordinal }, authorName, body.trim()));
+        editor.current?.setText(replyText(text, item, authorName, body));
         setError(null);
       } catch (e) {
         failed(e);
@@ -221,7 +222,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
       const item = threads.find((t) => t.key === key);
       if (item === undefined) return;
       try {
-        editor.current?.setText(setThreadStatus(text, { id: item.thread.id, ordinal: item.ordinal }, status));
+        editor.current?.setText(statusText(text, item, status));
         setError(null);
       } catch (e) {
         failed(e);

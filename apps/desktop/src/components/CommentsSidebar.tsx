@@ -2,7 +2,7 @@
  * The comments sidebar: the thread list, one thread with reply/resolve/edit/delete, and the new-thread draft.
  * It only reports intents; App.tsx writes the document.
  */
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useState } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
 import {
   AlertDialog,
@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { preview, relativeTime, type ThreadItem } from '@gonq/editor/model/threads';
+import { SAVE_KEYS, SAVE_TIP, saveOnModEnter, useOnce } from '@gonq/editor/controllers/commentBox';
 
 function Badge({ status }: { status: 'open' | 'resolved' }) {
   return (
@@ -81,30 +82,6 @@ function ThreadList({
       )}
     </>
   );
-}
-
-const SAVE_TIP = 'Ctrl+Enter (Cmd+Enter on macOS)';
-const SAVE_KEYS = 'Control+Enter Meta+Enter';
-
-/** Ctrl/Cmd+Enter in a comment box saves it, like clicking its button; key repeat and IME composition are ignored. */
-const saveOnModEnter = (save: () => void) => (e: ReactKeyboardEvent) => {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
-    e.preventDefault();
-    if (!e.repeat) save();
-  }
-};
-
-/** Wraps a save so it runs once until `body` changes again (a double click or rapid keys cannot send twice). */
-function useOnce(body: string, save: () => void) {
-  const spent = useRef(false);
-  useEffect(() => {
-    spent.current = false;
-  }, [body]);
-  return () => {
-    if (spent.current || body.trim() === '') return;
-    spent.current = true;
-    save();
-  };
 }
 
 function ReplyBox({

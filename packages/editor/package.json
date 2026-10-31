@@ -7,10 +7,12 @@
   "exports": {
     "./agent-skill/SKILL.md": "./src/agent-skill/SKILL.md",
     "./commands": "./src/commands/index.ts",
+    "./controllers/commentBox": "./src/controllers/commentBox.ts",
     "./controllers/document": "./src/controllers/document.ts",
     "./controllers/github": "./src/controllers/github.ts",
     "./controllers/repoTree": "./src/controllers/repoTree.ts",
     "./controllers/signIn": "./src/controllers/signIn.ts",
+    "./controllers/threadEdits": "./src/controllers/threadEdits.ts",
     "./comment-threads": "./src/comment-threads/index.ts",
     "./dialogs/DialogHost": "./src/dialogs/DialogHost.tsx",
     "./editor/MarkdownEditor": "./src/editor/MarkdownEditor.tsx",
