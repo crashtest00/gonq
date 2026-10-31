@@ -12,6 +12,7 @@ vi.mock('@gonq/editor/platform/bindings', async () =>
 import { renderMobileApp } from '../testing/renderMobileApp';
 import { DocumentProvider } from '../shell/documents';
 import { NoticesProvider } from '../shell/notices';
+import { ThemeProvider } from '../shell/theme';
 import { NavigatorProvider, StackNavigator } from '../shell/StackNavigator';
 import { PhoneShell } from '../shell/PhoneShell';
 import { EditorScreen, editorScreen } from './EditorScreen';
@@ -83,14 +84,16 @@ it('keeps the Raw switch working on a read-only tab', async () => {
   const user = userEvent.setup();
   render(
     <NoticesProvider>
-      <DocumentProvider>
-        <NavigatorProvider initial={documentsScreen}>
-          <Open />
-          <PhoneShell>
-            <StackNavigator />
-          </PhoneShell>
-        </NavigatorProvider>
-      </DocumentProvider>
+      <ThemeProvider>
+        <DocumentProvider>
+          <NavigatorProvider initial={documentsScreen}>
+            <Open />
+            <PhoneShell>
+              <StackNavigator />
+            </PhoneShell>
+          </NavigatorProvider>
+        </DocumentProvider>
+      </ThemeProvider>
     </NoticesProvider>,
   );
   const sw = await screen.findByRole('switch', { name: 'Raw Markdown' });

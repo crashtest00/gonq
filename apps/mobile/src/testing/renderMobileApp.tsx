@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import App from '../App';
 import { NoticesProvider } from '../shell/notices';
+import { ThemeProvider } from '../shell/theme';
 import { NavigatorProvider, StackNavigator, type Screen } from '../shell/StackNavigator';
 import { PhoneShell } from '../shell/PhoneShell';
 
@@ -25,12 +26,14 @@ export function renderInShell(initial: Screen, extra?: ReactNode) {
   const user = userEvent.setup();
   const result = render(
     <NoticesProvider>
-      <NavigatorProvider initial={initial}>
-        <PhoneShell>
-          <StackNavigator />
-        </PhoneShell>
-        {extra}
-      </NavigatorProvider>
+      <ThemeProvider>
+        <NavigatorProvider initial={initial}>
+          <PhoneShell>
+            <StackNavigator />
+          </PhoneShell>
+          {extra}
+        </NavigatorProvider>
+      </ThemeProvider>
     </NoticesProvider>,
   );
   return { ...result, user };
