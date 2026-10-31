@@ -1,7 +1,7 @@
 /**
  * The mobile repo navigator screen (M-19), the counterpart of the desktop RepoNavigator on the shared useRepoTree and
  * useBranchList: the repository name is the screen title; a branch button opens a "Branches" sheet (filter box
- * "Filter branches", rows of a check mark and the name, the cap/loading/empty/error lines); Refresh (always rendered,
+ * "Filter branches", rows of a check mark and the name, the cap/loading/empty/error lines); Create branch (opens the Create branch sheet, screens/CreateBranchSheet.tsx); Refresh (always rendered,
  * disabled and busy while listing, with a refresh error line and Retry) re-lists in place; the folder tree lists lazily,
  * and a file opens as a github:// document in the editor. Error wording is describeError's. Wide rows scroll sideways
  * (the .m-hscroll cue). Exports repoScreen(title) for the navigator and REPO_SCREEN_KEY.
@@ -168,6 +168,9 @@ function RepoTree({ repo, gh, currentPath, onOpenFile, branchesOpen, setBranches
         </button>
         <button type="button" className="m-tap" aria-label="Refresh" title="Refresh" aria-busy={busy} disabled={busy} style={{ border: '1px solid var(--border)' }} onClick={refresh}>
           {busy ? 'Refreshing…' : '⟳'}
+        </button>
+        <button type="button" className="m-tap" aria-label="Create branch" title="Create branch" style={{ border: '1px solid var(--border)' }} onClick={gh.openCreateBranch}>
+          ⎇+
         </button>
       </div>
       {branchesOpen && (

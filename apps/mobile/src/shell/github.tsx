@@ -3,12 +3,13 @@
  * shows, session branches, change-branch warning, Open Repo, refresh signal) and useGithub() hands it to screens,
  * together with `finishPick` for the repository picker screen. The sign-in dialog is the sign-in screen (useSignInPrompt);
  * the picker is a pushed screen whose result resolves the controller's pickRepo; the change-branch warning is a bottom
- * sheet ("Change branch?"). The commit conflict is the shared choice sheet (shell/dialogs.tsx, Cancel or Overwrite, both leave the tab unsaved). Commit, Create branch and Open PR have no mobile screens yet (M-20, M-22, M-23),
+ * sheet ("Change branch?"). The commit conflict is the shared choice sheet (shell/dialogs.tsx, Cancel or Overwrite, both leave the tab unsaved). Create branch is a bottom sheet (screens/CreateBranchSheet.tsx, opened by the controller's createBranch dialog). Commit and Open PR have no mobile screens yet (M-22, M-23),
  * so those dialogs answer "cancel". Choosing a repository shows its navigator screen (replacing one already open).
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useGithubController, type RepoPick } from '@gonq/editor/controllers/github';
+import { useGithubController, type CreateBranchDone, type GithubDialogs, type RepoPick } from '@gonq/editor/controllers/github';
 import { useSignInPrompt } from '../screens/GitHubSignIn';
+import { CreateBranchSheet } from '../screens/CreateBranchSheet';
 import { repoPickerScreen } from '../screens/RepoPicker';
 import { repoScreen, REPO_SCREEN_KEY } from '../screens/RepoScreen';
 import { BottomSheet } from './BottomSheet';
@@ -40,6 +41,7 @@ export function GithubProvider({ children }: { children: ReactNode }) {
   const signIn = useSignInPrompt();
   const chosen = useRef('');
   const picking = useRef<((r: RepoPick) => void) | null>(null);
+  const [creating, setCreating] = useState<{ args: Parameters<GithubDialogs['createBranch']>[0]; done: (r: CreateBranchDone | null) => void } | null>(null);
   const [warning, setWarning] = useState<{ name: string; answer: (ok: boolean) => void } | null>(null);
 
   const finishPick = useCallback((result: RepoPick) => {
@@ -62,7 +64,7 @@ export function GithubProvider({ children }: { children: ReactNode }) {
       confirmBranchChange: (name) => new Promise<boolean>((answer) => setWarning({ name, answer })),
       chooseCommit: () => Promise.resolve('cancel'),
       showConflict: (conflict) => confirmConflict(conflict),
-      createBranch: () => Promise.resolve(null),
+      createBranch: (args) => new Promise<CreateBranchDone | null>((done) => setCreating({ args, done })),
       openPr: () => Promise.resolve(undefined),
     },
     onError: setError,
@@ -85,6 +87,12 @@ export function GithubProvider({ children }: { children: ReactNode }) {
     }
   }, [pickerOpen]);
 
+  // Cancel is focused when the warning opens, as on desktop.
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const warned = warning !== null;
+  useEffect(() => {
+    if (warned) cancelRef.current?.focus();
+  }, [warned]);
   const answer = (ok: boolean) => {
     warning?.answer(ok);
     setWarning(null);
@@ -92,12 +100,21 @@ export function GithubProvider({ children }: { children: ReactNode }) {
   return (
     <GithubContext.Provider value={{ ...gh, finishPick }}>
       {children}
+      {creating !== null && (
+        <CreateBranchSheet
+          {...creating.args}
+          onClose={(result) => {
+            creating.done(result);
+            setCreating(null);
+          }}
+        />
+      )}
       <BottomSheet open={warning !== null} title="Change branch?" onClose={() => answer(false)}>
         <p style={{ margin: 0 }}>
           Changing branches will close {warning?.name}, and any uncommitted changes will be permanently lost.
         </p>
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          <button type="button" className="m-tap" style={{ border: '1px solid var(--border)', flex: 1 }} onClick={() => answer(false)}>
+          <button type="button" ref={cancelRef} className="m-tap" style={{ border: '1px solid var(--border)', flex: 1 }} onClick={() => answer(false)}>
             Cancel
           </button>
           <button type="button" className="m-tap" style={{ background: 'var(--destructive)', color: 'var(--destructive-foreground)', flex: 1 }} onClick={() => answer(true)}>
