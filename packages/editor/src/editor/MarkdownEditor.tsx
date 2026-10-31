@@ -62,6 +62,8 @@ export interface EditorHandle {
   /** Collapses the selection to its end. */
   collapse(): void;
   focus(): void;
+  /** Scrolls the caret into view if it is hidden (the visible area shrank, e.g. a virtual keyboard opened); does nothing without focus. */
+  scrollCaretIntoView(): void;
   /** Runs a table toolbar action on the focused table cell. */
   tableAction(op: TableOp): void;
   /** Puts the focus back in the table cell the toolbar acts on. */
@@ -318,6 +320,10 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
         if (v) v.dispatch({ selection: { anchor: v.state.selection.main.head } });
       },
       focus: () => view.current?.focus(),
+      scrollCaretIntoView() {
+        const v = view.current;
+        if (v?.hasFocus) v.dispatch({ effects: EditorView.scrollIntoView(v.state.selection.main.head, { y: 'nearest', yMargin: 16 }) });
+      },
     }),
     [],
   );

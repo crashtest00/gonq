@@ -2,7 +2,10 @@
 @import '@fontsource/public-sans/500.css';
 @import '@fontsource/public-sans/600.css';
 @import '@fontsource/public-sans/700.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
 @import '@gonq/editor/styles/tokens.css';
+@import '@gonq/editor/styles/editor.css';
 
 html, body, #root { height: 100%; margin: 0; }
 body {
@@ -28,7 +31,7 @@ body {
 .m-tap:disabled { opacity: .5; cursor: default; }
 .m-tap-primary { background: var(--primary); color: var(--primary-foreground); font-weight: var(--weight-semibold); }
 
-.m-shell { display: flex; flex-direction: column; height: 100%; }
+.m-shell { display: flex; flex-direction: column; height: var(--m-vvh, 100%); }
 .m-topbar {
   display: flex; align-items: center; gap: var(--space-2); flex: none;
   min-height: calc(56px + env(safe-area-inset-top));
@@ -70,3 +73,18 @@ body {
 .m-splash img { width: min(200px, 60vw); height: auto; }
 .m-label { padding: var(--space-4) var(--space-4) var(--space-2); font-size: var(--text-caption); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: .04em; color: var(--muted-foreground); }
 .m-empty { padding: var(--space-7) var(--space-5) 0; text-align: center; color: var(--muted-foreground); line-height: 1.5; }
+
+/* The editor screen: the editor fills the space above the keyboard accessory bar. */
+.m-editor-screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.m-editor-screen .gonq-editor { flex: 1; padding: 0 var(--space-4); }
+.m-accessory {
+  flex: none; background-color: var(--background); border-top: 1px solid var(--border);
+  flex-wrap: nowrap; gap: var(--space-1); padding: 0 var(--space-2);
+}
+.m-accessory .m-tap { padding: 0; }
+
+/* Raw / Formatted: one switch drawn as two 44px segments. */
+.m-raw { display: inline-flex; flex: none; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-control); background: transparent; color: var(--muted-foreground); font: inherit; font-size: var(--text-caption); font-weight: var(--weight-semibold); cursor: pointer; overflow: hidden; }
+.m-raw:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.m-raw > span { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 var(--space-2); }
+.m-raw > span[data-active='true'] { background: var(--primary); color: var(--primary-foreground); }
