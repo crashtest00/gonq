@@ -1,5 +1,5 @@
 /**
- * The mobile editor screen: the shared MarkdownEditor on the active tab (its handle, selection and table target live in the CommandHost; a long press on the text opens the EditorSheet), the keyboard AccessoryBar below it (swapped for the TableBar while the caret is in a table, via the editor's onTable target) and the tab strip above the editor, the Outline drawer over it and (as
+ * The mobile editor screen: the shared MarkdownEditor on the active tab (its handle, selection and table target live in the CommandHost; a long press on the text opens the EditorSheet), the keyboard AccessoryBar below it (swapped for the TableBar while the caret is in a table, via the editor's onTable target) and the tab strip above the editor (and, on a read-only GitHub tab, the ReadOnlyBanner), the Outline drawer over it and (as
  * the screen's top-bar actions) the Outline and Comments buttons, the Raw switch and the ⋯ menu. The docked CommentsSheet replaces the accessory bar while open; a tapped comment marker opens its thread, and the open thread's anchor is revealed (also on keyboard changes). useVisualViewport keeps the shell above the virtual keyboard and, after
  * each visual-viewport change, calls the editor handle's scrollCaretIntoView (CodeMirror's EditorView.scrollIntoView
  * effect) so the caret stays visible. editorScreen(title) builds the navigator Screen; EditorBridge pushes it when a document opens.
@@ -10,6 +10,7 @@ import { listThreads, threadKey } from '@gonq/editor/model/threads';
 import { MarkdownEditor } from '@gonq/editor/editor/MarkdownEditor';
 import { useCommandHost } from '../shell/commandContext';
 import { useComments } from '../shell/comments';
+import { useGithub } from '../shell/github';
 import { useDocuments } from '../shell/documents';
 import { useNavigator, type Screen } from '../shell/StackNavigator';
 import { useVisualViewport } from '../shell/useVisualViewport';
@@ -19,6 +20,7 @@ import { EditorSheet, useLongPress } from './EditorSheet';
 import { OutlineButton, OutlineDrawer } from './OutlineDrawer';
 import { MoreMenu } from './MoreMenu';
 import { RawSwitch } from './RawSwitch';
+import { ReadOnlyBanner } from './ReadOnlyBanner';
 import { TabStrip } from './TabStrip';
 
 const noop = () => {};
@@ -36,6 +38,7 @@ export function EditorScreen({ readOnly = false }: { readOnly?: boolean }) {
   const [sheet, setSheet] = useState(false);
   const { releasing, ...press } = useLongPress(() => setSheet(true));
   const comments = useComments();
+  const { readOnlyPull } = useGithub();
   const open = comments.open;
   const selectedKey = comments.selectedKey;
   const text = session.text;
@@ -54,6 +57,7 @@ export function EditorScreen({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <div className="m-editor-screen" {...press}>
       <TabStrip />
+      {readOnlyPull !== null && <ReadOnlyBanner pull={readOnlyPull} />}
       <MarkdownEditor
         ref={editor}
         tabId={session.activeId}

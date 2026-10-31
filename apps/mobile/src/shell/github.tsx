@@ -3,18 +3,18 @@
  * shows, session branches, change-branch warning, Open Repo, refresh signal) and useGithub() hands it to screens,
  * together with `finishPick` for the repository picker screen. The sign-in dialog is the sign-in screen (useSignInPrompt);
  * the picker is a pushed screen whose result resolves the controller's pickRepo; the change-branch warning is a bottom
- * sheet ("Change branch?"). The commit conflict is the shared choice sheet (shell/dialogs.tsx, Cancel or Overwrite, both leave the tab unsaved). Create branch is a bottom sheet (screens/CreateBranchSheet.tsx, opened by the controller's createBranch dialog). Commit and Open PR have no mobile screens yet (M-22, M-23),
- * so those dialogs answer "cancel". Choosing a repository shows its navigator screen (replacing one already open).
+ * sheet ("Change branch?"). The commit conflict is the shared choice sheet (shell/dialogs.tsx, Cancel or Overwrite, both leave the tab unsaved). Create branch is a bottom sheet (screens/CreateBranchSheet.tsx, opened by the controller's createBranch dialog). Commit is a bottom sheet (screens/CommitSheet.tsx); Open PR has no mobile screen yet (M-23), so that dialog answers nothing. Choosing a repository shows its navigator screen (replacing one already open).
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useGithubController, type CreateBranchDone, type GithubDialogs, type RepoPick } from '@gonq/editor/controllers/github';
+import { useGithubController, type CommitChoice, type CreateBranchDone, type GithubDialogs, type RepoPick } from '@gonq/editor/controllers/github';
 import { useSignInPrompt } from '../screens/GitHubSignIn';
+import { CommitSheet } from '../screens/CommitSheet';
 import { CreateBranchSheet } from '../screens/CreateBranchSheet';
 import { repoPickerScreen } from '../screens/RepoPicker';
 import { repoScreen, REPO_SCREEN_KEY } from '../screens/RepoScreen';
 import { BottomSheet } from './BottomSheet';
 import { useDialogs } from './dialogs';
-import { useDocuments } from './documents';
+import { useCommitGithubRef, useDocuments } from './documents';
 import { useNotices } from './notices';
 import { useNavigator } from './StackNavigator';
 
@@ -33,6 +33,7 @@ export function useGithub(): Github {
 
 export function GithubProvider({ children }: { children: ReactNode }) {
   const { session } = useDocuments();
+  const commitRef = useCommitGithubRef();
   const { setError, setNotice } = useNotices();
   const { confirmConflict } = useDialogs();
   const nav = useNavigator();
@@ -42,6 +43,7 @@ export function GithubProvider({ children }: { children: ReactNode }) {
   const chosen = useRef('');
   const picking = useRef<((r: RepoPick) => void) | null>(null);
   const [creating, setCreating] = useState<{ args: Parameters<GithubDialogs['createBranch']>[0]; done: (r: CreateBranchDone | null) => void } | null>(null);
+  const [committing, setCommitting] = useState<{ target: Parameters<GithubDialogs['chooseCommit']>[0]; answer: (c: CommitChoice) => void } | null>(null);
   const [warning, setWarning] = useState<{ name: string; answer: (ok: boolean) => void } | null>(null);
 
   const finishPick = useCallback((result: RepoPick) => {
@@ -62,7 +64,7 @@ export function GithubProvider({ children }: { children: ReactNode }) {
           navRef.current.push(repoPickerScreen);
         }),
       confirmBranchChange: (name) => new Promise<boolean>((answer) => setWarning({ name, answer })),
-      chooseCommit: () => Promise.resolve('cancel'),
+      chooseCommit: (target) => new Promise<CommitChoice>((answer) => setCommitting({ target, answer })),
       showConflict: (conflict) => confirmConflict(conflict),
       createBranch: (args) => new Promise<CreateBranchDone | null>((done) => setCreating({ args, done })),
       openPr: () => Promise.resolve(undefined),
@@ -76,6 +78,9 @@ export function GithubProvider({ children }: { children: ReactNode }) {
       else n.push(screen);
     },
   });
+
+  // Save and Commit… on a GitHub tab commit through the controller.
+  commitRef.current = gh.commitGithub;
 
   // Leaving the picker with Back closes it.
   const pickerOpen = nav.stack.some((s) => s.key === repoPickerScreen.key);
@@ -100,6 +105,16 @@ export function GithubProvider({ children }: { children: ReactNode }) {
   return (
     <GithubContext.Provider value={{ ...gh, finishPick }}>
       {children}
+      {committing !== null && (
+        <CommitSheet
+          {...committing.target}
+          onChoose={(choice) => {
+            // The sheet closes before the commit runs.
+            setCommitting(null);
+            committing.answer(choice);
+          }}
+        />
+      )}
       {creating !== null && (
         <CreateBranchSheet
           {...creating.args}
