@@ -1,5 +1,5 @@
-/** The Documents home: the "Recent documents" label and its empty state (recents arrive with M-18), plus the interim "Sign in to GitHub" row that opens SignInInterim. */
-import { signInInterimScreen } from './SignInInterim';
+/** The Documents home: the "Recent documents" label and its empty state (recents arrive with M-18), plus the interim "Sign in to GitHub" row that opens GitHubSignIn. */
+import { githubSignInScreen } from './GitHubSignIn';
 import { useNavigator } from '../shell/StackNavigator';
 
 export function DocumentsHome() {
@@ -15,7 +15,7 @@ export function DocumentsHome() {
           borderBottom: '1px solid var(--border)',
           borderRadius: 0,
         }}
-        onClick={() => push(signInInterimScreen)}
+        onClick={() => push(githubSignInScreen)}
       >
         Sign in to GitHub
       </button>
