@@ -66,7 +66,7 @@ function focusedBounds(xml) {
 }
 // Keyboard: move focus with DPAD until the focused node contains the target text, then Enter (the only input that works on this DocumentsUI).
 async function kbSelect(text, label) {
-  const keys = [...Array(12).fill('DPAD_DOWN'), ...Array(12).fill('DPAD_UP'), ...Array(6).fill('DPAD_RIGHT'), ...Array(12).fill('DPAD_DOWN')];
+  const keys = [...Array(30).fill('TAB'), ...Array(12).fill('DPAD_DOWN'), ...Array(12).fill('DPAD_UP'), ...Array(6).fill('DPAD_RIGHT'), ...Array(12).fill('DPAD_DOWN')];
   for (let i = 0; i <= keys.length; i++) {
     const xml = dump(); const tb = findBounds(xml, text); const fb = focusedBounds(xml);
     if (tb && fb && tb.x >= fb.l && tb.x <= fb.r && tb.y >= fb.t && tb.y <= fb.b) { shot(`${label}-focus-${text.replace(/\W+/g, '_')}`); sh('adb shell input keyevent KEYCODE_ENTER'); return true; }
