@@ -242,7 +242,7 @@ class SafPlugin(private val activity: Activity) : Plugin(activity) {
 
   private fun statJson(n: Node): JSObject {
     val o = JSObject().put("size", n.size.coerceAtLeast(0)).put("isDir", n.isDir)
-    if (n.modified != null) o.put("modified", n.modified) else o.put("modified", JSObject.NULL)
+    if (n.modified != null) o.put("modified", n.modified) else o.put("modified", org.json.JSONObject.NULL)
     return o
   }
 
