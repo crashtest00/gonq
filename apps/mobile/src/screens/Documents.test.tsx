@@ -1,4 +1,4 @@
-/** Covers the mobile Documents home through renderMobileApp: recent rows (icon, name, owner/repo @ branch, time), the 10 cap, tap-to-reopen order (allowRecentDocument, then the read), remove, the empty text, Open Folder's not-available error, Open Repo through ensureSignedIn, and "+" = File > New. */
+/** Covers the mobile Documents home through renderMobileApp: recent rows (icon, name, owner/repo @ branch, time), the 10 cap, tap-to-reopen order (allowRecentDocument, then the read), remove, the empty text, Open Folder's not-available error, Open Repo through ensureSignedIn to the picker, and "+" = File > New. */
 import { screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
@@ -101,11 +101,11 @@ it('Open Repo… goes through ensureSignedIn: signed out opens the sign-in scree
   expect(await screen.findByRole('button', { name: 'Start' })).toBeInTheDocument();
 });
 
-it('Open Repo… when signed in does not ask to sign in', async () => {
+it('Open Repo… when signed in does not ask to sign in and opens the picker', async () => {
   signedIn = true;
   const { user } = await renderMobileApp();
   await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
-  expect(await screen.findByRole('status')).toHaveTextContent('repository picker');
+  expect(await screen.findByRole('heading', { name: 'Open repository' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Start' })).toBeNull();
 });
 

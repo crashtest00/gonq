@@ -9,6 +9,7 @@
     "./commands": "./src/commands/index.ts",
     "./controllers/document": "./src/controllers/document.ts",
     "./controllers/github": "./src/controllers/github.ts",
+    "./controllers/repoTree": "./src/controllers/repoTree.ts",
     "./controllers/signIn": "./src/controllers/signIn.ts",
     "./comment-threads": "./src/comment-threads/index.ts",
     "./dialogs/DialogHost": "./src/dialogs/DialogHost.tsx",

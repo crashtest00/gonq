@@ -3,11 +3,11 @@
  * Copy code, address with Copy address, Open github.com/login/device), approved (Done, session-only notice), denied,
  * expired and failed (Try again), and the signed-in @login view. Strings and roles follow the desktop
  * GitHubSignInPanel verbatim; only the layout is mobile. Exports githubSignInScreen for the navigator and
- * SignInBridge, which registers the screen as the platform sign-in handler so ensureSignedIn can send the user here.
+ * useSignInPrompt, the sign-in dialog of the GitHub provider, so ensureSignedIn can send the user here.
  */
 import { createElement, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useSignInController } from '@gonq/editor/controllers/signIn';
-import { setSignInHandler, signInStatus, signOut, toGitHubError, type GitHubStatus } from '@gonq/editor/platform/github';
+import { signInStatus, signOut, toGitHubError, type GitHubStatus } from '@gonq/editor/platform/github';
 import { useNotices } from '../shell/notices';
 import { useNavigator, type Screen } from '../shell/StackNavigator';
 
@@ -200,10 +200,11 @@ export const githubSignInScreen: Screen = {
 };
 
 /**
- * Registers the sign-in screen as the platform sign-in handler: ensureSignedIn pushes it and resolves, once the
- * screen has left the stack (Done, Cancel or Back), with whether a token exists. Renders nothing.
+ * useSignInPrompt: returns the function the GitHub provider hands to useGithubController as its sign-in dialog (the
+ * controller registers it as the platform sign-in handler): it pushes the sign-in screen and resolves, once the
+ * screen has left the stack (Done, Cancel or Back), with whether a token exists. Concurrent calls join the first.
  */
-export function SignInBridge() {
+export function useSignInPrompt(): () => Promise<boolean> {
   const nav = useNavigator();
   const navRef = useRef(nav);
   navRef.current = nav;
@@ -211,28 +212,24 @@ export function SignInBridge() {
   const settle = useRef<(() => void) | null>(null);
   const open = nav.stack.some((s) => s.key === githubSignInScreen.key);
 
-  useEffect(
-    () =>
-      setSignInHandler(() => {
-        if (pending.current !== null) return pending.current;
-        const asked = new Promise<boolean>((resolve) => {
-          settle.current = () => {
-            settle.current = null;
-            signInStatus().then(
-              (s) => resolve(s.signed_in),
-              () => resolve(false),
-            );
-          };
-        });
-        pending.current = asked;
-        void asked.finally(() => {
-          pending.current = null;
-        });
-        navRef.current.push(githubSignInScreen);
-        return asked;
-      }),
-    [],
-  );
+  const prompt = useRef(() => {
+    if (pending.current !== null) return pending.current;
+    const asked = new Promise<boolean>((resolve) => {
+      settle.current = () => {
+        settle.current = null;
+        signInStatus().then(
+          (s) => resolve(s.signed_in),
+          () => resolve(false),
+        );
+      };
+    });
+    pending.current = asked;
+    void asked.finally(() => {
+      pending.current = null;
+    });
+    navRef.current.push(githubSignInScreen);
+    return asked;
+  });
 
   const wasOpen = useRef(false);
   useEffect(() => {
@@ -242,5 +239,5 @@ export function SignInBridge() {
       settle.current?.();
     }
   }, [open]);
-  return null;
+  return prompt.current;
 }
