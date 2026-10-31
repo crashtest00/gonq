@@ -1,39 +1,68 @@
 /**
- * <MoreMenu/>: the "⋯" top-bar button and its bottom sheet, which runs registry commands by id (no new commands):
- * View > Theme (Light, Dark, Auto: applied at once and persisted through setTheme), Edit > Settings…, Help > Agent
- * skill… and Help > About Gonq. The full overflow menu with every other command is M-25; MENU_COMMAND_IDS is what
- * this interim sheet lists. Exports MoreMenu and MENU_COMMAND_IDS.
+ * <MoreMenu/>: the "⋯" top-bar button and its scrolling bottom sheet "Menu", generated from the command registry
+ * (registry.resolveMenus) so it follows the desktop menu bar: every menu with its items in order, separators between
+ * groups, submenus (Format > Table, View > Theme) as labelled groups, checkbox and radio rows with a check mark, and
+ * disabled commands shown disabled, never hidden. The commands in EXCLUDED_COMMAND_IDS are skipped. Touch sheets show
+ * no shortcut hints. Picking a row closes the sheet and runs the command against the mobile CommandContext. Exports MoreMenu.
  */
 import { useState } from 'react';
-import { registry, type CommandContext } from '@gonq/editor/commands';
+import { registry, type MenuEntry } from '@gonq/editor/commands';
+import { EXCLUDED_COMMAND_IDS } from '../excludedCommands';
 import { BottomSheet } from '../shell/BottomSheet';
-import { runFileCommand } from '../shell/documents';
-import { useNavigator } from '../shell/StackNavigator';
-import { useThemeChoice } from '../shell/theme';
-import { aboutScreen } from './AboutScreen';
-import { agentSkillScreen } from './AgentSkillScreen';
-import { settingsScreen } from './SettingsScreen';
+import { useCommandHost } from '../shell/commandContext';
 
-export const THEME_COMMAND_IDS = ['view.theme.light', 'view.theme.dark', 'view.theme.auto'] as const;
-export const MENU_COMMAND_IDS = ['edit.settings', 'help.agentSkill', 'help.about'] as const;
+const rowStyle = { width: '100%', justifyContent: 'space-between', borderRadius: 0 } as const;
+
+/** Separators only between two kept entries: dropping an excluded command must not leave one at an edge or doubled. */
+function tidy(entries: MenuEntry[]): MenuEntry[] {
+  const kept = entries.filter((e) => e.type === 'separator' || !EXCLUDED_COMMAND_IDS.includes(e.command.id));
+  return kept.filter((e, i) => e.type !== 'separator' || (i > 0 && i < kept.length - 1 && kept[i - 1].type !== 'separator'));
+}
 
 export function MoreMenu() {
   const [open, setOpen] = useState(false);
-  const { push } = useNavigator();
-  const [theme, setTheme] = useThemeChoice();
-  const label = (id: string) => registry.commands().find((c) => c.id === id)?.label ?? id;
+  const { ctx, editor } = useCommandHost();
 
-  const ctx: Partial<CommandContext> = {
-    theme,
-    setTheme,
-    openSettings: () => push(settingsScreen),
-    openAgentSkill: () => push(agentSkillScreen),
-    openAbout: () => push(aboutScreen),
-  };
-  const run = (id: string) => {
+  const run = (command: { run?: (c: typeof ctx) => unknown; focusEditor?: boolean }, closeFocus?: (c: typeof ctx) => void) => {
     setOpen(false);
-    runFileCommand(id, ctx);
+    void command.run?.(ctx);
+    if (closeFocus !== undefined) closeFocus(ctx);
+    else if (command.focusEditor) editor.current?.focus();
   };
+
+  const rows = (entries: MenuEntry[], menuEnabled: boolean, closeFocus?: (c: typeof ctx) => void) =>
+    tidy(entries).map((e, i) => {
+      if (e.type === 'separator') return <div key={`sep${i}`} role="separator" style={{ height: 1, background: 'var(--border)', margin: 'var(--space-1) 0' }} />;
+      const { command } = e;
+      const disabled = !menuEnabled || !e.enabled;
+      if (e.type === 'submenu') {
+        return (
+          <div key={command.id} role="group" aria-label={command.label}>
+            <div className="m-label" aria-hidden="true">
+              {command.label}
+            </div>
+            {rows(e.items, !disabled, closeFocus)}
+          </div>
+        );
+      }
+      const role = command.kind === 'checkbox' ? 'menuitemcheckbox' : command.kind === 'radio' ? 'menuitemradio' : 'menuitem';
+      return (
+        <button
+          key={command.id}
+          type="button"
+          role={role}
+          data-command={command.id}
+          className="m-tap"
+          style={rowStyle}
+          disabled={disabled}
+          {...(role === 'menuitem' ? {} : { 'aria-checked': e.checked })}
+          onClick={() => run(command, closeFocus)}
+        >
+          {command.label}
+          {role !== 'menuitem' && <span aria-hidden="true">{e.checked ? '✓' : ''}</span>}
+        </button>
+      );
+    });
 
   return (
     <>
@@ -41,33 +70,15 @@ export function MoreMenu() {
         ⋯
       </button>
       <BottomSheet open={open} title="Menu" onClose={() => setOpen(false)}>
-        <div className="m-label" id="m-menu-theme">
-          Theme
-        </div>
-        <div role="radiogroup" aria-labelledby="m-menu-theme">
-          {THEME_COMMAND_IDS.map((id) => {
-            const checked = registry.commands().find((c) => c.id === id)?.checked?.(ctx as CommandContext) ?? false;
-            return (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={checked}
-                className="m-tap"
-                style={{ width: '100%', justifyContent: 'space-between' }}
-                onClick={() => run(id)}
-              >
-                {label(id)}
-                <span aria-hidden="true">{checked ? '✓' : ''}</span>
-              </button>
-            );
-          })}
-        </div>
-        {MENU_COMMAND_IDS.map((id) => (
-          <button key={id} type="button" className="m-tap" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => run(id)}>
-            {label(id)}
-          </button>
-        ))}
+        {open &&
+          registry.resolveMenus(ctx).map(({ menu, enabled, entries }) => (
+            <div key={menu.id} role="menu" aria-label={menu.label}>
+              <div className="m-label" aria-hidden="true">
+                {menu.label}
+              </div>
+              {rows(entries, enabled, menu.closeFocus)}
+            </div>
+          ))}
       </BottomSheet>
     </>
   );

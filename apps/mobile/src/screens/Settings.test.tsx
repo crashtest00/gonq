@@ -36,7 +36,7 @@ beforeEach(() => {
 
 async function openSettings(user: User) {
   await user.click(screen.getByRole('button', { name: 'More' }));
-  await user.click(await screen.findByRole('button', { name: 'Settings…' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Settings…' }));
   return screen.findByRole('form', { name: 'Settings' });
 }
 

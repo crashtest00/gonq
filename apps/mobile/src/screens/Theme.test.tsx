@@ -12,12 +12,12 @@ beforeEach(() => {
 it('Dark applies at once and persists; Light undoes it; the choice is checked', async () => {
   const { user } = await renderMobileApp();
   await user.click(screen.getByRole('button', { name: 'More' }));
-  await user.click(screen.getByRole('radio', { name: /Dark/ }));
+  await user.click(screen.getByRole('menuitemradio', { name: /Dark/ }));
   expect(document.documentElement).toHaveClass('dark');
   expect(localStorage.getItem(THEME_KEY)).toBe('dark');
   await user.click(screen.getByRole('button', { name: 'More' }));
-  expect(screen.getByRole('radio', { name: /Dark/ })).toHaveAttribute('aria-checked', 'true');
-  await user.click(screen.getByRole('radio', { name: /Light/ }));
+  expect(screen.getByRole('menuitemradio', { name: /Dark/ })).toHaveAttribute('aria-checked', 'true');
+  await user.click(screen.getByRole('menuitemradio', { name: /Light/ }));
   expect(document.documentElement).not.toHaveClass('dark');
   expect(localStorage.getItem(THEME_KEY)).toBe('light');
 });
@@ -25,5 +25,5 @@ it('Dark applies at once and persists; Light undoes it; the choice is checked', 
 it('offers exactly Light, Dark and Auto', async () => {
   const { user } = await renderMobileApp();
   await user.click(screen.getByRole('button', { name: 'More' }));
-  expect(screen.getAllByRole('radio').map((r) => r.textContent?.replace('✓', ''))).toEqual(['Light', 'Dark', 'Auto']);
+  expect(screen.getAllByRole('menuitemradio').map((r) => r.textContent?.replace('✓', ''))).toEqual(['Light', 'Dark', 'Auto']);
 });
