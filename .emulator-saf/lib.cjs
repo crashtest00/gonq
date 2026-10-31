@@ -51,23 +51,31 @@ async function kbSelect(text, label) {
   }
   fs.writeFileSync(`${EV}/${label}-kb-no-${text.replace(/\W+/g, '_')}.xml`, dump()); return false;
 }
-// Drive DocumentsUI after the app opened ACTION_OPEN_DOCUMENT_TREE: browse to `segments`, then "Use this folder" + "Allow".
-async function pickTree(segments, label) {
+// Drive DocumentsUI after the app opened ACTION_OPEN_DOCUMENT_TREE. Raw `input tap` and DPAD cannot enter folders on the emulator's
+// DocumentsUI (probed: touch ignored, focus never leaves "Create new folder"), so clicks go through Playwright's Android driver, which
+// clicks via the accessibility service (device.tap with a selector).
+async function axTap(device, texts, timeout = 8000) {
+  for (const text of texts) {
+    try { await device.tap({ pkg: 'com.google.android.documentsui', text }, { timeout }); return text; } catch (e) { /* try next spelling */ }
+  }
+  return null;
+}
+async function pickTree(segments, label, device) {
   await sleep(2500); shot(`${label}-picker-start`); fs.writeFileSync(`${EV}/${label}-picker-start.xml`, dump());
   for (const s of segments) {
-    const ok = await kbSelect(s, label); await sleep(1800);
+    const t = await axTap(device, [s]); await sleep(1800);
     const bb = findBounds(dump(), s); shot(`${label}-enter-${s}`);
-    const entered = ok && !!bb && bb.y < 130;      // folder name now in the title bar
-    log(`${label}: enter ${s} (keyboard)`, entered, bb ? `y=${bb.y}` : 'name not on screen');
+    const entered = !!t && !!bb && bb.y < 130;      // folder name now in the title bar
+    log(`${label}: enter ${s} (accessibility tap)`, entered, `tapped=${t} ${bb ? 'y=' + bb.y : 'name not on screen'}`);
     if (!entered) { fs.writeFileSync(`${EV}/${label}-nav-fail.xml`, dump()); return false; }
   }
   shot(`${label}-picker-in-folder`);
-  const use = (await kbSelect('Use this folder', label)) || (await kbSelect('USE THIS FOLDER', label));
+  const use = await axTap(device, ['USE THIS FOLDER', 'Use this folder']);
   await sleep(1500); shot(`${label}-picker-grant-dialog`);
-  const allow = (await kbSelect('Allow', label)) || (await kbSelect('ALLOW', label));
+  const allow = await axTap(device, ['ALLOW', 'Allow']);
   await sleep(1500);
-  log(`${label}: picker use+allow`, use && allow, `use=${use} allow=${allow}`);
-  return use && allow;
+  log(`${label}: picker use+allow`, !!(use && allow), `use=${use} allow=${allow}`);
+  return !!(use && allow);
 }
 function logcat(name, extra = '') {
   const pid = sh(`adb shell pidof ${PKG} || true`);

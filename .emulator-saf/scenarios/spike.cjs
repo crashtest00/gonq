@@ -37,7 +37,7 @@ module.exports = async ({ device, L }) => {
   // 2. System picker: Pick -> DocumentsUI -> GonqSpike -> Use this folder -> Allow.
   await phase('pick', async () => {
     await p.getByRole('button', { name: 'Pick', exact: true }).click();
-    const ok = await L.pickTree(['Documents', 'GonqSpike'], '02-pick');
+    const ok = await L.pickTree(['Documents', 'GonqSpike'], '02-pick', device);
     p = await getPage(); await L.sleep(1500);
     const o = await out(p); L.log('pick output', ok && /tree/.test(o), o.slice(0, 600)); L.shot('02-pick-after');
     tree = await p.evaluate(() => localStorage.getItem('saf-tree'));
