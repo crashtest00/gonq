@@ -10,6 +10,7 @@ import {
   LocalFileError,
   checkLocalRoot,
   createLocal,
+  createLocalDocument,
   existsLocal,
   grantedTrees,
   isLocalPath,
@@ -37,6 +38,7 @@ beforeEach(() => {
   saf.calls.length = 0;
   saf.granted.clear();
   saf.nextPick = null;
+  saf.nextDocument = null;
   saf.addTree(TREE, {
     'a.md': 'alpha',
     'Zed.md': 'z',
@@ -199,6 +201,36 @@ describe('checkLocalRoot (reopening a recent)', () => {
   it('fails with not-found when the grant is there but the root is gone', async () => {
     saf.vanish(TREE);
     await expect(checkLocalRoot(localPath(at('a.md')))).rejects.toMatchObject({ kind: 'not-found' });
+  });
+});
+
+describe('createLocalDocument (Save as outside an opened folder)', () => {
+  const DOC = 'content://com.android.providers.downloads.documents/document/42';
+  it('resolves a single-document handle that round-trips through localPath and can be written and read', async () => {
+    saf.nextDocument = { uri: DOC, name: 'notes.md' };
+    const r = await createLocalDocument('Untitled.md');
+    expect(r).toEqual({ handle: { tree: DOC, rel: 'notes.md' }, name: 'notes.md' });
+    expect(saf.calls[saf.calls.length - 1]).toEqual(['local_create_document', { name: 'Untitled.md' }]);
+    const path = localPath(r!.handle);
+    expect(parseLocalPath(path)).toEqual(r!.handle);
+    expect(localFileName(path)).toBe('notes.md');
+    const stat = await writeLocal(r!.handle, 'hello');
+    expect(stat.size).toBe(5);
+    expect(new TextDecoder().decode((await readLocal(r!.handle)).bytes)).toBe('hello');
+    expect((await checkLocalRoot(path)).tree).toBe(DOC);
+  });
+  it('resolves null when cancelled, without an error', async () => {
+    expect(await createLocalDocument('Untitled.md')).toBeNull();
+  });
+  it('maps a rejection to a LocalFileError', async () => {
+    const spy = vi.spyOn(saf, 'invoke').mockRejectedValueOnce({ kind: 'io', message: 'boom' });
+    await expect(createLocalDocument('x.md')).rejects.toMatchObject({ name: 'LocalFileError', kind: 'io', message: 'boom' });
+    spy.mockRestore();
+  });
+  it('rejects with unsupported outside the Android app and never calls the plugin', async () => {
+    vi.stubGlobal('__GONQ_APP__', undefined);
+    await expect(createLocalDocument('x.md')).rejects.toMatchObject({ kind: 'unsupported' });
+    expect(saf.calls).toEqual([]);
   });
 });
 

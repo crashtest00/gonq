@@ -1,6 +1,6 @@
 /**
  * Local folders on Android (M-30): the only caller of the `gonq-saf` plugin commands (local_pick_folder, local_granted,
- * local_list, local_stat, local_read, local_write, local_create, local_exists; Kotlin SafPlugin behind src/saf.rs in the mobile
+ * local_list, local_stat, local_read, local_write, local_create, local_exists, local_create_document; Kotlin SafPlugin behind src/saf.rs in the mobile
  * crate) and the home of the local:// path format, `local://<percent-encoded tree URI>/<rel segments>`, where the tree is a
  * Storage Access Framework folder the user picked and rel is names under it. Exports LocalHandle, localPath / parseLocalPath,
  * isLocalPath, the list/read/write/create/exists wrappers, LocalFileError and `checkLocalRoot` (the reopen check).
@@ -127,6 +127,19 @@ export async function pickLocalFolder(): Promise<{ handle: LocalHandle; name: st
   const r = await call<{ picked?: boolean; tree?: string; name?: string } | null>('local_pick_folder');
   if (r === null || r.picked === false || typeof r.tree !== 'string') return null;
   return { handle: { tree: r.tree, rel: '' }, name: r.name ?? r.tree };
+}
+
+/**
+ * Save as for a file outside any opened folder: the system create-document picker (ACTION_CREATE_DOCUMENT) with `suggestedName`.
+ * The grant is persisted. Resolves the new, empty document (write it with writeLocal, no `expected`) and the name the user
+ * confirmed; null when cancelled. The handle is a single-document grant: `tree` is the document's URI and `rel` its file name,
+ * so localPath(handle) is `local://<encoded document URI>/<name>` and round-trips through parseLocalPath, recents and files.ts.
+ */
+export async function createLocalDocument(suggestedName: string): Promise<{ handle: LocalHandle; name: string } | null> {
+  const r = await call<{ picked?: boolean; tree?: string; name?: string } | null>('local_create_document', { name: suggestedName });
+  if (r === null || r.picked === false || typeof r.tree !== 'string') return null;
+  const name = r.name ?? suggestedName;
+  return { handle: { tree: r.tree, rel: name }, name };
 }
 
 /** The trees Android still holds a grant for. */

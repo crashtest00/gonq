@@ -1,4 +1,4 @@
-//! The `gonq-saf` Tauri plugin (`init`), registered by this crate only: a thin shim whose `local_*` commands forward to the
+//! The `gonq-saf` Tauri plugin (`init`), registered by this crate only: a thin shim whose `local_*` commands (incl. `local_create_document`, the Save as picker) forward to the
 //! Kotlin `SafPlugin` (Storage Access Framework, gen/android/.../SafPlugin.kt) and turn its rejections into `{kind, message}`
 //! errors for packages/editor/src/platform/local.ts, the only caller. Off Android every command fails with kind `unsupported`.
 //! The logic (listing, conflict check, error codes) is in Kotlin; nothing here reads a path or a grant.
@@ -17,6 +17,7 @@ pub const COMMANDS: &[&str] = &[
     "local_write",
     "local_create",
     "local_exists",
+    "local_create_document",
 ];
 
 /// What a failed command rejects with. `kind` is the Kotlin reject code (`not-found`, `permission`, `outside`, `conflict`,
@@ -96,6 +97,13 @@ async fn local_exists<R: Runtime>(app: AppHandle<R>, tree: String, rel: String) 
     forward(&app, "local_exists", json!({ "tree": tree, "rel": rel })).await
 }
 
+/// Save as for a file outside any opened folder: the system create-document picker (`ACTION_CREATE_DOCUMENT`) with a
+/// suggested name; the new document's grant is persisted. Cancel resolves `{picked: false}`.
+#[tauri::command]
+async fn local_create_document<R: Runtime>(app: AppHandle<R>, name: String) -> Result<Value, SafError> {
+    forward(&app, "local_create_document", json!({ "name": name })).await
+}
+
 /// The plugin; on Android it registers the Kotlin class `com.gonq.app.SafPlugin`.
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::<R>::new("gonq-saf")
@@ -107,7 +115,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             local_read,
             local_write,
             local_create,
-            local_exists
+            local_exists,
+            local_create_document
         ])
         .setup(|_app, _api| {
             #[cfg(target_os = "android")]

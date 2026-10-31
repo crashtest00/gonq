@@ -41,6 +41,7 @@ interface FakeNode {
 export function fakeSafPlugin() {
   const trees = new Map<string, Map<string, FakeNode>>(); // tree -> rel -> node ('' is the root)
   const granted = new Set<string>();
+  const singleDocs = new Set<string>(); // grants on one document (local_create_document)
   const calls: [string, Json][] = [];
   let clock = 1_700_000_000_000;
   const enc = new TextEncoder();
@@ -90,9 +91,21 @@ export function fakeSafPlugin() {
         api.addTree(next.tree);
         return { picked: true, tree: next.tree, name: next.name };
       }
+      if (name === 'local_create_document') {
+        const next = api.nextDocument;
+        api.nextDocument = null;
+        if (next === null) return { picked: false };
+        // A single-document grant: the "tree" is the document URI, its root is the file itself (rel '' or its name).
+        const m = new Map<string, FakeNode>([['', { bytes: new Uint8Array(), modified: Math.floor(clock / 1000) * 1000 }]]);
+        trees.set(next.uri, m);
+        granted.add(next.uri);
+        singleDocs.add(next.uri);
+        return { picked: true, tree: next.uri, name: next.name };
+      }
       if (name === 'local_granted') return { trees: [...granted] };
       const tree = String(args.tree);
-      const rel = parts(String(args.rel ?? '')).join('/');
+      let rel = parts(String(args.rel ?? '')).join('/');
+      if (singleDocs.has(tree) && parts(rel).length === 1) rel = '';
       if (parts(String(args.rel ?? '')).some((p) => p === '..' || p === '.')) return reject('outside', 'That is outside the opened folder.');
       if (!granted.has(tree) || !trees.has(tree)) return reject('permission', 'Access to this folder was removed. Open it again to continue.');
       const m = trees.get(tree)!;
@@ -133,6 +146,8 @@ export function fakeSafPlugin() {
       }
       return reject('io', `unknown command ${name}`);
     },
+    /** What the next local_create_document resolves; null (the default) is a cancel. */
+    nextDocument: null as { uri: string; name: string } | null,
     /** What the next local_pick_folder resolves; null (the default) is a cancel. */
     nextPick: null as { tree: string; name: string } | null,
   };
