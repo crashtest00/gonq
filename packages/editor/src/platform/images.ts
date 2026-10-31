@@ -1,9 +1,10 @@
-// Image files for the editor live behind this boundary: native reads (Tauri fs, ssh) stay here and the
+// Image files for the editor live behind this boundary: native reads (Tauri fs, ssh, local:// folders on Android) stay here and the
 // browser gets a clear error instead of a different UI.
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile, stat } from '@tauri-apps/plugin-fs';
 import { isTauri } from './files';
 import { isSshPath, remoteRead } from './remote';
+import { LOCAL_OUTSIDE, LocalFileError, isLocalPath, parseLocalPath, readLocal, statLocal, localPath } from './local';
 
 const MIME: Record<string, string> = {
   png: 'image/png',
@@ -19,8 +20,35 @@ const MIME: Record<string, string> = {
 
 const DIRECT = /^(https?:|data:|blob:)/i;
 
-/** `src` relative to the document's folder, with `.` and `..` resolved; absolute paths stay as they are. */
+/**
+ * A picture next to a local:// document, as a local:// path in the same tree. A document in a picked folder can only
+ * refer to files below that folder: an absolute path, or `..` climbing above the root, throws LocalFileError (outside).
+ */
+function resolveLocalImage(src: string, docPath: string): string {
+  const doc = parseLocalPath(docPath);
+  if (doc === null) throw new LocalFileError('not-found', `${docPath} is not a file address on this device.`);
+  let target = src;
+  try {
+    target = decodeURI(src);
+  } catch {
+    /* keep the text as written */
+  }
+  target = target.replace(/^file:\/\//i, '').split(/[?#]/)[0];
+  if (/^([\\/]|[A-Za-z]:)/.test(target)) throw new LocalFileError('outside', LOCAL_OUTSIDE);
+  const out = doc.rel.split('/').filter((s) => s !== '').slice(0, -1);
+  for (const p of target.split(/[\\/]/)) {
+    if (p === '' || p === '.') continue;
+    if (p === '..') {
+      if (out.length === 0) throw new LocalFileError('outside', LOCAL_OUTSIDE);
+      out.pop();
+    } else out.push(p);
+  }
+  return localPath({ tree: doc.tree, rel: out.join('/') });
+}
+
+/** `src` relative to the document's folder, with `.` and `..` resolved; absolute paths stay as they are. A local:// document refuses what leaves its folder. */
 export function resolveImagePath(src: string, docPath: string): string {
+  if (isLocalPath(docPath)) return resolveLocalImage(src, docPath);
   let target = src;
   try {
     target = decodeURI(src);
@@ -45,6 +73,19 @@ export function resolveImagePath(src: string, docPath: string): string {
   return `${drive}${sep}${out.join(sep)}`;
 }
 
+/** Local images travel as base64 over the plugin channel (slow on a phone), so a big one is refused before it is read. */
+export const MAX_LOCAL_IMAGE_BYTES = 8 * 1024 * 1024;
+
+async function readLocalImage(path: string): Promise<Uint8Array> {
+  const at = parseLocalPath(path);
+  if (at === null) throw new LocalFileError('not-found', `${path} is not a file address on this device.`);
+  const { size } = await statLocal(at);
+  if (size > MAX_LOCAL_IMAGE_BYTES) {
+    throw new Error(`That picture is ${Math.round(size / 1048576)} MB; pictures over ${MAX_LOCAL_IMAGE_BYTES / 1048576} MB are not shown from a folder on this device.`);
+  }
+  return (await readLocal(at)).bytes;
+}
+
 const cache = new Map<string, Promise<string>>();
 
 async function read(src: string, docPath: string | null): Promise<string> {
@@ -52,7 +93,7 @@ async function read(src: string, docPath: string | null): Promise<string> {
   if (!isTauri()) throw new Error('Images stored next to the document can only be shown in the desktop app.');
   if (docPath === null && !/^([\\/]|[A-Za-z]:[\\/])/.test(src)) throw new Error('Save the document to show images next to it.');
   const path = resolveImagePath(src, docPath ?? '');
-  const bytes = isSshPath(docPath) ? (await remoteRead(path)).bytes : await readFile(path);
+  const bytes = isLocalPath(docPath) ? await readLocalImage(path) : isSshPath(docPath) ? (await remoteRead(path)).bytes : await readFile(path);
   const type = MIME[path.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream';
   return URL.createObjectURL(new Blob([bytes as BlobPart], { type }));
 }
@@ -103,6 +144,7 @@ export function imageAlt(path: string): string {
 export async function pickImage(docPath: string | null): Promise<{ src: string; alt: string } | null> {
   if (!isTauri()) throw new Error('Inserting an image stored on this computer needs the desktop app; the browser cannot refer to a file by its path.');
   if (isSshPath(docPath)) throw new Error('Pictures from this computer cannot be inserted into a document on a server.');
+  if (isLocalPath(docPath)) throw new Error('Inserting a picture into a document in a folder on this device is not available yet.');
   const path = await open({ multiple: false, directory: false, filters: [{ name: 'Images', extensions: Object.keys(MIME) }] });
   if (path === null) return null;
   const { size } = await stat(path);

@@ -10,6 +10,7 @@ import { useDocument } from '../document/useDocument';
 import type { FileAccess } from '../platform/files';
 import { GitHubError, ensureSignedIn, parseGithubPath, type GithubDocument } from '../platform/github';
 import { guardClose } from '../platform/lifecycle';
+import { isLocalPath } from '../platform/local';
 import { RemoteConflictError, RemoteFileError, isSshPath, remoteHost } from '../platform/remote';
 import { pathExists } from '../platform/folders';
 import { addRecent, allowRecentDocument, listRecents, removeRecent, type RecentDocument } from '../platform/recents';
@@ -70,7 +71,7 @@ export function useDocumentController(options: DocumentControllerOptions) {
       const remotePath = !as && tab.meta.path !== null && isSshPath(tab.meta.path) ? tab.meta.path : null;
       const slow = remotePath === null ? null : setTimeout(() => opts.current.onSaving(remoteHost(remotePath)), 1000);
       try {
-        const doc = { name: tab.meta.name, path: tab.meta.path, text: snapshot, remote: tab.meta.remote };
+        const doc = { name: tab.meta.name, path: tab.meta.path, text: snapshot, remote: tab.meta.remote, local: tab.meta.local };
         let saved;
         if (as) saved = await files.saveDocumentAs({ name: tab.meta.name, text: snapshot }, taken);
         else if (tab.meta.path === null) saved = await files.saveDocument({ ...doc, path: null }, taken);
@@ -96,7 +97,7 @@ export function useDocumentController(options: DocumentControllerOptions) {
         if (saved.inPlaceHost !== undefined) {
           opts.current.onNotice(`Saved in place on ${remoteHost(saved.inPlaceHost)} (not atomic): the server can't swap files safely, so a dropped connection could leave the file half written.`);
         }
-        session.saved(id, { name: saved.name, path: saved.path, remote: saved.remote }, snapshot);
+        session.saved(id, { name: saved.name, path: saved.path, remote: saved.remote, local: saved.local }, snapshot);
         if (saved.path !== tab.meta.path) remember(saved.path);
         return true;
       } catch (e) {
@@ -183,7 +184,8 @@ export function useDocumentController(options: DocumentControllerOptions) {
       const existing = session.findByPath(path);
       if (existing !== null) return session.activate(existing);
       try {
-        if (fromRecents && github === null) {
+        // A local:// recent needs no scope entry: openPath checks its grant and root itself and removes the recent when they fail.
+        if (fromRecents && github === null && !isLocalPath(path)) {
           await allowRecentDocument(path);
           // A remote file stays in the list when its host is unreachable; opening it reports why.
           if (!isSshPath(path) && !(await pathExists(path))) {

@@ -1,8 +1,9 @@
 // Recently opened files, persisted outside any document: recent.json in the app data dir
-// on desktop, localStorage in the browser.
+// on desktop and mobile, localStorage in the browser. local:// entries (Android folders) are listed only in the Gonq Android app.
 import { commands, type Recent } from './bindings';
 import { isTauri } from './files';
 import { isSshPath } from './remote';
+import { isLocalPath, localReachable } from './local';
 
 export interface RecentDocument {
   path: string;
@@ -13,15 +14,17 @@ export interface RecentDocument {
 export const MAX_RECENTS = 10;
 export const RECENTS_KEY = 'gonq.recentDocuments';
 
-const fromRaw = (rows: Recent[]): RecentDocument[] => rows.map((r) => ({ path: r.path, openedAt: r.opened_at }));
+// local:// entries only mean something in the Gonq Android app (recents.rs stores any string and is unchanged).
+const fromRaw = (rows: Recent[]): RecentDocument[] =>
+  rows.filter((r) => localReachable() || !isLocalPath(r.path)).map((r) => ({ path: r.path, openedAt: r.opened_at }));
 
 function readLocal(): RecentDocument[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]');
     if (!Array.isArray(parsed)) return [];
     return parsed
-      // A browser cannot reach ssh:// files, so none are shown there.
-      .filter((r) => r && typeof r.path === 'string' && typeof r.openedAt === 'number' && !isSshPath(r.path))
+      // A browser cannot reach ssh:// or local:// files, so none are shown there.
+      .filter((r) => r && typeof r.path === 'string' && typeof r.openedAt === 'number' && !isSshPath(r.path) && !isLocalPath(r.path))
       .slice(0, MAX_RECENTS);
   } catch {
     return [];

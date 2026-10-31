@@ -309,3 +309,30 @@ Artifact `saf-evidence-7b1cc33cbf1f8b2816ee421bfda027d16086eb94`; "results" mean
 | E18 | List of 3000 files | seconds, not ms | **2.07, 2.43, 2.48 s native; 3.2, 3.5, 3.5 s from JS** | log `list 3000 entries in … ms`; results `list 3000 files run 1..3`; `07-perf.png` |
 | E19 | Read of a 5 MB file as text | slow | **2.47..2.51 s**, 5 242 880 chars, three runs | results `read 5 MB (as text) run 1..3`; `07-perf.png` |
 | E20 | Not run | n/a | `ACTION_CREATE_DOCUMENT` save-as; second provider (Drive, SD); touch browsing of the picker; revoke through system settings | caveats 1, 2, 3, 5 |
+
+## As built (M-30)
+
+The contract above is implemented as follows; where it differs, this section is what the code does.
+
+- **Kotlin** `apps/mobile/src-tauri/gen/android/app/src/main/java/com/gonq/app/SafPlugin.kt`; **Rust shim** `apps/mobile/src-tauri/src/saf.rs` (plugin
+  `gonq-saf`, registered by `gonq-mobile` only; permissions generated in build.rs, `gonq-saf:default` in capabilities/mobile.json; off Android every
+  command fails with kind `unsupported`). **TypeScript** `packages/editor/src/platform/local.ts` is the only caller; fake plugin: `fakeSafPlugin()` in
+  `testing/mockBindings.ts`.
+- **Wire shapes.** Android plugins resolve objects, never a bare `null` or array, so Kotlin answers `{picked, tree?, name?}`, `{trees}`, `{entries:[{name,isDir}]}`,
+  `{exists}` and `{size, modified|null, isDir}` (+ `bytes` base64 for a read); local.ts turns them into the contract's shapes (and accepts the bare shapes too).
+  Filtering (folders and `.md`/`.markdown` only, no dotfiles) and the sort (folders first, A-Z ignoring case) are done in local.ts, so they are tested without a device.
+- **Errors.** The Kotlin reject code is the kind: `not-found`, `permission`, `outside`, `conflict`, `exists`, `io`. folders.ts maps them to `not_found`,
+  `permission_denied`, `not_allowed`, `unsupported`, `io`. `conflict` becomes `RemoteConflictError` (the SSH type), so the existing Cancel/Overwrite flow applies.
+  A tree that is not in `persistedUriPermissions` is refused with `permission` before any provider call.
+- **Reopening a recent** (`files.openPath`): `local_granted` must contain the tree and `local_stat` of the root must succeed; if not, the recent is removed and
+  the platform text is thrown. A missing file in a healthy tree keeps the recent. `allowRecentDocument` is not called for `local://`.
+- **Recents.** `recents.rs` is unchanged and stores `local://` strings. `listRecents` hides them everywhere except the Gonq Android app (desktop never writes
+  them; the browser fallback filters them like `ssh://`).
+- **Images.** In a `local://` document `..` above the root, an absolute path, or a `file:` path to elsewhere is refused with "That is outside the opened folder."
+  (the ticket's "refuse" wording wins over the clamp suggested in section 4). Pictures over 8 MB (`MAX_LOCAL_IMAGE_BYTES`) are refused before reading, because
+  base64 over the channel is slow (E19). Insert > Image into a `local://` document is not available yet (M-31).
+- **Conflict check gap.** `expected` is compared on size always and on `modified` when both sides have one; whole-second timestamps mean an edit in the same
+  second that keeps the size is missed, and a provider reporting no `modified` (null or 0) is checked on size alone. The check and the write are two calls, so a
+  few milliseconds of race remain. A provider that gives neither size nor time is written unchecked. Not yet device-verified on a second provider (M-34).
+- **Not built here:** screens (M-31), `ACTION_CREATE_DOCUMENT` Save as, rename/delete, device evidence (M-34). The Kotlin and Rust Android code is compiled by the
+  rust-checks `android` job and build-mobile.yml, not on the Jenkins box.

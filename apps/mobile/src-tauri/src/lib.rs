@@ -1,9 +1,10 @@
 //! The mobile Tauri app (`run`, the `mobile_entry_point`): installs the gonq-core plugin `gonq` (built without SSH) and the
-//! dialog, fs and opener plugins. On Android it first initialises rustls-platform-verifier from the ndk-context (see
+//! dialog, fs and opener plugins plus the app's own `gonq-saf` plugin (saf.rs: Android local folders via the Storage Access Framework). On Android it first initialises rustls-platform-verifier from the ndk-context (see
 //! `android_tls`). Its only command of its own is the debug-only `keychain_selftest` (selftest.rs, absent from release
 //! builds); the single-instance plugin and launch-path handling are desktop-only.
 #[cfg(target_os = "android")]
 mod android_tls;
+pub mod saf;
 #[cfg(debug_assertions)]
 pub mod selftest;
 
@@ -29,6 +30,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(gonq_core::init())
+        .plugin(saf::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
