@@ -29,7 +29,7 @@ beforeEach(() => {
 
 async function openAbout(user: User) {
   await user.click(screen.getByRole('button', { name: 'More' }));
-  await user.click(await screen.findByRole('button', { name: 'About Gonq' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'About Gonq' }));
   return screen.findByRole('heading', { name: 'Gonq' });
 }
 

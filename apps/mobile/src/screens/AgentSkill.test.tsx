@@ -22,7 +22,7 @@ beforeEach(() => {
 
 async function openSkill(user: User) {
   await user.click(screen.getByRole('button', { name: 'More' }));
-  await user.click(await screen.findByRole('button', { name: 'Agent skill…' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Agent skill…' }));
   return screen.findByRole('region', { name: 'SKILL.md' });
 }
 

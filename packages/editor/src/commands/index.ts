@@ -6,3 +6,4 @@ import.meta.glob('../features/*/index.ts', { eager: true });
 
 export { registry } from './registry';
 export type { CommandContext } from './context';
+export type { MenuEntry } from './registry';
