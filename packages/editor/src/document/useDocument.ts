@@ -6,6 +6,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type { OpenedDocument } from '../platform/files';
 import type { GithubDocument } from '../platform/github';
 import type { RemoteStat } from '../platform/remote';
+import type { LocalStat } from '../platform/local';
 import { normalizeEol, toFileText } from './eol';
 
 export interface DocumentMeta {
@@ -14,6 +15,8 @@ export interface DocumentMeta {
   path: string | null;
   /** ssh:// documents: the server's version at the last read or save, sent back as `expected` on save. */
   remote?: RemoteStat;
+  /** local:// documents: the file's size and modified time at the last read or save, sent back as `expected` on save. */
+  local?: LocalStat;
   /** github:// documents: owner, repo, path, branch, blob sha and branch-tip commit sha, all from the API response. */
   github?: GithubDocument;
 }
@@ -111,7 +114,7 @@ export function useDocument() {
     (doc: OpenedDocument) => {
       const existing = findByPath(doc.path);
       if (existing !== null) return activate(existing);
-      add({ name: doc.name, path: doc.path, remote: doc.remote, github: doc.github }, doc.text);
+      add({ name: doc.name, path: doc.path, remote: doc.remote, local: doc.local, github: doc.github }, doc.text);
     },
     [findByPath, activate, add],
   );

@@ -1,13 +1,25 @@
 // Native file access lives behind this boundary so the web beta stays usable:
 // in a browser, File > Open falls back to an <input type="file">. Exports FileAccess and `files`
 // (desktop or web); ssh:// paths are routed to remote.ts, github:// paths to github.ts (openGithub; saving one
-// is not available yet).
+// is not available yet), local:// paths (a folder picked on Android) to local.ts.
 import { commands } from './bindings';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { readFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { isTauri } from './tauri';
 import { isGithubPath, readFile as readGithubFile, parseGithubPath, githubPath, type GithubDocument } from './github';
 import { isSshPath, remoteFileName, remoteRead, remoteWrite, type RemoteStat } from './remote';
+import {
+  LocalFileError,
+  LOCAL_UNAVAILABLE,
+  checkLocalRoot,
+  isLocalPath,
+  localFileName,
+  parseLocalPath,
+  readLocal,
+  writeLocal,
+  type LocalStat,
+} from './local';
+import { removeRecent } from './recents';
 
 export { isSshPath, isTauri };
 
@@ -21,6 +33,8 @@ export interface OpenedDocument {
   remote?: RemoteStat;
   /** github:// documents only: where the text came from, as GitHub reported it. */
   github?: GithubDocument;
+  /** local:// documents only: the file's size and modified time when it was read, sent back as `expected` on save. */
+  local?: LocalStat;
 }
 
 export class NotUtf8Error extends Error {
@@ -36,6 +50,8 @@ export interface SavedDocument {
   path: string | null;
   /** ssh:// documents only: the server's version just written. */
   remote?: RemoteStat;
+  /** local:// documents only: the stat just written. */
+  local?: LocalStat;
   /** Set on the first in-place (non-atomic) save to a host: the host to tell the user about. */
   inPlaceHost?: string;
 }
@@ -63,7 +79,7 @@ export interface FileAccess {
    * Resolves null when the user cancels. Rejects when the file cannot be written.
    */
   saveDocument(
-    doc: { name: string; path: string | null; text: string; remote?: RemoteStat },
+    doc: { name: string; path: string | null; text: string; remote?: RemoteStat; local?: LocalStat },
     taken?: PathTaken,
     options?: SaveOptions,
   ): Promise<SavedDocument | null>;
@@ -137,6 +153,31 @@ async function saveRemote(path: string, text: string, expected: RemoteStat | und
   };
 }
 
+/**
+ * Reads a local:// file. A recent from an earlier session is checked first (the tree still granted, its root still there);
+ * when that fails the recent is removed and the platform's error text is thrown.
+ */
+async function openLocal(path: string): Promise<OpenedDocument> {
+  let handle;
+  try {
+    handle = await checkLocalRoot(path);
+  } catch (e) {
+    if (e instanceof LocalFileError && e.kind !== 'unsupported') await removeRecent(path).catch(() => {});
+    throw e;
+  }
+  const name = localFileName(path);
+  const { bytes, stat } = await readLocal(handle);
+  return { name, path, text: decodeUtf8(bytes, name), local: stat };
+}
+
+/** Throws RemoteConflictError (the SSH conflict type) when the file changed since it was read and `force` is not set. */
+async function saveLocal(path: string, text: string, expected: LocalStat | undefined, force: boolean): Promise<SavedDocument> {
+  const handle = parseLocalPath(path);
+  if (handle === null) throw new LocalFileError('not-found', `${path} is not a file address on this device.`);
+  const local = await writeLocal(handle, text, expected, force);
+  return { name: localFileName(path), path, local };
+}
+
 const tauriFiles: FileAccess = {
   async pickDocument() {
     const path = await open({
@@ -155,6 +196,7 @@ const tauriFiles: FileAccess = {
   async openPath(path) {
     if (isGithubPath(path)) return openGithub(path);
     if (isSshPath(path)) return openRemote(path);
+    if (isLocalPath(path)) return openLocal(path);
     const name = basename(path);
     const text = decodeUtf8(await readFile(path), name);
     await commands.allowDocumentFolder(path);
@@ -165,6 +207,7 @@ const tauriFiles: FileAccess = {
     if (doc.path === null) return tauriFiles.saveDocumentAs(doc, taken);
     if (isGithubPath(doc.path)) throw new Error(GITHUB_SAVE_UNAVAILABLE);
     if (isSshPath(doc.path)) return saveRemote(doc.path, doc.text, doc.remote, options?.force === true);
+    if (isLocalPath(doc.path)) return saveLocal(doc.path, doc.text, doc.local, options?.force === true);
     return tauriWrite(doc.path, doc.text);
   },
 
@@ -184,6 +227,7 @@ const webFiles: FileAccess = {
   // Only github:// paths, which fail with the "needs the desktop app" error; a browser reads no other known path.
   async openPath(path) {
     if (isGithubPath(path)) return openGithub(path);
+    if (isLocalPath(path)) throw new LocalFileError('unsupported', LOCAL_UNAVAILABLE);
     throw new Error(`${path} cannot be opened here.`);
   },
 
@@ -209,6 +253,7 @@ const webFiles: FileAccess = {
   // A browser cannot overwrite a file it opened, so saving downloads the text.
   async saveDocument(doc) {
     if (doc.path !== null && isGithubPath(doc.path)) throw new Error(GITHUB_SAVE_UNAVAILABLE);
+    if (doc.path !== null && isLocalPath(doc.path)) throw new LocalFileError('unsupported', LOCAL_UNAVAILABLE);
     return webFiles.saveDocumentAs(doc);
   },
 

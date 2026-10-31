@@ -1,13 +1,14 @@
 // Folder navigator access (pickFolder, listDirectory, listFolderPage, pathExists): native calls stay behind
 // this boundary; the web beta degrades gracefully. ssh:// paths are routed to remote.ts, github:// paths
-// (a repository folder on a branch) to github.ts.
+// (a repository folder on a branch) to github.ts, local:// paths (a folder picked on Android) to local.ts.
 import { commands } from './bindings';
 import { open } from '@tauri-apps/plugin-dialog';
 import { isTauri } from './files';
 import { GitHubError, isGithubPath, githubPath, listFolder, parseGithubPath, type GitHubErrorKind } from './github';
+import { LocalFileError, existsLocal, isLocalPath, listLocalFolder, parseLocalPath, type LocalErrorKind } from './local';
 import { isSshPath, remoteExists, remoteHost, remoteList, RemoteFileError } from './remote';
 
-export { isSshPath, isGithubPath };
+export { isSshPath, isGithubPath, isLocalPath };
 
 export interface FolderEntry {
   name: string;
@@ -63,6 +64,7 @@ export async function listDirectory(path: string): Promise<FolderEntry[]> {
 /** listDirectory, plus the truncated flag; GitHub failures reject with a ListDirectoryError of the GitHub kind. */
 export async function listFolderPage(path: string): Promise<FolderPage> {
   if (isGithubPath(path)) return listGithubFolder(path);
+  if (isLocalPath(path)) return listLocal(path);
   if (!isTauri()) throw new ListDirectoryError('unsupported', 'Folders can only be browsed in the desktop app.');
   if (isSshPath(path)) {
     try {
@@ -82,6 +84,28 @@ export async function listFolderPage(path: string): Promise<FolderPage> {
   } catch (e) {
     const err = e as { kind?: ListErrorKind; message?: string };
     throw new ListDirectoryError(err?.kind ?? 'io', err?.message ?? String(e));
+  }
+}
+
+const LOCAL_KINDS: Record<LocalErrorKind, ListErrorKind> = {
+  'not-found': 'not_found',
+  permission: 'permission_denied',
+  outside: 'not_allowed',
+  unsupported: 'unsupported',
+  conflict: 'io',
+  exists: 'io',
+  io: 'io',
+};
+
+/** A folder picked on Android; every failure rejects with a ListDirectoryError carrying the platform's text. */
+async function listLocal(path: string): Promise<FolderPage> {
+  const at = parseLocalPath(path);
+  if (at === null) throw new ListDirectoryError('not_found', `Not a folder on this device: ${path}`);
+  try {
+    return { entries: await listLocalFolder(at), truncated: false };
+  } catch (e) {
+    if (e instanceof LocalFileError) throw new ListDirectoryError(LOCAL_KINDS[e.kind], e.message);
+    throw new ListDirectoryError('io', e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -110,6 +134,10 @@ async function listGithubFolder(path: string): Promise<FolderPage> {
 
 /** Whether a file or folder still exists. Always true in the browser, where paths are not real. */
 export async function pathExists(path: string): Promise<boolean> {
+  if (isLocalPath(path)) {
+    const at = parseLocalPath(path);
+    return at !== null && existsLocal(at);
+  }
   if (!isTauri()) return true;
   if (isSshPath(path)) return remoteExists(path);
   if (isGithubPath(path)) return true;

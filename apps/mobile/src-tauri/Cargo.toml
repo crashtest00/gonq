@@ -19,6 +19,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # Android only: the platform certificate verifier's JNI init (rustls-platform-verifier is already in the tree via reqwest;
 # keep these in step with Cargo.lock) and the ndk-context pointers that Tauri's runtime (tao) sets.
