@@ -97,3 +97,20 @@ body {
 .m-field { width: calc(100% - 2 * var(--space-4)); margin: 0 var(--space-4); box-sizing: border-box; justify-content: flex-start; border: 1px solid var(--border); background: var(--background); }
 .m-tree-row { width: 100%; justify-content: flex-start; gap: var(--space-2); text-align: left; border-radius: 0; white-space: nowrap; }
 .m-tree-row[aria-current='true'] { background: var(--surface); font-weight: var(--weight-semibold); }
+
+/* Comments sheet (M-26): docked below the editor so the anchored text above it stays visible; capped so the editor keeps room with the keyboard up. */
+.m-sheet-docked { position: static; flex: none; max-height: calc(var(--m-vvh, 100dvh) * .45); box-shadow: none; border-top: 1px solid var(--border); }
+.m-block { display: flex; width: 100%; box-sizing: border-box; margin-top: var(--space-2); }
+.m-outline { border: 1px solid var(--border); }
+.m-badge { padding: 2px var(--space-2); border-radius: 999px; font-size: var(--text-caption); font-weight: var(--weight-semibold); background: var(--border); color: var(--muted-foreground); }
+.m-badge[data-status='open'] { background: var(--accent); color: var(--on-accent); }
+.m-comments-empty { margin: var(--space-4) 0 0; color: var(--muted-foreground); }
+.m-thread-list { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.m-thread-row { width: 100%; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: var(--space-1); padding: var(--space-3) 0; border-radius: 0; border-top: 1px solid var(--border); text-align: left; overflow-wrap: anywhere; }
+.m-thread-meta { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-caption); color: var(--muted-foreground); }
+.m-sheet blockquote { margin: 0; padding-left: var(--space-2); border-left: 2px solid var(--accent); font-style: italic; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.m-thread { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-2); }
+.m-messages { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-3); }
+.m-message-head { font-size: var(--text-caption); font-weight: var(--weight-semibold); color: var(--muted-foreground); }
+.m-message-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.m-reply textarea { box-sizing: border-box; width: 100%; min-height: 44px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--background); color: var(--foreground); font: inherit; }
