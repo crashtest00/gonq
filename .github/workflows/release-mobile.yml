@@ -1,0 +1,132 @@
+name: release-mobile
+
+# Pushed only by Jenkins' tag; the release itself is created by release-desktop.yml. Never create the Release here; never add other triggers.
+#
+# On the v* tag Jenkins pushes, builds the debug-signed aarch64 Android APK of apps/mobile (shared
+# .github/actions/android-apk, also used by build-mobile.yml) and attaches it to the GitHub Release as
+# gonq-android-<version>-beta-debug-signed.apk, <version> being the tag without its leading v.
+# The `build` job keeps the APK as a workflow artifact whatever happens next.
+# The `attach` job polls `gh release view` (every WAIT_POLL_SECONDS, up to WAIT_MAX_MINUTES) until
+# release-desktop.yml's publish job has created the Release, then runs `gh release upload --clobber`.
+# It never creates a Release, never edits its title or notes, and never publishes on its own. If the
+# Release never appears (a desktop leg failed), it fails and the APK stays as the workflow artifact.
+#
+# versionCode = MAJOR*10000 + MINOR*100 + PATCH of the tag version (0.2.0 -> 200, 1.12.3 -> 11203).
+# MINOR and PATCH must each be below 100. M-33 writes the same value; Android refuses an update whose
+# versionCode is not higher. Every build has a new debug key, so testers uninstall before installing.
+#
+# R-9: the Release exists for a while (until `attach` finishes) without the APK. "Release exists" does
+# not mean "APK attached": check the assets.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (android aarch64 debug)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    outputs:
+      asset: ${{ steps.version.outputs.asset }}
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Verify checkout matches the tagged commit
+        shell: bash
+        env:
+          TAGGED_SHA: ${{ github.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$TAGGED_SHA" ]; then
+            echo "::error::Checked out $actual but $TAGGED_SHA was tagged"
+            exit 1
+          fi
+
+      - name: Derive version, versionCode and asset name from the tag
+        id: version
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          if ! [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::tag '$TAG' is not vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"; patch="${BASH_REMATCH[3]}"
+          if [ "$minor" -ge 100 ] || [ "$patch" -ge 100 ]; then
+            echo "::error::MINOR and PATCH must be below 100 in '$TAG' (versionCode = MAJOR*10000 + MINOR*100 + PATCH)"
+            exit 1
+          fi
+          code=$(( 10#$major * 10000 + 10#$minor * 100 + 10#$patch ))
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "version_code=$code" >> "$GITHUB_OUTPUT"
+          echo "asset=gonq-android-$version-beta-debug-signed.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Build, sign and verify the APK (shared android-apk action)
+        id: apk
+        uses: ./.github/actions/android-apk
+        with:
+          apk-name: ${{ steps.version.outputs.asset }}
+          version-code: ${{ steps.version.outputs.version_code }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.asset }}
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+
+      - name: Job summary
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          ASSET: ${{ steps.version.outputs.asset }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+        run: |
+          {
+            echo "## Gonq Android debug-signed APK"
+            echo
+            echo "Tag \`$TAG\`, \`$ASSET\`, versionCode $VERSION_CODE, aarch64 debug build, \`apksigner verify\` passed."
+            echo
+            echo '```'
+            cat apksigner.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  attach:
+    name: attach APK to GitHub Release
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    permissions:
+      contents: write
+    env:
+      # Bounds of the wait for release-desktop.yml's Release (three desktop builds of up to ~60 min each, then publish).
+      WAIT_POLL_SECONDS: "60"
+      WAIT_MAX_MINUTES: "120"
+    steps:
+      # Only the script is needed; the tagged commit is checked out again so it is the one that was tagged.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.asset }}
+
+      - name: Wait for the Release and attach the APK
+        shell: sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          ASSET: ${{ needs.build.outputs.asset }}
+        run: |
+          POLL_SECONDS="$WAIT_POLL_SECONDS" MAX_WAIT_MINUTES="$WAIT_MAX_MINUTES" .github/scripts/wait-for-release.sh
