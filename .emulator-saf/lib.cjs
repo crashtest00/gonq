@@ -41,11 +41,11 @@ function focusedBounds(xml) {
   const m = /<node [^>]*?focused="true"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/.exec(xml);
   return m ? { l: +m[1], t: +m[2], r: +m[3], b: +m[4] } : null;
 }
-async function kbSelect(text, label) {
+async function kbSelect(text, label, maxW = 400) {
   const keys = [...Array(14).fill('DPAD_DOWN'), 'DPAD_RIGHT', ...Array(14).fill('DPAD_UP'), 'DPAD_LEFT', ...Array(14).fill('DPAD_DOWN')];
   for (let i = 0; i <= keys.length; i++) {
     const xml = dump(); const tb = findBounds(xml, text); const fb = focusedBounds(xml);
-    if (tb && fb && tb.x >= fb.l && tb.x <= fb.r && tb.y >= fb.t && tb.y <= fb.b && (fb.b - fb.t) <= 110) { shot(`${label}-focus-${text.replace(/\W+/g, '_')}`); sh('adb shell input keyevent KEYCODE_ENTER'); return true; }
+    if (tb && fb && tb.x >= fb.l && tb.x <= fb.r && tb.y >= fb.t && tb.y <= fb.b && (fb.b - fb.t) <= 110 && (fb.r - fb.l) <= maxW) { shot(`${label}-focus-${text.replace(/\W+/g, '_')}`); sh('adb shell input keyevent KEYCODE_ENTER'); return true; }
     if (i === keys.length) break;
     sh(`adb shell input keyevent KEYCODE_${keys[i]}`); await sleep(250);
   }
@@ -65,11 +65,11 @@ function focusedBounds(xml) {
   return m ? { l: +m[1], t: +m[2], r: +m[3], b: +m[4] } : null;
 }
 // Keyboard: move focus with DPAD until the focused node contains the target text, then Enter (the only input that works on this DocumentsUI).
-async function kbSelect(text, label) {
+async function kbSelect(text, label, maxW = 400) {
   const keys = [...Array(30).fill('TAB'), ...Array(12).fill('DPAD_DOWN'), ...Array(12).fill('DPAD_UP'), ...Array(6).fill('DPAD_RIGHT'), ...Array(12).fill('DPAD_DOWN')];
   for (let i = 0; i <= keys.length; i++) {
     const xml = dump(); const tb = findBounds(xml, text); const fb = focusedBounds(xml);
-    if (tb && fb && tb.x >= fb.l && tb.x <= fb.r && tb.y >= fb.t && tb.y <= fb.b && (fb.b - fb.t) <= 110) { shot(`${label}-focus-${text.replace(/\W+/g, '_')}`); sh('adb shell input keyevent KEYCODE_ENTER'); return true; }
+    if (tb && fb && tb.x >= fb.l && tb.x <= fb.r && tb.y >= fb.t && tb.y <= fb.b && (fb.b - fb.t) <= 110 && (fb.r - fb.l) <= maxW) { shot(`${label}-focus-${text.replace(/\W+/g, '_')}`); sh('adb shell input keyevent KEYCODE_ENTER'); return true; }
     if (i === keys.length) break;
     sh(`adb shell input keyevent KEYCODE_${keys[i]}`); await sleep(250);
   }
@@ -80,7 +80,7 @@ async function pickTree(segments, label, device) {
   await sleep(3000); shot(`${label}-picker-start`); fs.writeFileSync(`${EV}/${label}-picker-start.xml`, dump());
   const use = (await kbSelect('USE THIS FOLDER', label)) || (await kbSelect('Use this folder', label));
   await sleep(1500); shot(`${label}-picker-grant-dialog`); fs.writeFileSync(`${EV}/${label}-grant-dialog.xml`, dump());
-  const allow = (await kbSelect('ALLOW', label)) || (await kbSelect('Allow', label));
+  const allow = (await kbSelect("ALLOW", label, 100)) || (await kbSelect("Allow", label, 100));
   await sleep(1500);
   log(`${label}: picker use+allow (keyboard)`, !!(use && allow), `use=${use} allow=${allow}`);
   return !!(use && allow);
