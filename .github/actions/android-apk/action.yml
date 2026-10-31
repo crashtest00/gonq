@@ -1,0 +1,123 @@
+name: android-apk
+description: Builds the debug-signed aarch64 Android APK of apps/mobile and runs the apksigner verify gate.
+
+# Shared by build-mobile.yml (M-09) and release-mobile.yml (M-32) so the two cannot drift.
+# The caller checks out and verifies the commit first (a local action is read from the checkout).
+# Signing is the standard debug signing Gradle applies on its own: no keystore, no Actions secrets.
+# Runs on ubuntu-22.04 only (sdkmanager, NDK linux-x86_64 toolchain).
+inputs:
+  apk-name:
+    description: File name the verified APK is copied to, in the workspace root
+    required: true
+  version-code:
+    description: Android versionCode to build with (a positive integer); empty keeps the value derived from apps/mobile/src-tauri/tauri.conf.json
+    required: false
+    default: ""
+outputs:
+  path:
+    description: Workspace-relative path of the verified APK
+    value: ${{ steps.apk.outputs.path }}
+  apksigner-report:
+    description: File with the apksigner verify output
+    value: apksigner.txt
+
+runs:
+  using: composite
+  steps:
+    - name: Pin Android toolchain versions
+      shell: bash
+      run: |
+        {
+          echo "ANDROID_TARGET=aarch64-linux-android"
+          # compileSdk 36 is the newest platform on the ubuntu-22.04 runner image (android-37 is not in its sdkmanager repository); the NDK matches rust-checks.yml.
+          echo "ANDROID_PLATFORM=android-36"
+          echo "ANDROID_BUILD_TOOLS=36.0.0"
+          echo "ANDROID_NDK_VERSION=27.2.12479018"
+        } >> "$GITHUB_ENV"
+
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "17"
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: aarch64-linux-android
+
+    - uses: swatinem/rust-cache@v2
+      with:
+        workspaces: ". -> target"
+        key: android-build
+
+    - name: Cache Gradle
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: gradle-${{ runner.os }}-${{ hashFiles('apps/mobile/src-tauri/gen/android/**/*.gradle*', 'apps/mobile/src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties', 'Cargo.lock') }}
+        restore-keys: gradle-${{ runner.os }}-
+
+    - name: Install Android SDK platform, build-tools and NDK
+      shell: bash
+      run: |
+        sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        "$sdkmanager" --list 2>/dev/null | grep -E "platforms;|build-tools;|ndk;" | head -60 || true
+        yes | "$sdkmanager" --licenses > /dev/null || true
+        "$sdkmanager" "platforms;$ANDROID_PLATFORM" "build-tools;$ANDROID_BUILD_TOOLS" "ndk;$ANDROID_NDK_VERSION"
+        ndk="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
+        bin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+        echo "NDK_HOME=$ndk" >> "$GITHUB_ENV"
+        echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
+        echo "$bin" >> "$GITHUB_PATH"
+        echo "CC_aarch64_linux_android=$bin/aarch64-linux-android24-clang" >> "$GITHUB_ENV"
+        echo "AR_aarch64_linux_android=$bin/llvm-ar" >> "$GITHUB_ENV"
+        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android24-clang" >> "$GITHUB_ENV"
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    # A versionCode override goes in as a merged Tauri config (bundle.android.versionCode); without one the value Tauri derives from tauri.conf.json stays.
+    - name: Build debug APK (aarch64)
+      shell: bash
+      working-directory: apps/mobile
+      env:
+        VERSION_CODE: ${{ inputs.version-code }}
+      run: |
+        args=(--debug --apk --target aarch64 --ci)
+        if [ -n "$VERSION_CODE" ]; then
+          case "$VERSION_CODE" in
+            *[!0-9]*|0*) echo "::error::version-code must be a positive integer, got '$VERSION_CODE'"; exit 1 ;;
+          esac
+          args+=(--config "{\"bundle\":{\"android\":{\"versionCode\":$VERSION_CODE}}}")
+        fi
+        npm run tauri android build -- "${args[@]}"
+
+    - name: Locate APK
+      id: apk
+      shell: bash
+      env:
+        APK_NAME: ${{ inputs.apk-name }}
+      run: |
+        apks="$(find apps/mobile/src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -print)"
+        echo "$apks"
+        if [ "$(printf '%s\n' "$apks" | grep -c .)" -ne 1 ]; then
+          echo "::error::expected exactly one APK"
+          exit 1
+        fi
+        cp "$apks" "$APK_NAME"
+        echo "path=$APK_NAME" >> "$GITHUB_OUTPUT"
+
+    # Fails the job if the APK is unsigned or its signature does not verify.
+    - name: Verify APK signature (apksigner)
+      shell: bash
+      env:
+        APK_PATH: ${{ steps.apk.outputs.path }}
+      run: |
+        "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK_PATH" | tee apksigner.txt
