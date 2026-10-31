@@ -7,7 +7,7 @@
  * toolbar" button swaps back; leaving the table brings this bar back by itself.
  */
 import { Redo2, Table2, Undo2, type LucideIcon } from 'lucide-react';
-import { useState, type RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import type { TableTarget } from '@gonq/editor/editor/tables';
 import type { EditorHandle } from '@gonq/editor/editor/MarkdownEditor';
 import { FORMATS } from '@gonq/editor/editor/formatTools';
@@ -33,6 +33,10 @@ export function AccessoryBar({
   table?: TableTarget | null;
 }) {
   const [tableMode, setTableMode] = useState(false);
+  const inTable = table !== null;
+  useEffect(() => {
+    if (!inTable) setTableMode(false);
+  }, [inTable]);
   if (table !== null && tableMode) return <TableBar editor={editor} target={table} onFormat={() => setTableMode(false)} />;
   return (
     <div role="toolbar" aria-label="Editing" className="m-accessory" onPointerDown={(e) => e.preventDefault()}>

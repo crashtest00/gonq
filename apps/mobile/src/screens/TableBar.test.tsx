@@ -96,3 +96,14 @@ it('releasing focus away from the table brings the formatting bar back', async (
   await waitFor(() => expect(screen.getByRole('toolbar', { name: 'Editing' })).toBeInTheDocument());
   expect(screen.queryByRole('button', { name: 'Table' })).toBeNull();
 });
+
+it('re-entering the table after leaving it shows the formatting bar with the Table button, not the table bar', async () => {
+  const { user } = await inTable();
+  await user.click(screen.getByRole('button', { name: 'Table' }));
+  act(() => cells()[0].blur());
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Table' })).toBeNull());
+  act(() => cells()[0].focus());
+  await screen.findByRole('button', { name: 'Table' });
+  expect(screen.getByRole('toolbar', { name: 'Editing' })).toBeInTheDocument();
+  expect(screen.queryByRole('toolbar', { name: 'Table' })).toBeNull();
+});
