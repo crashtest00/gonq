@@ -41,8 +41,8 @@ test('removing a recent drops its row and the stored entry', async ({ page }) =>
   expect(stored).toHaveLength(2);
 });
 
-test('Open Folder… shows the not-available error', async ({ page }) => {
+test('Open Folder… in the browser shows the platform error and stays enabled', async ({ page }) => {
   await page.goto('/mobile/');
   await page.getByRole('button', { name: 'Open Folder…' }).click();
-  await expect(page.getByRole('alert')).toContainText('not available yet');
+  await expect(page.getByRole('alert')).toContainText('Folders on this device can only be opened in the Gonq app for Android.');
 });

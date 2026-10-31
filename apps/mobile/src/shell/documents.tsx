@@ -1,15 +1,16 @@
 /**
  * The mobile document session: <DocumentProvider/> runs the shared useDocumentController (files from the platform
  * seam, errors and notices into the shell's banner) and useDocuments() hands it to screens. Unsaved-changes and
- * conflict questions are answered by the choice sheets of shell/dialogs.tsx. Save on a GitHub tab commits through
+ * conflict questions are answered by the choice sheets of shell/dialogs.tsx. Its files are mobileFiles (shell/localFiles.ts): Save as for local folders, whose hooks the FolderProvider puts in useLocalSaveRef(). Save on a GitHub tab commits through
  * `commitGithub`, which the GithubProvider (below this one) fills in through useCommitGithubRef(). runFileCommand(id, ctx) runs a registry
  * command by id (File > New for the "+" button) without adding any command.
  */
-import { createContext, useContext, useRef, type MutableRefObject, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useRef, type MutableRefObject, type ReactNode } from 'react';
 import { registry, type CommandContext } from '@gonq/editor/commands';
 import { useDocumentController } from '@gonq/editor/controllers/document';
 import type { useGithubController } from '@gonq/editor/controllers/github';
 import { files } from '@gonq/editor/platform/files';
+import { mobileFiles, type LocalSaveHooks } from './localFiles';
 import { useDialogs } from './dialogs';
 import { useNotices } from './notices';
 
@@ -27,12 +28,23 @@ export function useCommitGithubRef(): MutableRefObject<CommitGithub | null> {
   return ref;
 }
 
+const LocalSaveContext = createContext<MutableRefObject<LocalSaveHooks | null> | null>(null);
+
+/** The slot the FolderProvider puts the local Save as hooks in (the document session is created first). */
+export function useLocalSaveRef(): MutableRefObject<LocalSaveHooks | null> {
+  const ref = useContext(LocalSaveContext);
+  if (!ref) throw new Error('useLocalSaveRef needs a <DocumentProvider>');
+  return ref;
+}
+
 export function DocumentProvider({ children }: { children: ReactNode }) {
   const { setError, setNotice } = useNotices();
   const { confirmUnsaved, confirmConflict } = useDialogs();
   const commitRef = useRef<CommitGithub | null>(null);
+  const localSaveRef = useRef<LocalSaveHooks | null>(null);
+  const mobile = useMemo(() => mobileFiles(files, localSaveRef), []);
   const doc = useDocumentController({
-    files,
+    files: mobile,
     commitGithub: (...args) => commitRef.current!(...args),
     confirmUnsaved,
     confirmConflict,
@@ -42,7 +54,9 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
   });
   return (
     <CommitRefContext.Provider value={commitRef}>
-      <DocumentsContext.Provider value={doc}>{children}</DocumentsContext.Provider>
+      <LocalSaveContext.Provider value={localSaveRef}>
+        <DocumentsContext.Provider value={doc}>{children}</DocumentsContext.Provider>
+      </LocalSaveContext.Provider>
     </CommitRefContext.Provider>
   );
 }

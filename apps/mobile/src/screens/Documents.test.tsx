@@ -1,4 +1,4 @@
-/** Covers the mobile Documents home through renderMobileApp: recent rows (icon, name, owner/repo @ branch, time), the 10 cap, tap-to-reopen order (allowRecentDocument, then the read), remove, the empty text, Open Folder's not-available error, Open Repo through ensureSignedIn to the picker, and "+" = File > New. */
+/** Covers the mobile Documents home through renderMobileApp: recent rows (icon, name, owner/repo @ branch, time), the 10 cap, tap-to-reopen order (allowRecentDocument, then the read), remove, the empty text, Open Repo through ensureSignedIn to the picker, and "+" = File > New. */
 import { screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
@@ -87,12 +87,6 @@ it('reopens a local recent: allowRecentDocument first, then the read', async () 
   const { user } = await renderMobileApp();
   await user.click(await screen.findByRole('button', { name: /^a\.md/ }));
   await waitFor(() => expect(calls).toEqual(['allow', 'read']));
-});
-
-it('Open Folder… shows a not-available error in the banner', async () => {
-  const { user } = await renderMobileApp();
-  await user.click(screen.getByRole('button', { name: 'Open Folder…' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('not available yet');
 });
 
 it('Open Repo… goes through ensureSignedIn: signed out opens the sign-in screen', async () => {

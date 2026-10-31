@@ -3,7 +3,7 @@
  * local_list, local_stat, local_read, local_write, local_create, local_exists, local_create_document; Kotlin SafPlugin behind src/saf.rs in the mobile
  * crate) and the home of the local:// path format, `local://<percent-encoded tree URI>/<rel segments>`, where the tree is a
  * Storage Access Framework folder the user picked and rel is names under it. Exports LocalHandle, localPath / parseLocalPath,
- * isLocalPath, the list/read/write/create/exists wrappers, LocalFileError and `checkLocalRoot` (the reopen check).
+ * isLocalPath, the display helpers localTreeName / localDisplayPath / isLocalFolderRoot (folder name and relative path, never an absolute path), the list/read/write/create/exists wrappers, LocalFileError and `checkLocalRoot` (the reopen check).
  * The commands are declared by hand: tauri-specta cannot generate a mobile plugin's commands. Everywhere but the Gonq
  * Android app every call rejects with a LocalFileError of kind `unsupported` (shown in the error banner, as ssh:// does).
  */
@@ -80,6 +80,43 @@ export function parseLocalPath(p: string): LocalHandle | null {
 export function localFileName(path: string): string {
   const h = parseLocalPath(path);
   return h === null ? path : (names(h.rel).pop() ?? '');
+}
+
+/**
+ * A folder's display name from its tree URI (`content://auth/tree/primary%3ADocuments%2FNotes` is "Notes"): the last
+ * segment of the document id, so no storage path is ever shown. A URI that does not look like one is shown by its last segment.
+ */
+export function localTreeName(tree: string): string {
+  const id = /\/(?:tree|document)\/([^/?#]+)/.exec(tree)?.[1] ?? tree;
+  let decoded = id;
+  try {
+    decoded = decodeURIComponent(id);
+  } catch {
+    // keep the raw id
+  }
+  // "primary:Documents/Notes" -> "Notes"; a volume root ("primary:") has no name of its own.
+  const last = decoded.split(/[/:]/).filter((s) => s !== '').pop();
+  return last ?? decoded;
+}
+
+/** Whether `path` is a single-document grant (Save as outside a folder) rather than a folder tree. */
+const isDocumentGrant = (tree: string): boolean => /\/document\//.test(tree) && !/\/tree\//.test(tree);
+
+/**
+ * What a local:// path is called on screen: "Folder/rel/path.md" (the folder's name and the names under it), the folder's
+ * name alone for a root, just the file name for a single-document grant. Never a storage path.
+ */
+export function localDisplayPath(path: string): string {
+  const h = parseLocalPath(path);
+  if (h === null) return path;
+  if (isDocumentGrant(h.tree)) return names(h.rel).join('/');
+  return [localTreeName(h.tree), ...names(h.rel)].join('/');
+}
+
+/** Whether `path` is the root of a picked folder (what the recents list stores for an opened folder). */
+export function isLocalFolderRoot(path: string): boolean {
+  const h = parseLocalPath(path);
+  return h !== null && h.rel === '' && !isDocumentGrant(h.tree);
 }
 
 /** The handle of a child of `dir`. */

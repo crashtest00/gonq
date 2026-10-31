@@ -3,7 +3,7 @@
  * sheet run commands against (document session, GitHub controller, theme, the screens Settings…/Agent skill…/About
  * push) and owns the editor handle and the editor's selection. useCommandHost() hands { ctx, editor, setSelection } to
  * screens; the editor screen fills the editor ref and reports selection and caret through setSelection.
- * Commands the mobile app cannot run yet (Open Folder…, Add Comment until M-27) raise a clear error in the banner.
+ * Commands the mobile app cannot run yet (Add Comment until M-27) raise a clear error in the banner.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type { CommandContext } from '@gonq/editor/commands';
@@ -15,10 +15,10 @@ import { files } from '@gonq/editor/platform/files';
 import { pickImage } from '@gonq/editor/platform/images';
 import { aboutScreen } from '../screens/AboutScreen';
 import { agentSkillScreen } from '../screens/AgentSkillScreen';
-import { OPEN_FOLDER_UNAVAILABLE } from '../screens/DocumentsHome';
 import { REPO_SCREEN_KEY } from '../screens/RepoScreen';
 import { settingsScreen } from '../screens/SettingsScreen';
 import { useDocuments } from './documents';
+import { useFolder } from './folder';
 import { useGithub } from './github';
 import { useNotices } from './notices';
 import { useNavigator } from './StackNavigator';
@@ -48,6 +48,7 @@ export function CommandHostProvider({ children }: { children: ReactNode }) {
   const doc = useDocuments();
   const { session } = doc;
   const gh = useGithub();
+  const folder = useFolder();
   const nav = useNavigator();
   const [theme, setTheme] = useThemeChoice();
   const { setError } = useNotices();
@@ -93,7 +94,7 @@ export function CommandHostProvider({ children }: { children: ReactNode }) {
     newFile: doc.newFile,
     openFile: () => void doc.openFile(),
     closeTab: doc.closeTab,
-    openFolder: () => setError(OPEN_FOLDER_UNAVAILABLE),
+    openFolder: () => void folder.openFolder(),
     openConnect: () => setError(CONNECT_UNAVAILABLE),
     openRepo: () => void gh.openRepo(),
     canOpenPr: gh.canOpenPr,

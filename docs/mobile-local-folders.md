@@ -355,3 +355,23 @@ The contract above is implemented as follows; where it differs, this section is 
   Opening it as a project folder is not meant: the frontend uses it only as a document path.
 - **Fake** `fakeSafPlugin().nextDocument = {uri, name}` queues what the next `local_create_document` resolves (null = cancel).
 - Not compiled or run locally: the Kotlin and Rust parts are checked by the rust-checks `android` job and build-mobile.yml; device check is M-34.
+
+## As built (M-31, screens)
+
+- **Open Folder…** (Documents home and the ⋯ menu's File > Open Folder…) runs `pickLocalFolder`; cancel is silent, a failure (including the browser's
+  "Folders on this device can only be opened in the Gonq app for Android.") goes to the error banner and the control is never hidden or disabled. The folder
+  becomes the navigator root, opens the sheet and is added to recents as its `local://<tree>` root; a recent that is a folder root reopens as a folder
+  (`FolderProvider.openFolderPath`: `checkLocalRoot`; on failure the platform text is shown in the banner, the recent is removed, no dialog).
+- **Folder navigator** = `screens/FolderSheet.tsx`, a bottom sheet opened by the mobile-only top-bar button "Folder navigator" (Documents and editor screens; not a
+  registry command). Strings are the desktop's. The tree stays mounted (hidden) when the sheet closes, so expanded folders survive. Refresh checks the grant first
+  (`verify`), then re-lists every mounted folder in place through `useFolderListing`/`useNavigatorRefresh` (`packages/editor/src/controllers/folderListing.ts`,
+  extracted from the desktop `FolderSidebar`, which now uses it too). Long names scroll sideways in the "Files" group.
+- **Names, never paths.** `localTreeName` / `localDisplayPath` (local.ts) give the folder's base name and `Folder/rel` for tab labels, tab tooltips and recents
+  (`basename`, `localDetail`); the mockup's full-path tooltip is not followed.
+- **Save / Save as.** Save writes in place (the Cancel/Overwrite sheet on a conflict, as for SSH). Save as with a folder open asks for a name (`SaveAsSheet`, "File name",
+  `.md` added) and creates it next to the active document, or in the folder's root; a taken name stays in the prompt ("<name> already exists in <folder>.", nothing is
+  overwritten, there is no overwrite offer). With no folder open it uses `createLocalDocument` and writes into the document it returns. The desktop has no in-app name
+  prompt (it uses the native save dialog), so the sheet is new.
+- **Still blocked:** Insert > Image into a `local://` document. A picture needs a binary write (or a listing of images) in the plugin; `local_create` writes text only and the
+  document picker returns a `content://` URI the tree cannot address, so the "not available yet" error stays.
+- Not done: View > Refresh Navigator is still the repo's only (it stays greyed with a folder open); the folder sheet has its own Refresh.
