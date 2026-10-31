@@ -50,6 +50,13 @@ class WriteArgs {
   var expected: Expected? = null
 }
 
+@InvokeArg
+class BytesArgs {
+  var tree: String = ""
+  var rel: String = ""
+  var bytes: String = ""
+}
+
 /** A failure with the code the frontend maps to a ListDirectoryError kind or the conflict error. */
 class SafFailure(val code: String, message: String) : Exception(message)
 
@@ -208,14 +215,31 @@ class SafPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun local_create(invoke: Invoke) = guard(invoke) {
     val a = invoke.parseArgs(WriteArgs::class.java)
-    val tree = treeUri(a.tree)
-    val parts = segments(a.rel)
+    createNew(treeUri(a.tree), a.rel, a.text.toByteArray(Charsets.UTF_8), "application/octet-stream")
+  }
+
+  /** Like local_create for binary content (a picture): `bytes` is base64, the MIME type comes from the file name's extension. */
+  @Command
+  fun local_create_bytes(invoke: Invoke) = guard(invoke) {
+    val a = invoke.parseArgs(BytesArgs::class.java)
+    val data = try {
+      Base64.decode(a.bytes, Base64.DEFAULT)
+    } catch (e: IllegalArgumentException) {
+      throw SafFailure("io", "The picture data is not valid.")
+    }
+    val ext = a.rel.substringAfterLast('.', "").lowercase()
+    val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
+    createNew(treeUri(a.tree), a.rel, data, mime)
+  }
+
+  private fun createNew(tree: Uri, rel: String, data: ByteArray, mime: String): JSObject {
+    val parts = segments(rel)
     if (parts.isEmpty()) throw SafFailure("exists", "That is the opened folder itself.")
     val name = parts.last()
     val parent = resolve(tree, parts.dropLast(1).joinToString("/"))
     if (!parent.isDir) throw SafFailure("not-found", "${parent.name} is not a folder.")
     if (children(tree, parent.id).any { it.name == name }) throw SafFailure("exists", "$name already exists.")
-    val created = DocumentsContract.createDocument(cr, docUri(tree, parent.id), "application/octet-stream", name)
+    val created = DocumentsContract.createDocument(cr, docUri(tree, parent.id), mime, name)
       ?: throw SafFailure("io", "$name could not be created.")
     val createdId = DocumentsContract.getDocumentId(created)
     // Some providers add a suffix on a name clash that raced the check above: the file is not ours, remove it.
@@ -225,13 +249,13 @@ class SafPlugin(private val activity: Activity) : Plugin(activity) {
       throw SafFailure("exists", "$name already exists.")
     }
     try {
-      cr.openOutputStream(created, "wt")?.use { it.write(a.text.toByteArray(Charsets.UTF_8)) }
+      cr.openOutputStream(created, "wt")?.use { it.write(data) }
         ?: throw SafFailure("io", "$name could not be opened for writing.")
     } catch (e: Exception) {
       runCatching { DocumentsContract.deleteDocument(cr, created) }
       throw e
     }
-    statJson(resolve(tree, a.rel))
+    return statJson(resolve(tree, rel))
   }
 
   // ---- helpers ----

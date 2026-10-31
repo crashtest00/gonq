@@ -16,6 +16,7 @@ pub const COMMANDS: &[&str] = &[
     "local_read",
     "local_write",
     "local_create",
+    "local_create_bytes",
     "local_exists",
     "local_create_document",
 ];
@@ -92,6 +93,12 @@ async fn local_create<R: Runtime>(app: AppHandle<R>, tree: String, rel: String, 
     forward(&app, "local_create", json!({ "tree": tree, "rel": rel, "text": text })).await
 }
 
+/// Like `local_create` for a picture: `bytes` is base64, the file is never overwritten or renamed (`exists`).
+#[tauri::command]
+async fn local_create_bytes<R: Runtime>(app: AppHandle<R>, tree: String, rel: String, bytes: String) -> Result<Value, SafError> {
+    forward(&app, "local_create_bytes", json!({ "tree": tree, "rel": rel, "bytes": bytes })).await
+}
+
 #[tauri::command]
 async fn local_exists<R: Runtime>(app: AppHandle<R>, tree: String, rel: String) -> Result<Value, SafError> {
     forward(&app, "local_exists", json!({ "tree": tree, "rel": rel })).await
@@ -115,6 +122,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             local_read,
             local_write,
             local_create,
+            local_create_bytes,
             local_exists,
             local_create_document
         ])

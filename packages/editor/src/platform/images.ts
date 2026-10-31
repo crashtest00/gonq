@@ -1,10 +1,10 @@
-// Image files for the editor live behind this boundary: native reads (Tauri fs, ssh, local:// folders on Android) stay here and the
-// browser gets a clear error instead of a different UI.
+// Image files for the editor live behind this boundary: native reads (Tauri fs, ssh, local:// folders on Android) and Insert > Image
+// (including copying a picked picture into a local:// document's folder) stay here; the browser gets a clear error instead of a different UI.
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile, stat } from '@tauri-apps/plugin-fs';
 import { isTauri } from './files';
 import { isSshPath, remoteRead } from './remote';
-import { LOCAL_OUTSIDE, LocalFileError, isLocalPath, parseLocalPath, readLocal, statLocal, localPath } from './local';
+import { LOCAL_OUTSIDE, LocalFileError, childHandle, createLocalBytes, existsLocal, isDocumentGrant, isLocalPath, parseLocalPath, readLocal, statLocal, localPath } from './local';
 
 const MIME: Record<string, string> = {
   png: 'image/png',
@@ -137,6 +137,57 @@ export function imageAlt(path: string): string {
   return (norm(path).split('/').pop() ?? path).replace(/\.[^.]*$/, '').replace(/[[\]]/g, '');
 }
 
+const EXT_BY_MAGIC: [string, number[]][] = [
+  ['png', [0x89, 0x50, 0x4e, 0x47]],
+  ['jpg', [0xff, 0xd8, 0xff]],
+  ['gif', [0x47, 0x49, 0x46, 0x38]],
+  ['bmp', [0x42, 0x4d]],
+];
+
+/** The extension for picture bytes: from the file name when it has a known one, else from the first bytes (a content:// URI has no name), else png. */
+function pictureExtension(picked: string, bytes: Uint8Array): string {
+  const named = /\.([A-Za-z0-9]+)$/.exec(picked.split(/[?#]/)[0])?.[1].toLowerCase();
+  if (named !== undefined && named in MIME) return named;
+  const riff = String.fromCharCode(...bytes.subarray(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.subarray(8, 12)) === 'WEBP';
+  if (riff) return 'webp';
+  return EXT_BY_MAGIC.find(([, magic]) => magic.every((b, i) => bytes[i] === b))?.[0] ?? 'png';
+}
+
+/**
+ * Insert > Image into a document in a picked folder on Android: the system picker returns a content:// URI the folder cannot
+ * address, so the picture is copied into the document's own folder (never overwriting: a taken name gets " 2", " 3", ...) and the
+ * reference is that file name, which resolveLocalImage then reads back.
+ */
+async function pickLocalImage(docPath: string): Promise<{ src: string; alt: string } | null> {
+  const doc = parseLocalPath(docPath);
+  if (doc === null) throw new LocalFileError('not-found', `${docPath} is not a file address on this device.`);
+  if (isDocumentGrant(doc.tree)) {
+    throw new Error('Open the folder this document is in to insert a picture; a document saved on its own has no folder to keep it in.');
+  }
+  const picked = await open({ multiple: false, directory: false, filters: [{ name: 'Images', extensions: Object.keys(MIME) }] });
+  if (picked === null) return null;
+  const { size } = await stat(picked);
+  if (size > MAX_LOCAL_IMAGE_BYTES) {
+    throw new Error(`That picture is ${Math.round(size / 1048576)} MB; pictures over ${MAX_LOCAL_IMAGE_BYTES / 1048576} MB are not inserted into a folder on this device. Resize it first.`);
+  }
+  const bytes = await readFile(picked);
+  const ext = pictureExtension(picked, bytes);
+  const dir = { tree: doc.tree, rel: doc.rel.split('/').filter((s) => s !== '').slice(0, -1).join('/') };
+  for (let n = 1; n <= 999; n++) {
+    const file = `image${n === 1 ? '' : ` ${n}`}.${ext}`;
+    const at = childHandle(dir, file);
+    if (await existsLocal(at)) continue;
+    try {
+      await createLocalBytes(at, bytes);
+    } catch (e) {
+      if (e instanceof LocalFileError && e.kind === 'exists') continue; // taken since the check
+      throw e;
+    }
+    return { src: imageReference(file, null), alt: imageAlt(file) };
+  }
+  throw new Error('This folder already holds too many pictures named image; rename some and try again.');
+}
+
 /**
  * Asks for a picture and returns the Markdown reference to put in `docPath`'s text (null when cancelled).
  * Throws a clear error in the browser (no file paths there), for a document on a server, or for a very large file.
@@ -144,7 +195,7 @@ export function imageAlt(path: string): string {
 export async function pickImage(docPath: string | null): Promise<{ src: string; alt: string } | null> {
   if (!isTauri()) throw new Error('Inserting an image stored on this computer needs the desktop app; the browser cannot refer to a file by its path.');
   if (isSshPath(docPath)) throw new Error('Pictures from this computer cannot be inserted into a document on a server.');
-  if (isLocalPath(docPath)) throw new Error('Inserting a picture into a document in a folder on this device is not available yet.');
+  if (docPath !== null && isLocalPath(docPath)) return pickLocalImage(docPath);
   const path = await open({ multiple: false, directory: false, filters: [{ name: 'Images', extensions: Object.keys(MIME) }] });
   if (path === null) return null;
   const { size } = await stat(path);
