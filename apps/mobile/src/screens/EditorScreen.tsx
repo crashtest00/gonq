@@ -1,10 +1,11 @@
 /**
- * The mobile editor screen: the shared MarkdownEditor on the active tab, the keyboard AccessoryBar below it and (as
+ * The mobile editor screen: the shared MarkdownEditor on the active tab, the keyboard AccessoryBar below it (swapped for the TableBar while the caret is in a table, via the editor's onTable target) and (as
  * the screen's top-bar action) the Raw switch. useVisualViewport keeps the shell above the virtual keyboard and, after
  * each visual-viewport change, calls the editor handle's scrollCaretIntoView (CodeMirror's EditorView.scrollIntoView
  * effect) so the caret stays visible. editorScreen(title) builds the navigator Screen; EditorBridge pushes it when a document opens.
  */
-import { createElement, useEffect, useRef } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
+import type { TableTarget } from '@gonq/editor/editor/tables';
 import { MarkdownEditor, type EditorHandle } from '@gonq/editor/editor/MarkdownEditor';
 import { useDocuments } from '../shell/documents';
 import { useNavigator, type Screen } from '../shell/StackNavigator';
@@ -17,6 +18,7 @@ const noop = () => {};
 export function EditorScreen({ readOnly = false }: { readOnly?: boolean }) {
   const { session } = useDocuments();
   const editor = useRef<EditorHandle>(null);
+  const [table, setTable] = useState<TableTarget | null>(null);
   useVisualViewport(() => editor.current?.scrollCaretIntoView());
   if (session.meta === null || session.activeId === null) return null;
   return (
@@ -30,12 +32,12 @@ export function EditorScreen({ readOnly = false }: { readOnly?: boolean }) {
         tabIds={session.tabIds}
         docPath={session.meta.path}
         onOpenThread={noop}
-        onTable={noop}
+        onTable={setTable}
         onContextMenu={noop}
         onChange={session.edited}
         onSelection={noop}
       />
-      <AccessoryBar editor={editor} canUndo={session.canUndo} canRedo={session.canRedo} />
+      <AccessoryBar editor={editor} canUndo={session.canUndo} canRedo={session.canRedo} table={table} />
     </div>
   );
 }

@@ -78,10 +78,14 @@ body {
 .m-editor-screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .m-editor-screen .gonq-editor { flex: 1; padding: 0 var(--space-4); }
 .m-accessory {
-  flex: none; background-color: var(--background); border-top: 1px solid var(--border);
+  display: flex; align-items: center; flex: none; background-color: var(--background); border-top: 1px solid var(--border);
   flex-wrap: nowrap; gap: var(--space-1); padding: 0 var(--space-2);
 }
 .m-accessory .m-tap { padding: 0; }
+.m-accessory-scroll { flex: 1; min-width: 0; gap: var(--space-1); flex-wrap: nowrap; }
+.m-accessory .m-pinned { flex: none; gap: var(--space-1); padding: 0 var(--space-2); font-size: var(--text-caption); }
+.m-sep { flex: none; width: 1px; height: 24px; background: var(--border); }
+.m-accessory .contents { display: contents; }
 
 /* Raw / Formatted: one switch drawn as two 44px segments. */
 .m-raw { display: inline-flex; flex: none; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-control); background: transparent; color: var(--muted-foreground); font: inherit; font-size: var(--text-caption); font-weight: var(--weight-semibold); cursor: pointer; overflow: hidden; }
