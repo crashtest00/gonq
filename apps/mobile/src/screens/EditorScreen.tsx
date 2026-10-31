@@ -16,6 +16,7 @@ import { useNavigator, type Screen } from '../shell/StackNavigator';
 import { useVisualViewport } from '../shell/useVisualViewport';
 import { AccessoryBar } from './AccessoryBar';
 import { CommentsButton, CommentsSheet } from './CommentsSheet';
+import { FolderButton } from './FolderSheet';
 import { EditorSheet, useLongPress } from './EditorSheet';
 import { OutlineButton, OutlineDrawer } from './OutlineDrawer';
 import { MoreMenu } from './MoreMenu';
@@ -89,7 +90,7 @@ export const editorScreen = (title: string): Screen => ({
   key: EDITOR_SCREEN_KEY,
   title,
   render: () => createElement(EditorScreen),
-  actions: () => createElement(Fragment, null, createElement(OutlineButton), createElement(CommentsButton), createElement(RawSwitch), createElement(MoreMenu)),
+  actions: () => createElement(Fragment, null, createElement(FolderButton), createElement(OutlineButton), createElement(CommentsButton), createElement(RawSwitch), createElement(MoreMenu)),
 });
 
 /**

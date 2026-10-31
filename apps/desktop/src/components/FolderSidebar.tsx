@@ -2,9 +2,10 @@
  * The folder navigator sidebar: Project folder tree (local or ssh://, listed lazily in chunks; or the GitHub
  * repo navigator when `repo` is set; both have a Refresh button (shown disabled when nothing is open), also View > Refresh Navigator via `refreshSignal`, that re-lists the tree in place keeping expanded folders and scroll, shows a busy state and keeps the rows when the re-list fails) and Recent documents. Re-exports basename and relativeTime (now in @gonq/editor/model/recentRow) and exports the row-chunk/spinner constants.
  */
-import { createContext, memo, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, memo, useCallback, useContext, useEffect, useState } from 'react';
 import { ChevronRight, File, Folder, Loader2, RefreshCw, X } from 'lucide-react';
-import { ListDirectoryError, listDirectory, type FolderEntry } from '@gonq/editor/platform/folders';
+import type { FolderEntry } from '@gonq/editor/platform/folders';
+import { ROW_CHUNK, useFolderListing, useNavigatorRefresh, type RefreshTracker } from '@gonq/editor/controllers/folderListing';
 import type { RecentDocument } from '@gonq/editor/platform/recents';
 import { basename, relativeTime } from '@gonq/editor/model/recentRow';
 import { RepoNavigator, type RepoState } from './RepoNavigator';
@@ -33,14 +34,13 @@ function SectionHeader({ label, open, onToggle }: { label: string; open: boolean
   );
 }
 
-/** Rows rendered per chunk; larger folders reveal the rest on request so they stay responsive. */
-export const ROW_CHUNK = 200;
+export { ROW_CHUNK };
 
 /** A remote folder shows its spinner only after this long. */
 export const SPINNER_DELAY_MS = 150;
 
 /** Tree listings report their refresh re-lists here so the Refresh button can show a busy state. */
-const RefreshTracker = createContext<{ start: () => void; end: () => void } | null>(null);
+const RefreshTrackerContext = createContext<RefreshTracker | null>(null);
 
 const Row = memo(function Row({
   entry,
@@ -100,63 +100,18 @@ const Row = memo(function Row({
 });
 
 function Tree({ path, depth, currentPath, refreshKey, onOpenFile, onLogin }: { path: string; depth: number; currentPath: string | null; refreshKey: number; onOpenFile: (path: string) => void; onLogin?: (path: string) => Promise<boolean> | void }) {
-  const [entries, setEntries] = useState<FolderEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [shown, setShown] = useState(ROW_CHUNK);
-  const [errorKind, setErrorKind] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
-  const tracker = useContext(RefreshTracker);
+  const tracker = useContext(RefreshTrackerContext);
+  const { entries, error, errorKind, refreshError, shown, showMore, retry } = useFolderListing(path, refreshKey, tracker);
   // A remote listing shows its spinner only once it has taken longer than 150 ms.
   const [slow, setSlow] = useState(false);
-
-  // A refresh re-lists in place: the current rows stay until the new ones arrive.
-  const entriesRef = useRef(entries);
-  entriesRef.current = entries;
-  const listedFor = useRef({ path, attempt, refreshKey });
-  useEffect(() => {
-    let live = true;
-    const was = listedFor.current;
-    listedFor.current = { path, attempt, refreshKey };
-    const reload = was.path !== path || was.attempt !== attempt;
-    if (reload) {
-      setEntries(null);
-      setShown(ROW_CHUNK);
-    }
-    // A refresh (same path, new key) reports to the Refresh button's busy state.
-    const refreshing = !reload && was.refreshKey !== refreshKey;
-    if (refreshing) tracker?.start();
-    setErrorKind(null);
-    setError(null);
-    setRefreshError(null);
-    listDirectory(path).then(
-      (rows) => {
-        if (refreshing) tracker?.end();
-        if (live) setEntries(rows);
-      },
-      (e) => {
-        if (refreshing) tracker?.end();
-        if (!live) return;
-        const message = e instanceof ListDirectoryError || e instanceof Error ? e.message : String(e);
-        // A failed refresh keeps the rows that are already shown.
-        if (refreshing && entriesRef.current !== null) return setRefreshError(message);
-        setEntries(null);
-        setErrorKind(e instanceof ListDirectoryError ? e.kind : null);
-        setError(e instanceof ListDirectoryError || e instanceof Error ? e.message : String(e));
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [path, attempt, refreshKey]);
 
   useEffect(() => {
     setSlow(false);
     if (entries !== null || error !== null || !isSshPath(path)) return;
     const timer = setTimeout(() => setSlow(true), SPINNER_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [path, attempt, entries, error]);
+  }, [path, entries, error]);
 
   const toggle = useCallback((p: string) => {
     setExpanded((prev) => {
@@ -174,7 +129,7 @@ function Tree({ path, depth, currentPath, refreshKey, onOpenFile, onLogin }: { p
         {errorKind === 'disconnected' && (
           <>
             {' '}
-            <button type="button" onClick={() => setAttempt((n) => n + 1)} className="cursor-pointer border-0 bg-transparent p-0 text-[12.5px] text-destructive underline">
+            <button type="button" onClick={retry} className="cursor-pointer border-0 bg-transparent p-0 text-[12.5px] text-destructive underline">
               Retry
             </button>
           </>
@@ -182,7 +137,7 @@ function Tree({ path, depth, currentPath, refreshKey, onOpenFile, onLogin }: { p
         {errorKind === 'auth_required' && onLogin && (
           <>
             {' '}
-            <button type="button" onClick={() => void Promise.resolve(onLogin(path)).then((ok) => ok === true && setAttempt((n) => n + 1))} className="cursor-pointer border-0 bg-transparent p-0 text-[12.5px] text-destructive underline">
+            <button type="button" onClick={() => void Promise.resolve(onLogin(path)).then((ok) => ok === true && retry())} className="cursor-pointer border-0 bg-transparent p-0 text-[12.5px] text-destructive underline">
               Log in
             </button>
           </>
@@ -228,7 +183,7 @@ function Tree({ path, depth, currentPath, refreshKey, onOpenFile, onLogin }: { p
         <li>
           <button
             type="button"
-            onClick={() => setShown((n) => n + ROW_CHUNK)}
+            onClick={showMore}
             style={pad}
             className="w-full cursor-pointer border-0 bg-transparent py-1 text-left text-[12.5px] text-muted-foreground hover:bg-surface"
           >
@@ -276,31 +231,7 @@ export function FolderSidebar({
 }) {
   const [projectOpen, setProjectOpen] = useState(true);
   const [recentOpen, setRecentOpen] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [pending, setPending] = useState(0);
-  const pendingRef = useRef(0);
-  const tracker = useRef({
-    start: () => {
-      pendingRef.current += 1;
-      setPending(pendingRef.current);
-    },
-    end: () => {
-      pendingRef.current = Math.max(0, pendingRef.current - 1);
-      setPending(pendingRef.current);
-    },
-  }).current;
-  const busy = pending > 0;
-  // One refresh at a time: a click or command while the last is still listing does nothing.
-  const refresh = useCallback(() => {
-    if (pendingRef.current > 0) return;
-    setRefreshKey((n) => n + 1);
-  }, []);
-  const seenSignal = useRef(refreshSignal);
-  useEffect(() => {
-    if (seenSignal.current === refreshSignal) return;
-    seenSignal.current = refreshSignal;
-    refresh();
-  }, [refreshSignal, refresh]);
+  const { refreshKey, refresh, busy, tracker } = useNavigatorRefresh(refreshSignal);
 
   return (
     <aside aria-label="Folder navigator" className="flex w-full shrink-0 overflow-hidden">
@@ -329,9 +260,9 @@ export function FolderSidebar({
                     <RefreshCw size={14} aria-hidden className={busy ? 'animate-spin' : undefined} />
                   </button>
                 </div>
-                <RefreshTracker.Provider value={tracker}>
+                <RefreshTrackerContext.Provider value={tracker}>
                   <Tree key={folder} path={folder} depth={0} refreshKey={refreshKey} currentPath={currentPath} onOpenFile={onOpenFile} onLogin={onLogin} />
-                </RefreshTracker.Provider>
+                </RefreshTrackerContext.Provider>
               </>
             ) : (
               <>

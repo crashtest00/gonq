@@ -1,19 +1,19 @@
 /**
- * The Documents home: the entry points (Open Repo… = the shared controller's openRepo (sign-in, then the picker), Open Folder… which says it is not
- * available yet until M-31, and the "+" button = File > New), the interim "Sign in to GitHub" row, and the recent
+ * The Documents home: the entry points (Open Repo… = the shared controller's openRepo (sign-in, then the picker), Open Folder… = the shared FolderProvider's openFolder (the system folder picker; cancel is silent), and the "+" button = File > New), the interim "Sign in to GitHub" row, and the recent
  * documents (listRecents through the document controller, at most MAX_RECENTS) with an icon per source, the file
  * name, "owner/repo @ branch" for GitHub files and the relative time. Tapping a row reopens it
  * (allowRecentDocument first); each row has a "Remove <name> from recent documents" button. Loading and errors go
  * to the shell banner.
  */
 import type { ReactNode } from 'react';
-import { basename, githubDetail, relativeTime } from '@gonq/editor/model/recentRow';
+import { basename, githubDetail, localDetail, relativeTime } from '@gonq/editor/model/recentRow';
+import { isLocalFolderRoot, isLocalPath, localDisplayPath } from '@gonq/editor/platform/local';
 import { MAX_RECENTS } from '@gonq/editor/platform/recents';
 import { parseGithubPath } from '@gonq/editor/platform/github';
 import { githubSignInScreen } from './GitHubSignIn';
+import { useFolder } from '../shell/folder';
 import { useGithub } from '../shell/github';
 import { runFileCommand, useDocuments } from '../shell/documents';
-import { useNotices } from '../shell/notices';
 import { useNavigator } from '../shell/StackNavigator';
 
 const Svg = ({ children }: { children: ReactNode }) => (
@@ -25,6 +25,11 @@ const FileIcon = () => (
   <Svg>
     <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z" />
     <path d="M14 3v5h5" />
+  </Svg>
+);
+const FolderIcon = () => (
+  <Svg>
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
   </Svg>
 );
 const BranchIcon = () => (
@@ -48,14 +53,12 @@ const PlusIcon = () => (
 
 const outline = { border: '1px solid var(--border)' } as const;
 
-export const OPEN_FOLDER_UNAVAILABLE = 'Opening a folder is not available yet in the Gonq app.';
-
 export function DocumentsHome() {
   const { push } = useNavigator();
-  const { setError } = useNotices();
   const doc = useDocuments();
 
   const gh = useGithub();
+  const folder = useFolder();
 
   return (
     <div style={{ position: 'relative' }}>
@@ -63,7 +66,7 @@ export function DocumentsHome() {
         <button type="button" className="m-tap" style={{ ...outline, flex: 1 }} onClick={() => void gh.openRepo()}>
           Open Repo…
         </button>
-        <button type="button" className="m-tap" style={{ ...outline, flex: 1 }} onClick={() => setError(OPEN_FOLDER_UNAVAILABLE)}>
+        <button type="button" className="m-tap" style={{ ...outline, flex: 1 }} onClick={() => void folder.openFolder()}>
           Open Folder…
         </button>
       </div>
@@ -84,17 +87,18 @@ export function DocumentsHome() {
         <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
           {doc.recents.slice(0, MAX_RECENTS).map((r) => {
             const name = basename(r.path);
-            const detail = githubDetail(r.path);
+            const detail = githubDetail(r.path) ?? localDetail(r.path);
+            const isFolder = isLocalFolderRoot(r.path);
             return (
               <li key={r.path} style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
                 <button
                   type="button"
                   className="m-tap"
-                  title={r.path}
+                  title={isLocalPath(r.path) ? localDisplayPath(r.path) : r.path}
                   style={{ flex: 1, minWidth: 0, justifyContent: 'flex-start', gap: 'var(--space-3)', textAlign: 'left', minHeight: 56 }}
-                  onClick={() => void doc.openKnownPath(r.path, true)}
+                  onClick={() => void (isFolder ? folder.openFolderPath(r.path) : doc.openKnownPath(r.path, true))}
                 >
-                  {parseGithubPath(r.path) !== null ? <BranchIcon /> : <FileIcon />}
+                  {parseGithubPath(r.path) !== null ? <BranchIcon /> : isFolder ? <FolderIcon /> : <FileIcon />}
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {name}

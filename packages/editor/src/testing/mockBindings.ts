@@ -88,7 +88,9 @@ export function fakeSafPlugin() {
         const next = api.nextPick;
         api.nextPick = null;
         if (next === null) return { picked: false };
-        api.addTree(next.tree);
+        // Picking a folder the test already filled (addTree) keeps its files and grants it again.
+        if (trees.has(next.tree)) granted.add(next.tree);
+        else api.addTree(next.tree);
         return { picked: true, tree: next.tree, name: next.name };
       }
       if (name === 'local_create_document') {

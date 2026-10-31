@@ -1,6 +1,6 @@
 /**
  * <TabStrip/>: the mobile counterpart of the desktop TabStrip.tsx, at the top of the editor screen. One tab per open
- * document (labels from model/tabLabels: "name (branch)" for same-named GitHub tabs, "folder/name" for local ones), a
+ * document (labels from model/tabLabels: "name (branch)" for same-named GitHub tabs, "folder/name" for local ones, a local tab's tooltip is the folder name and relative path, never a storage path), a
  * "●" titled "Unsaved changes" after the label of a dirty tab only, and a Close control on every tab; closing goes
  * through the shared closeTabById, so a dirty tab always asks first. The strip scrolls sideways with the edge fades of
  * .m-hscroll as its cue, the active tab is scrolled into view, and "+" (File > New through the registry) stays pinned
@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { tabLabels } from '@gonq/editor/model/tabLabels';
+import { isLocalPath, localDisplayPath } from '@gonq/editor/platform/local';
 import { runFileCommand, useDocuments } from '../shell/documents';
 
 export function TabStrip() {
@@ -30,7 +31,7 @@ export function TabStrip() {
                 role="tab"
                 aria-selected={active}
                 className="m-tap m-tab-label"
-                title={tab.github ? `${tab.github.owner}/${tab.github.repo} @ ${tab.github.branch}\n${tab.github.path}` : (tab.path ?? tab.name)}
+                title={tab.github ? `${tab.github.owner}/${tab.github.repo} @ ${tab.github.branch}\n${tab.github.path}` : tab.path !== null && isLocalPath(tab.path) ? localDisplayPath(tab.path) : (tab.path ?? tab.name)}
                 onClick={() => activate(tab.id)}
               >
                 <span className="m-tab-name">{labels[i]}</span>

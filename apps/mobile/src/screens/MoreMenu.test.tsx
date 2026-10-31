@@ -89,9 +89,9 @@ it('Raw Markdown is a checkbox that flips, Theme is a radio group, and a pick cl
   expect(within(screen.getByRole('group', { name: 'Theme' })).getAllByRole('menuitemradio').map((r) => r.textContent!.replace('✓', ''))).toEqual(['Light', 'Dark', 'Auto']);
 });
 
-it('Open Folder… and Open Repo… are listed; Open Folder… says it is not available yet', async () => {
+it('Open Folder… and Open Repo… are listed', async () => {
   const { user } = await renderMobileApp();
   await user.click(screen.getByRole('button', { name: 'More' }));
-  await user.click(screen.getByRole('menuitem', { name: 'Open Folder…' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('not available yet');
+  expect(screen.getByRole('menuitem', { name: 'Open Folder…' })).toBeInTheDocument();
+  expect(screen.getByRole('menuitem', { name: 'Open Repo…' })).toBeInTheDocument();
 });

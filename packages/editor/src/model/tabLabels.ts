@@ -1,5 +1,6 @@
 /** tabLabels: the label of each open tab, with just enough of the folder path (local) or the branch (GitHub) to tell same-named tabs apart; shared by the desktop and mobile tab strips. */
 import type { TabInfo } from '../document/useDocument';
+import { isLocalPath, localDisplayPath } from '../platform/local';
 
 function segments(path: string): string[] {
   return path.split(/[\\/]/).filter((s) => s !== '');
@@ -18,10 +19,12 @@ export function tabLabels(tabs: Pick<TabInfo, 'name' | 'path' | 'github'>[]): st
     }
     const twins = tabs.filter((o, j) => j !== i && o.name === tab.name && o.path !== tab.path);
     if (tab.path === null || twins.length === 0) return tab.name;
-    const mine = segments(tab.path);
+    // A local:// path is shown as the folder's name and the names under it, never its tree URI.
+    const shown = (p: string) => (isLocalPath(p) ? localDisplayPath(p) : p);
+    const mine = segments(shown(tab.path));
     for (let depth = 2; depth <= mine.length; depth++) {
       const label = mine.slice(-depth).join('/');
-      const clash = twins.some((o) => o.path !== null && segments(o.path).slice(-depth).join('/') === label);
+      const clash = twins.some((o) => o.path !== null && segments(shown(o.path)).slice(-depth).join('/') === label);
       if (!clash) return label;
     }
     return mine.join('/');

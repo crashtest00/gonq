@@ -16,6 +16,7 @@ import { CommentsProvider } from '../shell/comments';
 import { DialogsProvider } from '../shell/dialogs';
 import { OutlineProvider } from '../shell/outline';
 import { GithubProvider } from '../shell/github';
+import { FolderProvider } from '../shell/folder';
 import { NoticesProvider } from '../shell/notices';
 import { ThemeProvider } from '../shell/theme';
 import { NavigatorProvider, StackNavigator } from '../shell/StackNavigator';
@@ -93,6 +94,7 @@ it('keeps the Raw switch working on a read-only tab', async () => {
         <DialogsProvider>
         <DocumentProvider>
           <NavigatorProvider initial={documentsScreen}>
+            <FolderProvider>
             <GithubProvider>
               <Open />
               <CommandHostProvider>
@@ -105,6 +107,7 @@ it('keeps the Raw switch working on a read-only tab', async () => {
                 </CommentsProvider>
               </CommandHostProvider>
             </GithubProvider>
+            </FolderProvider>
           </NavigatorProvider>
         </DocumentProvider>
         </DialogsProvider>
