@@ -1,9 +1,11 @@
 /**
  * The mobile app root: notices and navigator providers around the phone shell. It starts on the splash and
- * replaces it with the Documents home after `splashMs` (default 800 ms). ThemeProvider runs the saved theme. DocumentProvider holds the shared document session. GithubProvider runs the shared GitHub controller (Open Repo, the repo screen, and ensureSignedIn opening the sign-in screen). CommandHostProvider builds the registry CommandContext the ⋯ menu and the long-press sheet run against. CommentsProvider holds the Comments sheet state. EditorBridge opens the editor screen when a document opens.
+ * replaces it with the Documents home after `splashMs` (default 800 ms). ThemeProvider runs the saved theme. DocumentProvider holds the shared document session. GithubProvider runs the shared GitHub controller (Open Repo, the repo screen, and ensureSignedIn opening the sign-in screen). CommandHostProvider builds the registry CommandContext the ⋯ menu and the long-press sheet run against. DialogsProvider shows the unsaved-changes and conflict sheets. CommentsProvider holds the Comments sheet state. OutlineProvider holds the Outline drawer state. EditorBridge opens the editor screen when a document opens.
  */
 import { useEffect } from 'react';
 import { NoticesProvider } from './shell/notices';
+import { DialogsProvider } from './shell/dialogs';
+import { OutlineProvider } from './shell/outline';
 import { DocumentProvider } from './shell/documents';
 import { ThemeProvider } from './shell/theme';
 import { NavigatorProvider, StackNavigator, useNavigator } from './shell/StackNavigator';
@@ -28,6 +30,7 @@ export default function App({ splashMs = 800 }: { splashMs?: number }) {
   return (
     <NoticesProvider>
       <ThemeProvider>
+        <DialogsProvider>
         <DocumentProvider>
           <NavigatorProvider initial={splashScreen}>
             <SplashTimer ms={splashMs} />
@@ -35,14 +38,17 @@ export default function App({ splashMs = 800 }: { splashMs?: number }) {
               <EditorBridge />
               <CommandHostProvider>
                 <CommentsProvider>
-                  <PhoneShell>
-                    <StackNavigator />
-                  </PhoneShell>
+                  <OutlineProvider>
+                    <PhoneShell>
+                      <StackNavigator />
+                    </PhoneShell>
+                  </OutlineProvider>
                 </CommentsProvider>
               </CommandHostProvider>
             </GithubProvider>
           </NavigatorProvider>
         </DocumentProvider>
+        </DialogsProvider>
       </ThemeProvider>
     </NoticesProvider>
   );

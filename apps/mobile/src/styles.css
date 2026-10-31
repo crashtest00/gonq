@@ -114,3 +114,24 @@ body {
 .m-message-head { font-size: var(--text-caption); font-weight: var(--weight-semibold); color: var(--muted-foreground); }
 .m-message-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .m-reply textarea { box-sizing: border-box; width: 100%; min-height: 44px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--background); color: var(--foreground); font: inherit; }
+
+/* Tab strip (M-28): the tabs scroll under .m-hscroll's edge fades, "+" stays pinned; every control is a 44px .m-tap. */
+.m-tabs { display: flex; align-items: center; flex: none; border-bottom: 1px solid var(--border); background: var(--background); }
+.m-tabs-scroll { flex: 1; min-width: 0; gap: var(--space-1); padding: 0 var(--space-1); }
+.m-tab { display: flex; align-items: center; max-width: 260px; border-radius: var(--radius-control); color: var(--muted-foreground); }
+.m-tab[data-active='true'] { background: var(--surface); border: 1px solid var(--border); color: var(--foreground); font-weight: var(--weight-semibold); }
+.m-tab-label { min-width: 44px; max-width: 200px; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-3); }
+.m-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-dirty { flex: none; color: var(--accent-foreground); font-size: var(--text-caption); }
+
+/* Outline drawer and the choice sheets (M-28). */
+.m-drawer { position: fixed; top: 0; bottom: 0; left: 0; z-index: 21; width: min(310px, 85%); display: flex; flex-direction: column; overflow-y: auto; padding-top: env(safe-area-inset-top); background: var(--surface); color: var(--foreground); border-right: 1px solid var(--border); box-shadow: var(--shadow-dialog); }
+.m-drawer-head { display: flex; align-items: center; justify-content: space-between; padding-right: var(--space-1); }
+.m-drawer-head .m-label { padding-bottom: var(--space-2); }
+.m-drawer-empty { margin: 0; padding: 0 var(--space-5); color: var(--muted-foreground); }
+.m-outline-list { margin: 0; padding: 0; list-style: none; }
+.m-outline-row { width: 100%; justify-content: flex-start; border-radius: 0; text-align: left; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-outline-row[data-level='1'] { color: var(--foreground); font-weight: var(--weight-semibold); }
+.m-choice-title { margin: var(--space-2) 0; font-size: 17px; font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.m-choice-body { margin: 0 0 var(--space-2); color: var(--muted-foreground); }
+.m-destructive { border: 1px solid var(--destructive); color: var(--destructive); }

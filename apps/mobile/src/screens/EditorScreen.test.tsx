@@ -13,6 +13,8 @@ import { renderMobileApp } from '../testing/renderMobileApp';
 import { DocumentProvider } from '../shell/documents';
 import { CommandHostProvider } from '../shell/commandContext';
 import { CommentsProvider } from '../shell/comments';
+import { DialogsProvider } from '../shell/dialogs';
+import { OutlineProvider } from '../shell/outline';
 import { GithubProvider } from '../shell/github';
 import { NoticesProvider } from '../shell/notices';
 import { ThemeProvider } from '../shell/theme';
@@ -88,20 +90,24 @@ it('keeps the Raw switch working on a read-only tab', async () => {
   render(
     <NoticesProvider>
       <ThemeProvider>
+        <DialogsProvider>
         <DocumentProvider>
           <NavigatorProvider initial={documentsScreen}>
             <GithubProvider>
               <Open />
               <CommandHostProvider>
                 <CommentsProvider>
-                  <PhoneShell>
-                    <StackNavigator />
-                  </PhoneShell>
+                  <OutlineProvider>
+                    <PhoneShell>
+                      <StackNavigator />
+                    </PhoneShell>
+                  </OutlineProvider>
                 </CommentsProvider>
               </CommandHostProvider>
             </GithubProvider>
           </NavigatorProvider>
         </DocumentProvider>
+        </DialogsProvider>
       </ThemeProvider>
     </NoticesProvider>,
   );

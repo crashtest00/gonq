@@ -3,7 +3,7 @@
  * shows, session branches, change-branch warning, Open Repo, refresh signal) and useGithub() hands it to screens,
  * together with `finishPick` for the repository picker screen. The sign-in dialog is the sign-in screen (useSignInPrompt);
  * the picker is a pushed screen whose result resolves the controller's pickRepo; the change-branch warning is a bottom
- * sheet ("Change branch?"). Commit, conflict, Create branch and Open PR have no mobile screens yet (M-20, M-22, M-23),
+ * sheet ("Change branch?"). The commit conflict is the shared choice sheet (shell/dialogs.tsx, Cancel or Overwrite, both leave the tab unsaved). Commit, Create branch and Open PR have no mobile screens yet (M-20, M-22, M-23),
  * so those dialogs answer "cancel". Choosing a repository shows its navigator screen (replacing one already open).
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -12,6 +12,7 @@ import { useSignInPrompt } from '../screens/GitHubSignIn';
 import { repoPickerScreen } from '../screens/RepoPicker';
 import { repoScreen, REPO_SCREEN_KEY } from '../screens/RepoScreen';
 import { BottomSheet } from './BottomSheet';
+import { useDialogs } from './dialogs';
 import { useDocuments } from './documents';
 import { useNotices } from './notices';
 import { useNavigator } from './StackNavigator';
@@ -32,6 +33,7 @@ export function useGithub(): Github {
 export function GithubProvider({ children }: { children: ReactNode }) {
   const { session } = useDocuments();
   const { setError, setNotice } = useNotices();
+  const { confirmConflict } = useDialogs();
   const nav = useNavigator();
   const navRef = useRef(nav);
   navRef.current = nav;
@@ -59,7 +61,7 @@ export function GithubProvider({ children }: { children: ReactNode }) {
         }),
       confirmBranchChange: (name) => new Promise<boolean>((answer) => setWarning({ name, answer })),
       chooseCommit: () => Promise.resolve('cancel'),
-      showConflict: () => Promise.resolve(undefined),
+      showConflict: (conflict) => confirmConflict(conflict),
       createBranch: () => Promise.resolve(null),
       openPr: () => Promise.resolve(undefined),
     },
