@@ -28,6 +28,9 @@ class SafPlugin(private val activity: Activity) : Plugin(activity) {
     val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
     i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
       Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+    // Harness only: open the picker inside the seeded folder (touch input is ignored by the emulator's DocumentsUI, so it cannot browse).
+    if (android.os.Build.VERSION.SDK_INT >= 26) i.putExtra(DocumentsContract.EXTRA_INITIAL_URI,
+      DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:Documents/GonqSpike"))
     startActivityForResult(invoke, i, "pickResult")
   }
 
