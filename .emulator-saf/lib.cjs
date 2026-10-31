@@ -60,21 +60,29 @@ async function axTap(device, texts, timeout = 8000) {
   }
   return null;
 }
-async function pickTree(segments, label, device) {
-  await sleep(2500); shot(`${label}-picker-start`); fs.writeFileSync(`${EV}/${label}-picker-start.xml`, dump());
-  for (const s of segments) {
-    const t = await axTap(device, [s]); await sleep(1800);
-    const bb = findBounds(dump(), s); shot(`${label}-enter-${s}`);
-    const entered = !!t && !!bb && bb.y < 130;      // folder name now in the title bar
-    log(`${label}: enter ${s} (accessibility tap)`, entered, `tapped=${t} ${bb ? 'y=' + bb.y : 'name not on screen'}`);
-    if (!entered) { fs.writeFileSync(`${EV}/${label}-nav-fail.xml`, dump()); return false; }
+function focusedBounds(xml) {
+  const m = /<node [^>]*?focused="true"[^>]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/.exec(xml);
+  return m ? { l: +m[1], t: +m[2], r: +m[3], b: +m[4] } : null;
+}
+// Keyboard: move focus with DPAD until the focused node contains the target text, then Enter (the only input that works on this DocumentsUI).
+async function kbSelect(text, label) {
+  const keys = [...Array(12).fill('DPAD_DOWN'), ...Array(12).fill('DPAD_UP'), ...Array(6).fill('DPAD_RIGHT'), ...Array(12).fill('DPAD_DOWN')];
+  for (let i = 0; i <= keys.length; i++) {
+    const xml = dump(); const tb = findBounds(xml, text); const fb = focusedBounds(xml);
+    if (tb && fb && tb.x >= fb.l && tb.x <= fb.r && tb.y >= fb.t && tb.y <= fb.b) { shot(`${label}-focus-${text.replace(/\W+/g, '_')}`); sh('adb shell input keyevent KEYCODE_ENTER'); return true; }
+    if (i === keys.length) break;
+    sh(`adb shell input keyevent KEYCODE_${keys[i]}`); await sleep(250);
   }
-  shot(`${label}-picker-in-folder`);
-  const use = await axTap(device, ['USE THIS FOLDER', 'Use this folder']);
-  await sleep(1500); shot(`${label}-picker-grant-dialog`);
-  const allow = await axTap(device, ['ALLOW', 'Allow']);
+  fs.writeFileSync(`${EV}/${label}-kb-no-${text.replace(/\W+/g, '_')}.xml`, dump()); return false;
+}
+// The spike APK opens the picker already inside the seeded folder (EXTRA_INITIAL_URI), so only "Use this folder" and "Allow" are pressed.
+async function pickTree(segments, label, device) {
+  await sleep(3000); shot(`${label}-picker-start`); fs.writeFileSync(`${EV}/${label}-picker-start.xml`, dump());
+  const use = (await kbSelect('USE THIS FOLDER', label)) || (await kbSelect('Use this folder', label));
+  await sleep(1500); shot(`${label}-picker-grant-dialog`); fs.writeFileSync(`${EV}/${label}-grant-dialog.xml`, dump());
+  const allow = (await kbSelect('ALLOW', label)) || (await kbSelect('Allow', label));
   await sleep(1500);
-  log(`${label}: picker use+allow`, !!(use && allow), `use=${use} allow=${allow}`);
+  log(`${label}: picker use+allow (keyboard)`, !!(use && allow), `use=${use} allow=${allow}`);
   return !!(use && allow);
 }
 function logcat(name, extra = '') {
