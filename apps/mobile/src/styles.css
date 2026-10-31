@@ -111,6 +111,8 @@ body {
 .m-sheet blockquote { margin: 0; padding-left: var(--space-2); border-left: 2px solid var(--accent); font-style: italic; color: var(--muted-foreground); overflow-wrap: anywhere; }
 .m-thread { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-2); }
 .m-messages { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-3); }
+.m-thread-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-left: auto; }
+.m-draft-title { font-size: var(--text-ui-body); font-weight: var(--weight-semibold); }
 .m-message-head { font-size: var(--text-caption); font-weight: var(--weight-semibold); color: var(--muted-foreground); }
 .m-message-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .m-reply textarea { box-sizing: border-box; width: 100%; min-height: 44px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--background); color: var(--foreground); font: inherit; }

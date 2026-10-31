@@ -97,15 +97,15 @@ it('keeps the Raw switch working on a read-only tab', async () => {
             <FolderProvider>
             <GithubProvider>
               <Open />
-              <CommandHostProvider>
-                <CommentsProvider>
+              <CommentsProvider>
+                <CommandHostProvider>
                   <OutlineProvider>
                     <PhoneShell>
                       <StackNavigator />
                     </PhoneShell>
                   </OutlineProvider>
-                </CommentsProvider>
-              </CommandHostProvider>
+                </CommandHostProvider>
+              </CommentsProvider>
             </GithubProvider>
             </FolderProvider>
           </NavigatorProvider>
