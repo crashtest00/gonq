@@ -3,13 +3,14 @@
  * sheet run commands against (document session, GitHub controller, theme, the screens Settings…/Agent skill…/About
  * push) and owns the editor handle and the editor's selection. useCommandHost() hands { ctx, editor, setSelection } to
  * screens; the editor screen fills the editor ref and reports selection and caret through setSelection.
- * Commands the mobile app cannot run yet (Add Comment until M-27) raise a clear error in the banner.
+ * Add Comment starts the new-comment draft in the Comments sheet (shell/comments), or focuses the draft already open.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type { CommandContext } from '@gonq/editor/commands';
 import { openDialog } from '@gonq/editor/dialogs/DialogHost';
 import type { EditorHandle, EditorSelection } from '@gonq/editor/editor/MarkdownEditor';
 import type { TableTarget } from '@gonq/editor/editor/tables';
+import { normalizeAnchor } from '@gonq/editor/comment-threads';
 import { isCommentableAt, selectionRange } from '@gonq/editor/model/newThread';
 import { files } from '@gonq/editor/platform/files';
 import { pickImage } from '@gonq/editor/platform/images';
@@ -17,6 +18,7 @@ import { aboutScreen } from '../screens/AboutScreen';
 import { agentSkillScreen } from '../screens/AgentSkillScreen';
 import { REPO_SCREEN_KEY } from '../screens/RepoScreen';
 import { settingsScreen } from '../screens/SettingsScreen';
+import { useComments } from './comments';
 import { useDocuments } from './documents';
 import { useFolder } from './folder';
 import { useGithub } from './github';
@@ -24,7 +26,6 @@ import { useNotices } from './notices';
 import { useNavigator } from './StackNavigator';
 import { useThemeChoice } from './theme';
 
-export const ADD_COMMENT_UNAVAILABLE = 'Adding comments is not available yet in the Gonq app.';
 export const CONNECT_UNAVAILABLE = 'Connecting to a server is not part of the Gonq app.';
 
 export interface CommandHost {
@@ -50,6 +51,7 @@ export function CommandHostProvider({ children }: { children: ReactNode }) {
   const gh = useGithub();
   const folder = useFolder();
   const nav = useNavigator();
+  const comments = useComments();
   const [theme, setTheme] = useThemeChoice();
   const { setError } = useNotices();
   const editor = useRef<EditorHandle>(null);
@@ -68,7 +70,8 @@ export function CommandHostProvider({ children }: { children: ReactNode }) {
   }, [session.activeId]);
 
   const text = session.text;
-  const hasRange = selection !== null && selectionRange(text, selection.from, selection.to) !== null;
+  const range = selection === null ? null : selectionRange(text, selection.from, selection.to);
+  const hasRange = range !== null;
   const canAddAtCaret = caret !== null && caret <= text.length && isCommentableAt(text, caret);
   const readOnly = gh.readOnlyPull !== null;
   const docPath = session.meta?.path ?? null;
@@ -122,7 +125,19 @@ export function CommandHostProvider({ children }: { children: ReactNode }) {
     openAbout: () => nav.push(aboutScreen),
     hasSelection: selection !== null && selection.from !== selection.to,
     canAddComment: !readOnly && doc.hasDocument && (hasRange || canAddAtCaret),
-    addComment: () => setError(ADD_COMMENT_UNAVAILABLE),
+    addComment: () => {
+      if (readOnly) return;
+      if (comments.draft !== null) {
+        // A draft is already open: keep what was typed and focus it.
+        document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Comment"]')?.focus();
+        return;
+      }
+      if (range !== null) {
+        const anchor = normalizeAnchor(text.slice(range.from, range.to));
+        comments.startDraft({ target: range, text, ...(anchor === undefined ? {} : { anchor }) });
+      }
+      else if (canAddAtCaret && caret !== null) comments.startDraft({ target: caret, text });
+    },
   };
   const host: CommandHost = { ctx, editor, setSelection, setTable };
   return <HostContext.Provider value={host}>{children}</HostContext.Provider>;
