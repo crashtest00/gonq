@@ -3,7 +3,7 @@ name: emulator-check
 # Orchestrator verification tooling (Gonq mobile build, M-13 / M-34), not product CI.
 # Runs only on pushes to the aigang/emulator-check branch, which never merges into dev.
 # Installs a debug-signed APK artifact from a build-mobile run on an Android emulator and
-# drives the app's debuggable WebView with Playwright's Android API (.emulator/check.cjs).
+# drives the app's debuggable WebView with Playwright's Android API (.emulator/accept.cjs, M-34).
 # The GitHub device code is posted as a commit comment so the owner can approve it once.
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
           target: google_apis
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          script: node .emulator/check.cjs
+          script: node .emulator/accept.cjs
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
