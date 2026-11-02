@@ -146,3 +146,26 @@ body {
 .m-readonly { display: flex; align-items: center; gap: var(--space-2); flex: none; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); border-bottom: 1px solid var(--border); background: var(--surface); font-size: var(--text-caption); }
 .m-readonly > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .m-readonly a { flex: none; color: var(--primary); text-decoration: underline; }
+
+/* Open PR (M-23): sections stacked on one scrolling screen, the buttons pinned below; every control is a 44px .m-tap. */
+.m-pr { display: flex; flex-direction: column; flex: 1; min-height: 0; margin: 0; }
+.m-pr-body { flex: 1; padding: 0 var(--space-4) var(--space-4); }
+.m-pr-body p { margin: var(--space-2) 0; overflow-wrap: anywhere; }
+.m-pr-section h2 { margin: var(--space-4) 0 var(--space-2); font-size: var(--text-ui-body); font-weight: var(--weight-semibold); }
+.m-pr-label { display: flex; flex-direction: column; gap: var(--space-1); margin-top: var(--space-3); color: var(--muted-foreground); font-size: var(--text-caption); }
+.m-pr-field { width: 100%; justify-content: flex-start; border: 1px solid var(--border); background: var(--background); color: var(--foreground); }
+.m-pr-area { width: 100%; min-height: 44px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--background); color: var(--foreground); font-family: var(--font-mono); font-size: var(--text-caption); }
+.m-pr-list, .m-pr-files { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: var(--radius-control); }
+.m-pr-list:empty { display: none; }
+.m-pr-row { display: flex; align-items: center; border-bottom: 1px solid var(--border); }
+.m-pr-row:last-child, .m-pr-files li:last-child { border-bottom: 0; }
+.m-pr-option { flex: 1; min-width: 0; justify-content: flex-start; border-radius: 0; text-align: left; overflow-wrap: anywhere; }
+.m-pr-option[aria-selected='true'] { background: var(--surface); font-weight: var(--weight-semibold); box-shadow: inset 3px 0 0 var(--accent); }
+.m-pr-link { flex: none; color: var(--primary); text-decoration: underline; }
+.m-pr-files li { display: flex; flex-direction: column; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); }
+.m-pr-file { overflow-wrap: anywhere; }
+.m-pr-note { color: var(--muted-foreground); font-size: var(--text-caption); }
+.m-pr-warning { color: var(--destructive); }
+.m-pr-heading { margin-top: var(--space-3); }
+.m-pr-foot { position: sticky; bottom: 0; display: flex; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--background); border-top: 1px solid var(--border); }
+.m-pr-foot > .m-tap { flex: 1 1 0; min-width: 44px; }
