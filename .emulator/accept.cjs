@@ -184,6 +184,7 @@ async function guard(why) {
     sh(`adb shell am force-stop ${PKG}`); await sleep(1000);
     sh(`adb shell monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`); await sleep(5000);
     await device.webView({ pkg: PKG }, { timeout: 60000 }).catch(() => notes.push('webview still missing'));
+    try { require('fs').writeFileSync(`${EV}/logcat-${String(why).replace(/\W+/g, '_')}.txt`, sh(`adb logcat -d -v time | grep -i -E 'gonq|AndroidRuntime|FATAL|ActivityManager|WebView|chromium' | tail -250 || true`) + '\n--- pidof: ' + sh(`adb shell pidof ${PKG} || true`) + '\n--- focus: ' + focusPkg()); } catch (e) { notes.push('logcat failed ' + e.message); }
   }
   if (notes.length) console.log(`[guard ${why}] ${notes.join('; ')}`);
 }
