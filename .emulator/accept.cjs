@@ -19,7 +19,10 @@ const BR = { a: process.env.BRANCH_A, b: process.env.BRANCH_B, pr: process.env.P
 const EV = 'evidence'; fs.mkdirSync(EV, { recursive: true });
 const STAMP = Date.now().toString(36);
 const results = [];
-const only = (process.env.ONLY || '').split(',').filter(Boolean);
+const only = (process.env.ONLY || '').split(',').map((x) => x.trim()).filter(Boolean);
+const runs = (id) => !only.length || only.some((o) => id === o || id.startsWith(o + '-'));   // ONLY accepts '06' or '06-local-folder'
+const needSignIn = runs('02-signin-approved') || runs('03-relaunch-signedin') || runs('04-open-repo-switch-branch') || runs('05-readonly-banner') || runs('13-openpr-back-nav') || runs('18-signout');   // no sign-in gate when ONLY excludes 02/03
+const SIGNIN_FREE = !needSignIn;
 
 const sh = (c, o = {}) => execSync(c, { encoding: 'utf8', ...o }).trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -42,15 +45,17 @@ async function waitComment(word, minutes) {
 }
 // step(id, title, fn): PASS when fn returns (string detail optional) or returns {ok:false}; SKIP via skip(); FAIL on throw.
 async function step(id, title, fn) {
-  if (only.length && !only.includes(id)) return;
+  if (!runs(id)) return;
   let status = 'PASS', detail = '';
   try {
+    if (id !== '01-install') await guard(`before ${id}`);
     const r = await fn();
     if (r && typeof r === 'object' && r.ok === false) { status = 'FAIL'; detail = r.detail || ''; } else detail = typeof r === 'string' ? r : (r && r.detail) || '';
   } catch (e) {
     if (e instanceof Skip) { status = 'SKIP'; detail = e.message; } else { status = 'FAIL'; detail = String(e.message || e).split('\n')[0]; }
   }
   await shot(`${id}-${status}`);
+  if (id !== '01-install' || status === 'PASS') await guard(`after ${id}`).catch(() => {});   // a failing step must never leave the device in a foreign app
   results.push({ id, title, status, detail });
   console.log(`[accept] ${id} ${status} ${title} ${detail}`); save();
 }
@@ -106,19 +111,79 @@ async function openLocal(p, name) {                            // from Documents
   if (!(await p.locator('.cm-content').waitFor({ timeout: 6000 }).then(() => true, () => false))) { await p.getByText(name).first().click({ timeout: T }); await p.locator('.cm-content').waitFor({ timeout: 30000 }); }
   return p;
 }
-// uiautomator: tap a native control by text/resource-id substring (system pickers, permission dialogs, browser)
-function uiTap(re) {
+// uiautomator: read the native hierarchy (system pickers, permission dialogs, browser)
+function uiNodes() {
   sh('adb shell uiautomator dump /sdcard/ui.xml >/dev/null && adb pull /sdcard/ui.xml evidence/ui.xml >/dev/null');
-  const xml = fs.readFileSync(`${EV}/ui.xml`, 'utf8');
+  const xml = fs.readFileSync(`${EV}/ui.xml`, 'utf8'); const out = [];
   for (const m of xml.matchAll(/<node [^>]*>/g)) {
-    const n = m[0]; const txt = (n.match(/ text="([^"]*)"/) || [])[1] + ' ' + (n.match(/resource-id="([^"]*)"/) || [])[1] + ' ' + (n.match(/content-desc="([^"]*)"/) || [])[1];
-    const b = n.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
-    if (b && re.test(txt)) { sh(`adb shell input tap ${(+b[1] + +b[3]) >> 1} ${(+b[2] + +b[4]) >> 1}`); return true; }
+    const n = m[0]; const b = n.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/); if (!b) continue;
+    out.push({ text: (n.match(/ text="([^"]*)"/) || [])[1] || '', rid: (n.match(/resource-id="([^"]*)"/) || [])[1] || '', desc: (n.match(/content-desc="([^"]*)"/) || [])[1] || '',
+      enabled: /enabled="true"/.test(n), x: (+b[1] + +b[3]) >> 1, y: (+b[2] + +b[4]) >> 1, h: +b[4] - +b[2], pkg: (n.match(/package="([^"]*)"/) || [])[1] || '' });
+  }
+  return out;
+}
+// tap the first ENABLED node whose text/content-desc matches re (resource id optional: rid substring); returns true if tapped
+function uiTap(re, { rid = null, nodes = null } = {}) {
+  for (const n of nodes || uiNodes()) {
+    if (!n.enabled || (rid && !n.rid.includes(rid))) continue;
+    if (re.test(n.text) || re.test(n.desc)) { sh(`adb shell input tap ${n.x} ${n.y}`); return true; }
   }
   return false;
 }
 const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || true');
+// SAF picker (DocumentsUI): starts at the storage root where "Use this folder" is disabled. Navigate Documents > GonqAccept, USE THIS FOLDER, Allow.
+async function safPick() {
+  const log = [];
+  for (let i = 0; i < 25; i++) {
+    await sleep(1500);
+    const nodes = uiNodes();
+    if (!nodes.some((n) => n.pkg.includes('documentsui') || n.pkg.includes('permissioncontroller')) && !/documentsui/.test(focusPkg())) { log.push('picker gone'); break; }
+    const allow = nodes.find((n) => n.enabled && /^(ALLOW|Allow)$/.test(n.text));                 // confirm dialog "Allow access to files in GonqAccept?"
+    if (allow) { sh(`adb shell input tap ${allow.x} ${allow.y}`); log.push('allow'); continue; }
+    const crumb = (nodes.find((n) => n.rid.endsWith('breadcrumb_text') || n.rid.endsWith('header_title')) || {}).text || '';
+    const here = /GonqAccept/i.test(crumb);
+    const use = nodes.find((n) => /USE THIS FOLDER/i.test(n.text) && n.enabled);
+    if (here && use) { sh(`adb shell input tap ${use.x} ${use.y}`); log.push('use-folder'); continue; }
+    const row = (name) => nodes.find((n) => n.rid.endsWith(':id/title') && n.text === name);
+    const next = row('GonqAccept') || row('Documents');                                              // list row (tap target = title text)
+    if (next) { sh(`adb shell input tap ${next.x} ${next.y}`); log.push('open ' + next.text); continue; }
+    if (use) { log.push('enabled in ' + crumb + ' without GonqAccept'); }
+    // the storage root may hide folders behind the hamburger drawer / need a scroll
+    sh('adb shell input swipe 160 500 160 250 300'); log.push('scroll');
+  }
+  return log.join(' > ');
+}
+// guard: never leave/start a step in a foreign activity (documentsui, browser, launcher); bring the app to the foreground, relaunch if the WebView is missing
+async function guard(why) {
+  const notes = [];
+  for (let i = 0; i < 4 && !focusPkg().includes(PKG); i++) { notes.push(`foreign: ${focusPkg().replace(/.*\{|\}/g, '').slice(0, 60)}`); sh('adb shell input keyevent KEYCODE_BACK'); await sleep(1200); }
+  if (!focusPkg().includes(PKG)) { sh(`adb shell monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`); await sleep(3000); notes.push('monkey'); }
+  if (!(await device.webView({ pkg: PKG }, { timeout: 15000 }).then(() => true, () => false))) {
+    notes.push('webview missing, relaunch');
+    sh(`adb shell am force-stop ${PKG}`); await sleep(1000);
+    sh(`adb shell monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`); await sleep(5000);
+    await device.webView({ pkg: PKG }, { timeout: 60000 }).catch(() => notes.push('webview still missing'));
+  }
+  if (notes.length) console.log(`[guard ${why}] ${notes.join('; ')}`);
+}
 
+async function openFolderFlow() {                            // seed files, Open Folder… via SAF, open one.md; returns the picker log
+    sh(`adb shell mkdir -p ${DIR}`);
+    sh(`printf '# Local one\\n\\nhello\\n' | adb shell "cat > ${DIR}/one.md"`);
+    sh(`printf '# Links\\n\\nSee [example](https://example.com) here.\\n' | adb shell "cat > ${DIR}/links.md"`);
+    let p = await launch(); await p.getByRole('button', { name: 'Open Folder…' }).click(); await sleep(4000); await shot('saf-picker');
+    const nav = await safPick(); await shot('saf-done');                                  // uiautomator navigation Documents > GonqAccept > USE THIS FOLDER > Allow
+    await sleep(2000); await guard('after picker');
+    p = await cur(); await p.getByRole('dialog', { name: 'Folder navigator' }).or(p.getByText('one.md')).first().waitFor({ timeout: 30000 });
+    await p.getByText('one.md').first().click(); await p.locator('.cm-content').waitFor({ timeout: 30000 });
+    return nav;
+}
+// sign-in-free steps: make sure a local document is open (reopen from recents, else run the folder flow)
+async function ensureDoc() {
+  let p = await cur();
+  if (await p.locator('.cm-content').count()) return p;
+  try { return await openLocal(p, 'one.md'); } catch (e) { await guard('ensureDoc'); await openFolderFlow(); return await cur(); }
+}
 // ---- main ---------------------------------------------------------------------------------------------------------
 (async () => {
   [device] = await _android.devices();
@@ -128,7 +193,15 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
   let p;
 
   await step('01-install', 'Fresh install of the RC APK, versionCode higher than the skeleton', async () => {
+    const apkVc = (f) => {                                                    // versionCode from the APK itself: aapt dump badging, fallback apkanalyzer
+      let aapt = ''; try { aapt = sh('ls -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"/build-tools/*/aapt | sort -V | tail -1', { shell: '/bin/bash' }); } catch (e) {}
+      if (aapt) { try { const m = sh(`"${aapt}" dump badging "${f}"`).match(/versionCode='(\d+)'/); if (m) return +m[1]; } catch (e) {} }
+      let az = ''; try { az = sh('ls -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"/cmdline-tools/*/bin/apkanalyzer | tail -1', { shell: '/bin/bash' }); } catch (e) {}
+      if (az) { try { return +sh(`"${az}" manifest version-code "${f}"`); } catch (e) {} }
+      return null;
+    };
     const vc = () => (sh(`adb shell dumpsys package ${PKG}`).match(/versionCode=(\d+)/) || [])[1];
+    const rcApk = apkVc(process.env.APK_PATH), skelApk = process.env.SKELETON_APK ? apkVc(process.env.SKELETON_APK) : null;
     let skel = null;
     if (process.env.SKELETON_APK) { sh(`adb uninstall ${PKG} || true`); sh(`adb install -r "${process.env.SKELETON_APK}"`); skel = +vc(); }
     sh(`adb uninstall ${PKG} || true`);                                     // each CI build has its own debug key
@@ -136,11 +209,13 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
     sh(`adb install "${process.env.APK_PATH}"`);
     const rc = +vc();
     p = await launch(); await shot('fresh-launch');
-    if (skel === null) return { ok: rc > 200, detail: `versionCode=${rc}; SKELETON_APK not given, compared with the 200 in tauri.conf.json (unconfirmed baseline)` };
-    return { ok: rc > skel, detail: `rc=${rc} skeleton=${skel}` };
+    const rcN = rcApk ?? rc, skN = skelApk ?? skel;                           // numeric comparison, never string
+    if (skN === null || skN === undefined || Number.isNaN(skN)) return { ok: false, detail: `rc versionCode=${rcN} (installed ${rc}); skeleton versionCode unknown: SKELETON_APK not set or unreadable (the workflow must download run 41131818493 artifact gonq-android-debug-signed-* and export SKELETON_APK)` };
+    return { ok: rcN > skN, detail: `rc versionCode=${rcN} (apk ${rcApk}, installed ${rc}) skeleton versionCode=${skN} (apk ${skelApk}, installed ${skel}); rc > skeleton = ${rcN > skN}` };
   });
 
   // ----- GitHub: sign in (the one human touchpoint), read-only use -----
+  if (SIGNIN_FREE) console.log('[accept] ONLY excludes 02/03: sign-in gate skipped, no GitHub comments posted');
   await step('02-signin-approved', 'Sign in from the idle Start screen, app backgrounded during approval, to approved', async () => {
     p = await launch();
     await p.getByText('Sign in to GitHub').click();
@@ -177,10 +252,19 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
     p = await cur(); await goHome(p); p = await cur();
     await signedInOpenRepo(p, null);
     await p.getByRole('button', { name: /^Branch:/ }).click();
-    const opts = await p.getByRole('listbox', { name: 'Branches' }).getByRole('option').allTextContents(); await shot('branches');
+    const lb = p.getByRole('listbox', { name: 'Branches' });
+    await lb.getByRole('option').first().waitFor({ timeout: 90000 }).catch(() => {});                    // branch list loads lazily
+    const loadDone = async () => !(await p.getByText(/^Loading( more| branches)?…$/).count());
+    for (let i = 0; i < 45 && !(await loadDone()); i++) await sleep(2000);
+    const opts = await lb.getByRole('option').allTextContents(); await shot('branches');
+    const screenTxt = await p.evaluate(() => document.body.innerText.slice(0, 300).replace(/\n/g, ' | '));
     await p.keyboard.press('Escape');
     await switchBranch(p, BR.a); await switchBranch(p, BR.b);
-    return { ok: opts.length > 0, detail: `branches=${opts.map((o) => o.replace('✓', '')).join(',').slice(0, 200)}; switched ${BR.a} -> ${BR.b}` };
+    for (let i = 0; i < 45 && !(await loadDone()); i++) await sleep(2000);                              // wait for the file list of the new branch (up to 90 s)
+    const rows = await p.locator('.m-tree-row').count(); const empty = await p.getByText(/No Markdown files/).count(); await shot('after-switch-loaded');
+    const still = !(await loadDone());
+    const onScreen = await p.evaluate(() => document.body.innerText.slice(0, 300).replace(/\n/g, ' | '));
+    return { ok: opts.length > 0 && !still, detail: `branches=${opts.map((o) => o.replace('✓', '')).join(',').slice(0, 200)}; switched ${BR.a} -> ${BR.b}; treeRows=${rows} emptyMsg=${empty} stillLoading=${still}; screen(sheet open)="${screenTxt.slice(0, 120)}" screen(after)="${onScreen.slice(0, 200)}"` };
   });
 
   await step('05-readonly-banner', 'Read-only banner on a branch with an open PR', async () => {
@@ -195,19 +279,12 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
 
   // ----- Local folders (M-14 outcome: Kotlin SAF plugin, folder = opaque tree handle) -----
   await step('06-local-folder', 'Local folder: Open Folder… (SAF picker), list, open a file', async () => {
-    sh(`adb shell mkdir -p ${DIR}`);
-    sh(`printf '# Local one\\n\\nhello\\n' | adb shell "cat > ${DIR}/one.md"`);
-    sh(`printf '# Links\\n\\nSee [example](https://example.com) here.\\n' | adb shell "cat > ${DIR}/links.md"`);
-    p = await launch(); await p.getByRole('button', { name: 'Open Folder…' }).click(); await sleep(4000); await shot('saf-picker');
-    // DocumentsUI ignored injected touch in the M-14 run; uiautomator taps are an unconfirmed path
-    uiTap(/Documents|GonqAccept/); await sleep(1500); uiTap(/USE THIS FOLDER|Use this folder|button_use|select_button/i); await sleep(1500); uiTap(/Allow|permission_allow/i); await sleep(3000);
-    p = await cur(); await p.getByRole('dialog', { name: 'Folder navigator' }).or(p.getByText('one.md')).first().waitFor({ timeout: 30000 });
-    await p.getByText('one.md').first().click(); await p.locator('.cm-content').waitFor({ timeout: 30000 });
-    return 'folder opened, one.md open';
+    const nav = await openFolderFlow();
+    return `folder opened, one.md open; picker: ${nav}`;
   });
 
   await step('07-insert-image-local', 'Insert > Image into a local:// document', async () => {
-    p = await cur();
+    p = await ensureDoc();
     sh(`adb shell "mkdir -p /sdcard/Pictures; printf '\\x89PNG' > /sdcard/Pictures/m34.png"`);   // unconfirmed: a real PNG would be better; see NOTES
     await menu(p, 'Insert', 'Image…'); await sleep(3000); await shot('image-picker');
     uiTap(/m34\.png/); await sleep(2500); p = await cur();
@@ -216,7 +293,7 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
   });
 
   await step('08-save-as', 'Local: Save as into the opened folder', async () => {
-    p = await cur(); await focusEditorEnd(p); await typeIme(' edited');
+    p = await ensureDoc(); await focusEditorEnd(p); await typeIme(' edited');
     await menu(p, 'File', /^Save As/);
     const s = p.getByRole('dialog', { name: 'Save as' }); await s.waitFor({ timeout: T });
     await s.getByLabel('File name').fill(`saved-${STAMP}.md`); await shot('save-as');
@@ -234,7 +311,7 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
 
   // ----- Android behaviour -----
   await step('10-editor-gboard', 'Editor: type with Gboard incl. autocorrect', async () => {
-    p = await cur(); await focusEditorEnd(p); await p.keyboard.press('Enter');
+    p = await ensureDoc(); await focusEditorEnd(p); await p.keyboard.press('Enter');
     await shot('keyboard-up');
     const kb = sh('adb shell dumpsys input_method | grep -m1 mInputShown || true');
     await typeIme('teh quick brwn fox '); await sleep(800);
@@ -244,7 +321,7 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
   });
 
   await step('11-accessory-toolbar', 'Editor: accessory toolbar (Bold, Undo, Redo)', async () => {
-    p = await cur(); await focusEditorEnd(p);
+    p = await ensureDoc(); await focusEditorEnd(p);
     const tb = p.getByRole('toolbar', { name: 'Editing' }); await tb.waitFor({ timeout: T });
     const before = await editorText(p);
     await tb.getByRole('button', { name: /^Bold/ }).click(); await typeIme('bolded'); const afterBold = await editorText(p);
@@ -254,7 +331,7 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
   });
 
   await step('12-menus', 'Editor: long-press menu and ⋯ menu (no Connect to Server)', async () => {
-    p = await cur();
+    p = await ensureDoc();
     const box = await p.locator('.cm-content').boundingBox();
     const dpr = await p.evaluate(() => devicePixelRatio);
     const top = await p.evaluate(() => window.outerHeight - window.innerHeight);   // unconfirmed: toolbar offset
@@ -308,7 +385,7 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
 
   // ----- Settings, theme -----
   await step('16-theme', 'Theme under ⋯ > View > Theme (Light/Dark/Auto), no Settings theme row', async () => {
-    p = await cur();
+    p = await ensureDoc();
     await menu(p, 'View', /Dark/, { role: 'menuitemradio' }); await sleep(800);
     const dark = await p.evaluate(() => document.documentElement.className); await shot('theme-dark');
     await menu(p, 'View', /Light/, { role: 'menuitemradio' }); await sleep(800);
@@ -317,7 +394,7 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
   });
 
   await step('17-settings-author', 'Settings: author name saved; Settings has no theme row', async () => {
-    p = await cur(); await menu(p, 'Edit', 'Settings…');
+    p = await ensureDoc(); await menu(p, 'Edit', 'Settings…');
     const f = p.getByRole('form', { name: 'Settings' }); await f.waitFor({ timeout: T });
     const themeRow = await f.getByText(/Theme/).count();
     await f.getByLabel('Author name').fill(`M34 ${STAMP}`); await shot('settings'); await f.getByRole('button', { name: 'Save', exact: true }).click();

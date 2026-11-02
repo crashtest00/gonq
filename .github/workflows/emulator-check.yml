@@ -29,6 +29,13 @@ jobs:
           gh run download "$APK_RUN_ID" -R "$GITHUB_REPOSITORY" -n "$APK_ARTIFACT" -D apk
           find apk -name '*.apk' -exec ls -l {} \;
           echo "APK_PATH=$(find "$PWD/apk" -name '*.apk' | head -1)" >> "$GITHUB_ENV"
+      - name: Download skeleton APK (versionCode baseline)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p skel
+          gh run download 41131818493 -R "$GITHUB_REPOSITORY" -n 'gonq-android-debug-signed-71dda20e9c98c2ec9af3f846da13bcf5ee8c06b9.apk' -D skel || true
+          echo "SKELETON_APK=$(find "$PWD/skel" -name '*.apk' | head -1)" >> "$GITHUB_ENV"
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
