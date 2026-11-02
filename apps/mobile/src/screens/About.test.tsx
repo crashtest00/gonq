@@ -36,7 +36,7 @@ async function openAbout(user: User) {
 it('shows the package version, with no build number', async () => {
   expect(APP_VERSION).toBe(pkg.version);
   expect(tauriConf.version).toBe(pkg.version);
-  expect(pkg.version).toMatch(/^0\.1\.\d+$/);
+  expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/);
   const { user } = await renderMobileApp();
   await openAbout(user);
   expect(screen.getByText(`Version ${pkg.version}`)).toBeInTheDocument();

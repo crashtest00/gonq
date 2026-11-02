@@ -1862,7 +1862,7 @@ dependencies = [
 
 [[package]]
 name = "gonq"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "embed-resource",
  "gonq-core",
@@ -1882,7 +1882,7 @@ dependencies = [
 
 [[package]]
 name = "gonq-core"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "android-native-keyring-store",
  "base64 0.23.1",
@@ -1916,7 +1916,7 @@ dependencies = [
 
 [[package]]
 name = "gonq-mobile"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "gonq-core",
  "jni 0.22.4",

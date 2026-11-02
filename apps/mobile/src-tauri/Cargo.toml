@@ -1,6 +1,6 @@
 [package]
 name = "gonq-mobile"
-version = "0.1.5"
+version = "0.2.0"
 description = "Gonq mobile (Android) Tauri entry point"
 edition = "2021"
 

@@ -1,7 +1,7 @@
 {
   "name": "@gonq/mobile",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.2.0",
   "type": "module",
   "description": "The Gonq mobile app: phone shell (safe-area top bar, stack navigator, bottom sheet, notice banner) and its placeholder screens; the Android app wraps it with Tauri (src-tauri), Beta serves the web build at /mobile/.",
   "scripts": {
