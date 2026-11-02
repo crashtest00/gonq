@@ -1,7 +1,7 @@
 {
   "name": "gonq",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.2.0",
   "type": "module",
   "workspaces": [
     "apps/*",
@@ -11,12 +11,13 @@
     "dev": "npm run dev -w @gonq/desktop",
     "build": "npm run build --workspaces --if-present",
     "preview": "npm run preview -w @gonq/desktop",
-    "test": "npm run test --workspaces --if-present && npm run map:check && npm run boundaries:check",
+    "test": "npm run test --workspaces --if-present && npm run map:check && npm run boundaries:check && npm run versions:check",
     "test:e2e": "npm run test:e2e -w @gonq/desktop",
     "tauri": "npm run tauri -w @gonq/desktop --",
     "map": "node scripts/project-map.mjs",
     "map:check": "node scripts/project-map.mjs --check",
-    "boundaries:check": "node scripts/check-boundaries.mjs"
+    "boundaries:check": "node scripts/check-boundaries.mjs",
+    "versions:check": "node --test scripts/check-versions.test.mjs"
   },
   "engines": {
     "node": ">=20"

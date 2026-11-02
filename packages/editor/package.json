@@ -1,7 +1,7 @@
 {
   "name": "@gonq/editor",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.2.0",
   "type": "module",
   "description": "The shareable Gonq frontend: CodeMirror editor, comment-threads library, platform seam over the generated bindings, command registry and feature modules. Consumed as TypeScript source by apps/desktop.",
   "exports": {
