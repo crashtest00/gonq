@@ -1231,32 +1231,35 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 
 #### M-34 Android acceptance pass on the release candidate
 
-**Goal.** The orchestrator runs the full mobile function on an Android emulator, with the debug-signed APK built by `build-mobile.yml` at the RC SHA.
+**Goal.** The orchestrator checks, on an Android emulator, the behaviour that only an Android device can show, using the debug-signed APK built by `build-mobile.yml` at the RC SHA.
 
-**The one human touchpoint.** As in M-13: the owner approves the GitHub device code once, in their own browser, and the orchestrator reads the code from the emulator screen. Installing on the owner's real phone is the owner's optional final look, not a gate.
+**Verified at other layers.** GitHub logic (branches, commit, conflict, Open PR) is tested in Rust against the fake GitHub server in `crates/gonq-core`, which desktop and mobile share. Mobile screens and flows are tested by the browser e2e and component tests with mocked backends. This is the practice used for the desktop GitHub review flow. This story covers what those layers cannot show.
 
-**Why.** Native flows cannot be verified on Beta.
+**The one human touchpoint.** As in M-13: the owner approves the GitHub device code once, in their own browser, and the orchestrator reads the code from the emulator screen. Installing on the owner's real phone is the owner's optional final look, including any commit or Open PR the owner wants to try against a real repository. It is not a gate.
+
+**Why.** Native flows cannot be verified on Beta, and a fake server cannot prove the real device flow with the Android keystore.
 
 **Acceptance criteria (checklist, each with a screenshot).**
 
 1. Uninstall the M-13 skeleton build (each CI build has a new debug key), then install the RC APK; `versionCode` is higher than the skeleton's.
-2. GitHub:
+2. GitHub sign-in and read-only use, with the owner's single approval:
    - sign in with the app backgrounded during approval;
    - relaunch and still signed in;
-   - open a repo, switch branch, create a branch, edit, commit;
-   - the conflict path;
-   - the read-only banner on a branch with an open PR;
-   - on a branch not starting with `gonq/`, the commit sheet warns and offers "Commit to new branch…", with Commit primary;
-   - open a PR, including after a force-stop, when "Branch to merge" shows "No branches to merge from this session.";
-   - sign-in from the idle Start screen through approved, and the denied path.
-3. Local folders: per the M-14 outcome.
-4. Editor: type with the emulator's Gboard including autocorrect, the accessory toolbar, a table edit, the long-press and overflow menus (no Connect to Server), add, reply to and resolve a comment, an outline jump, a dirty-close prompt.
+   - open a repository and switch branch, using read-only calls to the real GitHub API with the owner's account;
+   - on a branch with an open pull request, the read-only banner shows.
+3. Local folders, per the M-14 outcome: open a folder; Insert > Image into a `local://` document; Save as; re-open a tab after Back.
+4. Android behaviour:
+   - type with the emulator's Gboard, including autocorrect, and use the accessory toolbar;
+   - the long-press and overflow menus (no Connect to Server);
+   - Back navigation in the Open PR flow, and System Back elsewhere;
+   - a link opens natively;
+   - a selection that is an invalid range falls back to a caret comment.
 5. Settings: author name and sign out. Theme is checked under ⋯ > View > Theme (there is no Settings theme row).
 6. Results go on the Release work item. Gonq PRs auto-merge on green and QE verifies afterward, so any failure becomes a new rework story, never a pre-merge gate.
 
 **FE/BE contract.** None.
 
-**Out of scope.** iOS.
+**Out of scope.** iOS. Writes to GitHub (create branch, commit, conflict path, opening a pull request) and the denied device-code path.
 
 **Risks and unknowns.** None beyond R-1 to R-8.
 
