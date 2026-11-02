@@ -35,7 +35,8 @@ export function EditorSheet({ open, onClose, releasing }: { open: boolean; onClo
                 onClick={() => {
                   onClose();
                   void e.command.run?.(ctx);
-                  editor.current?.focus();
+                  // A command that moved focus into a text box (Add Comment focusing the open draft) keeps it.
+                  if (!(document.activeElement instanceof HTMLTextAreaElement)) editor.current?.focus();
                 }}
               >
                 {e.label}
