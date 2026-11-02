@@ -62,3 +62,4 @@ apps/mobile/src-tauri/gen/android/app/.tauri/
 apps/mobile/src-tauri/gen/android/app/tauri.properties
 apps/mobile/src-tauri/gen/android/app/tauri.build.gradle.kts
 apps/mobile/src-tauri/gen/android/tauri.settings.gradle
+apps/mobile/src-tauri/gen/schemas/
