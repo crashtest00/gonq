@@ -165,7 +165,7 @@ async function safPick() {
     for (let t = 1; t <= 3 && !done; t++) {
       const ns = uiNodes(`before-${name}-try${t}`); const n = findTitle(ns, name);
       if (!n) { L(`'${name}' NOT found (try ${t}); titles=[${ns.filter((x) => /title$/.test(x.rid)).map((x) => x.text).join('|')}]`); if (t === 2) { sh('adb shell input swipe 160 450 160 250 300'); L('scrolled list'); } await sleep(2000); continue; }
-      L(`found '${name}': ${desc(n)}; tap ${n.x},${n.y}`); sh(`adb shell input tap ${n.x} ${n.y}`); await sleep(2000);
+      L(`found '${name}': ${desc(n)}; tap ${n.x},${n.y}`); { const cmds = [`input tap ${n.x} ${n.y}`, `input swipe ${n.x} ${n.y} ${n.x} ${n.y} 120`, `input touchscreen tap ${n.x} ${n.y}`]; const c = cmds[Math.min(t - 1, 2)]; L(`method: ${c}`); sh(`adb shell ${c}`); } await sleep(2500);
       const ns2 = uiNodes(after + (t > 1 ? `-try${t}` : '')); const crumbs = ns2.filter((x) => /breadcrumb|header_title|toolbar|action_bar/.test(x.rid)).map((x) => x.text).filter(Boolean).join('|');
       L(`after tap crumbs=[${crumbs}]`);
       done = name === 'Documents' ? (ns2.some((x) => x.text === 'GonqAccept') || /Documents/.test(crumbs)) : (/GonqAccept/.test(crumbs) || ns2.some((x) => /USE THIS FOLDER/i.test(x.text) && x.enabled));
