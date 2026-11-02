@@ -1,4 +1,4 @@
-/** Covers editing a thread's first message and deleting a thread (block and marker) in the mobile Comments sheet through renderMobileApp, porting EditDeleteThread: Edit thread replaces only the first message (blank does nothing, Cancel discards, undo), Delete thread asks first (Cancel keeps it, confirm removes block and marker and returns to the list), library errors go to the banner, and the buttons have 44px hit areas. */
+/** Covers editing a thread's first message and deleting a thread (block and marker) in the mobile Comments sheet through renderMobileApp, porting EditDeleteThread: Edit thread replaces only the first message (blank does nothing, Cancel discards, undo, the unsaved dot, an agent-authored first message, --> in the body), Delete thread asks first (Cancel and a scrim tap keep it, the dialog names the thread, confirm removes block and marker, deleting one of two threads leaves the other, a thread with no marker is deleted by block, undo restores it), library errors go to the banner, and the buttons have 44px hit areas. */
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
@@ -168,4 +168,96 @@ it('Edit, Delete and the edit box buttons have 44px hit areas', async () => {
   for (const b of inSheet().getAllByRole('button')) expect(b).toHaveClass('m-tap');
   await user.click(inSheet().getByRole('button', { name: 'Edit thread' }));
   for (const b of inSheet().getAllByRole('button')) expect(b).toHaveClass('m-tap');
+});
+
+const B = 'c20260910143022a3f9c2';
+const blk = (id: string, body: string, author = 'User', stamp = '2026-09-10T14:30:22+02:00') =>
+  `<!--\n@thread ${id}\n@status open\n\n[${author} | ${stamp}]\n${body}\n-->`;
+const TWO = `One [💬](#md-thread-${A}) two [💬](#md-thread-${B}).\n\n${blk(A, 'First?')}\n\n${blk(B, 'Second?')}\n`;
+async function undo(user: User) {
+  await user.click(screen.getByRole('button', { name: 'More' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Undo' }));
+}
+async function openThread(doc: string, name: RegExp) {
+  const env = await openDoc(doc);
+  await openList(env.user);
+  await env.user.click(await inSheet().findByRole('button', { name }));
+  return env;
+}
+const unsaved = () => screen.queryByTitle('Unsaved changes');
+
+it('the unsaved dot appears after an edit; a blank save and viewing a thread leave it off', async () => {
+  const { user } = await setup();
+  expect(unsaved()).toBeNull();
+  await editFirst(user, '');
+  await user.type(editBox()!, '  ');
+  await user.click(inSheet().getByRole('button', { name: 'Save' }));
+  expect(unsaved()).toBeNull();
+  await user.click(inSheet().getByRole('button', { name: 'Cancel' }));
+  expect(unsaved()).toBeNull();
+  expect(disk.saved).toHaveLength(0);
+  await editFirst(user, 'Reworded');
+  await user.click(inSheet().getByRole('button', { name: 'Save' }));
+  expect(unsaved()).not.toBeNull();
+});
+
+it('an edit containing --> round-trips and leaves the reply alone', async () => {
+  const { user } = await setup();
+  await editFirst(user, 'a --> b');
+  await user.click(inSheet().getByRole('button', { name: 'Save' }));
+  const text = await save(user);
+  const threads = parseCommentThreads(text);
+  expect(threads).toHaveLength(1);
+  expect(threads[0].messages[0].body).toBe('a --> b');
+  expect(threads[0].messages[1].body).toBe('Answer.');
+});
+
+it('an agent-authored first message can be edited and keeps its author', async () => {
+  const doc = `Para [💬](#md-thread-${A}) here.\n\n${blk(A, 'Agent says', 'architect-agent:75a079f6')}\n`;
+  const { user } = await openThread(doc, /Agent says/);
+  await editFirst(user, 'Agent revised');
+  await user.click(inSheet().getByRole('button', { name: 'Save' }));
+  const text = await save(user);
+  expect(text).toBe(doc.replace('Agent says', 'Agent revised'));
+  expect(parseCommentThreads(text)[0].messages[0].author).toBe('architect-agent:75a079f6');
+});
+
+it('the delete dialog names the thread; tapping the scrim (the mobile Escape, as there are no keydown handlers) cancels and changes nothing', async () => {
+  const { user } = await openThread(TWO, /First\?/);
+  await user.click(inSheet().getByRole('button', { name: 'Delete thread' }));
+  const ask = await screen.findByRole('alertdialog');
+  expect(ask.textContent).toContain('First?');
+  await user.click(screen.getByTestId('choice-scrim'));
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  expect(unsaved()).toBeNull();
+  expect(await save(user)).toBe(TWO);
+});
+
+it('deleting one of two threads leaves the other, the list shows only it, the tab is unsaved', async () => {
+  const { user } = await openThread(TWO, /First\?/);
+  await user.click(inSheet().getByRole('button', { name: 'Delete thread' }));
+  await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }));
+  await waitFor(() => expect(inSheet().queryByRole('button', { name: /First\?/ })).toBeNull());
+  expect(inSheet().getByRole('button', { name: /Second\?/ })).toBeInTheDocument();
+  expect(unsaved()).not.toBeNull();
+  const text = await save(user);
+  expect(parseCommentThreads(text).map((t) => t.id)).toEqual([B]);
+  expect(text).not.toContain(`md-thread-${A}`);
+  expect(text).toContain(blk(B, 'Second?'));
+});
+
+it('one Undo restores a deleted thread, block and marker, byte-exact', async () => {
+  const { user } = await openThread(TWO, /First\?/);
+  await user.click(inSheet().getByRole('button', { name: 'Delete thread' }));
+  await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }));
+  await undo(user);
+  expect(await save(user)).toBe(TWO);
+  expect(document.querySelector('.cm-content')!.textContent?.match(/💬/g)).toHaveLength(2);
+});
+
+it('a thread with no marker is deleted by block', async () => {
+  const { user } = await openThread(`Para here.\n\n${blk(A, 'First?')}\n`, /First\?/);
+  await user.click(inSheet().getByRole('button', { name: 'Delete thread' }));
+  await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }));
+  expect(await save(user)).toBe('Para here.\n');
 });

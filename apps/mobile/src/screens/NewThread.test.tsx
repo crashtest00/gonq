@@ -1,5 +1,5 @@
-/** Covers creating comment threads on mobile through renderMobileApp, porting NewThread: Add comment in the Comments sheet on a selection or at the caret (enabled only where commenting is allowed), the "New comment" draft box (label, placeholder, quoted anchor, focus), what Submit writes, blank submit, Cancel, a draft already open, undo, the author from get_author_name, a read-only tab, and no Add Comment in the accessory bar. */
-import { createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react';
+/** Covers creating comment threads on mobile through renderMobileApp, porting NewThread: Add comment in the Comments sheet on a selection or at the caret (enabled only where commenting is allowed), the "New comment" draft box (label, placeholder, quoted anchor, focus), what Submit writes, the unsaved dot, no button (disabled Add comment) for an empty, block-spanning, table-cell or marker-containing selection, a saved thread reopening as the same thread, blank submit, Cancel, a draft already open, undo, the author from get_author_name, no Add Comment in the accessory bar. */
+import { cleanup, createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 vi.hoisted(() => ((window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}));
@@ -182,4 +182,52 @@ it('the accessory bar has no Add Comment button and the sheet buttons have 44px 
   await openList(user);
   await user.click(addButton());
   for (const b of inSheet().getAllByRole('button')) expect(b).toHaveClass('m-tap');
+});
+
+it('Add comment is disabled in a table cell, enabled in a task item; a block-spanning selection gets no anchor', async () => {
+  const { user } = await openDoc('A heading\n\n- [ ] first task\n- [x] second\n\n| a | b |\n| -- | -- |\n| cell one | cell two |\n\nThe estimate holds on.\n\nSecond paragraph.\n');
+  await openList(user);
+  select(at('cell one'), at('cell one', true));
+  expect(addButton()).toBeDisabled();
+  select(at('first task'), at('first task', true));
+  await waitFor(() => expect(addButton()).toBeEnabled());
+  // Across two paragraphs there is no range, so Add comment can only fall back to the caret: a draft without an anchor.
+  select(at('holds'), at('Second paragraph.') + 6);
+  await user.click(addButton());
+  expect(inSheet().getByText('New comment')).toBeInTheDocument();
+  expect(sheet()).not.toHaveTextContent('On:');
+});
+
+it('a selection containing a marker gets no anchored draft; one just after the marker does', async () => {
+  const id = 'c20260910143022a3f9c1';
+  const { user } = await openDoc(`Before [💬](#md-thread-${id}) after.\n\n<!--\n@thread ${id}\n@status open\n\n[User | 2026-09-10T14:30:22+02:00]\nhi\n-->\n`);
+  await openList(user);
+  select(0, at('after') - 1);
+  await user.click(addButton());
+  expect(sheet()).not.toHaveTextContent('On:');
+  await user.click(inSheet().getByRole('button', { name: 'Cancel' }));
+  selectText('after');
+  await user.click(addButton());
+  expect(sheet()).toHaveTextContent("On: 'after'");
+});
+
+it('a new thread marks the tab unsaved, and a saved thread reopens as the same thread', async () => {
+  const { user } = await openDoc('Hello brave world.\n');
+  expect(screen.queryByTitle('Unsaved changes')).toBeNull();
+  selectText('brave');
+  await openList(user);
+  await user.click(addButton());
+  await user.type(box(), 'multi{enter}line');
+  await user.click(inSheet().getByRole('button', { name: 'Submit' }));
+  expect(screen.getByTitle('Unsaved changes')).toBeInTheDocument();
+  const text = await save(user);
+  cleanup();
+  const again = await openDoc(text);
+  await openList(again.user);
+  const row = within(sheet()).getByRole('list').querySelector('button')!;
+  expect(row).toHaveTextContent('brave');
+  expect(row).toHaveTextContent('multi line');
+  await again.user.click(row);
+  expect(inSheet().getByText(/multi\s*line/).textContent).toBe('multi\nline');
+  expect(parseCommentThreads(text)).toHaveLength(1);
 });
