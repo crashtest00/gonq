@@ -3,13 +3,14 @@
  * shows, session branches, change-branch warning, Open Repo, refresh signal) and useGithub() hands it to screens,
  * together with `finishPick` for the repository picker screen. The sign-in dialog is the sign-in screen (useSignInPrompt);
  * the picker is a pushed screen whose result resolves the controller's pickRepo; the change-branch warning is a bottom
- * sheet ("Change branch?"). The commit conflict is the shared choice sheet (shell/dialogs.tsx, Cancel or Overwrite, both leave the tab unsaved). Create branch is a bottom sheet (screens/CreateBranchSheet.tsx, opened by the controller's createBranch dialog). Commit is a bottom sheet (screens/CommitSheet.tsx); Open PR has no mobile screen yet (M-23), so that dialog answers nothing. Choosing a repository shows its navigator screen (replacing one already open).
+ * sheet ("Change branch?"). The commit conflict is the shared choice sheet (shell/dialogs.tsx, Cancel or Overwrite, both leave the tab unsaved). Create branch is a bottom sheet (screens/CreateBranchSheet.tsx, opened by the controller's createBranch dialog). Commit is a bottom sheet (screens/CommitSheet.tsx). Open PR is a pushed screen (screens/OpenPrScreen.tsx) whose promise resolves when it leaves the stack, by Cancel, Close or Back. Choosing a repository shows its navigator screen (replacing one already open).
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useGithubController, type CommitChoice, type CreateBranchDone, type GithubDialogs, type RepoPick } from '@gonq/editor/controllers/github';
 import { useSignInPrompt } from '../screens/GitHubSignIn';
 import { CommitSheet } from '../screens/CommitSheet';
 import { CreateBranchSheet } from '../screens/CreateBranchSheet';
+import { OPEN_PR_SCREEN_KEY, openPrScreen, type OpenPrArgs } from '../screens/OpenPrScreen';
 import { repoPickerScreen } from '../screens/RepoPicker';
 import { repoScreen, REPO_SCREEN_KEY } from '../screens/RepoScreen';
 import { BottomSheet } from './BottomSheet';
@@ -41,6 +42,7 @@ export function GithubProvider({ children }: { children: ReactNode }) {
   navRef.current = nav;
   const signIn = useSignInPrompt();
   const chosen = useRef('');
+  const prDone = useRef<(() => void) | null>(null);
   const picking = useRef<((r: RepoPick) => void) | null>(null);
   const [creating, setCreating] = useState<{ args: Parameters<GithubDialogs['createBranch']>[0]; done: (r: CreateBranchDone | null) => void } | null>(null);
   const [committing, setCommitting] = useState<{ target: Parameters<GithubDialogs['chooseCommit']>[0]; answer: (c: CommitChoice) => void } | null>(null);
@@ -67,7 +69,11 @@ export function GithubProvider({ children }: { children: ReactNode }) {
       chooseCommit: (target) => new Promise<CommitChoice>((answer) => setCommitting({ target, answer })),
       showConflict: (conflict) => confirmConflict(conflict),
       createBranch: (args) => new Promise<CreateBranchDone | null>((done) => setCreating({ args, done })),
-      openPr: () => Promise.resolve(undefined),
+      openPr: (args: OpenPrArgs) =>
+        new Promise<void>((resolve) => {
+          prDone.current = resolve;
+          navRef.current.push(openPrScreen(args));
+        }),
     },
     onError: setError,
     onNotice: setNotice,
@@ -91,6 +97,16 @@ export function GithubProvider({ children }: { children: ReactNode }) {
       resolve({ kind: 'closed' });
     }
   }, [pickerOpen]);
+
+  // Leaving the Open PR screen (Cancel, Close or Back) ends the controller's openPr.
+  const prOpen = nav.stack.some((s) => s.key === OPEN_PR_SCREEN_KEY);
+  useEffect(() => {
+    if (!prOpen && prDone.current !== null) {
+      const resolve = prDone.current;
+      prDone.current = null;
+      resolve();
+    }
+  }, [prOpen]);
 
   // Cancel is focused when the warning opens, as on desktop.
   const cancelRef = useRef<HTMLButtonElement>(null);
