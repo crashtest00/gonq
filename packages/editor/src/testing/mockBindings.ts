@@ -145,6 +145,13 @@ export function fakeSafPlugin() {
           api.put(tree, rel, String(args.text));
           return stat(m.get(rel)!);
         }
+        case 'local_create_bytes': {
+          if (node) return reject('exists', `${rel} already exists.`);
+          if (!m.get(parentOf(rel))) return reject('not-found', `${parentOf(rel)} was not found.`);
+          const bin = atob(String(args.bytes));
+          api.put(tree, rel, Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+          return stat(m.get(rel)!);
+        }
       }
       return reject('io', `unknown command ${name}`);
     },

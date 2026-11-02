@@ -372,6 +372,9 @@ The contract above is implemented as follows; where it differs, this section is 
   `.md` added) and creates it next to the active document, or in the folder's root; a taken name stays in the prompt ("<name> already exists in <folder>.", nothing is
   overwritten, there is no overwrite offer). With no folder open it uses `createLocalDocument` and writes into the document it returns. The desktop has no in-app name
   prompt (it uses the native save dialog), so the sheet is new.
-- **Still blocked:** Insert > Image into a `local://` document. A picture needs a binary write (or a listing of images) in the plugin; `local_create` writes text only and the
-  document picker returns a `content://` URI the tree cannot address, so the "not available yet" error stays.
+- **Insert > Image.** Works for a `local://` document inside an opened folder: `pickImage` takes the system picker's `content://` URI, reads it with plugin-fs, and copies it
+  into the document's folder through the binary `local_create_bytes` command (`tree`, `rel`, base64 `bytes`; `exists` instead of an overwrite or a provider rename, MIME type from
+  the extension). The file is named `image.<ext>` (`image 2.<ext>`, ... when taken; the extension is sniffed from the first bytes when the URI has none) and the Markdown refers
+  to it by that relative name, which `resolveImagePath` reads back. Pictures over 8 MB are refused. A single-document grant (Save as outside a folder) has no folder, so it
+  says to open the folder first.
 - Not done: View > Refresh Navigator is still the repo's only (it stays greyed with a folder open); the folder sheet has its own Refresh.

@@ -1,9 +1,9 @@
 /**
  * Local folders on Android (M-30): the only caller of the `gonq-saf` plugin commands (local_pick_folder, local_granted,
- * local_list, local_stat, local_read, local_write, local_create, local_exists, local_create_document; Kotlin SafPlugin behind src/saf.rs in the mobile
+ * local_list, local_stat, local_read, local_write, local_create, local_create_bytes, local_exists, local_create_document; Kotlin SafPlugin behind src/saf.rs in the mobile
  * crate) and the home of the local:// path format, `local://<percent-encoded tree URI>/<rel segments>`, where the tree is a
  * Storage Access Framework folder the user picked and rel is names under it. Exports LocalHandle, localPath / parseLocalPath,
- * isLocalPath, the display helpers localTreeName / localDisplayPath / isLocalFolderRoot (folder name and relative path, never an absolute path), the list/read/write/create/exists wrappers, LocalFileError and `checkLocalRoot` (the reopen check).
+ * isLocalPath, the display helpers localTreeName / localDisplayPath / isLocalFolderRoot (folder name and relative path, never an absolute path), the list/read/write/create/createBytes/exists wrappers, LocalFileError and `checkLocalRoot` (the reopen check).
  * The commands are declared by hand: tauri-specta cannot generate a mobile plugin's commands. Everywhere but the Gonq
  * Android app every call rejects with a LocalFileError of kind `unsupported` (shown in the error banner, as ssh:// does).
  */
@@ -100,7 +100,7 @@ export function localTreeName(tree: string): string {
 }
 
 /** Whether `path` is a single-document grant (Save as outside a folder) rather than a folder tree. */
-const isDocumentGrant = (tree: string): boolean => /\/document\//.test(tree) && !/\/tree\//.test(tree);
+export const isDocumentGrant = (tree: string): boolean => /\/document\//.test(tree) && !/\/tree\//.test(tree);
 
 /**
  * What a local:// path is called on screen: "Folder/rel/path.md" (the folder's name and the names under it), the folder's
@@ -242,6 +242,17 @@ export async function writeLocal(h: LocalHandle, text: string, expected?: LocalS
 /** Creates a new file with the text; rejects `exists` when the name is taken (the provider never renames it). */
 export async function createLocal(h: LocalHandle, text: string): Promise<LocalStat> {
   return toStat(await call('local_create', { tree: h.tree, rel: h.rel, text }));
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+/** Creates a new binary file (a picture, base64 over the channel); rejects `exists` when the name is taken, never overwrites. */
+export async function createLocalBytes(h: LocalHandle, bytes: Uint8Array): Promise<LocalStat> {
+  return toStat(await call('local_create_bytes', { tree: h.tree, rel: h.rel, bytes: toBase64(bytes) }));
 }
 
 /**

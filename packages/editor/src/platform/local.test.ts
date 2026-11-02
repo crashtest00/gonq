@@ -248,3 +248,14 @@ describe('outside the Gonq Android app', () => {
     expect(saf.calls).toEqual([]);
   });
 });
+
+describe('createLocalBytes', () => {
+  it('creates a binary file, refuses an existing name', async () => {
+    const { createLocalBytes } = await import('./local');
+    saf.addTree(TREE, {});
+    const bytes = Uint8Array.from([0, 1, 2, 250, 255]);
+    await createLocalBytes(at('p.png'), bytes);
+    expect((await readLocal(at('p.png'))).bytes).toEqual(bytes);
+    await expect(createLocalBytes(at('p.png'), bytes)).rejects.toMatchObject({ kind: 'exists' });
+  });
+});

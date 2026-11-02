@@ -11,6 +11,7 @@ fn main() {
             "local_read",
             "local_write",
             "local_create",
+            "local_create_bytes",
             "local_exists",
             "local_create_document",
         ])
