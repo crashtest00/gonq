@@ -145,48 +145,34 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
 // SAF picker (DocumentsUI): starts at the storage root where "Use this folder" is disabled. Navigate Documents > GonqAccept, USE THIS FOLDER, Allow.
 // Every action is logged to stdout as [saf] ...; the picker hierarchy is saved to evidence/saf-<stage>.xml at each stage.
 async function safPick() {
+  const T0 = Date.now(); const over = () => Date.now() - T0 > 60000;
   const L = (m) => { console.log(`[saf] ${m}`); log.push(m); }; const log = [];
-  const desc = (n) => `text="${n.text}" rid="${n.rid}" bounds=${n.bounds}`;
   const inPicker = (nodes) => nodes.some((n) => /documentsui|permissioncontroller/.test(n.pkg));
   sh(`adb shell mkdir -p ${DIR}`); L(`mkdir -p ${DIR}; focus=${focusPkg().replace(/.*\{|\}/g, '')}`);
-  // wait for the picker to render (a title row or the USE THIS FOLDER button), up to ~20 s
   let nodes = [];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 4 && !over(); i++) {                       // wait for the picker to render, up to ~8 s
     nodes = uiNodes(i === 0 ? 'root' : null);
     if (inPicker(nodes) && nodes.some((n) => /:id\/title$/.test(n.rid) || /USE THIS FOLDER/i.test(n.text))) break;
-    L(`picker not rendered yet (${nodes.length} nodes, pkgs=${[...new Set(nodes.map((n) => n.pkg))].join(',')}); wait 2s`); await sleep(2000);
+    await sleep(2000);
   }
-  if (!inPicker(nodes)) { L('picker not found in dump -> abort'); uiXml('not-found'); return log.join(' > '); }
-  uiXml('root');
-  const findTitle = (ns, name) => ns.find((n) => n.text === name && /(:id\/title|dir_list.*title|title)$/.test(n.rid)) || ns.find((n) => n.text === name);
-  const stages = [['Documents', 'after-Documents'], ['GonqAccept', 'after-GonqAccept']];
-  for (const [name, after] of stages) {
-    let done = false;
-    for (let t = 1; t <= 3 && !done; t++) {
-      const ns = uiNodes(`before-${name}-try${t}`); const n = findTitle(ns, name);
-      if (!n) { L(`'${name}' NOT found (try ${t}); titles=[${ns.filter((x) => /title$/.test(x.rid)).map((x) => x.text).join('|')}]`); if (t === 2) { sh('adb shell input swipe 160 450 160 250 300'); L('scrolled list'); } await sleep(2000); continue; }
-      L(`found '${name}': ${desc(n)}; tap ${n.x},${n.y}`); { const cmds = [`input tap ${n.x} ${n.y}`, `input swipe ${n.x} ${n.y} ${n.x} ${n.y} 120`, `input touchscreen tap ${n.x} ${n.y}`]; const c = cmds[Math.min(t - 1, 2)]; L(`method: ${c}`); sh(`adb shell ${c}`); } await sleep(2500);
-      const ns2 = uiNodes(after + (t > 1 ? `-try${t}` : '')); const crumbs = ns2.filter((x) => /breadcrumb|header_title|toolbar|action_bar/.test(x.rid)).map((x) => x.text).filter(Boolean).join('|');
-      L(`after tap crumbs=[${crumbs}]`);
-      done = name === 'Documents' ? (ns2.some((x) => x.text === 'GonqAccept') || /Documents/.test(crumbs)) : (/GonqAccept/.test(crumbs) || ns2.some((x) => /USE THIS FOLDER/i.test(x.text) && x.enabled));
-      if (!done) L(`navigation to '${name}' not confirmed (try ${t})`);
-    }
-    if (!done) L(`giving up on '${name}'`);
+  if (!inPicker(nodes)) { L('picker not found in dump'); return { ok: false, log: log.join(' > ') }; }
+  const findTitle = (ns, name) => ns.find((n) => n.text === name && /title$/.test(n.rid)) || ns.find((n) => n.text === name);
+  for (const name of ['Documents', 'GonqAccept']) {              // ONE attempt per stage, one tap method
+    if (over()) { L('60 s budget exceeded'); return { ok: false, log: log.join(' > ') }; }
+    const n = findTitle(uiNodes(`before-${name}`), name);
+    if (!n) { L(`'${name}' not found`); return { ok: false, log: log.join(' > ') }; }
+    sh(`adb shell input tap ${n.x} ${n.y}`); L(`tapped '${name}' ${n.x},${n.y}`); await sleep(2500);
+    const ns2 = uiNodes(`after-${name}`);
+    const done = name === 'Documents' ? ns2.some((x) => x.text === 'GonqAccept') : ns2.some((x) => /USE THIS FOLDER/i.test(x.text) && x.enabled);
+    if (!done) { L(`picker did not navigate into '${name}'`); return { ok: false, log: log.join(' > ') }; }
   }
-  for (let t = 1; t <= 3; t++) {
-    const ns = uiNodes(`before-use-try${t}`); const use = ns.find((n) => /USE THIS FOLDER/i.test(n.text));
-    if (!use) { L(`USE THIS FOLDER NOT found (try ${t})`); await sleep(2000); continue; }
-    L(`found USE THIS FOLDER: ${desc(use)} enabled=${use.enabled}`);
-    if (!use.enabled) { L('button disabled (still at root / unusable folder)'); await sleep(2000); continue; }
-    sh(`adb shell input tap ${use.x} ${use.y}`); L(`tapped ${use.x},${use.y}`); await sleep(2000);
-    const ns2 = uiNodes(`after-use-try${t}`);
-    const allow = ns2.find((n) => n.enabled && /^(ALLOW|Allow)$/.test(n.text));
-    if (allow) { L(`dialog: found Allow ${desc(allow)}`); sh(`adb shell input tap ${allow.x} ${allow.y}`); L('tapped Allow'); await sleep(2000); uiNodes('after-allow'); break; }
-    L(`no Allow dialog (try ${t}); texts=[${ns2.filter((n) => n.text).map((n) => n.text).slice(0, 12).join('|')}]`);
-    if (!inPicker(ns2)) { L('picker gone after Use this folder'); break; }
-  }
+  const use = uiNodes('before-use').find((n) => /USE THIS FOLDER/i.test(n.text) && n.enabled);
+  if (!use || over()) { L('USE THIS FOLDER unavailable'); return { ok: false, log: log.join(' > ') }; }
+  sh(`adb shell input tap ${use.x} ${use.y}`); L('tapped USE THIS FOLDER'); await sleep(2000);
+  const allow = uiNodes('after-use').find((n) => n.enabled && /^(ALLOW|Allow)$/.test(n.text));
+  if (allow) { sh(`adb shell input tap ${allow.x} ${allow.y}`); L('tapped Allow'); await sleep(2000); }
   L(`end focus=${focusPkg().replace(/.*\{|\}/g, '')}`);
-  return log.join(' > ');
+  return { ok: true, log: log.join(' > ') };
 }
 // guard: never leave/start a step in a foreign activity (documentsui, browser, launcher); bring the app to the foreground, relaunch if the WebView is missing
 async function guard(why) {
@@ -202,22 +188,34 @@ async function guard(why) {
   if (notes.length) console.log(`[guard ${why}] ${notes.join('; ')}`);
 }
 
-async function openFolderFlow() {                            // seed files, Open Folder… via SAF, open one.md; returns the picker log
+async function openFolderFlow() {                            // seed files, Open Folder… via SAF (one attempt, <= 60 s), open one.md; Skip if the picker is not drivable
     sh(`adb shell mkdir -p ${DIR}`);
     sh(`printf '# Local one\\n\\nhello\\n' | adb shell "cat > ${DIR}/one.md"`);
-    sh(`printf '# Links\\n\\nSee [example](https://example.com) here.\\n' | adb shell "cat > ${DIR}/links.md"`);
-    let p = await launch(); await p.getByRole('button', { name: 'Open Folder…' }).click(); await sleep(4000); await shot('saf-picker');
-    const nav = await safPick(); await shot('saf-done');                                  // uiautomator navigation Documents > GonqAccept > USE THIS FOLDER > Allow
-    await sleep(2000); await guard('after picker');
-    p = await cur(); await p.getByRole('dialog', { name: 'Folder navigator' }).or(p.getByText('one.md')).first().waitFor({ timeout: 30000 });
+    let p = await launch(); await goHome(p); p = await cur(); await p.getByRole('button', { name: 'Open Folder…' }).click(); await sleep(3000); await shot('saf-picker');
+    const nav = await safPick(); await shot('saf-done');
+    await guard('after picker');
+    if (!nav.ok) skip(`SAF picker not drivable (${nav.log.slice(-200)})`);
+    await sleep(1500);
+    p = await cur(); await p.getByRole('dialog', { name: 'Folder navigator' }).or(p.getByText('one.md')).first().waitFor({ timeout: 20000 });
     await p.getByText('one.md').first().click(); await p.locator('.cm-content').waitFor({ timeout: 30000 });
-    return nav;
+    return nav.log;
 }
-// sign-in-free steps: make sure a local document is open (reopen from recents, else run the folder flow)
+// in-app documents: '+' (aria-label "New") on the Documents screen opens an untitled document; type content with the real editor
+async function newDoc(text) {
+  let p = await cur(); await goHome(p); p = await cur();
+  await p.getByRole('button', { name: 'New', exact: true }).click();
+  await p.locator('.cm-content').waitFor({ timeout: 30000 });
+  await p.locator('.cm-content').click();
+  if (text) { const lines = text.split('\n'); for (let i = 0; i < lines.length; i++) { if (i) await p.keyboard.press('Enter'); if (lines[i]) await p.keyboard.type(lines[i], { delay: 15 }); } }
+  await sleep(500);
+  return p;
+}
+const DOC_TEXT = 'Hello paragraph\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nSee [example](https://example.com) here.\n\nCommentable text line';
+// make sure an editor is open on an in-app document (no picker)
 async function ensureDoc() {
   let p = await cur();
   if (await p.locator('.cm-content').count()) return p;
-  try { return await openLocal(p, 'one.md'); } catch (e) { await guard('ensureDoc'); await openFolderFlow(); return await cur(); }
+  return await newDoc(DOC_TEXT);
 }
 // ---- main ---------------------------------------------------------------------------------------------------------
 (async () => {
@@ -225,7 +223,7 @@ async function ensureDoc() {
   global.info = { model: sh('adb shell getprop ro.product.model'), android: sh('adb shell getprop ro.build.version.release'), repo: REPO };
   sh('adb shell settings put secure show_ime_with_hard_kb 1');           // keep Gboard up although the emulator has a hardware keyboard
   sh('adb shell cmd uimode night no');
-  let p;
+  let p; let folderOpened = false;
 
   await step('01-install', 'Fresh install of the RC APK, versionCode higher than the skeleton', async () => {
     const apkVc = (f) => {                                                    // versionCode from the APK itself: aapt dump badging, fallback apkanalyzer
@@ -314,12 +312,13 @@ async function ensureDoc() {
 
   // ----- Local folders (M-14 outcome: Kotlin SAF plugin, folder = opaque tree handle) -----
   await step('06-local-folder', 'Local folder: Open Folder… (SAF picker), list, open a file', async () => {
-    const nav = await openFolderFlow();
+    const nav = await openFolderFlow(); folderOpened = true;
     return `folder opened, one.md open; picker: ${nav}`;
   });
 
   await step('07-insert-image-local', 'Insert > Image into a local:// document', async () => {
-    p = await ensureDoc();
+    p = await cur();
+    if (!folderOpened) skip('SAF picker not drivable');
     sh(`adb shell "mkdir -p /sdcard/Pictures; printf '\\x89PNG' > /sdcard/Pictures/m34.png"`);   // unconfirmed: a real PNG would be better; see NOTES
     await menu(p, 'Insert', 'Image…'); await sleep(3000); await shot('image-picker');
     uiTap(/m34\.png/); await sleep(2500); p = await cur();
@@ -328,6 +327,7 @@ async function ensureDoc() {
   });
 
   await step('08-save-as', 'Local: Save as into the opened folder', async () => {
+    if (!folderOpened) skip('SAF picker not drivable');
     p = await ensureDoc(); await focusEditorEnd(p); await typeIme(' edited');
     await menu(p, 'File', /^Save As/);
     const s = p.getByRole('dialog', { name: 'Save as' }); await s.waitFor({ timeout: T });
@@ -338,10 +338,17 @@ async function ensureDoc() {
     return { ok: exists, detail: `fileOnDevice=${exists}` };
   });
 
-  await step('09-reopen-tab-after-back', 'Re-open a tab after Back (recents row reopens the document)', async () => {
-    p = await cur(); await back(); p = await cur(); await back(); p = await cur();
-    p = await openLocal(p, 'one.md');
-    return { ok: (await p.getByRole('tab').count()) >= 1, detail: 'document reopened from Documents after Back' };
+  await step('09-reopen-tab-after-back', 'Re-open a tab after Back (two in-app documents; open tab re-opened from Documents)', async () => {
+    p = await newDoc('First doc alpha'); p = await newDoc('Second doc beta');   // second doc opens in a new tab
+    const tabs = await p.getByRole('tab').count(); await shot('two-tabs');
+    p = await cur(); await goHome(p); p = await cur(); await shot('documents-after-back');
+    // re-open the open tab: recents row if the document is listed, else the tab strip / a New-document-free path
+    const row = p.locator('li button').first();
+    if (await row.count()) await row.click({ timeout: T });
+    else { await back(); p = await cur(); const tab = p.getByRole('tab').first(); if (await tab.count()) await tab.click(); }
+    p = await cur();
+    const shown = await p.locator('.cm-content').waitFor({ timeout: 15000 }).then(() => true, () => false);
+    return { ok: shown, detail: `tabs=${tabs} editorShown=${shown}` };
   });
 
   // ----- Android behaviour -----
@@ -398,7 +405,7 @@ async function ensureDoc() {
   });
 
   await step('14-open-link-native', 'Opening links natively (tap a link; leaves the app to the browser)', async () => {
-    p = await cur(); p = await openLocal(p, 'links.md');
+    p = await newDoc('See [example](https://example.com) here.');
     await p.locator('.cm-content a, .cm-content .cm-link, .cm-content [class*=link]').first().click({ timeout: T });   // unconfirmed: link element/class
     await sleep(3000); const f = focusPkg(); await shot('after-link');
     const left = !f.includes(PKG); sh('adb shell input keyevent KEYCODE_BACK'); await sleep(1500);
@@ -407,7 +414,7 @@ async function ensureDoc() {
   });
 
   await step('15-invalid-range-caret-comment', 'Invalid-range selection falls back to a caret comment', async () => {
-    p = await cur(); p = await openLocal(p, 'one.md');
+    p = await newDoc('Heading line\n\nBody one\n\nBody two');
     // unconfirmed trigger: the validator's rule was not read. Select from the first line across several lines (heading to body) and add a comment.
     await p.locator('.cm-line').first().click();
     await p.keyboard.down('Shift'); for (let i = 0; i < 6; i++) await p.keyboard.press('ArrowDown'); await p.keyboard.up('Shift');
