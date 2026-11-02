@@ -111,14 +111,25 @@ async function openLocal(p, name) {                            // from Documents
   if (!(await p.locator('.cm-content').waitFor({ timeout: 6000 }).then(() => true, () => false))) { await p.getByText(name).first().click({ timeout: T }); await p.locator('.cm-content').waitFor({ timeout: 30000 }); }
   return p;
 }
-// uiautomator: read the native hierarchy (system pickers, permission dialogs, browser)
-function uiNodes() {
-  sh('adb shell uiautomator dump /sdcard/ui.xml >/dev/null && adb pull /sdcard/ui.xml evidence/ui.xml >/dev/null');
-  const xml = fs.readFileSync(`${EV}/ui.xml`, 'utf8'); const out = [];
+// uiautomator: read the native hierarchy (system pickers, permission dialogs, browser). Dump to /sdcard, read back with exec-out cat (no pull), retry on empty/failed dump.
+function uiXml(stage) {
+  const f = `/sdcard/ui-${process.pid}.xml`; let xml = '', err = '';
+  for (let k = 0; k < 3 && !/<hierarchy/.test(xml); k++) {
+    try { sh(`adb shell rm -f ${f}`); const o = sh(`adb shell uiautomator dump ${f} 2>&1`); xml = execSync(`adb exec-out cat ${f}`, { encoding: 'utf8', maxBuffer: 1 << 26 }); err = o; }
+    catch (e) { err = String(e.message || e).slice(0, 200); }
+    if (!/<hierarchy/.test(xml)) { console.log(`[saf] dump attempt ${k + 1} failed (${err}); retry`); execSync('sleep 1'); }
+  }
+  fs.writeFileSync(`${EV}/ui.xml`, xml);
+  if (stage) { fs.writeFileSync(`${EV}/saf-${stage}.xml`, xml); console.log(`[saf] dumped ${xml.length} bytes -> saf-${stage}.xml`); }
+  return xml;
+}
+const unent = (s) => s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+function uiNodes(stage) {
+  const xml = uiXml(stage); const out = [];
   for (const m of xml.matchAll(/<node [^>]*>/g)) {
     const n = m[0]; const b = n.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/); if (!b) continue;
-    out.push({ text: (n.match(/ text="([^"]*)"/) || [])[1] || '', rid: (n.match(/resource-id="([^"]*)"/) || [])[1] || '', desc: (n.match(/content-desc="([^"]*)"/) || [])[1] || '',
-      enabled: /enabled="true"/.test(n), x: (+b[1] + +b[3]) >> 1, y: (+b[2] + +b[4]) >> 1, h: +b[4] - +b[2], pkg: (n.match(/package="([^"]*)"/) || [])[1] || '' });
+    out.push({ text: unent((n.match(/ text="([^"]*)"/) || [])[1] || ''), rid: (n.match(/resource-id="([^"]*)"/) || [])[1] || '', desc: unent((n.match(/content-desc="([^"]*)"/) || [])[1] || ''),
+      enabled: /enabled="true"/.test(n), x: (+b[1] + +b[3]) >> 1, y: (+b[2] + +b[4]) >> 1, h: +b[4] - +b[2], bounds: b[0], pkg: (n.match(/package="([^"]*)"/) || [])[1] || '' });
   }
   return out;
 }
@@ -132,25 +143,49 @@ function uiTap(re, { rid = null, nodes = null } = {}) {
 }
 const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || true');
 // SAF picker (DocumentsUI): starts at the storage root where "Use this folder" is disabled. Navigate Documents > GonqAccept, USE THIS FOLDER, Allow.
+// Every action is logged to stdout as [saf] ...; the picker hierarchy is saved to evidence/saf-<stage>.xml at each stage.
 async function safPick() {
-  const log = [];
-  for (let i = 0; i < 25; i++) {
-    await sleep(1500);
-    const nodes = uiNodes();
-    if (!nodes.some((n) => n.pkg.includes('documentsui') || n.pkg.includes('permissioncontroller')) && !/documentsui/.test(focusPkg())) { log.push('picker gone'); break; }
-    const allow = nodes.find((n) => n.enabled && /^(ALLOW|Allow)$/.test(n.text));                 // confirm dialog "Allow access to files in GonqAccept?"
-    if (allow) { sh(`adb shell input tap ${allow.x} ${allow.y}`); log.push('allow'); continue; }
-    const crumb = (nodes.find((n) => n.rid.endsWith('breadcrumb_text') || n.rid.endsWith('header_title')) || {}).text || '';
-    const here = /GonqAccept/i.test(crumb);
-    const use = nodes.find((n) => /USE THIS FOLDER/i.test(n.text) && n.enabled);
-    if (here && use) { sh(`adb shell input tap ${use.x} ${use.y}`); log.push('use-folder'); continue; }
-    const row = (name) => nodes.find((n) => n.rid.endsWith(':id/title') && n.text === name);
-    const next = row('GonqAccept') || row('Documents');                                              // list row (tap target = title text)
-    if (next) { sh(`adb shell input tap ${next.x} ${next.y}`); log.push('open ' + next.text); continue; }
-    if (use) { log.push('enabled in ' + crumb + ' without GonqAccept'); }
-    // the storage root may hide folders behind the hamburger drawer / need a scroll
-    sh('adb shell input swipe 160 500 160 250 300'); log.push('scroll');
+  const L = (m) => { console.log(`[saf] ${m}`); log.push(m); }; const log = [];
+  const desc = (n) => `text="${n.text}" rid="${n.rid}" bounds=${n.bounds}`;
+  const inPicker = (nodes) => nodes.some((n) => /documentsui|permissioncontroller/.test(n.pkg));
+  sh(`adb shell mkdir -p ${DIR}`); L(`mkdir -p ${DIR}; focus=${focusPkg().replace(/.*\{|\}/g, '')}`);
+  // wait for the picker to render (a title row or the USE THIS FOLDER button), up to ~20 s
+  let nodes = [];
+  for (let i = 0; i < 10; i++) {
+    nodes = uiNodes(i === 0 ? 'root' : null);
+    if (inPicker(nodes) && nodes.some((n) => /:id\/title$/.test(n.rid) || /USE THIS FOLDER/i.test(n.text))) break;
+    L(`picker not rendered yet (${nodes.length} nodes, pkgs=${[...new Set(nodes.map((n) => n.pkg))].join(',')}); wait 2s`); await sleep(2000);
   }
+  if (!inPicker(nodes)) { L('picker not found in dump -> abort'); uiXml('not-found'); return log.join(' > '); }
+  uiXml('root');
+  const findTitle = (ns, name) => ns.find((n) => n.text === name && /(:id\/title|dir_list.*title|title)$/.test(n.rid)) || ns.find((n) => n.text === name);
+  const stages = [['Documents', 'after-Documents'], ['GonqAccept', 'after-GonqAccept']];
+  for (const [name, after] of stages) {
+    let done = false;
+    for (let t = 1; t <= 3 && !done; t++) {
+      const ns = uiNodes(`before-${name}-try${t}`); const n = findTitle(ns, name);
+      if (!n) { L(`'${name}' NOT found (try ${t}); titles=[${ns.filter((x) => /title$/.test(x.rid)).map((x) => x.text).join('|')}]`); if (t === 2) { sh('adb shell input swipe 160 450 160 250 300'); L('scrolled list'); } await sleep(2000); continue; }
+      L(`found '${name}': ${desc(n)}; tap ${n.x},${n.y}`); sh(`adb shell input tap ${n.x} ${n.y}`); await sleep(2000);
+      const ns2 = uiNodes(after + (t > 1 ? `-try${t}` : '')); const crumbs = ns2.filter((x) => /breadcrumb|header_title|toolbar|action_bar/.test(x.rid)).map((x) => x.text).filter(Boolean).join('|');
+      L(`after tap crumbs=[${crumbs}]`);
+      done = name === 'Documents' ? (ns2.some((x) => x.text === 'GonqAccept') || /Documents/.test(crumbs)) : (/GonqAccept/.test(crumbs) || ns2.some((x) => /USE THIS FOLDER/i.test(x.text) && x.enabled));
+      if (!done) L(`navigation to '${name}' not confirmed (try ${t})`);
+    }
+    if (!done) L(`giving up on '${name}'`);
+  }
+  for (let t = 1; t <= 3; t++) {
+    const ns = uiNodes(`before-use-try${t}`); const use = ns.find((n) => /USE THIS FOLDER/i.test(n.text));
+    if (!use) { L(`USE THIS FOLDER NOT found (try ${t})`); await sleep(2000); continue; }
+    L(`found USE THIS FOLDER: ${desc(use)} enabled=${use.enabled}`);
+    if (!use.enabled) { L('button disabled (still at root / unusable folder)'); await sleep(2000); continue; }
+    sh(`adb shell input tap ${use.x} ${use.y}`); L(`tapped ${use.x},${use.y}`); await sleep(2000);
+    const ns2 = uiNodes(`after-use-try${t}`);
+    const allow = ns2.find((n) => n.enabled && /^(ALLOW|Allow)$/.test(n.text));
+    if (allow) { L(`dialog: found Allow ${desc(allow)}`); sh(`adb shell input tap ${allow.x} ${allow.y}`); L('tapped Allow'); await sleep(2000); uiNodes('after-allow'); break; }
+    L(`no Allow dialog (try ${t}); texts=[${ns2.filter((n) => n.text).map((n) => n.text).slice(0, 12).join('|')}]`);
+    if (!inPicker(ns2)) { L('picker gone after Use this folder'); break; }
+  }
+  L(`end focus=${focusPkg().replace(/.*\{|\}/g, '')}`);
   return log.join(' > ');
 }
 // guard: never leave/start a step in a foreign activity (documentsui, browser, launcher); bring the app to the foreground, relaunch if the WebView is missing
