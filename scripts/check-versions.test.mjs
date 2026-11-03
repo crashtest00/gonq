@@ -1,7 +1,7 @@
 /**
  * Covers version consistency: every workspace package.json, Cargo.toml, tauri.conf.json, the workspace entries in
  * Cargo.lock and package-lock.json must carry one semver, and the Android versionCode in the mobile tauri.conf.json
- * must equal MAJOR*10000 + MINOR*100 + PATCH of it (the derivation release-mobile.yml uses). Run by `npm test`.
+ * must equal MAJOR*1000000 + MINOR*1000 + PATCH of it (the derivation release-mobile.yml uses). Run by `npm test`.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,9 +43,21 @@ test('every version field is one semver', () => {
   for (const [where, v] of Object.entries(fields)) assert.equal(v, expected, `${where} is ${v}, expected ${expected}`);
 });
 
-test('Android versionCode equals MAJOR*10000 + MINOR*100 + PATCH', () => {
-  const [major, minor, patch] = fields['package.json'].split('.').map(Number);
-  assert.ok(minor < 100 && patch < 100, 'MINOR and PATCH must stay below 100');
+const versionCode = (version) => {
+  const [major, minor, patch] = version.split('.').map(Number);
+  assert.ok(minor < 1000 && patch < 1000, 'MINOR and PATCH must stay below 1000');
+  return major * 1000000 + minor * 1000 + patch;
+};
+
+test('versionCode formula is MAJOR*1000000 + MINOR*1000 + PATCH', () => {
+  assert.equal(versionCode('0.1.5'), 1005);
+  assert.equal(versionCode('0.2.0'), 2000);
+  assert.equal(versionCode('1.12.3'), 1012003);
+  assert.throws(() => versionCode('0.1000.0'));
+  assert.throws(() => versionCode('0.1.1000'));
+});
+
+test('Android versionCode equals MAJOR*1000000 + MINOR*1000 + PATCH', () => {
   const code = json('apps/mobile/src-tauri/tauri.conf.json').bundle?.android?.versionCode;
-  assert.equal(code, major * 10000 + minor * 100 + patch);
+  assert.equal(code, versionCode(fields['package.json']));
 });
