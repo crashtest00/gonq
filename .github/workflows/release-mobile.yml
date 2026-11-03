@@ -11,8 +11,8 @@ name: release-mobile
 # It never creates a Release, never edits its title or notes, and never publishes on its own. If the
 # Release never appears (a desktop leg failed), it fails and the APK stays as the workflow artifact.
 #
-# versionCode = MAJOR*10000 + MINOR*100 + PATCH of the tag version (0.2.0 -> 200, 1.12.3 -> 11203).
-# MINOR and PATCH must each be below 100. M-33 writes the same value; Android refuses an update whose
+# versionCode = MAJOR*1000000 + MINOR*1000 + PATCH of the tag version (0.2.0 -> 2000, 1.12.3 -> 1012003).
+# MINOR and PATCH must each be below 1000. M-33 writes the same value; Android refuses an update whose
 # versionCode is not higher. Every build has a new debug key, so testers uninstall before installing.
 #
 # R-9: the Release exists for a while (until `attach` finishes) without the APK. "Release exists" does
@@ -60,11 +60,11 @@ jobs:
             exit 1
           fi
           major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"; patch="${BASH_REMATCH[3]}"
-          if [ "$minor" -ge 100 ] || [ "$patch" -ge 100 ]; then
-            echo "::error::MINOR and PATCH must be below 100 in '$TAG' (versionCode = MAJOR*10000 + MINOR*100 + PATCH)"
+          if [ "$minor" -ge 1000 ] || [ "$patch" -ge 1000 ]; then
+            echo "::error::MINOR and PATCH must be below 1000 in '$TAG' (versionCode = MAJOR*1000000 + MINOR*1000 + PATCH)"
             exit 1
           fi
-          code=$(( 10#$major * 10000 + 10#$minor * 100 + 10#$patch ))
+          code=$(( 10#$major * 1000000 + 10#$minor * 1000 + 10#$patch ))
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "version_code=$code" >> "$GITHUB_OUTPUT"
           echo "asset=gonq-android-$version-beta-debug-signed.apk" >> "$GITHUB_OUTPUT"

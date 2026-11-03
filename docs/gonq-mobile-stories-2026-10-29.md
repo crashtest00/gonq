@@ -144,7 +144,9 @@ Types: FE = frontend, BE = backend (Rust), DevOps, Spike, Orchestrator = done by
 | M-31 | Android local folder navigator, open and save (**pending spike**) | FE | M | M-18, M-30 |
 | M-32 | `release-mobile.yml`: attach the debug-signed APK to the `v*` GitHub Release | DevOps | M | M-09 |
 | M-33 | Version bump for the first mobile release candidate | DevOps | S | M-17 to M-32 |
-| M-34 | Android acceptance pass on the release candidate | Orchestrator | M | M-33 |
+| M-34 | Android acceptance pass on the release candidate | Orchestrator | M | M-33, M-35, M-36 |
+| M-35 | Android system Back key navigates within the app | FE | M | none (the screens exist) |
+| M-36 | Android versionCode formula that always increases | DevOps | S | none |
 
 **Dispatch order.** Stories are dispatched in ID order. M-08 (release keystore) is deferred (section 8) and is not part of this plan's dispatch.
 **Exercising the risks early.** The HTTPS verifier and the Android Keystore token store are first exercised at M-13. That is the earliest possible point: they need an APK (M-09) and a sign-in path (M-12). Folder picking is exercised at M-14, which needs only M-09.
@@ -216,6 +218,8 @@ graph TD
   M30 --> M33
   M31 --> M33
   M33 --> M34[M-34 Android acceptance]
+  M35[M-35 Android Back key] --> M34
+  M36[M-36 versionCode formula] --> M34
 ```
 
 M-33 is blocked by every feature story (M-17 to M-32); the graph shows each of those edges.
@@ -1188,7 +1192,7 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 1. `on: push: tags: ['v*']`, the same trigger as `release-desktop.yml`, which is unchanged. `permissions: contents: write` on the attach job only.
 2. The build checks out `github.sha`, verifies it, and builds the debug-signed APK (M-09 criterion 4). The uploaded asset's name says it is a beta, debug-signed build (for example `gonq-android-0.2.0-beta-debug-signed.apk`), and the workflow never edits the Release's title or notes.
 3. The wait-and-upload logic is as designed above, and its bounds are in the workflow.
-4. `versionCode` is derived deterministically from the tag version (for example, `0.2.0` gives `200`), documented in the header. It matches what M-33 writes.
+4. `versionCode` is derived deterministically from the tag version (for example, `0.2.0` gives `2000`; formula MAJOR*1,000,000 + MINOR*1,000 + PATCH, see M-36), documented in the header. It matches what M-33 writes.
 5. The header comment says: "Pushed only by Jenkins' tag; the release itself is created by release-desktop.yml. Never create the Release here; never add other triggers."
 6. `build-mobile.yml` and `release-mobile.yml` share their build steps through a composite action (`.github/actions/android-apk/`), so the two cannot drift.
 
@@ -1264,6 +1268,69 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 **Risks and unknowns.** None beyond R-1 to R-8.
 
 **Verification.** The orchestrator, on the emulator, with the owner's single device-code approval.
+
+
+#### M-35 Android system Back key navigates within the app
+
+**Goal.** The Android system Back key (and the Back gesture) steps back through the app the way users expect, and leaves the app only from the Documents screen with nothing open.
+
+**Why.** Today Back closes the app from any screen, discarding the user's place and, in the editor, risking unsaved work.
+
+**Behaviour.** Back acts on the topmost thing first: an open menu, sheet or dialog closes (as its own Cancel/close control would); otherwise the current screen goes back to the previous screen exactly as that screen's own Back control does; on the Documents screen with nothing open, Back leaves the app.
+
+**Acceptance criteria.**
+
+1. With a menu, sheet or dialog open, Back closes it and stays on the same screen. Covered for the overflow menu, the commit sheet, the conflict dialog, the folder navigator sheet and the comment sheet.
+2. On a screen with an app Back control (Open Repository, Repository, Open PR flow screens, Settings, the sign-in screens), Back does what that control does, including stepping back one screen at a time through the four Open PR screens.
+3. In the editor, Back never discards unsaved changes: with unsaved changes it shows the same close prompt as closing the tab by the app's own control; with none it returns to the Documents screen.
+4. On the Documents screen with nothing open, Back leaves the app (the Android default), and the app opens at the Documents screen on the next launch.
+5. During GitHub sign-in (device-code screen) Back behaves as that screen's Cancel/Back control and never leaves a half-finished sign-in that cannot be restarted.
+6. Component tests with a simulated Back press cover criteria 1-5, and the PR names the hook used (Tauri's onBackButtonPress or a documented alternative).
+7. The Beta (web) build is unchanged: no Back handler is registered outside Android.
+
+**FE/BE contract.** None unless the official Tauri hook needs an Android manifest or plugin setting (for example android:enableOnBackInvokedCallback for predictive Back); if so the same PR makes it and says so.
+
+No `invoke` outside `packages/editor/src/platform/`. No `keydown` handlers (CLAUDE.md). Theme tokens only. Every new source file has a header comment and `map:check` stays green. Nothing heavy runs on the Jenkins box: no cargo, Gradle or NDK there.
+
+**Edge cases.**
+
+- Back pressed twice quickly: it must not skip a screen or double-prompt.
+- Back while a save or commit is in flight.
+- Back after the app was killed and relaunched mid-flow (it lands on Start/Documents per D9).
+- Predictive-Back animation on Android 13+ must not break the handler.
+
+**Out of scope.** iOS swipe-back. Desktop and web behaviour. New navigation destinations or any change to what each screen's own Back control does.
+
+**Verification.** Jenkins (component tests); the emulator checks of M-34 (Back navigation).
+
+---
+
+#### M-36 Android versionCode formula that always increases
+
+**Goal.** The Android versionCode is derived from the version by one formula that always increases with the version and exceeds every versionCode already shipped (1005 for 0.1.5).
+
+**Why.** Android refuses to install an update with a lower or equal versionCode, and Tauri's own default was already used by earlier builds.
+
+**Behaviour.** The versionCode is major*1,000,000 + minor*1,000 + patch (Tauri's default; 0.2.0 gives 2000), defined in one place and used everywhere else.
+
+**Acceptance criteria.**
+
+1. For version 0.2.0 the APK's versionCode is 2000, which is greater than 1005 (the 0.1.5 skeleton APK from build-mobile run 41131818493). Shown by `aapt dump badging` on the APK from a build-mobile run on the merge SHA.
+2. `apps/mobile/src-tauri/tauri.conf.json`, `.github/workflows/release-mobile.yml` (including its comment and wait-script derivation) and `scripts/check-versions.test.mjs` all use the same formula; no other file derives a versionCode.
+3. The consistency test from M-33 fails when the versionCode in tauri.conf.json differs from the formula applied to the version, and a test case covers 0.1.5 -> 1005 and 0.2.0 -> 2000.
+4. The docs that state the derivation (M-32 and M-33 sections of docs/gonq-mobile-stories-2026-10-29.md, and any CLAUDE.md or project-map note) say the new formula.
+5. Version fields stay at 0.2.0; the first release candidate is not yet published.
+
+**FE/BE contract.** None. No version bump in this story. Native and Android builds run in GitHub Actions only; nothing heavy on the Jenkins box.
+
+**Edge cases.**
+
+- Patch or minor of 1000 or more would overflow the formula: the test rejects such a version.
+- An APK built with a different formula is not a supported install base.
+
+**Out of scope.** Changing the version number, release signing (M-08, deferred), and the release workflow's other behaviour.
+
+**Verification.** Jenkins; a `build-mobile` run on the merge SHA and `aapt dump badging` (orchestrator).
 
 ---
 
