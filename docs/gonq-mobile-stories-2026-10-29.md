@@ -1188,7 +1188,7 @@ Recents store `local://<handle>/<rel>`, routed in `platform/files.ts` and `folde
 1. `on: push: tags: ['v*']`, the same trigger as `release-desktop.yml`, which is unchanged. `permissions: contents: write` on the attach job only.
 2. The build checks out `github.sha`, verifies it, and builds the debug-signed APK (M-09 criterion 4). The uploaded asset's name says it is a beta, debug-signed build (for example `gonq-android-0.2.0-beta-debug-signed.apk`), and the workflow never edits the Release's title or notes.
 3. The wait-and-upload logic is as designed above, and its bounds are in the workflow.
-4. `versionCode` is derived deterministically from the tag version (for example, `0.2.0` gives `200`), documented in the header. It matches what M-33 writes.
+4. `versionCode` is derived deterministically from the tag version (for example, `0.2.0` gives `2000`; formula MAJOR*1,000,000 + MINOR*1,000 + PATCH, see M-36), documented in the header. It matches what M-33 writes.
 5. The header comment says: "Pushed only by Jenkins' tag; the release itself is created by release-desktop.yml. Never create the Release here; never add other triggers."
 6. `build-mobile.yml` and `release-mobile.yml` share their build steps through a composite action (`.github/actions/android-apk/`), so the two cannot drift.
 
