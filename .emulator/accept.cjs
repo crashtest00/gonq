@@ -513,12 +513,16 @@ async function ensureDoc() {
     await goHome(p); p = await cur();
     await p.getByRole('button', { name: 'New', exact: true }).click({ timeout: T });
     await p.locator('.cm-content').waitFor({ timeout: 30000 }); await shot('back-key-3-editor-open');
+    // the soft keyboard is up in a new document: the first Back only dismisses it (standard Android), so press Back until the keyboard is gone, then once more for the app's own Back.
+    const imeShown = () => /mInputShown=true/.test(sh('adb shell dumpsys input_method | grep -m1 mInputShown || true'));
+    let keyboardBacks = 0; while (imeShown() && keyboardBacks < 2) { sh('adb shell input keyevent KEYCODE_BACK'); await sleep(1500); keyboardBacks++; }
+    await shot('back-key-3b-keyboard-dismissed');
     sh('adb shell input keyevent KEYCODE_BACK'); await sleep(2500);
     const stays = inApp(); let editorGone = null, onDocs = null;
     if (stays) { p = await cur(); editorGone = (await p.locator('.cm-content').count()) === 0; onDocs = (await p.getByText('Recent documents').count()) > 0; }
     await shot('back-key-4-after-back-in-editor');
     const ok = leftFromDocs && stays && editorGone === true && onDocs === true;
-    return { ok, detail: `M-35: Back on Documents leavesApp=${leftFromDocs} (intended: true); Back in editor appStillForeground=${stays} editorGone=${editorGone} onDocuments=${onDocs} (intended: true/true/true); focus=${focusPkg().replace(/.*\{|\}/g, '')}` };
+    return { ok, detail: `M-35: Back on Documents leavesApp=${leftFromDocs} (intended: true); Back in editor (after ${keyboardBacks} keyboard-dismissing Back) appStillForeground=${stays} editorGone=${editorGone} onDocuments=${onDocs} (intended: true/true/true); focus=${focusPkg().replace(/.*\{|\}/g, '')}` };
   });
 
   // ----- wrap up -----
