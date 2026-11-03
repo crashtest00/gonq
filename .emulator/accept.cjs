@@ -69,16 +69,37 @@ async function launch({ stop = true } = {}) {
   const p = await cur(); await p.waitForSelector('text=Documents', { timeout: 60000 }); return p;
 }
 const T = 15000;
+// domTap: click through the DOM (el.click()), not Playwright's actionability click. On the 320 px screen the editor top bar is wider than the
+// viewport (the ⋯ button sits at/after the right edge and the page shifts sideways when the keyboard is up), so locator.click() timed out
+// on 'More' (steps 12, 16, 17). The app's controls are React onClick buttons, so a DOM click is what a tap does.
+async function domTap(loc, timeout = T) { const l = loc.first(); await l.waitFor({ state: 'attached', timeout }); await l.evaluate((el) => el.click()); }
+// closeSheets: the bottom sheets (Menu, Editor) have a Close button and a scrim; they do NOT listen for Escape (BottomSheet.tsx), so never use Escape to dismiss them.
+async function closeSheets(p) {
+  for (let i = 0; i < 3; i++) {
+    const b = p.getByRole('dialog').getByRole('button', { name: 'Close', exact: true });
+    if (!(await b.count())) return;
+    await b.last().evaluate((el) => el.click()); await sleep(300);
+  }
+}
+// longPress: the app's useLongPress listens for pointerdown (touch, primary) on .cm-content held ~450 ms without moving. Dispatched as synthetic touch pointer events on the
+// element, so no screen-coordinate guessing (the adb swipe in the last run landed on the tab strip). unconfirmed: the native selection handles are not exercised.
+async function longPress(p, selector) {
+  await p.locator(selector).first().evaluate(async (el) => {
+    const r = el.getBoundingClientRect(); const o = { bubbles: true, cancelable: true, pointerType: 'touch', isPrimary: true, pointerId: 7, clientX: r.left + 10, clientY: r.top + r.height / 2 };
+    el.dispatchEvent(new PointerEvent('pointerdown', o)); await new Promise((res) => setTimeout(res, 700)); el.dispatchEvent(new PointerEvent('pointerup', o));
+  });
+  await sleep(500);
+}
 async function menu(p, menuName, item, opts = {}) {            // ⋯ (aria-label "More") > <menu> > <item>
-  await p.getByRole('button', { name: 'More' }).click();
-  const m = p.getByRole('menu', { name: menuName });
-  await m.getByRole(opts.role || 'menuitem', { name: item }).click({ timeout: T });
+  await domTap(p.getByRole('button', { name: 'More', exact: true }));
+  const m = p.getByRole('menu', { name: menuName, exact: true });
+  await domTap(m.getByRole(opts.role || 'menuitem', { name: item }));
 }
 async function menuItemState(p, menuName, item) {
-  await p.getByRole('button', { name: 'More' }).click();
-  const b = p.getByRole('menu', { name: menuName }).getByRole('menuitem', { name: item });
+  await domTap(p.getByRole('button', { name: 'More', exact: true }));
+  const b = p.getByRole('menu', { name: menuName, exact: true }).getByRole('menuitem', { name: item });
   const r = { count: await b.count(), disabled: count0(await b.count()) ? await b.isDisabled() : null };
-  await p.keyboard.press('Escape'); return r;
+  await closeSheets(p); return r;
 }
 const count0 = (n) => n > 0;
 // goHome: the app has no Android Back handler (story M-35), so the Back KEY would close it. Tap the in-app Back button (PhoneShell aria-label "Back") until the Documents screen shows. Never KEYCODE_BACK.
@@ -364,14 +385,17 @@ async function ensureDoc() {
   await step('09-reopen-tab-after-back', 'Re-open a tab after Back (two in-app documents; open tab re-opened from Documents)', async () => {
     p = await newDoc('First doc alpha'); p = await newDoc('Second doc beta');   // second doc opens in a new tab
     const tabs = await p.getByRole('tab').count(); await shot('two-tabs');
+    await domTap(p.getByRole('tab').first()); await sleep(500);                     // switching tabs in the editor's tab strip (before Back) works: record it
+    const switched = /First doc alpha/.test(await editorText(await cur()));
     p = await cur(); await goHome(p); p = await cur(); await shot('documents-after-back');
-    // re-open the open tab: recents row if the document is listed, else the tab strip / a New-document-free path
-    const row = p.locator('li button').first();
-    if (await row.count()) await row.click({ timeout: T });
-    else { await goHome(p); p = await cur(); const tab = p.getByRole('tab').first(); if (await tab.count()) await tab.click(); }
+    // Evidence of the last run: Documents shows 'No recent documents.' (untitled, unsaved in-app docs are never recents) and the open tabs live only in the editor's tab strip;
+    // EditorBridge pushes the editor again only when the active tab CHANGES, and DocumentsHome has no tab list. So the only way back to an open tab is a recents row, if the app lists one.
+    const row = p.locator('li button[title]').first();
+    const rows = await p.locator('li button[title]').count();
+    if (rows) await row.click({ timeout: T });
     p = await cur();
-    const shown = await p.locator('.cm-content').waitFor({ timeout: 15000 }).then(() => true, () => false);
-    return { ok: shown, detail: `tabs=${tabs} editorShown=${shown}` };
+    const shown = rows ? await p.locator('.cm-content').waitFor({ timeout: 15000 }).then(() => true, () => false) : false;
+    return { ok: shown, detail: `tabs=${tabs} tabSwitchBeforeBack=${switched} recentsRows=${rows} editorShown=${shown}${rows ? '' : ' (no Documents-screen control re-opens an open tab: recents empty for unsaved in-app docs)'}` };
   });
 
   // ----- Android behaviour -----
@@ -397,18 +421,14 @@ async function ensureDoc() {
 
   await step('12-menus', 'Editor: long-press menu and ⋯ menu (no Connect to Server)', async () => {
     p = await ensureDoc();
-    const box = await p.locator('.cm-content').boundingBox();
-    const dpr = await p.evaluate(() => devicePixelRatio);
-    const top = await p.evaluate(() => window.outerHeight - window.innerHeight);   // unconfirmed: toolbar offset
-    const x = Math.round((box.x + 40) * dpr), y = Math.round((box.y + 20) * dpr + (top > 0 ? top : 0));
-    sh(`adb shell input swipe ${x} ${y} ${x} ${y} 900`); await sleep(800);
-    const sheet = p.getByRole('menu', { name: 'Editor' }); const lp = await sheet.isVisible().catch(() => false); await shot('long-press');
+    await longPress(p, '.cm-content .cm-line');                                   // EditorSheet: dialog "Editor" > menu "Editor"
+    const sheet = p.getByRole('menu', { name: 'Editor', exact: true }); const lp = await sheet.isVisible().catch(() => false); await shot('long-press');
     const items = lp ? await sheet.getByRole('menuitem').allTextContents() : [];
-    if (lp) await p.keyboard.press('Escape');
-    await p.getByRole('button', { name: 'More' }).click(); await sleep(500);
+    await closeSheets(p);
+    await domTap(p.getByRole('button', { name: 'More', exact: true })); await sleep(500);
     const menus = await p.getByRole('menu').evaluateAll((l) => l.map((e) => e.getAttribute('aria-label')));
     const connect = await p.getByRole('menuitem', { name: /Connect to Server/ }).count(); await shot('overflow-menu');
-    await p.keyboard.press('Escape');
+    await closeSheets(p);
     return { ok: lp && connect === 0 && menus.length >= 4, detail: `longPress=${lp} editorItems=${items.join('|')} menus=${menus.join('|')} connectToServer=${connect}` };
   });
 
@@ -428,8 +448,12 @@ async function ensureDoc() {
   });
 
   await step('14-open-link-native', 'Opening links natively (tap a link; leaves the app to the browser)', async () => {
-    p = await newDoc('See [example](https://example.com) here.');
-    await p.locator('.cm-content a, .cm-content .cm-link, .cm-content [class*=link]').first().click({ timeout: T });   // unconfirmed: link element/class
+    // livePreview.ts: links are `.cm-link[data-href]` marks (shown as a link only while the caret is outside it) and open ONLY on Ctrl/Cmd+click (linkClicks); a plain tap just
+    // puts the caret in the link (the last run's screenshot: raw '[example](...)' shown, app still focused). The opener allow-list (capabilities/mobile.json) is
+    // https://github.com/crashtest00/gonq, https://github.com/login/device and https://github.com/*/pull/*, so https://example.com would be refused: use the repo URL.
+    p = await newDoc('See [gonq](https://github.com/crashtest00/gonq) here.');
+    const link = p.locator('.cm-content .cm-link'); await link.first().waitFor({ timeout: T });
+    await link.first().evaluate((el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true })));   // touch has no Ctrl key: unconfirmed that a real tap can ever open it
     await sleep(3000); const f = focusPkg(); await shot('after-link');
     const left = !f.includes(PKG); sh('adb shell input keyevent KEYCODE_BACK'); await sleep(1500);
     if (!(await device.webView({ pkg: PKG }, { timeout: 20000 }).then(() => true, () => false))) sh(`adb shell monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`);
@@ -441,10 +465,13 @@ async function ensureDoc() {
     // unconfirmed trigger: the validator's rule was not read. Select from the first line across several lines (heading to body) and add a comment.
     await p.locator('.cm-line').first().click();
     await p.keyboard.down('Shift'); for (let i = 0; i < 6; i++) await p.keyboard.press('ArrowDown'); await p.keyboard.up('Shift');
-    await menu(p, 'Edit', 'Add Comment').catch(async () => { await p.getByRole('menuitem', { name: 'Add Comment' }).click(); });
-    const draft = p.getByRole('textbox', { name: 'Comment' }); await draft.waitFor({ timeout: T });
+    // Add Comment has only a context-menu placement (no menu), so it is NOT under ⋯ > Edit. Start it from the top-bar Comments button (aria-label "Comments") > sheet "Comments" > "Add comment".
+    await domTap(p.getByRole('button', { name: 'Comments', exact: true }));
+    await domTap(p.getByRole('dialog', { name: 'Comments' }).getByRole('button', { name: 'Add comment', exact: true }));
+    const draft = p.getByRole('textbox', { name: 'Comment', exact: true }); await draft.waitFor({ timeout: T });
     const quote = await p.locator('.m-thread blockquote').count(); await shot('caret-draft');
-    await p.keyboard.press('Escape'); await p.getByRole('button', { name: 'Cancel' }).click().catch(() => {});
+    await domTap(p.getByRole('button', { name: 'Cancel', exact: true }));
+    const cb = p.getByRole('button', { name: 'Comments', exact: true }); if ((await cb.getAttribute('aria-expanded')) === 'true') await domTap(cb);   // close the docked sheet
     return { ok: quote === 0, detail: `draft opened; anchor quote shown=${quote} (0 = caret comment); trigger unconfirmed` };
   });
 
@@ -462,8 +489,9 @@ async function ensureDoc() {
     p = await ensureDoc(); await menu(p, 'Edit', 'Settings…');
     const f = p.getByRole('form', { name: 'Settings' }); await f.waitFor({ timeout: T });
     const themeRow = await f.getByText(/Theme/).count();
-    await f.getByLabel('Author name').fill(`M34 ${STAMP}`); await shot('settings'); await f.getByRole('button', { name: 'Save', exact: true }).click();
-    await menu(p, 'Edit', 'Settings…'); const v = await p.getByLabel('Author name').inputValue(); await p.getByRole('button', { name: 'Cancel' }).click();
+    await f.getByLabel('Author name').fill(`M34 ${STAMP}`); await shot('settings'); await domTap(f.getByRole('button', { name: 'Save', exact: true }));   // Save pops back to the editor
+    await menu(p, 'Edit', 'Settings…'); const f2 = p.getByRole('form', { name: 'Settings' }); await f2.waitFor({ timeout: T }); await sleep(800);   // author name loads async
+    const v = await p.getByLabel('Author name').inputValue(); await domTap(p.getByRole('button', { name: 'Cancel', exact: true }));
     return { ok: v === `M34 ${STAMP}` && themeRow === 0, detail: `author=${v} themeRows=${themeRow}` };
   });
 
