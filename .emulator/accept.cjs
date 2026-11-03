@@ -81,7 +81,16 @@ async function menuItemState(p, menuName, item) {
   await p.keyboard.press('Escape'); return r;
 }
 const count0 = (n) => n > 0;
-const goHome = async (p) => { for (let i = 0; i < 6; i++) { if (await p.getByText('Recent documents').count()) return; await back(); p = await cur(); } };
+// goHome: the app has no Android Back handler (story M-35), so the Back KEY would close it. Tap the in-app Back button (PhoneShell aria-label "Back") until the Documents screen shows. Never KEYCODE_BACK.
+const goHome = async (p) => {
+  for (let i = 0; i < 10; i++) {
+    p = await cur();
+    if (await p.getByText('Recent documents').count()) return;
+    const b = p.getByRole('button', { name: 'Back' });
+    if (await b.count()) await b.first().click({ timeout: T }).catch(() => {});
+    if (await p.getByText('Recent documents').first().waitFor({ timeout: 15000 }).then(() => true, () => false)) return;
+  }
+};
 async function back() { sh('adb shell input keyevent KEYCODE_BACK'); await sleep(1200); }
 const editorText = (p) => p.evaluate(() => document.querySelector('.cm-content')?.innerText || '');
 async function focusEditorEnd(p) { await p.locator('.cm-content').click(); await p.keyboard.press('Control+End'); }
@@ -145,45 +154,56 @@ const focusPkg = () => sh('adb shell dumpsys window | grep -m1 mCurrentFocus || 
 // SAF picker (DocumentsUI): starts at the storage root where "Use this folder" is disabled. Navigate Documents > GonqAccept, USE THIS FOLDER, Allow.
 // Every action is logged to stdout as [saf] ...; the picker hierarchy is saved to evidence/saf-<stage>.xml at each stage.
 async function safPick() {
-  const T0 = Date.now(); const over = () => Date.now() - T0 > 60000;
-  const L = (m) => { console.log(`[saf] ${m}`); log.push(m); }; const log = [];
-  const inPicker = (nodes) => nodes.some((n) => /documentsui|permissioncontroller/.test(n.pkg));
-  sh(`adb shell mkdir -p ${DIR}`); L(`mkdir -p ${DIR}; focus=${focusPkg().replace(/.*\{|\}/g, '')}`);
-  let nodes = [];
-  for (let i = 0; i < 4 && !over(); i++) {                       // wait for the picker to render, up to ~8 s
-    nodes = uiNodes(i === 0 ? 'root' : null);
-    if (inPicker(nodes) && nodes.some((n) => /:id\/title$/.test(n.rid) || /USE THIS FOLDER/i.test(n.text))) break;
-    await sleep(2000);
-  }
-  if (!inPicker(nodes)) { L('picker not found in dump'); return { ok: false, log: log.join(' > ') }; }
-  const findTitle = (ns, name) => ns.find((n) => n.text === name && /title$/.test(n.rid)) || ns.find((n) => n.text === name);
-  for (const name of ['Documents', 'GonqAccept']) {              // ONE attempt per stage, one tap method
-    if (over()) { L('60 s budget exceeded'); return { ok: false, log: log.join(' > ') }; }
-    const n = findTitle(uiNodes(`before-${name}`), name);
-    if (!n) { L(`'${name}' not found`); return { ok: false, log: log.join(' > ') }; }
-    sh(`adb shell input tap ${n.x} ${n.y}`); L(`tapped '${name}' ${n.x},${n.y}`); await sleep(2500);
-    const ns2 = uiNodes(`after-${name}`);
-    const done = name === 'Documents' ? ns2.some((x) => x.text === 'GonqAccept') : ns2.some((x) => /USE THIS FOLDER/i.test(x.text) && x.enabled);
-    if (!done) { L(`picker did not navigate into '${name}'`); return { ok: false, log: log.join(' > ') }; }
-  }
-  const use = uiNodes('before-use').find((n) => /USE THIS FOLDER/i.test(n.text) && n.enabled);
-  if (!use || over()) { L('USE THIS FOLDER unavailable'); return { ok: false, log: log.join(' > ') }; }
-  sh(`adb shell input tap ${use.x} ${use.y}`); L('tapped USE THIS FOLDER'); await sleep(2000);
-  const allow = uiNodes('after-use').find((n) => n.enabled && /^(ALLOW|Allow)$/.test(n.text));
-  if (allow) { sh(`adb shell input tap ${allow.x} ${allow.y}`); L('tapped Allow'); await sleep(2000); }
-  L(`end focus=${focusPkg().replace(/.*\{|\}/g, '')}`);
-  return { ok: true, log: log.join(' > ') };
+  const T0 = Date.now(); const over = () => Date.now() - T0 > 60000;       // 60 s fail-fast
+  const log = []; const L = (m) => { console.log(`[saf] ${m}`); log.push(m); };
+  const fin = (ok) => ({ ok, log: log.join(' > ') });
+  const fg = () => focusPkg().replace(/.*\{|\}/g, '');
+  sh(`adb shell mkdir -p ${DIR}`); L(`mkdir -p ${DIR}; focus=${fg()}`);
+  for (let i = 0; i < 4 && !over() && !/documentsui|permissioncontroller/.test(focusPkg()); i++) await sleep(2000);   // wait for the picker window (no uiautomator dump: it would fight device.tap)
+  if (!/documentsui|permissioncontroller/.test(focusPkg())) { L(`picker not in focus (${fg()})`); return fin(false); }
+  // tap by text with Playwright's UiAutomator-backed device.tap; on a throw fall back to DPAD navigation (DOWN until the item is focused, then ENTER). Every attempt is logged.
+  const tapText = async (variants, { optional = false } = {}) => {
+    const names = [].concat(variants);
+    for (const name of names) {
+      if (over()) { L('60 s budget exceeded'); return false; }
+      try { await device.tap({ text: name }, { timeout: optional ? 3000 : 8000 }); L(`device.tap '${name}' ok`); return true; }
+      catch (e) { L(`device.tap '${name}' threw: ${String(e.message || e).split('\n')[0].slice(0, 80)}`); }
+    }
+    if (optional) return false;
+    const name = names[0];
+    for (let k = 1; k <= 20 && !over(); k++) {
+      sh('adb shell input keyevent KEYCODE_DPAD_DOWN'); L(`DPAD_DOWN #${k} looking for '${name}'`); await sleep(400);
+      const focused = await Promise.any(names.map((n) => device.info({ text: n }).then((i) => (i.focused ? true : Promise.reject(new Error('not focused')))))).then(() => true, () => false);
+      if (focused) { sh('adb shell input keyevent KEYCODE_ENTER'); L(`DPAD: '${name}' focused after ${k} presses, ENTER`); return true; }
+    }
+    L(`DPAD fallback failed for '${name}'`); return false;
+  };
+  if (!(await tapText('Documents'))) return fin(false);
+  if (!(await device.wait({ text: 'GonqAccept' }, { timeout: 8000 }).then(() => true, () => false))) { L("picker did not navigate into 'Documents'"); return fin(false); }
+  if (!(await tapText('GonqAccept'))) return fin(false);
+  if (!(await device.wait({ text: 'USE THIS FOLDER' }, { timeout: 8000 }).then(() => true, () => device.wait({ text: 'Use this folder' }, { timeout: 2000 }).then(() => true, () => false)))) { L("picker did not navigate into 'GonqAccept'"); return fin(false); }
+  if (over()) { L('USE THIS FOLDER unavailable (budget)'); return fin(false); }
+  if (!(await tapText(['USE THIS FOLDER', 'Use this folder']))) return fin(false);
+  await sleep(2000);
+  if (await tapText(['ALLOW', 'Allow'], { optional: true })) await sleep(2000);
+  L(`end focus=${fg()}`);
+  return fin(true);
 }
 // guard: never leave/start a step in a foreign activity (documentsui, browser, launcher); bring the app to the foreground, relaunch if the WebView is missing
 async function guard(why) {
   const notes = [];
-  for (let i = 0; i < 4 && !focusPkg().includes(PKG); i++) { notes.push(`foreign: ${focusPkg().replace(/.*\{|\}/g, '').slice(0, 60)}`); sh('adb shell input keyevent KEYCODE_BACK'); await sleep(1200); }
-  if (!focusPkg().includes(PKG)) { sh(`adb shell monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`); await sleep(3000); notes.push('monkey'); }
+  for (let i = 0; i < 4 && !focusPkg().includes(PKG); i++) {
+    const f = focusPkg(); notes.push(`foreign: ${f.replace(/.*\{|\}/g, '').slice(0, 60)}`);
+    if (/launcher/i.test(f)) break;                                  // on the launcher: Back does nothing useful, relaunch below
+    sh('adb shell input keyevent KEYCODE_BACK'); await sleep(1200);
+  }
+  if (!focusPkg().includes(PKG)) {
+    sh('adb shell input keyevent KEYCODE_WAKEUP || true'); notes.push('monkey');
+    await launch({ stop: false }).catch((e) => notes.push('launch(monkey) did not reach Documents: ' + String(e.message || e).split('\n')[0]));
+  }
   if (!(await device.webView({ pkg: PKG }, { timeout: 15000 }).then(() => true, () => false))) {
     notes.push('webview missing, relaunch');
-    sh(`adb shell am force-stop ${PKG}`); await sleep(1000);
-    sh(`adb shell monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`); await sleep(5000);
-    await device.webView({ pkg: PKG }, { timeout: 60000 }).catch(() => notes.push('webview still missing'));
+    await launch().catch((e) => notes.push('webview still missing / Documents not rendered: ' + String(e.message || e).split('\n')[0]));   // force-stop + monkey + wait for the 'Documents' text
     try { require('fs').writeFileSync(`${EV}/logcat-${String(why).replace(/\W+/g, '_')}.txt`, sh(`adb logcat -d -v time | grep -i -E 'gonq|AndroidRuntime|FATAL|ActivityManager|WebView|chromium' | tail -250 || true`) + '\n--- pidof: ' + sh(`adb shell pidof ${PKG} || true`) + '\n--- focus: ' + focusPkg()); } catch (e) { notes.push('logcat failed ' + e.message); }
   }
   if (notes.length) console.log(`[guard ${why}] ${notes.join('; ')}`);
@@ -287,6 +307,7 @@ async function ensureDoc() {
     await signedInOpenRepo(p, null);
     await p.getByRole('button', { name: /^Branch:/ }).click();
     const lb = p.getByRole('listbox', { name: 'Branches' });
+    const sheetShown = await lb.waitFor({ timeout: 15000 }).then(() => true, () => false);   // branch sheet must render before its options are read
     await lb.getByRole('option').first().waitFor({ timeout: 90000 }).catch(() => {});                    // branch list loads lazily
     const loadDone = async () => !(await p.getByText(/^Loading( more| branches)?…$/).count());
     for (let i = 0; i < 45 && !(await loadDone()); i++) await sleep(2000);
@@ -294,11 +315,12 @@ async function ensureDoc() {
     const screenTxt = await p.evaluate(() => document.body.innerText.slice(0, 300).replace(/\n/g, ' | '));
     await p.keyboard.press('Escape');
     await switchBranch(p, BR.a); await switchBranch(p, BR.b);
-    for (let i = 0; i < 45 && !(await loadDone()); i++) await sleep(2000);                              // wait for the file list of the new branch (up to 90 s)
+    const loadingEl = p.getByText(/Loading(\.\.\.|…)/);                                                  // 'Loading...' under the branch field while the tree loads
+    const treeLoaded = await loadingEl.first().waitFor({ state: 'hidden', timeout: 90000 }).then(() => true, () => false);   // up to 90 s
     const rows = await p.locator('.m-tree-row').count(); const empty = await p.getByText(/No Markdown files/).count(); await shot('after-switch-loaded');
-    const still = !(await loadDone());
+    const still = !treeLoaded;
     const onScreen = await p.evaluate(() => document.body.innerText.slice(0, 300).replace(/\n/g, ' | '));
-    return { ok: opts.length > 0 && !still, detail: `branches=${opts.map((o) => o.replace('✓', '')).join(',').slice(0, 200)}; switched ${BR.a} -> ${BR.b}; treeRows=${rows} emptyMsg=${empty} stillLoading=${still}; screen(sheet open)="${screenTxt.slice(0, 120)}" screen(after)="${onScreen.slice(0, 200)}"` };
+    return { ok: sheetShown && opts.length > 0 && treeLoaded, detail: `${treeLoaded ? 'PASS: file tree finished loading (Loading... gone)' : 'FAIL: Loading... still on screen after 90 s'}; sheetShown=${sheetShown}; branches=${opts.map((o) => o.replace('✓', '')).join(',').slice(0, 200)}; switched ${BR.a} -> ${BR.b}; treeRows=${rows} emptyMsg=${empty} stillLoading=${still}; screen(sheet open)="${screenTxt.slice(0, 120)}" screen(after)="${onScreen.slice(0, 200)}"` };
   });
 
   await step('05-readonly-banner', 'Read-only banner on a branch with an open PR', async () => {
@@ -346,7 +368,7 @@ async function ensureDoc() {
     // re-open the open tab: recents row if the document is listed, else the tab strip / a New-document-free path
     const row = p.locator('li button').first();
     if (await row.count()) await row.click({ timeout: T });
-    else { await back(); p = await cur(); const tab = p.getByRole('tab').first(); if (await tab.count()) await tab.click(); }
+    else { await goHome(p); p = await cur(); const tab = p.getByRole('tab').first(); if (await tab.count()) await tab.click(); }
     p = await cur();
     const shown = await p.locator('.cm-content').waitFor({ timeout: 15000 }).then(() => true, () => false);
     return { ok: shown, detail: `tabs=${tabs} editorShown=${shown}` };
@@ -401,7 +423,7 @@ async function ensureDoc() {
     await shot('after-system-back');
     // unconfirmed: the screen's wording when no session branch exists, and whether the in-screen Cancel/Back is needed to leave
     if (!left) { await p.getByRole('button', { name: /^(Cancel|Back)$/ }).first().click().catch(() => {}); }
-    const toHome = []; for (let i = 0; i < 3; i++) { await back(); p = await cur(); toHome.push(await p.getByText('Recent documents').count()); }   // System Back elsewhere
+    const toHome = []; for (let i = 0; i < 3; i++) { await goHome(p); p = await cur(); toHome.push(await p.getByText('Recent documents').count()); }   // in-app Back to Documents (the Back KEY would close the app: M-35, see 19-system-back-key)
     return { ok: left, detail: `system Back leaves Open PR=${left}; Recent-documents visible after further Backs=${toHome.join(',')}; nothing submitted` };
   });
 
@@ -451,6 +473,24 @@ async function ensureDoc() {
     await p.getByRole('button', { name: 'Cancel' }).click();
     p = await launch(); await p.getByText('Sign in to GitHub').click();
     return { ok: await p.getByRole('button', { name: /^Start$/ }).waitFor({ timeout: 30000 }).then(() => true, () => false) };
+  });
+
+  // M-35 (informational): what the Android Back KEY does. Expected FAIL on the current RC (no Back handler: Back closes the app from any screen), PASS after M-35.
+  await step('19-system-back-key', 'M-35 (informational): Android Back key: leaves from Documents; steps back from an open editor', async () => {
+    const inApp = () => focusPkg().includes(PKG);
+    p = await launch(); await goHome(p); await shot('back-key-1-documents');
+    sh('adb shell input keyevent KEYCODE_BACK'); await sleep(2500);
+    const leftFromDocs = !inApp(); await shot('back-key-2-after-back-on-documents');
+    p = await launch();                                                               // relaunch (force-stop + monkey + wait for 'Documents')
+    await goHome(p); p = await cur();
+    await p.getByRole('button', { name: 'New', exact: true }).click({ timeout: T });
+    await p.locator('.cm-content').waitFor({ timeout: 30000 }); await shot('back-key-3-editor-open');
+    sh('adb shell input keyevent KEYCODE_BACK'); await sleep(2500);
+    const stays = inApp(); let editorGone = null, onDocs = null;
+    if (stays) { p = await cur(); editorGone = (await p.locator('.cm-content').count()) === 0; onDocs = (await p.getByText('Recent documents').count()) > 0; }
+    await shot('back-key-4-after-back-in-editor');
+    const ok = leftFromDocs && stays && editorGone === true && onDocs === true;
+    return { ok, detail: `M-35: Back on Documents leavesApp=${leftFromDocs} (intended: true); Back in editor appStillForeground=${stays} editorGone=${editorGone} onDocuments=${onDocs} (intended: true/true/true); focus=${focusPkg().replace(/.*\{|\}/g, '')}` };
   });
 
   // ----- wrap up -----
