@@ -2,15 +2,17 @@
  * The mobile commit sheet (M-22), the counterpart of the desktop CommitDialog on the same words and rules: the title
  * "Commit {path}?", the rows File, Repository, Branch and Message (the fixed commitMessage(path), never editable), the
  * direct-commit warning on any branch that does not start with gonq/, and the actions stacked as 44px buttons: Commit
- * (primary, focused), "Commit to new branch…" (only off a gonq/ branch) and Cancel. The scrim, like Esc on desktop,
- * answers Cancel. Exports CommitSheet, which answers through onChoose.
+ * (primary, focused), "Commit to new branch…" (only off a gonq/ branch) and Cancel. The scrim, like Esc on desktop, and
+ * the Android Back key answer Cancel. Exports CommitSheet, which answers through onChoose.
  */
 import { useEffect, useRef } from 'react';
+import { useBackHandler } from '../shell/back';
 import type { CommitChoice } from '@gonq/editor/controllers/github';
 import { BRANCH_PREFIX } from '@gonq/editor/features/github/createBranch';
 import { commitMessage } from '@gonq/editor/platform/github';
 
 export function CommitSheet({ owner, repo, branch, path, onChoose }: { owner: string; repo: string; branch: string; path: string; onChoose: (choice: CommitChoice) => void }) {
+  useBackHandler(true, () => onChoose('cancel'));
   const commit = useRef<HTMLButtonElement>(null);
   useEffect(() => commit.current?.focus(), []);
   const direct = !branch.startsWith(BRANCH_PREFIX);
