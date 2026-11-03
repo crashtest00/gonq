@@ -14,6 +14,7 @@ import { deleteText, editText, replyText, statusText } from '@gonq/editor/contro
 import { listThreads, preview, relativeTime, type ThreadItem } from '@gonq/editor/model/threads';
 import { DEFAULT_AUTHOR, getAuthorName } from '@gonq/editor/platform/settings';
 import { BottomSheet } from '../shell/BottomSheet';
+import { useBackHandler } from '../shell/back';
 import { useCommandHost } from '../shell/commandContext';
 import { useComments, type CommentDraft } from '../shell/comments';
 import { useDocuments } from '../shell/documents';
@@ -100,6 +101,7 @@ function EditBox({ initial, onCancel, onSave }: { initial: string; onCancel(): v
 
 function DeleteSheet({ item, onChoose }: { item: ThreadItem; onChoose(confirmed: boolean): void }) {
   const { thread } = item;
+  useBackHandler(true, () => onChoose(false));
   const cancel = useRef<HTMLButtonElement>(null);
   // Cancel is the safe default for a destructive action.
   useEffect(() => cancel.current?.focus(), []);

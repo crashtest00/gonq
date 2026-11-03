@@ -1,9 +1,11 @@
 /**
- * The mobile app root: notices and navigator providers around the phone shell. It starts on the splash and
+ * The mobile app root: notices, the Back stack (shell/back.tsx, the Android system Back key; BackNavigation is the navigator's default) and navigator providers around the phone shell. It starts on the splash and
  * replaces it with the Documents home after `splashMs` (default 800 ms). ThemeProvider runs the saved theme. DocumentProvider holds the shared document session. GithubProvider runs the shared GitHub controller (Open Repo, the repo screen, and ensureSignedIn opening the sign-in screen). CommentsProvider holds the Comments sheet state and the new-comment draft. CommandHostProvider builds the registry CommandContext the ⋯ menu and the long-press sheet run against (inside CommentsProvider: Add Comment starts the draft). DialogsProvider shows the unsaved-changes and conflict sheets. FolderProvider holds the opened local folder, the Folder navigator sheet and the Save as name prompt. OutlineProvider holds the Outline drawer state. EditorBridge opens the editor screen when a document opens.
  */
 import { useEffect } from 'react';
 import { NoticesProvider } from './shell/notices';
+import { BackProvider } from './shell/back';
+import { BackNavigation } from './shell/BackNavigation';
 import { DialogsProvider } from './shell/dialogs';
 import { OutlineProvider } from './shell/outline';
 import { DocumentProvider } from './shell/documents';
@@ -30,11 +32,13 @@ function SplashTimer({ ms }: { ms: number }) {
 export default function App({ splashMs = 800 }: { splashMs?: number }) {
   return (
     <NoticesProvider>
+      <BackProvider>
       <ThemeProvider>
         <DialogsProvider>
         <DocumentProvider>
           <NavigatorProvider initial={splashScreen}>
             <SplashTimer ms={splashMs} />
+            <BackNavigation />
             <FolderProvider>
               <GithubProvider>
                 <EditorBridge />
@@ -53,6 +57,7 @@ export default function App({ splashMs = 800 }: { splashMs?: number }) {
         </DocumentProvider>
         </DialogsProvider>
       </ThemeProvider>
+      </BackProvider>
     </NoticesProvider>
   );
 }

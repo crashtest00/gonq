@@ -7,6 +7,7 @@
  */
 import { useMemo } from 'react';
 import { outlineOf } from '@gonq/editor/model/outline';
+import { useBackHandler } from '../shell/back';
 import { useCommandHost } from '../shell/commandContext';
 import { useDocuments } from '../shell/documents';
 import { useOutline } from '../shell/outline';
@@ -17,6 +18,8 @@ export function OutlineDrawer() {
   const { editor } = useCommandHost();
   const text = session.text;
   const items = useMemo(() => (open ? outlineOf(text) : []), [open, text]);
+  // The Android Back key closes it like its ✕.
+  useBackHandler(open, close);
   if (!open) return null;
   return (
     <>

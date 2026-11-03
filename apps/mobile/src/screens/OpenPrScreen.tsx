@@ -22,6 +22,7 @@ import {
 import { repoKey, repoOptions, sameRepo, sourceCandidates, type RepoRef } from '@gonq/editor/features/github/openPr';
 import { defaultPrBody, defaultPrTitle } from '@gonq/editor/features/github/prDefaults';
 import type { SessionBranch } from '@gonq/editor/features/github/sessionBranches';
+import { useBackHandler } from '../shell/back';
 import { useNotices } from '../shell/notices';
 import { useNavigator, type Screen } from '../shell/StackNavigator';
 import { PullLink, ReviewSection, SourceSection, TargetSection, alreadyOpenMessage, isEmptyComparison, type Load, type Sources } from './OpenPrSections';
@@ -203,6 +204,17 @@ export function OpenPrFlow({ args }: { args: OpenPrArgs }) {
   };
 
   const close = () => nav.pop();
+  // The Android Back key steps back one screen: details to review (the Back button, not while opening), review and done close the flow.
+  useBackHandler(
+    true,
+    () => {
+      if (phase !== 'details') return close();
+      if (busy) return;
+      setError(null);
+      setPhase('review');
+    },
+    'screen',
+  );
   const canOpen = sourcePull === null && source !== null && target !== null && compare.state === 'ready' && !isEmptyComparison(compare.value);
 
   if (phase === 'done' && created !== null)

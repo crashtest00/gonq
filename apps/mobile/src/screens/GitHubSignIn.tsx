@@ -8,6 +8,7 @@
 import { createElement, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useSignInController } from '@gonq/editor/controllers/signIn';
 import { signInStatus, signOut, toGitHubError, type GitHubStatus } from '@gonq/editor/platform/github';
+import { useBackHandler } from '../shell/back';
 import { useNotices } from '../shell/notices';
 import { useNavigator, type Screen } from '../shell/StackNavigator';
 
@@ -64,6 +65,8 @@ export function GitHubSignIn() {
     stop();
     pop();
   };
+  // The Android Back key is Cancel: it stops any pending code and leaves, so Start works again next time.
+  useBackHandler(true, cancel, 'screen');
   const begin = () => {
     setError(null);
     setSignedOutNow(false);

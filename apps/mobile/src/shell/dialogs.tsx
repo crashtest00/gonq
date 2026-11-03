@@ -3,9 +3,10 @@
  * useDialogs() hands { confirmUnsaved, confirmConflict } (promises of the user's choice) to the document session
  * and the GitHub controller. Strings, roles and choices are those of the desktop UnsavedChangesDialog.tsx and
  * ConflictDialog.tsx; only the layout differs (a bottom sheet, stacked 44px buttons). Tapping the scrim, like Escape on
- * desktop, answers Cancel. Questions asked while one is open wait their turn.
+ * desktop, or the Android Back key answers Cancel. Questions asked while one is open wait their turn.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useBackHandler } from './back';
 import type { ConflictChoice, UnsavedChoice } from '@gonq/editor/controllers/document';
 
 export interface Dialogs {
@@ -58,6 +59,7 @@ export function DialogsProvider({ children }: { children: ReactNode }) {
 
 /** A modal sheet from the bottom edge; the scrim is a backdrop (not a control) that answers Cancel. */
 function ChoiceSheet({ titleId, title, body, onCancel, children }: { titleId: string; title: string; body: string; onCancel(): void; children: ReactNode }) {
+  useBackHandler(true, onCancel);
   return (
     <>
       <div className="m-scrim" data-testid="choice-scrim" onClick={onCancel} />

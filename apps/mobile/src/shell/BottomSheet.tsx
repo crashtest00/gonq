@@ -1,9 +1,10 @@
 /**
  * <BottomSheet/>: the modal sheet that slides up from the bottom edge (commit, comments, menus in later stories).
- * A dialog with a title, a Close button and a scrim that closes it when tapped; renders nothing while `open` is
+ * A dialog with a title, a Close button and a scrim that closes it when tapped (the Android Back key closes it too); renders nothing while `open` is
  * false (or, with `keepMounted`, its content inside a hidden element). `docked` makes it a non-modal panel in the flow (the Comments sheet). Nothing here listens for keys: it is a touch surface.
  */
 import type { ReactNode } from 'react';
+import { useBackHandler } from './back';
 
 export interface BottomSheetProps {
   open: boolean;
@@ -17,6 +18,8 @@ export interface BottomSheetProps {
 }
 
 export function BottomSheet({ open, title, onClose, children, docked = false, keepMounted = false }: BottomSheetProps) {
+  // The system Back key closes it like its Close button.
+  useBackHandler(open, onClose);
   if (!open && !keepMounted) return null;
   const sheet = (
     <>

@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BRANCH_PREFIX, runCreateBranch, validateBranchName, type PendingCommit } from '@gonq/editor/features/github/createBranch';
 import { branchExists } from '@gonq/editor/platform/github';
 import type { CreateBranchDone } from '@gonq/editor/controllers/github';
+import { useBackHandler } from '../shell/back';
 
 export const BRANCH_EXISTS_MESSAGE = 'That branch already exists';
 
@@ -32,6 +33,8 @@ export function CreateBranchSheet({
   onCreated: (branch: string) => void;
   onClose: (result: CreateBranchDone | null) => void;
 }) {
+  // The Android Back key does what Cancel (Close) does.
+  useBackHandler(true, () => onClose(null));
   const [name, setName] = useState('');
   const [exists, setExists] = useState(false);
   const [busy, setBusy] = useState(false);
