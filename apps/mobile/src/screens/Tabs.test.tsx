@@ -136,7 +136,7 @@ it('Save on the sheet writes the file, then closes the tab', async () => {
   typeText('!');
   await waitFor(() => expect(screen.getByTitle('Unsaved changes')).toBeInTheDocument());
   await user.click(screen.getByRole('button', { name: 'Close a.md' }));
-  await user.click(await screen.findByRole('button', { name: 'Save' }));
+  await user.click(within(await screen.findByRole('dialog', { name: /Save changes/ })).getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(fs.written).toEqual([['/x/a.md', 'plain a!']]));
   expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument();
 });

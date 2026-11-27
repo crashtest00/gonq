@@ -1,4 +1,4 @@
-/** Covers the mobile editor screen through renderMobileApp: opening via "+", the accessory bar contents (and no H1/H2/quote/code/Table), pointer-down cancel, bold through the bar, the Raw Markdown switch (name, toggle, segments, read-only tab) and that the screen adds no key/input listeners of its own. */
+/** Covers the mobile editor screen through renderMobileApp: opening via "+", the accessory bar contents (and no H1/H2/quote/code/Table), pointer-down cancel, bold through the bar, Save first in the bar, no Raw switch in the top bar, Raw Markdown via More on a read-only tab and that the screen adds no key/input listeners of its own. */
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -40,7 +40,7 @@ async function openNew() {
   return app;
 }
 
-const LABELS = ['Undo', 'Redo', 'Bold', 'Italic', 'Underline', 'Strikethrough', 'Insert link', 'Bullet list', 'Numbered list', 'Checkbox list', 'Insert table'];
+const LABELS = ['Save', 'Undo', 'Redo', 'Bold', 'Italic', 'Underline', 'Strikethrough', 'Insert link', 'Bullet list', 'Numbered list', 'Checkbox list', 'Insert table'];
 
 it('opens the editor with the accessory bar offering exactly the desktop toolbar actions', async () => {
   await openNew();
@@ -71,22 +71,14 @@ it('bold from the bar formats the typed text', async () => {
   expect(document.querySelector('.cm-content strong, .cm-content .cm-strong, .cm-content [class*=bold]')).not.toBeNull();
 });
 
-it('has a Raw Markdown switch in the top bar that flips Raw and Formatted with 44px segments', async () => {
-  const { user } = await openNew();
-  const sw = within(screen.getByRole('banner')).getByRole('switch', { name: 'Raw Markdown' });
-  expect(sw).toHaveAttribute('aria-checked', 'false');
-  await user.click(within(sw).getByText('Raw'));
-  expect(sw).toHaveAttribute('aria-checked', 'true');
-  await user.click(within(sw).getByText('Raw'));
-  expect(sw).toHaveAttribute('aria-checked', 'true');
-  await user.click(within(sw).getByText('Formatted'));
-  expect(sw).toHaveAttribute('aria-checked', 'false');
-  sw.focus();
-  await user.keyboard('{Enter}');
-  expect(sw).toHaveAttribute('aria-checked', 'true');
+it('has no Raw switch in the top bar and Save is the first button of the accessory bar', async () => {
+  await openNew();
+  expect(screen.queryByRole('switch', { name: 'Raw Markdown' })).toBeNull();
+  const bar = screen.getByRole('toolbar', { name: 'Editing' });
+  expect(within(bar).getAllByRole('button')[0]).toHaveAccessibleName('Save');
 });
 
-it('keeps the Raw switch working on a read-only tab', async () => {
+it('keeps Raw Markdown in the More menu working on a read-only tab', async () => {
   const user = userEvent.setup();
   render(
     <NoticesProvider>
@@ -114,9 +106,9 @@ it('keeps the Raw switch working on a read-only tab', async () => {
       </ThemeProvider>
     </NoticesProvider>,
   );
-  const sw = await screen.findByRole('switch', { name: 'Raw Markdown' });
-  await user.click(sw);
-  expect(sw).toHaveAttribute('aria-checked', 'true');
+  await screen.findByRole('toolbar', { name: 'Editing' });
+  await user.click(screen.getByRole('button', { name: 'More' }));
+  await user.click(screen.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }));
   expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false');
 });
 

@@ -151,7 +151,7 @@ test('edit and delete controls are offered; only a reply box is open for typing'
   expect(side.getByRole('textbox', { name: 'Reply' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Edit thread' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Delete thread' })).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /^(save|submit)$/i })).toBeNull();
+  expect(side.queryByRole('button', { name: /^(save|submit)$/i })).toBeNull();
 });
 
 test('malformed block is skipped and the file still opens', async () => {

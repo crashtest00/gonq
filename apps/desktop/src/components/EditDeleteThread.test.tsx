@@ -74,7 +74,7 @@ describe('edit and delete', () => {
     expect(box.value).toBe('First?');
     await user.clear(box);
     await user.type(box, 'Reworded');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(within(screen.getByRole('complementary', { name: 'Comments' })).getByRole('button', { name: 'Save' }));
     expect(screen.queryByRole('textbox', { name: 'Edit comment' })).toBeNull();
     expect(inSidebar().getByText('Reworded')).toBeInTheDocument();
     const [first, second] = parseCommentThreads(await save(user, saved))[0].messages;
@@ -88,7 +88,7 @@ describe('edit and delete', () => {
     await user.click(screen.getByRole('button', { name: 'Edit thread' }));
     const box = screen.getByRole('textbox', { name: 'Edit comment' });
     await user.clear(box);
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(within(screen.getByRole('complementary', { name: 'Comments' })).getByRole('button', { name: 'Save' }));
     expect(screen.getByRole('textbox', { name: 'Edit comment' })).toBeInTheDocument();
     await user.type(box, 'zzz');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -145,7 +145,7 @@ describe('edit', () => {
   test('changes only the first message body: full saved text, author, timestamp, other messages and marker intact', async () => {
     const { user, saved } = await setup();
     await editFirst(user, 'Reworded');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(within(screen.getByRole('complementary', { name: 'Comments' })).getByRole('button', { name: 'Save' }));
     expect(await save(user, saved)).toBe(DOC.replace('First?', 'Reworded'));
   });
 
@@ -153,7 +153,7 @@ describe('edit', () => {
     const { user, saved } = await setup();
     await editFirst(user, '');
     await user.type(screen.getByRole('textbox', { name: 'Edit comment' }), '   ');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(within(screen.getByRole('complementary', { name: 'Comments' })).getByRole('button', { name: 'Save' }));
     expect(screen.getByRole('textbox', { name: 'Edit comment' })).toBeInTheDocument();
     expect(screen.queryByLabelText('unsaved changes')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -164,14 +164,14 @@ describe('edit', () => {
     const { user } = await setup();
     expect(screen.queryByLabelText('unsaved changes')).toBeNull();
     await editFirst(user, 'Reworded');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(within(screen.getByRole('complementary', { name: 'Comments' })).getByRole('button', { name: 'Save' }));
     expect(screen.getByLabelText('unsaved changes')).toBeInTheDocument();
   });
 
   test('one Undo restores the edit, byte-exact', async () => {
     const { user, saved } = await setup();
     await editFirst(user, 'Reworded');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(within(screen.getByRole('complementary', { name: 'Comments' })).getByRole('button', { name: 'Save' }));
     await undo(user);
     expect(await save(user, saved)).toBe(DOC);
     expect(inSidebar().getByText('First?')).toBeInTheDocument();
@@ -180,7 +180,7 @@ describe('edit', () => {
   test('text containing --> round-trips', async () => {
     const { user, saved } = await setup();
     await editFirst(user, 'a --> b');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(within(screen.getByRole('complementary', { name: 'Comments' })).getByRole('button', { name: 'Save' }));
     const text = await save(user, saved);
     const [thread] = parseCommentThreads(text);
     expect(thread.messages[0].body).toBe('a --> b');
@@ -194,7 +194,7 @@ describe('edit', () => {
     const { user, saved } = await openDoc(doc);
     await openThread(user, /Agent says/);
     await editFirst(user, 'Agent revised');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(within(screen.getByRole('complementary', { name: 'Comments' })).getByRole('button', { name: 'Save' }));
     expect(await save(user, saved)).toBe(doc.replace('Agent says', 'Agent revised'));
     expect(parseCommentThreads(saved[saved.length - 1])[0].messages[0].author).toBe('architect-agent:75a079f6');
   });
@@ -203,7 +203,7 @@ describe('edit', () => {
     const { user, saved } = await setup();
     await editFirst(user, 'Reworded');
     refuse.on = true;
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(within(screen.getByRole('complementary', { name: 'Comments' })).getByRole('button', { name: 'Save' }));
     expect(screen.getByRole('alert').textContent).toMatch(/Ambiguous thread reference/);
     expect(screen.queryByLabelText('unsaved changes')).toBeNull();
     expect(await save(user, saved)).toBe(DOC);

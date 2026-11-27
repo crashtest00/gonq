@@ -1,21 +1,23 @@
 /**
- * <AccessoryBar/>: the keyboard accessory toolbar of the editor screen ("Editing"): Undo, Redo and the same formats
- * as the desktop EditToolbar (FORMATS), each running its registry command (format.* , edit.undo, edit.redo) against the
+ * <AccessoryBar/>: the keyboard accessory toolbar of the editor screen ("Editing"): Save first, then Undo, Redo and the same formats
+ * as the desktop EditToolbar (FORMATS), each running its registry command (file.save, format.* , edit.undo, edit.redo) against the
  * editor. Pointer-down is cancelled so focus stays in the editor and the keyboard stays open. The row scrolls
  * sideways with edge fades as the cue (HScroll), every button is an .m-tap (44x44). While the caret is in a table
  * (`table` is the editor's TableTarget) a pinned "Table" button swaps this bar for the TableBar, whose "Formatting
  * toolbar" button swaps back; leaving the table brings this bar back by itself.
  */
-import { Redo2, Table2, Undo2, type LucideIcon } from 'lucide-react';
+import { Redo2, Save, Table2, Undo2, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type RefObject } from 'react';
 import type { TableTarget } from '@gonq/editor/editor/tables';
 import type { EditorHandle } from '@gonq/editor/editor/MarkdownEditor';
 import { FORMATS } from '@gonq/editor/editor/formatTools';
+import { useCommandHost } from '../shell/commandContext';
 import { runFileCommand } from '../shell/documents';
 import { HScroll } from '../shell/HScroll';
 import { TableBar } from './TableBar';
 
 const items: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: 'file.save', label: 'Save', icon: Save },
   { id: 'edit.undo', label: 'Undo', icon: Undo2 },
   { id: 'edit.redo', label: 'Redo', icon: Redo2 },
   ...FORMATS.map((f) => ({ id: f.format === 'table' ? 'format.table.insert' : `format.${f.format}`, label: f.label, icon: f.icon })),
@@ -32,6 +34,7 @@ export function AccessoryBar({
   canRedo: boolean;
   table?: TableTarget | null;
 }) {
+  const { ctx } = useCommandHost();
   const [tableMode, setTableMode] = useState(false);
   const inTable = table !== null;
   useEffect(() => {
@@ -49,7 +52,7 @@ export function AccessoryBar({
             aria-label={label}
             disabled={(id === 'edit.undo' && !canUndo) || (id === 'edit.redo' && !canRedo)}
             onPointerDown={(e) => e.preventDefault()}
-            onClick={() => runFileCommand(id, { editor })}
+            onClick={() => runFileCommand(id, id === 'file.save' ? ctx : { editor })}
           >
             <Icon size={20} aria-hidden />
           </button>

@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
+/** Flips Raw Markdown through the More menu (the top-bar switch is gone). */
+async function toggleRaw(page: Page) {
+  await page.getByRole('button', { name: 'More' }).tap();
+  await page.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }).tap();
+}
+
 // A comment marker in a list item must not move when it is tapped. A real touch tap (Pixel 7, hasTouch) leaves a sticky :hover, which makes the marker inline-block; it must not inherit the item's negative hanging indent. Covers numbered, nested (two and three deep), bullet, task, plain and wrapped items, the marker at the start, middle and end of an item, in light and dark.
 
 const m = (_n: number) => `[💬](#md-thread-cX)`; // the id is filled in per item by load()
@@ -23,11 +29,10 @@ async function load(page: Page, items: readonly (readonly [string, string])[]) {
   const threads = ids.map((x, i) => `<!--\n@thread ${x}\n@status open\n\n[User | 2026-09-10T14:30:22+02:00]\nNote ${i}\n-->`).join('\n\n');
   await page.goto('/mobile/');
   await page.getByRole('button', { name: 'New' }).tap();
-  const sw = page.getByRole('switch', { name: 'Raw Markdown' });
-  await sw.getByText('Raw', { exact: true }).tap();
+  await toggleRaw(page);
   await page.locator('.cm-content').tap();
   await page.keyboard.insertText(`${body}\n\n${threads}\n`);
-  await sw.getByText('Formatted').tap();
+  await toggleRaw(page);
   await expect(page.locator('.cm-thread-marker')).toHaveCount(items.length);
 }
 

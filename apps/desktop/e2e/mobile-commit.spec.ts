@@ -42,7 +42,7 @@ async function openFile(page: Page) {
   await page.getByRole('button', { name: 'Open Repo…' }).click();
   await page.getByRole('button', { name: /octo\/notes/ }).click();
   await page.getByRole('button', { name: 'a.md' }).click();
-  await expect(page.getByRole('switch', { name: 'Raw Markdown' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'More' })).toBeVisible();
 }
 
 /** Every button and link inside `scope` is at least 44x44 CSS px. */

@@ -1,5 +1,6 @@
 /** Covers the mobile selection Add Comment bar through renderMobileApp: it follows the CodeMirror selection (shown for a range, hidden when it collapses), sits directly above the AccessoryBar, starts the draft on tap, is not opened by a long press, the editor no longer swallows contextmenu on mobile, and the edge cases: table-cell and a marker-spanning selection (bar shown, falls back to the caret) and Raw mode (enabled, as on desktop). */
 import { act, createEvent, fireEvent, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 vi.hoisted(() => ((window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}));
@@ -26,11 +27,16 @@ async function openNew() {
   await settleEditors(document.body);
   return app;
 }
+/** Flips Raw Markdown through the More menu (the top-bar switch is gone). */
+async function toggleRaw(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'More' }));
+  await user.click(screen.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }));
+}
 const bar = () => document.querySelector<HTMLElement>('.m-addcomment')!;
 
 it('is hidden with a caret, shown for a range directly above the accessory bar, hidden again when it collapses', async () => {
   const { user } = await openNew();
-  await user.click(screen.getByRole('switch', { name: 'Raw Markdown' }));
+  await toggleRaw(user);
   await user.type(document.querySelector<HTMLElement>('.cm-content')!, 'Hello brave world.');
   expect(bar().dataset.visible).toBe('false');
   selectText('brave');
@@ -43,9 +49,9 @@ it('is hidden with a caret, shown for a range directly above the accessory bar, 
 
 it('tapping it opens the draft anchored to the selection and keeps the selection (pointer-down is cancelled)', async () => {
   const { user } = await openNew();
-  await user.click(screen.getByRole('switch', { name: 'Raw Markdown' }));
+  await toggleRaw(user);
   await user.type(document.querySelector<HTMLElement>('.cm-content')!, 'Hello brave world.');
-  await user.click(screen.getByRole('switch', { name: 'Raw Markdown' }));
+  await toggleRaw(user);
   selectText('brave');
   const btn = await screen.findByRole('button', { name: /^Add Comment/ });
   const down = createEvent.pointerDown(btn);
@@ -67,7 +73,7 @@ it('a long press (held touch) opens no sheet, and the editor leaves contextmenu 
 /** Replaces the whole document in the (raw) editor and selects `needle`. */
 async function load(text: string, needle: string, raw = true) {
   const { user } = await openNew();
-  if (raw) await user.click(screen.getByRole('switch', { name: 'Raw Markdown' }));
+  if (raw) await toggleRaw(user);
   const view = editorView();
   act(() => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } }));
   selectText(needle);

@@ -44,7 +44,7 @@ async function openRepoTree() {
 /** Opens a.md (optionally edits it) and goes back to the repo tree. */
 async function openDoc(user: User, dirty: boolean) {
   await user.click(screen.getByRole('button', { name: 'a.md' }));
-  await screen.findByRole('switch', { name: 'Raw Markdown' });
+  await screen.findByRole('toolbar', { name: 'Editing' });
   if (dirty) {
     settleEditors(document.body);
     select(0);

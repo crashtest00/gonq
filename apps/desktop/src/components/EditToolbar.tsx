@@ -1,8 +1,8 @@
 /**
- * The main formatting toolbar (undo/redo, inline and block formats, table); renders FORMATS (editor/formatTools in
+ * The main formatting toolbar (save, undo/redo, inline and block formats, table); renders FORMATS (editor/formatTools in
  * @gonq/editor), which the Format menu mirrors.
  */
-import { Redo2, Undo2 } from 'lucide-react';
+import { Redo2, Save, Undo2 } from 'lucide-react';
 import { askUrl } from '@gonq/editor/editor/formatCommands';
 import type { Format } from '@gonq/editor/model/formatting';
 import { FORMATS } from '@gonq/editor/editor/formatTools';
@@ -13,12 +13,14 @@ const button =
 export function EditToolbar({
   canUndo,
   canRedo,
+  onSave,
   onUndo,
   onRedo,
   onFormat,
 }: {
   canUndo: boolean;
   canRedo: boolean;
+  onSave: () => void;
   onUndo: () => void;
   onRedo: () => void;
   /** Applies a format to the editor's selection. */
@@ -29,6 +31,9 @@ export function EditToolbar({
       <div role="toolbar" aria-label="Editing" className="flex h-[42px] shrink-0 items-center overflow-x-auto px-3">
         {/* Auto margins centre the group when it fits and collapse to zero when it overflows, so it scrolls from the left edge. */}
         <div className="mx-auto flex shrink-0 items-center gap-1">
+        <button type="button" aria-label="Save" title="Save (Ctrl+S)" onClick={onSave} className={button}>
+          <Save size={16} aria-hidden />
+        </button>
         <button type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo} className={button}>
           <Undo2 size={16} aria-hidden />
         </button>
