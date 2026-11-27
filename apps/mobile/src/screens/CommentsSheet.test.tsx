@@ -1,4 +1,4 @@
-/** Covers the mobile Comments sheet through renderMobileApp, porting ReplyThread, ResolveThread and CommentThreads: the top-bar button, one row per thread with its own badge and no counts, the empty text, Add comment, marker tap, Reply (format, blank, undo, -->, agent author, missing marker, guidance, Ctrl/Cmd+Enter once), Resolve/Reopen (badges, glyph, bytes, drafts, undo, duplicate ids, library error in the banner, missing marker, ✅), Close thread, the docked layout and 44px hit areas. */
+/** Covers the mobile Comments sheet through renderMobileApp, porting ReplyThread, ResolveThread and CommentThreads: the top-bar button, one row per thread with its own badge and no counts, the empty text, Add comment, marker tap, Reply (format, blank, undo, -->, agent author, missing marker, guidance, Ctrl/Cmd+Enter once), Resolve/Reopen (badges, glyph, bytes, drafts, undo, duplicate ids, library error in the banner, missing marker, ✅), Back, the docked layout and 44px hit areas. */
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
@@ -114,9 +114,9 @@ it('tapping a comment marker opens its thread', async () => {
   const { user } = await openDoc(doc);
   await waitFor(() => expect(editor().querySelectorAll('.cm-thread-marker')).toHaveLength(2));
   await user.click(editor().querySelectorAll('.cm-thread-marker')[1]);
-  expect(await inSheet().findByRole('button', { name: 'Close thread' })).toBeInTheDocument();
+  expect(await inSheet().findByRole('button', { name: 'Back' })).toBeInTheDocument();
   expect(inSheet().getByText('Second body')).toBeInTheDocument();
-  await user.click(inSheet().getByRole('button', { name: 'Close thread' }));
+  await user.click(inSheet().getByRole('button', { name: 'Back' }));
   expect(inSheet().getAllByRole('listitem')).toHaveLength(2);
 });
 
@@ -127,7 +127,7 @@ it('tapping a comment marker drops the editor focus so the soft keyboard stays h
   content.focus();
   expect(document.activeElement).toBe(content);
   await user.click(editor().querySelector('.cm-thread-marker')!);
-  expect(await inSheet().findByRole('button', { name: 'Close thread' })).toBeInTheDocument();
+  expect(await inSheet().findByRole('button', { name: 'Back' })).toBeInTheDocument();
   expect(content.contains(document.activeElement)).toBe(false);
 });
 
@@ -142,11 +142,11 @@ it('the sheet is docked (no scrim, not modal) and its controls have 44px hit are
 
 it('closes with Close; the Comments button reopens at the list', async () => {
   const { user } = await openDoc(DOC);
-  await openThread(user);
+  await openList(user);
   await user.click(inSheet().getByRole('button', { name: 'Close' }));
   expect(screen.queryByRole('dialog', { name: 'Comments' })).toBeNull();
   await openList(user);
-  expect(inSheet().queryByRole('button', { name: 'Close thread' })).toBeNull();
+  expect(inSheet().queryByRole('button', { name: 'Back' })).toBeNull();
 });
 
 describe('replying', () => {
@@ -239,17 +239,17 @@ describe('resolve and reopen', () => {
     expect(await save(user)).toBe(DOC);
   });
 
-  it('the list badge and thread badge change together; Close thread returns to the list', async () => {
+  it('the list badge and thread badge change together; Back returns to the list', async () => {
     const { user } = await openDoc(DOC);
     await openThread(user);
     await user.click(screen.getByRole('button', { name: 'Resolve' }));
-    await user.click(inSheet().getByRole('button', { name: 'Close thread' }));
+    await user.click(inSheet().getByRole('button', { name: 'Back' }));
     const row = await inSheet().findByRole('button', { name: /First\?/ });
     expect(row.textContent).toContain('Resolved');
     expect(row.textContent).not.toContain('Open');
     await user.click(row);
     await user.click(screen.getByRole('button', { name: 'Reopen' }));
-    await user.click(inSheet().getByRole('button', { name: 'Close thread' }));
+    await user.click(inSheet().getByRole('button', { name: 'Back' }));
     expect((await inSheet().findByRole('button', { name: /First\?/ })).textContent).toContain('Open');
   });
 

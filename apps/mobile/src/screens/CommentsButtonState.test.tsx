@@ -79,17 +79,19 @@ it('is off at start, on after the button opens the list, off after the button cl
   expectState(false);
 });
 
-it('turns on when a marker tap opens the thread, and off after Close', async () => {
+it('turns on when a marker tap opens the thread, stays on after Back, and off after Close', async () => {
   const { user } = await openDoc(DOC);
   await waitFor(() => expect(editor().querySelectorAll('.cm-thread-marker')).toHaveLength(1));
   await user.click(editor().querySelector('.cm-thread-marker')!);
-  await inSheet().findByRole('button', { name: 'Close thread' });
+  await inSheet().findByRole('button', { name: 'Back' });
+  expectState(true);
+  await user.click(inSheet().getByRole('button', { name: 'Back' }));
   expectState(true);
   await user.click(inSheet().getByRole('button', { name: 'Close' }));
   expectState(false);
 });
 
-it('Back closes the list and the thread view and turns the button off', async () => {
+it('Back closes the list, Back from the thread view returns to the list, and a second Back turns the button off', async () => {
   const { user } = await openDoc(DOC);
   await user.click(button());
   await screen.findByRole('dialog', { name: 'Comments' });
@@ -97,6 +99,9 @@ it('Back closes the list and the thread view and turns the button off', async ()
   expectState(false);
   await user.click(button());
   await user.click(await inSheet().findByRole('button', { name: /First\?/ }));
+  expectState(true);
+  await back();
+  await inSheet().findByRole('button', { name: 'Add comment' });
   expectState(true);
   await back();
   expectState(false);

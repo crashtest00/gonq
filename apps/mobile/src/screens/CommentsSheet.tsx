@@ -5,7 +5,7 @@
  * empty and the "Add comment" action (it runs the same Add Comment command as Alt+M; the draft box "New comment" replaces the
  * list while a draft is open, Submit/Cancel); the thread view shows the messages, Edit thread (first message), Delete thread
  * (confirmed first), Reply (Ctrl/Cmd+Enter saves, same rules as desktop through controllers/commentBox), Resolve/Reopen and
- * Close thread. The draft and edit views hide the sheet's header Close and take the Android Back key as their Cancel. Reply, status, edit and delete go through controllers/threadEdits, the same functions desktop uses, into the
+ * Back (the sheet header button in Close's place, which returns to the list; Android Back does the same; the list keeps Close). The draft and edit views hide the sheet's header Close and take the Android Back key as their Cancel. Reply, status, edit and delete go through controllers/threadEdits, the same functions desktop uses, into the
  * document via the editor handle; failures go to the global banner. CommentsButton is the top-bar Comments button (outside the command registry).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -151,7 +151,6 @@ function Draft({ anchor, onCancel, onSubmit }: { anchor?: string; onCancel(): vo
 
 function SingleThread({
   item,
-  onClose,
   onReply,
   onSetStatus,
   onEdit,
@@ -162,7 +161,6 @@ function SingleThread({
   editing: boolean;
   setEditing(editing: boolean): void;
   item: ThreadItem;
-  onClose(): void;
   onReply(body: string): void;
   onSetStatus(status: 'open' | 'resolved'): void;
   onEdit(body: string): void;
@@ -181,9 +179,6 @@ function SingleThread({
           </button>
           <button type="button" className="m-tap m-outline" aria-label="Delete thread" onClick={() => setConfirming(true)}>
             🗑
-          </button>
-          <button type="button" className="m-tap m-outline" onClick={onClose}>
-            Close thread
           </button>
         </span>
       </div>
@@ -245,6 +240,7 @@ export function CommentsSheet() {
   // Another thread (or the list) is never shown mid-edit.
   useEffect(() => setEditing(false), [selectedKey, draft]);
   const selected = selectedKey === null ? undefined : threads.find((t) => t.key === selectedKey);
+  const inThread = draft === null && selected !== undefined;
 
   const edit = (make: (item: ThreadItem) => string) => {
     if (selected === undefined) return false;
@@ -279,7 +275,13 @@ export function CommentsSheet() {
   };
 
   return (
-    <BottomSheet open={open} title="Comments" onClose={close} docked hideClose={draft !== null || (selected !== undefined && editing)}>
+    <BottomSheet
+      open={open}
+      title="Comments"
+      onClose={inThread ? showList : close}
+      closeLabel={inThread ? 'Back' : 'Close'}
+      docked hideClose={draft !== null || (selected !== undefined && editing)}
+    >
       {draft !== null ? (
         <Draft anchor={draft.anchor} onCancel={cancelDraft} onSubmit={(b) => submitDraft(draft, b)} />
       ) : selected !== undefined ? (
@@ -287,7 +289,6 @@ export function CommentsSheet() {
           item={selected}
           editing={editing}
           setEditing={setEditing}
-          onClose={showList}
           onReply={(body) => body.trim() !== '' && edit((i) => replyText(text, i, author, body))}
           onSetStatus={(status) => edit((i) => statusText(text, i, status))}
           onEdit={(body) => body.trim() !== '' && edit((i) => editText(text, i, body))}

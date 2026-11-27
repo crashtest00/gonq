@@ -17,9 +17,11 @@ export interface BottomSheetProps {
   keepMounted?: boolean;
   /** No header Close and no Back handler of its own: the content (a composer) has its own Cancel and registers Back for it. */
   hideClose?: boolean;
+  /** The header button's text and accessible name (default "Close"). */
+  closeLabel?: string;
 }
 
-export function BottomSheet({ open, title, onClose, children, docked = false, keepMounted = false, hideClose = false }: BottomSheetProps) {
+export function BottomSheet({ open, title, onClose, children, docked = false, keepMounted = false, hideClose = false, closeLabel = 'Close' }: BottomSheetProps) {
   // The system Back key closes it like its Close button.
   useBackHandler(open && !hideClose, onClose);
   if (!open && !keepMounted) return null;
@@ -31,7 +33,7 @@ export function BottomSheet({ open, title, onClose, children, docked = false, ke
           <h2>{title}</h2>
           {!hideClose && (
             <button type="button" className="m-tap" onClick={onClose}>
-              Close
+              {closeLabel}
             </button>
           )}
         </div>
