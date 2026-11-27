@@ -1,7 +1,8 @@
-/** Live preview and the table widget: hidden syntax, block constructs, task checkboxes, table cells, arrow keys and table ops. */
+/** Live preview and the table widget: hidden syntax, block constructs, task checkboxes, thread markers, table cells, arrow keys and table ops. */
 import { redo, undo } from '@codemirror/commands';
 import { EditorView } from '@codemirror/view';
 import { createEditorState, modeCompartment, modeExtension } from './extensions';
+import '../styles/editor.css';
 import { settleView } from '../testing/editor';
 import { applyFormat } from '../model/formatting';
 import { focusCaretCell, focusTableCell, runTableOp, tableTargetListener, type TableOp, type TableTarget } from './tables';
@@ -148,6 +149,20 @@ describe('what stays source', () => {
     const e = show(text, text.length);
     expect(e.shown()).toContain('[x][ref]');
     expect(e.q('.cm-thread-marker')).toHaveLength(0);
+    e.done();
+  });
+});
+
+describe('thread marker in a list item', () => {
+  // jsdom has no layout, so this pins the computed style; the e2e mobile-marker-list spec measures the glyph itself.
+  test('resets the hanging indent of the item line, which the :hover inline-block would otherwise inherit', () => {
+    const id = 'c20260910143022a3f9c1';
+    const text = `1. one [💬](#md-thread-${id}) two\n\n<!--\n@thread ${id}\n@status open\n\n[User | 2026-09-10T14:30:22+02:00]\nNote\n-->\n`;
+    const e = show(text, 0);
+    e.view.dom.classList.add('gonq-editor');
+    const marker = e.q('.cm-thread-marker')[0] as HTMLElement;
+    expect(marker.closest('.cm-li-first')).not.toBeNull();
+    expect(parseFloat(getComputedStyle(marker).textIndent)).toBe(0); // unset would read ''
     e.done();
   });
 });
