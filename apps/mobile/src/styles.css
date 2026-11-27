@@ -98,8 +98,8 @@ body {
 .m-tree-row { width: 100%; justify-content: flex-start; gap: var(--space-2); text-align: left; border-radius: 0; white-space: nowrap; }
 .m-tree-row[aria-current='true'] { background: var(--surface); font-weight: var(--weight-semibold); }
 
-/* Comments sheet (M-26): docked below the editor so the anchored text above it stays visible; capped so the editor keeps room with the keyboard up. */
-.m-sheet-docked { position: static; flex: none; max-height: calc(var(--m-vvh, 100dvh) * .45); box-shadow: none; border-top: 1px solid var(--border); }
+/* Comments sheet (M-26): docked (its bottom edge is the content's: .m-content pads the safe area and the activity pads the keyboard, so the sheet adds no band of its own); docked below the editor so the anchored text above it stays visible; capped so the editor keeps room with the keyboard up. */
+.m-sheet-docked { position: static; padding-bottom: var(--space-2); flex: none; max-height: calc(var(--m-vvh, 100dvh) * .45); box-shadow: none; border-top: 1px solid var(--border); }
 .m-block { display: flex; width: 100%; box-sizing: border-box; margin-top: var(--space-2); }
 .m-outline { border: 1px solid var(--border); }
 .m-badge { padding: 2px var(--space-2); border-radius: 999px; font-size: var(--text-caption); font-weight: var(--weight-semibold); background: var(--border); color: var(--muted-foreground); }

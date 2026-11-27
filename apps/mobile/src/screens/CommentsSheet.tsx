@@ -5,7 +5,7 @@
  * empty and the "Add comment" action (it runs the same Add Comment command as Alt+M; the draft box "New comment" replaces the
  * list while a draft is open, Submit/Cancel); the thread view shows the messages, Edit thread (first message), Delete thread
  * (confirmed first), Reply (Ctrl/Cmd+Enter saves, same rules as desktop through controllers/commentBox), Resolve/Reopen and
- * Close thread. Reply, status, edit and delete go through controllers/threadEdits, the same functions desktop uses, into the
+ * Close thread. The draft and edit views hide the sheet's header Close and take the Android Back key as their Cancel. Reply, status, edit and delete go through controllers/threadEdits, the same functions desktop uses, into the
  * document via the editor handle; failures go to the global banner. CommentsButton is the top-bar Comments button (outside the command registry).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -86,6 +86,7 @@ function ReplyBox({ status, onReply, onToggleStatus }: { status: 'open' | 'resol
 function EditBox({ initial, onCancel, onSave }: { initial: string; onCancel(): void; onSave(body: string): void }) {
   const [body, setBody] = useState(initial);
   const save = useOnce(body, () => onSave(body));
+  useBackHandler(true, onCancel);
   return (
     <div className="m-reply">
       <textarea aria-label="Edit comment" {...saveKeyProps('Save', save)} rows={4} autoFocus value={body} onChange={(e) => setBody(e.target.value)} />
@@ -130,6 +131,7 @@ function DeleteSheet({ item, onChoose }: { item: ThreadItem; onChoose(confirmed:
 function Draft({ anchor, onCancel, onSubmit }: { anchor?: string; onCancel(): void; onSubmit(body: string): void }) {
   const [body, setBody] = useState('');
   const submit = useOnce(body, () => onSubmit(body));
+  useBackHandler(true, onCancel);
   return (
     <div className="m-thread">
       <span className="m-draft-title">New comment</span>
@@ -154,7 +156,11 @@ function SingleThread({
   onSetStatus,
   onEdit,
   onDelete,
+  editing,
+  setEditing,
 }: {
+  editing: boolean;
+  setEditing(editing: boolean): void;
   item: ThreadItem;
   onClose(): void;
   onReply(body: string): void;
@@ -163,7 +169,6 @@ function SingleThread({
   onDelete(): void;
 }) {
   const { thread } = item;
-  const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   return (
     <div className="m-thread">
@@ -236,6 +241,9 @@ export function CommentsSheet() {
       live = false;
     };
   }, [open]);
+  const [editing, setEditing] = useState(false);
+  // Another thread (or the list) is never shown mid-edit.
+  useEffect(() => setEditing(false), [selectedKey, draft]);
   const selected = selectedKey === null ? undefined : threads.find((t) => t.key === selectedKey);
 
   const edit = (make: (item: ThreadItem) => string) => {
@@ -271,12 +279,14 @@ export function CommentsSheet() {
   };
 
   return (
-    <BottomSheet open={open} title="Comments" onClose={close} docked>
+    <BottomSheet open={open} title="Comments" onClose={close} docked hideClose={draft !== null || (selected !== undefined && editing)}>
       {draft !== null ? (
         <Draft anchor={draft.anchor} onCancel={cancelDraft} onSubmit={(b) => submitDraft(draft, b)} />
       ) : selected !== undefined ? (
         <SingleThread
           item={selected}
+          editing={editing}
+          setEditing={setEditing}
           onClose={showList}
           onReply={(body) => body.trim() !== '' && edit((i) => replyText(text, i, author, body))}
           onSetStatus={(status) => edit((i) => statusText(text, i, status))}
