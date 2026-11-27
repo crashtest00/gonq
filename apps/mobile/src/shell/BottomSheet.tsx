@@ -1,6 +1,6 @@
 /**
  * <BottomSheet/>: the modal sheet that slides up from the bottom edge (commit, comments, menus in later stories).
- * A dialog with a title, a Close button and a scrim that closes it when tapped (the Android Back key closes it too); renders nothing while `open` is
+ * A dialog with a title, a Close button (unless `hideClose`) and a scrim that closes it when tapped (the Android Back key closes it too, unless `hideClose`: then the content owns Back); renders nothing while `open` is
  * false (or, with `keepMounted`, its content inside a hidden element). `docked` makes it a non-modal panel in the flow (the Comments sheet). Nothing here listens for keys: it is a touch surface.
  */
 import type { ReactNode } from 'react';
@@ -15,11 +15,13 @@ export interface BottomSheetProps {
   docked?: boolean;
   /** Closed, stay mounted but `hidden` (so what is inside keeps its state, like a folder tree's expanded folders). */
   keepMounted?: boolean;
+  /** No header Close and no Back handler of its own: the content (a composer) has its own Cancel and registers Back for it. */
+  hideClose?: boolean;
 }
 
-export function BottomSheet({ open, title, onClose, children, docked = false, keepMounted = false }: BottomSheetProps) {
+export function BottomSheet({ open, title, onClose, children, docked = false, keepMounted = false, hideClose = false }: BottomSheetProps) {
   // The system Back key closes it like its Close button.
-  useBackHandler(open, onClose);
+  useBackHandler(open && !hideClose, onClose);
   if (!open && !keepMounted) return null;
   const sheet = (
     <>
@@ -27,9 +29,11 @@ export function BottomSheet({ open, title, onClose, children, docked = false, ke
       <section className={docked ? 'm-sheet m-sheet-docked' : 'm-sheet'} role="dialog" aria-modal={!docked} aria-label={title}>
         <div className="m-sheet-head">
           <h2>{title}</h2>
-          <button type="button" className="m-tap" onClick={onClose}>
-            Close
-          </button>
+          {!hideClose && (
+            <button type="button" className="m-tap" onClick={onClose}>
+              Close
+            </button>
+          )}
         </div>
         {children}
       </section>
