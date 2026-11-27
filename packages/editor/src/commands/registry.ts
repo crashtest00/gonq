@@ -1,13 +1,21 @@
 /**
  * The command registry: feature modules call defineCommand/defineMenu (src/features/<x>/index.ts) and the menu
  * bar and the keydown handler are generated from what they registered. Exports defineCommand, defineMenu,
- * resolveMenus (the ordered menu tree for a CommandContext), resolveContextMenu (the editor's right-click items), matchShortcut/installShortcuts (the one keydown
+ * resolveMenus (the ordered menu tree for a CommandContext; a submenu with `items` lists entries computed from the context), resolveContextMenu (the editor's right-click items), matchShortcut/installShortcuts (the one keydown
  * handler) and createRegistry for isolated registries in tests.
  */
 import type { LucideIcon } from 'lucide-react';
 import type { CommandContext } from './context';
 
 export type CommandKind = 'item' | 'checkbox' | 'radio' | 'submenu';
+
+/** One computed entry of a submenu with `items` (File > Open Recent lists one per recent document). */
+export interface DynamicItem<C = CommandContext> {
+  /** Unique within the submenu; the entry's command id is `<submenu id>.<key>`. */
+  key: string;
+  label: string;
+  run(ctx: C): unknown;
+}
 
 export interface CommandSpec<C = CommandContext> {
   id: string;
@@ -42,6 +50,11 @@ export interface CommandSpec<C = CommandContext> {
   enabled?(ctx: C): boolean;
   checked?(ctx: C): boolean;
   run?(ctx: C): unknown;
+  /**
+   * Submenu only: entries computed from the context each time the menu resolves, listed after the submenu's fixed
+   * children. The menu bar and the mobile sheet render them as plain items, so neither needs to know about them.
+   */
+  items?(ctx: C): DynamicItem<C>[];
 }
 
 export interface MenuSpec<C = CommandContext> {
@@ -134,6 +147,24 @@ export function createRegistry<C = CommandContext>() {
     return spec;
   }
 
+  /** The submenu's computed items as plain item entries (a throwing items() counts as none and is logged). */
+  function computedEntries(submenu: CommandSpec<C>, ctx: C): MenuEntry<C>[] {
+    if (submenu.items === undefined) return [];
+    let list: DynamicItem<C>[];
+    try {
+      list = submenu.items(ctx);
+    } catch (e) {
+      console.error(`Command "${submenu.id}": items() threw; listing none.`, e);
+      return [];
+    }
+    return list.map((item) => ({
+      type: 'item',
+      enabled: true,
+      checked: false,
+      command: { id: `${submenu.id}.${item.key}`, menu: submenu.menu, parent: submenu.id, group: 0, order: 0, label: item.label, run: item.run },
+    }));
+  }
+
   function entriesOf(menuId: string, parent: string | undefined, ctx: C): MenuEntry<C>[] {
     const list = [...commands.values()]
       .filter((c) => c.menu === menuId && c.parent === parent)
@@ -145,7 +176,7 @@ export function createRegistry<C = CommandContext>() {
       prev = command;
       const enabled = guarded(command.id, 'enabled', command.enabled, ctx, true);
       if (command.kind === 'submenu') {
-        out.push({ type: 'submenu', command, enabled, items: entriesOf(menuId, command.id, ctx) });
+        out.push({ type: 'submenu', command, enabled, items: [...entriesOf(menuId, command.id, ctx), ...computedEntries(command, ctx)] });
         continue;
       }
       const shown = command.showShortcut === false ? undefined : (command.shortcut ?? command.hint);

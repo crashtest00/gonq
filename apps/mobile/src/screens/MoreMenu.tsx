@@ -37,7 +37,7 @@ export function MoreMenu() {
       const disabled = !menuEnabled || !e.enabled;
       if (e.type === 'submenu') {
         return (
-          <div key={command.id} role="group" aria-label={command.label}>
+          <div key={command.id} role="group" aria-label={command.label} aria-disabled={disabled || undefined}>
             <div className="m-label" aria-hidden="true">
               {command.label}
             </div>

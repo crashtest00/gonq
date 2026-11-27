@@ -13,6 +13,8 @@ import type { TableTarget } from '@gonq/editor/editor/tables';
 import { normalizeAnchor } from '@gonq/editor/comment-threads';
 import { isCommentableAt, selectionRange } from '@gonq/editor/model/newThread';
 import { files } from '@gonq/editor/platform/files';
+import { isLocalFolderRoot } from '@gonq/editor/platform/local';
+import { MAX_RECENTS } from '@gonq/editor/platform/recents';
 import { pickImage } from '@gonq/editor/platform/images';
 import { aboutScreen } from '../screens/AboutScreen';
 import { agentSkillScreen } from '../screens/AgentSkillScreen';
@@ -96,6 +98,9 @@ export function CommandHostProvider({ children }: { children: ReactNode }) {
     commit: () => void doc.save(),
     newFile: doc.newFile,
     openFile: () => void doc.openFile(),
+    recents: doc.recents.slice(0, MAX_RECENTS),
+    // The Documents home's recent-row path: a folder root reopens the folder, anything else is read as a recent.
+    openRecent: (path) => void (isLocalFolderRoot(path) ? folder.openFolderPath(path) : doc.openKnownPath(path, true)),
     closeTab: doc.closeTab,
     openFolder: () => void folder.openFolder(),
     openConnect: () => setError(CONNECT_UNAVAILABLE),

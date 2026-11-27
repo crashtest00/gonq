@@ -523,6 +523,8 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     commit: () => void doc.save(),
     newFile: doc.newFile,
     openFile: () => void doc.openFile(),
+    recents: doc.recents,
+    openRecent: (path) => void openKnownPath(path, true),
     closeTab: doc.closeTab,
     openFolder: () => void openFolder(),
     openConnect: () => void openConnect(),

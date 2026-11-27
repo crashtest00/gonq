@@ -9,6 +9,7 @@ import type { openDialog } from '../dialogs/DialogHost';
 import type { useDocument } from '../document/useDocument';
 import type { FileAccess } from '../platform/files';
 import type { ThemeChoice } from '../platform/settings';
+import type { RecentDocument } from '../platform/recents';
 
 type Action = () => unknown;
 
@@ -34,6 +35,10 @@ export interface CommandContext {
   commit: Action;
   newFile: Action;
   openFile: Action;
+  /** The recent documents, most recent first, at most MAX_RECENTS: File > Open Recent lists them. */
+  recents: RecentDocument[];
+  /** Opens a recent exactly as choosing it in the sidebar (desktop) or the Documents home (mobile) does. */
+  openRecent: (path: string) => unknown;
   /** Closes the active tab (asking about unsaved changes); does nothing without one. */
   closeTab: Action;
   openFolder: Action;

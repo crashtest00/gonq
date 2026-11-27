@@ -2,9 +2,11 @@
  * What a recent-documents row shows, shared by the desktop sidebar and the mobile Documents home: basename (the file
  * name of a local, ssh:// or github:// path), relativeTime ("just now", "5 min ago", "3 h ago", "2 d ago", else the
  * date), githubDetail ("owner/repo @ branch" for a GitHub path, else null) and localDetail
- * ("Notes/sub" for a file in a picked folder, "Folder" for a folder root, else null; never a storage path).
+ * ("Notes/sub" for a file in a picked folder, "Folder" for a folder root, else null; never a storage path), and
+ * recentLabel (the one-line name File > Open Recent shows: basename plus the same detail the rows show).
  */
 import { parseGithubPath } from '../platform/github';
+import { isSshPath, remoteAccount } from '../platform/remote';
 import { isLocalFolderRoot, isLocalPath, localDisplayPath, localFileName, parseLocalPath, localTreeName } from '../platform/local';
 
 export function basename(path: string): string {
@@ -40,4 +42,10 @@ export function localDetail(path: string): string | null {
   if (isLocalFolderRoot(path)) return 'Folder';
   const parent = localDisplayPath(path).split('/').slice(0, -1).join('/');
   return parent === '' ? null : parent;
+}
+
+/** A recent's menu label: its file name, then "owner/repo @ branch", the ssh account or the local folder when there is one, so equal names stay apart. */
+export function recentLabel(path: string): string {
+  const detail = githubDetail(path) ?? (isSshPath(path) ? remoteAccount(path) : localDetail(path));
+  return detail === null ? basename(path) : `${basename(path)} — ${detail}`;
 }

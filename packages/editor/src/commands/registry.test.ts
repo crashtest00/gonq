@@ -171,3 +171,28 @@ test('resolveContextMenu carries the shortcut shown beside each entry', () => {
   r.defineCommand(spec('m', { shortcut: 'Alt+M', contextMenu: { group: 0, order: 1 } }));
   expect(r.resolveContextMenu({} as never)[0].shortcut).toBe('Alt+M');
 });
+
+test('a submenu with items() lists computed entries after its fixed children, as plain item entries', () => {
+  const r = fresh();
+  const run = vi.fn();
+  r.defineCommand(spec('sub', { kind: 'submenu', run: undefined, items: (c) => (c.on ? [{ key: 'x', label: 'X', run }, { key: 'y', label: 'Y', run: () => {} }] : []) }));
+  r.defineCommand(spec('sub.fixed', { parent: 'sub', order: 1 }));
+  const sub = r.resolveMenus({ on: true })[0].entries[0];
+  if (sub.type !== 'submenu') throw new Error('not a submenu');
+  expect(sub.items.map((e) => (e.type === 'item' ? [e.command.id, e.command.label, e.enabled] : '---'))).toEqual([['sub.fixed', 'sub.fixed', true], ['sub.x', 'X', true], ['sub.y', 'Y', true]]);
+  const x = sub.items[1];
+  if (x.type === 'item') void x.command.run?.({ on: true });
+  expect(run).toHaveBeenCalledWith({ on: true });
+  const none = r.resolveMenus({ on: false })[0].entries[0];
+  expect(none.type === 'submenu' && none.items.map((e) => e.type === 'item' && e.command.id)).toEqual(['sub.fixed']);
+});
+
+test('a throwing items() lists none and is logged; enabled() still decides the submenu', () => {
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const r = fresh();
+  r.defineCommand(spec('sub', { kind: 'submenu', run: undefined, enabled: () => false, items: () => { throw new Error('boom'); } }));
+  const sub = r.resolveMenus({ on: true })[0].entries[0];
+  expect(sub).toMatchObject({ type: 'submenu', enabled: false, items: [] });
+  expect(err).toHaveBeenCalled();
+  err.mockRestore();
+});
