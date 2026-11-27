@@ -72,17 +72,22 @@ it('the Cancel button of the draft still returns to the list', async () => {
   expect(within(sheet()).getByRole('button', { name: 'Add comment' })).toBeInTheDocument();
 });
 
-it('editing a thread has no header Close, Back cancels the edit only, and Back on the thread view closes the sheet', async () => {
+it('editing a thread has no header Close, Back cancels the edit only, and header Back and Android Back on the thread view return to the list', async () => {
   const { user } = await openComments();
   await user.click(within(sheet()).getByRole('button', { name: /First\?/ }));
-  expect(closeButton()).not.toBeNull();
+  expect(closeButton()).toBeNull();
+  expect(within(sheet()).getByRole('button', { name: 'Back' })).toBeInTheDocument();
   await user.click(within(sheet()).getByRole('button', { name: 'Edit thread' }));
   await screen.findByRole('textbox', { name: 'Edit comment' });
   expect(closeButton()).toBeNull();
+  expect(within(sheet()).queryByRole('button', { name: 'Back' })).toBeNull();
   await back();
   expect(screen.queryByRole('textbox', { name: 'Edit comment' })).toBeNull();
   expect(within(sheet()).getByText('First?')).toBeInTheDocument();
-  expect(closeButton()).not.toBeNull();
+  await user.click(within(sheet()).getByRole('button', { name: 'Back' }));
+  expect(within(sheet()).getByRole('button', { name: 'Add comment' })).toBeInTheDocument();
+  await user.click(within(sheet()).getByRole('button', { name: /First\?/ }));
   await back();
-  expect(screen.queryByRole('dialog', { name: 'Comments' })).toBeNull();
+  expect(within(sheet()).getByRole('button', { name: 'Add comment' })).toBeInTheDocument();
+  expect(closeButton()).not.toBeNull();
 });

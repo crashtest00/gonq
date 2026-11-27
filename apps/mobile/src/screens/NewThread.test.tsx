@@ -100,7 +100,7 @@ it('Submit writes marker and block with the author from getAuthorName, opens the
   await user.click(addButton());
   await user.type(box(), 'Where does this come from?');
   await user.click(inSheet().getByRole('button', { name: 'Submit' }));
-  expect(inSheet().getByRole('button', { name: 'Close thread' })).toBeInTheDocument();
+  expect(inSheet().getByRole('button', { name: 'Back' })).toBeInTheDocument();
   expect(inSheet().getByText('Where does this come from?')).toBeInTheDocument();
   expect(docText()).toMatch(/\[💬\]\(#md-thread-/);
   const text = await save(user);

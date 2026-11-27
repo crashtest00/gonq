@@ -27,7 +27,7 @@ export interface CommentsPanel {
   /** The top-bar button: opens the list, or closes the sheet when it is open. */
   toggle(): void;
   openThread(key: string): void;
-  /** Close thread: back to the list. */
+  /** Back (from a thread): to the list. */
   showList(): void;
   close(): void;
 }

@@ -71,7 +71,7 @@ test('tapping the marker opens its thread, and Resolve then Reopen round-trips t
   await documentWithThread(page);
   await page.locator('.cm-thread-marker').tap();
   const sheet = page.getByRole('dialog', { name: 'Comments' });
-  await expect(sheet.getByRole('button', { name: 'Close thread' })).toBeVisible();
+  await expect(sheet.getByRole('button', { name: 'Back' })).toBeVisible();
   await sheet.getByRole('button', { name: 'Resolve' }).tap();
   await expect(sheet.getByText('Resolved')).toBeVisible();
   await sheet.getByRole('button', { name: 'Reopen' }).tap();
