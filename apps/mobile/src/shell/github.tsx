@@ -3,7 +3,7 @@
  * shows, session branches, change-branch warning, Open Repo, refresh signal) and useGithub() hands it to screens,
  * together with `finishPick` for the repository picker screen. The sign-in dialog is the sign-in screen (useSignInPrompt);
  * the picker is a pushed screen whose result resolves the controller's pickRepo; the change-branch warning is a bottom
- * sheet ("Change branch?"). The commit conflict is the shared choice sheet (shell/dialogs.tsx, Cancel or Overwrite, both leave the tab unsaved). Create branch is a bottom sheet (screens/CreateBranchSheet.tsx, opened by the controller's createBranch dialog). Commit is a bottom sheet (screens/CommitSheet.tsx). Open PR is a pushed screen (screens/OpenPrScreen.tsx) whose promise resolves when it leaves the stack, by Cancel, Close or Back. Choosing a repository shows its navigator screen (replacing one already open).
+ * sheet ("Change branch?"). The commit conflict is the shared choice sheet (shell/dialogs.tsx, Cancel or Overwrite, both leave the tab unsaved). Create branch is a bottom sheet (screens/CreateBranchSheet.tsx, opened by the controller's createBranch dialog). Commit is a bottom sheet (screens/CommitSheet.tsx). Open PR is a pushed screen (screens/OpenPrScreen.tsx) whose promise resolves when it leaves the stack, by Cancel, Close or Back. Choosing a repository opens the navigator sheet (shell/folder's openSheet) on it, back on the screen the picker was opened from.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useGithubController, type CommitChoice, type CreateBranchDone, type GithubDialogs, type RepoPick } from '@gonq/editor/controllers/github';
@@ -12,11 +12,11 @@ import { CommitSheet } from '../screens/CommitSheet';
 import { CreateBranchSheet } from '../screens/CreateBranchSheet';
 import { OPEN_PR_SCREEN_KEY, openPrScreen, type OpenPrArgs } from '../screens/OpenPrScreen';
 import { repoPickerScreen } from '../screens/RepoPicker';
-import { repoScreen, REPO_SCREEN_KEY } from '../screens/RepoScreen';
 import { BottomSheet } from './BottomSheet';
 import { useDialogs } from './dialogs';
 import { useCommitGithubRef, useDocuments } from './documents';
 import { useNotices } from './notices';
+import { useFolder } from './folder';
 import { useNavigator } from './StackNavigator';
 
 export type Github = ReturnType<typeof useGithubController> & {
@@ -41,7 +41,9 @@ export function GithubProvider({ children }: { children: ReactNode }) {
   const navRef = useRef(nav);
   navRef.current = nav;
   const signIn = useSignInPrompt();
-  const chosen = useRef('');
+  const folder = useFolder();
+  const folderRef = useRef(folder);
+  folderRef.current = folder;
   const prDone = useRef<(() => void) | null>(null);
   const picking = useRef<((r: RepoPick) => void) | null>(null);
   const [creating, setCreating] = useState<{ args: Parameters<GithubDialogs['createBranch']>[0]; done: (r: CreateBranchDone | null) => void } | null>(null);
@@ -51,7 +53,6 @@ export function GithubProvider({ children }: { children: ReactNode }) {
   const finishPick = useCallback((result: RepoPick) => {
     const resolve = picking.current;
     picking.current = null;
-    if (result.kind === 'chosen') chosen.current = `${result.choice.owner}/${result.choice.repo}`;
     resolve?.(result);
     navRef.current.pop();
   }, []);
@@ -77,12 +78,8 @@ export function GithubProvider({ children }: { children: ReactNode }) {
     },
     onError: setError,
     onNotice: setNotice,
-    onRepoChosen: () => {
-      const n = navRef.current;
-      const screen = repoScreen(chosen.current);
-      if (n.top.key === REPO_SCREEN_KEY) n.replace(screen);
-      else n.push(screen);
-    },
+    // The picker returns to the screen it was opened from; the navigator sheet opens on the chosen repository.
+    onRepoChosen: () => folderRef.current.openSheet(),
   });
 
   // Save and Commit… on a GitHub tab commit through the controller.

@@ -1,12 +1,12 @@
 /**
- * The mobile repo navigator screen (M-19), the counterpart of the desktop RepoNavigator on the shared useRepoTree and
- * useBranchList: the repository name is the screen title; a branch button opens a "Branches" sheet (filter box
+ * The mobile repo navigator (M-19, M-43), the body of the navigator sheet (screens/FolderSheet.tsx) while a repository is open, the counterpart of the desktop RepoNavigator on the shared useRepoTree and
+ * useBranchList: the repository name is the sheet title; a branch button opens a "Branches" sheet (filter box
  * "Filter branches", rows of a check mark and the name, the cap/loading/empty/error lines); Create branch (opens the Create branch sheet, screens/CreateBranchSheet.tsx); Refresh (always rendered,
  * disabled and busy while listing, with a refresh error line and Retry) re-lists in place; the folder tree lists lazily,
  * and a file opens as a github:// document in the editor. Error wording is describeError's. Wide rows scroll sideways
- * (the .m-hscroll cue). Exports repoScreen(title) for the navigator and REPO_SCREEN_KEY.
+ * (the .m-hscroll cue). Exports <RepoNavigator/>; opening a file calls `onOpenFile` (the sheet closes and the editor shows).
  */
-import { createElement, useState } from 'react';
+import { useState } from 'react';
 import {
   BRANCH_RENDER_CAP,
   ROW_CHUNK,
@@ -19,7 +19,6 @@ import { ensureSignedIn } from '@gonq/editor/platform/github';
 import { BottomSheet } from '../shell/BottomSheet';
 import { useDocuments } from '../shell/documents';
 import { useGithub } from '../shell/github';
-import type { Screen } from '../shell/StackNavigator';
 
 const muted = { margin: 0, padding: '0 var(--space-4)', color: 'var(--muted-foreground)' } as const;
 const link = { textDecoration: 'underline', color: 'inherit' } as const;
@@ -85,13 +84,16 @@ function BranchSheet({ owner, repo, branch, extra, refreshKey, onSelect, onClose
   );
 }
 
-export function RepoScreen() {
+export function RepoNavigator({ onOpenFile }: { onOpenFile: () => void }) {
   const gh = useGithub();
   const doc = useDocuments();
   const [branchesOpen, setBranchesOpen] = useState(false);
   const repo = gh.repo;
   if (repo === null) return null;
-  return <RepoTree repo={repo} gh={gh} currentPath={doc.session.meta?.path ?? null} onOpenFile={(p) => void doc.openKnownPath(p, false)} branchesOpen={branchesOpen} setBranchesOpen={setBranchesOpen} />;
+  return <RepoTree repo={repo} gh={gh} currentPath={doc.session.meta?.path ?? null} onOpenFile={(p) => {
+    onOpenFile();
+    void doc.openKnownPath(p, false);
+  }} branchesOpen={branchesOpen} setBranchesOpen={setBranchesOpen} />;
 }
 
 function RepoTree({ repo, gh, currentPath, onOpenFile, branchesOpen, setBranchesOpen }: { repo: NonNullable<ReturnType<typeof useGithub>['repo']>; gh: ReturnType<typeof useGithub>; currentPath: string | null; onOpenFile: (path: string) => void; branchesOpen: boolean; setBranchesOpen: (o: boolean) => void }) {
@@ -189,8 +191,3 @@ function RepoTree({ repo, gh, currentPath, onOpenFile, branchesOpen, setBranches
     </div>
   );
 }
-
-export const REPO_SCREEN_KEY = 'repo';
-
-/** The navigator screen for `title` (owner/repo). */
-export const repoScreen = (title: string): Screen => ({ key: REPO_SCREEN_KEY, title, render: () => createElement(RepoScreen) });

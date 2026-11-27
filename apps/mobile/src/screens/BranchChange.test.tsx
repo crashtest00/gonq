@@ -41,7 +41,7 @@ async function openRepoTree() {
   return r;
 }
 
-/** Opens a.md (optionally edits it) and goes back to the repo tree. */
+/** Opens a.md (optionally edits it) and reopens the repo navigator. */
 async function openDoc(user: User, dirty: boolean) {
   await user.click(screen.getByRole('button', { name: 'a.md' }));
   await screen.findByRole('toolbar', { name: 'Editing' });
@@ -50,7 +50,7 @@ async function openDoc(user: User, dirty: boolean) {
     select(0);
     typeText('X');
   }
-  await user.click(screen.getByRole('button', { name: 'Back' }));
+  await user.click(screen.getByRole('button', { name: 'Repository navigator' }));
   await screen.findByRole('heading', { name: 'o/r' });
 }
 
@@ -88,7 +88,7 @@ it('Close document closes the dirty document and moves the navigator', async () 
   await pickBranch(user, 'main', 'other');
   await user.click(await screen.findByRole('button', { name: 'Close document' }));
   expect(await screen.findByRole('button', { name: 'Branch: other' })).toBeInTheDocument();
-  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('dialog', { name: /branch/i })).toBeNull();
   expect(screen.queryByRole('tab')).toBeNull();
 });
 
@@ -104,5 +104,5 @@ it('with no document open the branch change just reloads the navigator', async (
   const { user } = await openRepoTree();
   await pickBranch(user, 'main', 'dev');
   expect(await screen.findByRole('button', { name: 'Branch: dev' })).toBeInTheDocument();
-  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('dialog', { name: /branch/i })).toBeNull();
 });

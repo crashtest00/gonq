@@ -1,7 +1,8 @@
 /**
  * The mobile Folder navigator (M-31), the counterpart of the desktop FolderSidebar's Project folder section on the shared
  * folder-listing controller (useFolderListing / useNavigatorRefresh): <FolderButton/> is the mobile-only top-bar button
- * (outside the command registry) and <FolderSheet/> the bottom sheet it opens. Section "Project folder"; the title is the
+ * (outside the command registry) and <FolderSheet/> the one navigator bottom sheet it opens (M-43): the repo tree (RepoScreen.tsx's
+ * <RepoNavigator/>, titled owner/repo) while a repository is open, as on desktop, else this folder; View > Refresh Navigator (the GitHub controller's navRefresh) refreshes either. Section "Project folder"; the title is the
  * folder's base name only; with nothing open "No folder open", a disabled Refresh and "Open Folder…". Rows are folders and Markdown
  * files, listed lazily ("Loading…", "No Markdown files." for an empty folder, "Empty." for an empty subfolder), the open file is
  * aria-current, and tapping a file opens it and closes the sheet. Refresh is always rendered, disabled with nothing open or
@@ -14,6 +15,8 @@ import type { FolderEntry } from '@gonq/editor/platform/folders';
 import { BottomSheet } from '../shell/BottomSheet';
 import { useDocuments } from '../shell/documents';
 import { useFolder } from '../shell/folder';
+import { useGithub } from '../shell/github';
+import { RepoNavigator } from './RepoScreen';
 
 const muted = { margin: 0, padding: '0 var(--space-4)', color: 'var(--muted-foreground)' } as const;
 const TrackerContext = createContext<RefreshTracker | null>(null);
@@ -89,16 +92,12 @@ const refreshButton = (props: { disabled: boolean; busy?: boolean; onClick?: () 
   </button>
 );
 
-export function FolderSheet() {
+/** The local folder's part of the sheet. Its refresh follows View > Refresh Navigator (`signal`). */
+function FolderBody({ signal, onOpenFile }: { signal: number; onOpenFile: () => void }) {
   const f = useFolder();
   const doc = useDocuments();
-  const { refreshKey, refresh, busy, tracker } = useNavigatorRefresh();
+  const { refreshKey, refresh, busy, tracker } = useNavigatorRefresh(signal);
   const [checking, setChecking] = useState(false);
-  // Mounted from the first time it is opened, then kept (hidden) so expanded folders survive closing it.
-  const [everOpened, setEverOpened] = useState(false);
-  if (f.sheetOpen && !everOpened) setEverOpened(true);
-  if (!f.sheetOpen && !everOpened) return null;
-
   const onRefresh = async () => {
     if (busy || checking) return;
     setChecking(true);
@@ -109,47 +108,65 @@ export function FolderSheet() {
     }
   };
   const working = busy || checking;
-  return (
-    <BottomSheet open={f.sheetOpen} keepMounted title="Folder navigator" onClose={f.closeSheet}>
-      <div className="m-label" style={{ padding: 'var(--space-3) 0 var(--space-1)' }}>
-        Project folder
+  return f.folder === null ? (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+        <p style={{ ...muted, flex: 1, padding: 0 }}>No folder open</p>
+        {refreshButton({ disabled: true })}
       </div>
-      {f.folder === null ? (
+      <button type="button" className="m-tap m-outline m-block" onClick={() => void f.openFolder()}>
+        Open Folder…
+      </button>
+    </>
+  ) : (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+        <div title={f.name ?? undefined} style={{ flex: 1, minWidth: 0, fontWeight: 'var(--weight-semibold)', overflowWrap: 'anywhere' }}>
+          {f.name}
+        </div>
+        {refreshButton({ disabled: working, busy: working, onClick: () => void onRefresh() })}
+      </div>
+      <div className="m-hscroll" role="group" aria-label="Files" tabIndex={0}>
+        <div style={{ minWidth: '100%', width: 'max-content' }}>
+          <TrackerContext.Provider value={tracker}>
+            <Tree
+              key={f.folder}
+              path={f.folder}
+              depth={0}
+              refreshKey={refreshKey}
+              currentPath={doc.session.meta?.path ?? null}
+              onOpenFile={(p) => {
+                onOpenFile();
+                void doc.openKnownPath(p, false);
+              }}
+            />
+          </TrackerContext.Provider>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** The navigator sheet: the repo tree while a repository is open (as on desktop), else the local folder. */
+export function FolderSheet() {
+  const f = useFolder();
+  const gh = useGithub();
+  // Mounted from the first time it is opened, then kept (hidden) so expanded folders survive closing it.
+  const [everOpened, setEverOpened] = useState(false);
+  if (f.sheetOpen && !everOpened) setEverOpened(true);
+  if (!f.sheetOpen && !everOpened) return null;
+  const repo = gh.repo;
+  return (
+    <BottomSheet open={f.sheetOpen} keepMounted title={repo === null ? 'Folder navigator' : `${repo.owner}/${repo.repo}`} onClose={f.closeSheet}>
+      {repo === null ? (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            <p style={{ ...muted, flex: 1, padding: 0 }}>No folder open</p>
-            {refreshButton({ disabled: true })}
+          <div className="m-label" style={{ padding: 'var(--space-3) 0 var(--space-1)' }}>
+            Project folder
           </div>
-          <button type="button" className="m-tap m-outline m-block" onClick={() => void f.openFolder()}>
-            Open Folder…
-          </button>
+          <FolderBody signal={gh.navRefresh} onOpenFile={f.closeSheet} />
         </>
       ) : (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            <div title={f.name ?? undefined} style={{ flex: 1, minWidth: 0, fontWeight: 'var(--weight-semibold)', overflowWrap: 'anywhere' }}>
-              {f.name}
-            </div>
-            {refreshButton({ disabled: working, busy: working, onClick: () => void onRefresh() })}
-          </div>
-          <div className="m-hscroll" role="group" aria-label="Files" tabIndex={0}>
-            <div style={{ minWidth: '100%', width: 'max-content' }}>
-              <TrackerContext.Provider value={tracker}>
-                <Tree
-                  key={f.folder}
-                  path={f.folder}
-                  depth={0}
-                  refreshKey={refreshKey}
-                  currentPath={doc.session.meta?.path ?? null}
-                  onOpenFile={(p) => {
-                    f.closeSheet();
-                    void doc.openKnownPath(p, false);
-                  }}
-                />
-              </TrackerContext.Provider>
-            </div>
-          </div>
-        </>
+        <RepoNavigator key={`${repo.owner}/${repo.repo}`} onOpenFile={f.closeSheet} />
       )}
     </BottomSheet>
   );
@@ -158,8 +175,9 @@ export function FolderSheet() {
 /** The mobile-only top-bar button that opens the Folder navigator sheet. */
 export function FolderButton() {
   const f = useFolder();
+  const label = useGithub().repo === null ? 'Folder navigator' : 'Repository navigator';
   return (
-    <button type="button" className="m-tap" aria-label="Folder navigator" title="Folder navigator" aria-haspopup="dialog" aria-expanded={f.sheetOpen} onClick={f.openSheet}>
+    <button type="button" className="m-tap" aria-label={label} title={label} aria-haspopup="dialog" aria-expanded={f.sheetOpen} onClick={f.openSheet}>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       </svg>

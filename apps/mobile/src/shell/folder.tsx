@@ -5,12 +5,11 @@
  * error banner) and adds the folder to recents as local://; openFolderPath(recent) reopens one after checking the grant and
  * the root (a revoked or missing one removes the recent and shows the platform's text in the banner, no dialog);
  * verify() is that same check for Refresh. It also fills the document session's local Save as hooks (current folder, name
- * prompt) and renders the FolderSheet and the SaveAsSheet, outside the command registry.
+ * prompt) and renders the SaveAsSheet (the navigator sheet, screens/FolderSheet.tsx, is rendered by App inside the GitHub provider since it shows the repo tree too), outside the command registry.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { SavedDocument } from '@gonq/editor/platform/files';
 import { LocalFileError, checkLocalRoot, localPath, localTreeName, parseLocalPath, pickLocalFolder } from '@gonq/editor/platform/local';
-import { FolderSheet } from '../screens/FolderSheet';
 import { SaveAsSheet, type SaveAsRequest } from '../screens/SaveAsSheet';
 import { useDocuments, useLocalSaveRef } from './documents';
 import { useNotices } from './notices';
@@ -145,7 +144,6 @@ export function FolderProvider({ children }: { children: ReactNode }) {
   return (
     <FolderContext.Provider value={value}>
       {children}
-      <FolderSheet />
       {prompt !== null && (
         <SaveAsSheet
           request={prompt}

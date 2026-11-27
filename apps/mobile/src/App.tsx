@@ -1,6 +1,6 @@
 /**
  * The mobile app root: notices, the Back stack (shell/back.tsx, the Android system Back key; BackNavigation is the navigator's default) and navigator providers around the phone shell. It starts on the splash and
- * replaces it with the Documents home after `splashMs` (default 800 ms). ThemeProvider runs the saved theme. DocumentProvider holds the shared document session. GithubProvider runs the shared GitHub controller (Open Repo, the repo screen, and ensureSignedIn opening the sign-in screen). CommentsProvider holds the Comments sheet state and the new-comment draft. CommandHostProvider builds the registry CommandContext the ⋯ menu and the AddCommentBar run against (inside CommentsProvider: Add Comment starts the draft). DialogsProvider shows the unsaved-changes and conflict sheets. FolderProvider holds the opened local folder, the Folder navigator sheet and the Save as name prompt. OutlineProvider holds the Outline drawer state. EditorBridge opens the editor screen when a document opens.
+ * replaces it with the Documents home after `splashMs` (default 800 ms). ThemeProvider runs the saved theme. DocumentProvider holds the shared document session. GithubProvider runs the shared GitHub controller (Open Repo, the repo screen, and ensureSignedIn opening the sign-in screen). CommentsProvider holds the Comments sheet state and the new-comment draft. CommandHostProvider builds the registry CommandContext the ⋯ menu and the AddCommentBar run against (inside CommentsProvider: Add Comment starts the draft). DialogsProvider shows the unsaved-changes and conflict sheets. FolderProvider holds the opened local folder, whether the navigator sheet is open and the Save as name prompt; FolderSheet (the navigator sheet: repo tree or local folder) is rendered inside GithubProvider. OutlineProvider holds the Outline drawer state. EditorBridge opens the editor screen when a document opens.
  */
 import { useEffect } from 'react';
 import { NoticesProvider } from './shell/notices';
@@ -16,6 +16,7 @@ import { GithubProvider } from './shell/github';
 import { FolderProvider } from './shell/folder';
 import { CommandHostProvider } from './shell/commandContext';
 import { CommentsProvider } from './shell/comments';
+import { FolderSheet } from './screens/FolderSheet';
 import { EditorBridge } from './screens/EditorScreen';
 import { documentsScreen, splashScreen } from './screens/screens';
 
@@ -42,6 +43,7 @@ export default function App({ splashMs = 800 }: { splashMs?: number }) {
             <FolderProvider>
               <GithubProvider>
                 <EditorBridge />
+                <FolderSheet />
                 <CommentsProvider>
                   <CommandHostProvider>
                     <OutlineProvider>

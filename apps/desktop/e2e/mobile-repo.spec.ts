@@ -1,7 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// The mobile repo picker, repo tree and branch sheet on the Pixel profile (project `mobile`): every interactive
-// element has a hit area of at least 44x44 CSS px. The web build has no backend, so a stub Tauri invoke answers
+// The mobile repo picker, the navigator sheet (repo tree, branch sheet) and its top-bar button on the Pixel profile
+// (project `mobile`): every interactive element has a hit area of at least 44x44 CSS px, the picker returns to the
+// Gonq home with the sheet open on the repository, and View > Refresh Navigator is enabled with a repo open. The web
+// build has no backend, so a stub Tauri invoke answers the three GitHub commands (list repos, list folder, list
+// branches) the screens use.
 // the three GitHub commands (list repos, list folder, list branches) the screens use.
 
 async function stubBackend(page: Page) {
@@ -74,4 +77,22 @@ test('picker, repo tree and branch sheet keep every tap target at 44x44 or more'
   await page.getByRole('button', { name: 'Branch: main' }).click();
   await expect(page.getByRole('option', { name: /hotfix/ })).toBeVisible();
   expect(await smallBoxes(page)).toEqual([]);
+});
+
+test('choosing a repository returns to the Gonq home with the navigator sheet open; the top-bar button reopens it and Refresh Navigator is enabled', async ({ page }) => {
+  await stubBackend(page);
+  await page.goto('/mobile/');
+  await page.getByRole('button', { name: 'Open Repo…' }).click();
+  await page.getByRole('button', { name: /octo\/repo-1/ }).click();
+  const sheet = page.getByRole('dialog', { name: 'octo/repo-1' });
+  await expect(sheet).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Open repository' })).toHaveCount(0);
+  await expect(page.getByRole('img', { name: 'Gonq' })).toBeVisible();
+  await sheet.getByRole('button', { name: 'Close' }).click();
+  await expect(sheet).toBeHidden();
+  await page.getByRole('button', { name: 'More' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Refresh Navigator' })).toBeEnabled();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Repository navigator' }).click();
+  await expect(sheet.getByRole('button', { name: 'a.md' })).toBeVisible();
 });

@@ -247,7 +247,7 @@ it('tapping a file opens it as a github:// document in the editor', async () => 
   await user.click(await screen.findByRole('button', { name: 'a.md' }));
   expect(await screen.findByRole('toolbar', { name: 'Editing' })).toBeInTheDocument();
   expect(calls('github_read_file')[0][1]).toEqual({ owner: 'o', repo: 'r', branch: 'main', path: 'a.md' });
-  await user.click(screen.getByRole('button', { name: 'Back' }));
+  await user.click(screen.getByRole('button', { name: 'Repository navigator' }));
   const row = await screen.findByRole('button', { name: 'a.md' });
   expect(row).toHaveAttribute('aria-current', 'true');
 });

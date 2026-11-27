@@ -18,7 +18,6 @@ import { MAX_RECENTS } from '@gonq/editor/platform/recents';
 import { pickImage } from '@gonq/editor/platform/images';
 import { aboutScreen } from '../screens/AboutScreen';
 import { agentSkillScreen } from '../screens/AgentSkillScreen';
-import { REPO_SCREEN_KEY } from '../screens/RepoScreen';
 import { settingsScreen } from '../screens/SettingsScreen';
 import { useComments } from './comments';
 import { useDocuments } from './documents';
@@ -110,7 +109,7 @@ export function CommandHostProvider({ children }: { children: ReactNode }) {
     openRepo: () => void gh.openRepo(),
     canOpenPr: gh.canOpenPr,
     openPr: () => void gh.openPr(),
-    canRefreshNavigator: nav.stack.some((s) => s.key === REPO_SCREEN_KEY),
+    canRefreshNavigator: folder.folder !== null || gh.repo !== null,
     refreshNavigator: gh.refreshNavigator,
     openSettings: () => nav.push(settingsScreen),
     insertImage: () =>

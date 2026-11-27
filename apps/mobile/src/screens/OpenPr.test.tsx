@@ -52,9 +52,9 @@ async function openRepo() {
   await screen.findByRole('heading', { name: 'octo/notes' });
   return r;
 }
-/** The repo screen has no ⋯ menu, so the flow is started from the Documents home (the repository stays open). */
+/** The navigator sheet covers the ⋯ menu, so it is closed first (the repository stays open). */
 async function openPr(user: User) {
-  if (!screen.queryByRole('button', { name: 'More' })) await user.click(screen.getByRole('button', { name: 'Back' }));
+  if (screen.queryByRole('dialog', { name: 'octo/notes' })) await user.click(within(screen.getByRole('dialog', { name: 'octo/notes' })).getByRole('button', { name: 'Close' }));
   await user.click(screen.getByRole('button', { name: 'More' }));
   await user.click(await screen.findByRole('menuitem', { name: 'Open PR…' }));
   return screen.findByRole('heading', { name: 'Open pull request' });
