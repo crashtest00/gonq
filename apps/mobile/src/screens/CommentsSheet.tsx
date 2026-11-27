@@ -302,11 +302,11 @@ export function CommentsSheet() {
   );
 }
 
-/** The top-bar Comments button: opens the thread list (closes the sheet when it is open) and shows its on/off state (`data-on`, filled like the Raw switch's active segment, beside aria-expanded). Not a registry command. */
+/** The top-bar Comments button: opens the thread list (closes the sheet when it is open) and shows its on/off state (`data-active`, filled like the Raw switch's active segment, beside aria-expanded). Not a registry command. */
 export function CommentsButton() {
   const { open, toggle } = useComments();
   return (
-    <button type="button" className="m-tap" aria-label="Comments" aria-haspopup="dialog" aria-expanded={open} data-on={open} onClick={toggle}>
+    <button type="button" className="m-tap m-comments-btn" aria-label="Comments" aria-haspopup="dialog" aria-expanded={open} data-active={open} onClick={toggle}>
       💬
     </button>
   );
