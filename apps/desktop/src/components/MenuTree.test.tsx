@@ -52,7 +52,10 @@ async function readMenu(user: User, root: HTMLElement): Promise<Item[]> {
     const label = (e.textContent ?? '').replace(shortcut ?? '', '').replace('●', '').trim();
     const role = e.getAttribute('role');
     const base = { label, ...(shortcut ? { shortcut } : {}), disabled: flag(e) };
-    if (e.getAttribute('aria-haspopup') === 'menu') {
+    if (e.getAttribute('aria-haspopup') === 'menu' && base.disabled) {
+      // A disabled sub-menu (File > Open Recent without recents) does not open: shown, with nothing to read.
+      out.push({ kind: 'submenu', ...base, items: [] });
+    } else if (e.getAttribute('aria-haspopup') === 'menu') {
       const before = menus().length;
       await user.click(e);
       await waitFor(() => expect(menus().length).toBe(before + 1));

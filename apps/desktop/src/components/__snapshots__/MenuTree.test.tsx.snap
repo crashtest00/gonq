@@ -19,6 +19,19 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
         "disabled": false
       },
       {
+        "kind": "submenu",
+        "label": "Open Recent",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "item",
+            "label": "a.md",
+            "disabled": false
+          }
+        ]
+      },
+      {
         "kind": "item",
         "label": "Open Folder…",
         "disabled": false
@@ -338,6 +351,13 @@ exports[`menu tree > no document 1`] = `
         "disabled": false
       },
       {
+        "kind": "submenu",
+        "label": "Open Recent",
+        "shortcut": "›",
+        "disabled": true,
+        "items": []
+      },
+      {
         "kind": "item",
         "label": "Open Folder…",
         "disabled": false
@@ -534,6 +554,19 @@ exports[`menu tree > raw mode on 1`] = `
         "label": "Open…",
         "shortcut": "Ctrl+O",
         "disabled": false
+      },
+      {
+        "kind": "submenu",
+        "label": "Open Recent",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "item",
+            "label": "a.md",
+            "disabled": false
+          }
+        ]
       },
       {
         "kind": "item",
@@ -855,6 +888,19 @@ exports[`menu tree > table cell targeted 1`] = `
         "disabled": false
       },
       {
+        "kind": "submenu",
+        "label": "Open Recent",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "item",
+            "label": "a.md",
+            "disabled": false
+          }
+        ]
+      },
+      {
         "kind": "item",
         "label": "Open Folder…",
         "disabled": false
@@ -1174,6 +1220,19 @@ exports[`menu tree > theme dark 1`] = `
         "disabled": false
       },
       {
+        "kind": "submenu",
+        "label": "Open Recent",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "item",
+            "label": "a.md",
+            "disabled": false
+          }
+        ]
+      },
+      {
         "kind": "item",
         "label": "Open Folder…",
         "disabled": false
@@ -1491,6 +1550,19 @@ exports[`menu tree > undo and redo available 1`] = `
         "label": "Open…",
         "shortcut": "Ctrl+O",
         "disabled": false
+      },
+      {
+        "kind": "submenu",
+        "label": "Open Recent",
+        "shortcut": "›",
+        "disabled": false,
+        "items": [
+          {
+            "kind": "item",
+            "label": "a.md",
+            "disabled": false
+          }
+        ]
       },
       {
         "kind": "item",
