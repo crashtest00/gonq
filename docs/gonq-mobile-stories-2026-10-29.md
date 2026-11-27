@@ -77,6 +77,14 @@ There is one deliberate exception. SSH is not a mobile feature (decision 2), so 
    - **D8 Conflict dialog:** the real Cancel/Overwrite dialog, GitHub only; the "File changed on disk" dialog is deleted from the design. M-22, M-28.
    - **D9 Sign-in killed mid-flow:** if Android kills the app during sign-in, it relaunches at the idle "Start" screen with no extra wording. The device code lives only in memory, as on desktop, and there is no "interrupted" state. M-11, M-12, M-17.
    - **D10 Find in document:** excluded. Desktop has no menu command for it (Ctrl+F is CodeMirror's own search), so mobile adds no touch entry. M-25.
+   - **Menu redesign decisions D11 to D17 (owner, 2026-11-26).** Stories M-37 to M-42. D3 still holds: Theme stays in the menu (View > Theme), which is now the ☰ drawer.
+   - **D11 ☰ menu:** ☰ replaces ⋯ and moves to the top bar's leading slot. On the editor it takes the back arrow's place. It opens a left side drawer that drills down: menus, then items, then submenus. M-40.
+   - **D12 Android Back in the editor:** it leaves the app, after asking about each unsaved tab as that tab's close control does. This replaces M-35 criterion 3. M-40.
+   - **D13 GitHub menu (desktop and mobile):** Sign In, Sign Out, Open Repo…, Commit… and Open PR… form a new top-level GitHub menu, and the last three leave File. M-37.
+   - **D14 File > Open Recent (desktop and mobile):** a submenu of up to 10 recent documents. Mobile drops "remove from recent". M-38, M-41.
+   - **D15 Save button:** a Save icon button comes first in the editing toolbar, left of Undo, on desktop and mobile. On mobile it is also pinned first in the table bar. The mobile top bar loses its Raw switch; View > Raw Markdown stays. M-39.
+   - **D16 Gonq home:** the home shows the logo, centred, instead of the title "Documents", and appears only while no tab is open. Its "Sign in to GitHub" row goes, because Open Repo… already starts sign-in. Desktop's no-tab state becomes the same home. M-41, M-42.
+   - **D17 Close Tab:** mobile leaves it out of the menu, since each tab has a close control. Desktop keeps File > Close Tab. M-40.
 
 ### Inputs still needed from the owner
 
@@ -1334,6 +1342,213 @@ No `invoke` outside `packages/editor/src/platform/`. No `keydown` handlers (CLAU
 
 ---
 
+### Epic J: Menu, Save button and home redesign (owner, 2026-11-26)
+
+M-37 to M-42 implement decisions D11 to D17 (section 2). The owner tested the APK and found the ⋯ menu far too long. These stories change four things:
+
+- the shared command registry (M-37, M-38);
+- both editing toolbars (M-39);
+- mobile navigation (M-40, M-41);
+- the desktop empty state (M-42).
+
+**Order.** No story blocks another. M-40's drawer shows whatever the registry holds, so the menus from M-37 and M-38 appear in it as soon as they merge.
+
+#### M-37 GitHub menu (desktop and mobile)
+
+**Goal.** A new top-level GitHub menu holds every GitHub action: Sign In, Sign Out, Open Repo…, Commit… and Open PR… (D13).
+
+**Why.** Today the GitHub actions are split. Three are in File, and sign-in is only in Settings. One menu puts them together on both apps.
+
+**Acceptance criteria.**
+
+1. A `github` menu labelled "GitHub" is registered with `defineMenu`, ordered between File and Edit. It appears in desktop's menu bar and in the mobile menu.
+2. Its items, in this order: "Sign In", "Sign Out" | "Open Repo…", "Commit…", "Open PR…".
+   - The last three keep their ids, labels and enabled rules.
+   - They move out of File (`features/github/index.ts:7,9`, `features/file/index.ts:16`).
+3. "Sign In":
+   - enabled only while signed out;
+   - runs the same sign-in flow that Open Repo… starts when signed out (`ensureSignedIn`), and opens no repository afterwards.
+4. "Sign Out":
+   - enabled only while signed in;
+   - does what Settings' Sign Out does.
+5. Both rows are always shown, disabled when they don't apply, never hidden. Their labels are Settings' button labels: "Sign In" and "Sign Out" (`SettingsDialog.tsx:139`, `:130`).
+6. Settings keeps its GitHub row unchanged.
+7. The web builds (desktop web and `/mobile/`) show the GitHub menu. Where the browser cannot sign in, Sign In shows the same error as Settings' Sign In does on the web.
+8. Desktop's `MenuTree.test.tsx` and the mobile menu snapshot are updated. Tests cover the enabled rules of Sign In and Sign Out.
+
+**FE/BE contract.** None. No new Tauri command. `CommandContext` gains what Sign In and Sign Out need (signed-in state, sign in, sign out), and both apps fill it in.
+
+**Edge cases.**
+
+- Sign In while a sign-in is already running.
+- Sign Out with a GitHub tab open: the same as Settings' Sign Out today.
+
+**Risks and unknowns.** On desktop, Settings' Sign In button can show greyed when Settings opens from Open Repo while signed out (`disabled={signingIn}` in `SettingsDialog.tsx`). If this story's Sign In reuses that path, the PR shows that the button is not greyed.
+
+**Out of scope.** Changes to the sign-in screens or to Settings.
+
+**Verification.** Jenkins (desktop and mobile component tests). Beta: the menus on desktop web and on `/mobile/`.
+
+---
+
+#### M-38 File > Open Recent (desktop and mobile)
+
+**Goal.** File gains an "Open Recent" submenu that lists the recent documents (D14).
+
+**Acceptance criteria.**
+
+1. "Open Recent" is a submenu in File, directly after "Open…", on desktop and mobile.
+2. It lists the same recent documents, under the same names, as desktop's sidebar "Recent documents" section and the mobile home. Most recent first, at most 10.
+3. Choosing one opens it exactly as choosing that recent does today:
+   - desktop: `openKnownPath(path, true)`;
+   - mobile: the home's recent-row path, with `allowRecentDocument` first;
+   - both: the sign-in redirect for a GitHub recent.
+4. With no recents, "Open Recent" is shown disabled.
+5. Opening a document moves it to the top of the list without a restart.
+6. The registry gains a way for a submenu to list items computed from the command context. The PR names the mechanism.
+   - Fixed submenus (View > Theme, Format > Table) are unchanged.
+   - Registry tests cover the new mechanism, and the `MenuTree` and mobile menu snapshots are updated.
+
+**FE/BE contract.** None. Recents already reach the frontend on both apps.
+
+**Edge cases.**
+
+- A recent whose file no longer exists, or whose folder grant was revoked: it shows the same error as choosing that recent elsewhere.
+- Two recents with the same file name: use the existing labels.
+
+**Out of scope.** "Clear Recent", and removing recents.
+
+**Verification.** Jenkins. Beta: desktop web and `/mobile/`.
+
+---
+
+#### M-39 Save button first in the editing toolbar (desktop and mobile)
+
+**Goal.** A Save icon button is the first button of the editing toolbar, left of Undo, on desktop and mobile (D15).
+
+**Acceptance criteria.**
+
+1. Desktop `EditToolbar`: an icon button before Undo.
+   - Lucide's `Save` icon, accessible name "Save", tooltip "Save (Ctrl+S)" (the toolbar's `title` pattern).
+   - It runs the registry's `file.save` and is enabled by that command's rule.
+2. Mobile `AccessoryBar`: the same button, first, before Undo.
+   - It runs `file.save` through the registry, like the bar's other items.
+   - It keeps the focus in the editor, as they do.
+3. Mobile `TableBar`: the same Save button pinned at the start, before the "Format" back button, so Save stays reachable in table mode.
+4. On a GitHub tab the button does what File > Save does there: the commit flow.
+5. Mobile top bar: the Raw/Formatted switch is removed. View > Raw Markdown in the menu still toggles raw mode. Desktop's Raw switch is unchanged.
+6. Tests for each toolbar. The mobile Playwright spec measures the new buttons' 44 px hit areas.
+
+**FE/BE contract.** None.
+
+**Edge cases.**
+
+- Save while a save is already in flight.
+- A read-only GitHub tab: the same as File > Save.
+
+**Out of scope.** While the docked Comments sheet replaces the accessory bar, Save is reached through the menu (☰ > File > Save).
+
+**Verification.** Jenkins. Beta: desktop web and `/mobile/`.
+
+---
+
+#### M-40 Mobile ☰ menu drawer and editor navigation
+
+**Goal.** The mobile menu becomes a left side drawer, opened by ☰ in the top bar's leading slot, that drills down one menu at a time. The editor loses its back arrow, and Android Back in the editor leaves the app (D11, D12, D17).
+
+**Why.** The ⋯ sheet lists about 40 rows. A drill-down shows six or seven rows at a time, keeps every command, and mirrors the desktop menu bar's own levels.
+
+**Acceptance criteria.**
+
+1. Top bars:
+   - Editor: the Back control is gone, and ☰ (accessible name "Menu") sits in its place. The ⋯ button is gone.
+   - Home: ☰ is in the leading slot.
+2. ☰ opens a drawer from the left, titled "Menu", that drills down:
+   - The first level lists the registry's menus in registry order, each with a "›".
+   - Tapping a menu shows its items, with a back control to the menu list.
+   - A submenu (View > Theme, Format > Table, File > Open Recent) drills one level further.
+   - Separators, checkbox and radio states and disabled items follow the registry. Disabled items are shown, never hidden (M-25 criterion 4 still holds).
+3. Choosing a command closes the drawer and runs it, with today's focus rules (`closeFocus`, `focusEditor`).
+4. The drawer closes three ways:
+   - its close control;
+   - the scrim;
+   - Back, one level at a time, through the M-35 handler.
+5. Mobile leaves out File > Close Tab, because each tab has a close control.
+   - `EXCLUDED_COMMAND_IDS` becomes exactly `file.connect` and `file.closeTab`.
+   - Its test and M-25's "except exactly" test change with it.
+   - Desktop keeps File > Close Tab.
+6. Android Back in the editor, with nothing open on top, leaves the app.
+   - Before leaving, it asks about each tab with unsaved changes, using the same prompt as that tab's close control.
+   - Cancel keeps the app open.
+   - This replaces M-35 criterion 3; M-35's other criteria stand.
+7. The drawer looks clearly different from the Outline drawer, which also opens from the left.
+8. Every control has a 44 px hit area.
+9. Tests:
+   - component tests for the drill-down, Back and the exclusions;
+   - the mobile Playwright spec runs a command through the drawer.
+
+**FE/BE contract.** None.
+
+**Edge cases.**
+
+- Opening the drawer while the keyboard is up.
+- Back pressed twice quickly with unsaved tabs: no double prompt (M-35).
+- The Format menu with no document open: shown disabled, as on desktop.
+
+**Out of scope.** Menu contents (M-37, M-38) and the home screen (M-41).
+
+**Verification.** Jenkins. Beta: `/mobile/`. Android Back on the emulator in the next M-34 pass.
+
+---
+
+#### M-41 Mobile Gonq home
+
+**Goal.** The Documents screen becomes the "Gonq" home: the logo replaces the title, and two kinds of rows go (D16).
+
+**Acceptance criteria.**
+
+1. The top bar shows the real `gonq-logo-OUTLINE.svg`, unmodified and centred, with accessible name "Gonq" (D6), instead of the text "Documents". ☰ is in the leading slot (M-40).
+2. The interim "Sign in to GitHub" row is removed. Open Repo… already starts sign-in (`controllers/github.ts:230-232`).
+3. The "Remove <name> from recent documents" button on each recent row is removed.
+4. Everything else stays as it is: Open Repo…, Open Folder…, "+" (File > New) and the recent rows.
+5. The home shows only while no tab is open. Opening a document shows the editor, and closing the last tab returns here, as today.
+6. Component and Playwright tests are updated. The logo renders in light and dark themes and is never recoloured.
+
+**FE/BE contract.** None.
+
+**Edge cases.** Long recent names. The logo in the dark theme.
+
+**Out of scope.** Desktop (M-42).
+
+**Verification.** Jenkins. Beta: `/mobile/`.
+
+---
+
+#### M-42 Desktop Gonq home when no tab is open
+
+**Goal.** With no tab open, desktop shows the same Gonq home instead of the line "Open a document or create a new one." (`App.tsx:614`) (D16).
+
+**Acceptance criteria.**
+
+1. With no tab open, the editor area shows, in order:
+   - the real logo, centred;
+   - the mobile home's entry points: "New", "Open Folder…" and "Open Repo…", each running its registry command;
+   - the recent documents, most recent first, with no remove buttons.
+2. Opening any document replaces the home with the editor. Closing the last tab brings it back.
+3. The sidebar's "Recent documents" section is unchanged.
+4. The web build shows the same home. An action the browser cannot do shows the existing error banner and is never hidden.
+5. Tests cover the home, its commands and the last-tab-closed case.
+
+**FE/BE contract.** None.
+
+**Edge cases.** The sidebar's recents and the home's list must match when one changes.
+
+**Out of scope.** Mobile (M-41).
+
+**Verification.** Jenkins. Beta: desktop web.
+
+---
+
 ## 5. Cross-cutting rules for every story
 
 - No `invoke` outside `packages/editor/src/platform/`. No edits to `MenuBar.tsx`, and no `keydown` handlers (CLAUDE.md).
@@ -1346,7 +1561,7 @@ No `invoke` outside `packages/editor/src/platform/`. No `keydown` handlers (CLAU
 - **44 px tap-target rule.** Every interactive element has a hit area of at least 44 x 44 CSS px, including accessory-bar and table-bar buttons, the Raw switch segments, tabs, the tab "+" and close controls, text buttons and bottom-bar items. The visual may be smaller if the hit area is padded. Each UI story's Playwright test measures its bounding boxes on a Pixel profile.
 - **Nothing clips silently.** A row of buttons or tabs that overflows scrolls horizontally with a visible cue.
 - **Failures use the global error/notice banner.** The desktop error banner and dismissible notice (for example "No changes to commit", "GitHub sign-in is no longer valid. Sign in again to open a repository.") need a mobile equivalent; stories use it instead of inventing per-screen failure states.
-- **No new shared registry commands for mobile-only chrome.** Outline, Comments and Folder navigator are mobile top-bar buttons (D5). Desktop menus and `MenuTree.test.tsx` stay unchanged.
+- **No new shared registry commands for mobile-only chrome.** Outline, Comments and Folder navigator are mobile top-bar buttons (D5). Desktop menus and `MenuTree.test.tsx` stay unchanged. Menus that both apps show (GitHub, File > Open Recent; D13, D14) are shared features, not mobile-only chrome, and do change `MenuTree.test.tsx`.
 - **Opener allow-list.** `capabilities/mobile.json` allows exactly `https://github.com/crashtest00/gonq` (About), `https://github.com/login/device` (sign-in) and `https://github.com/*/pull/*` (read-only banner, Open PR result). A test asserts the list.
 
 ## 6. Risks and open questions (ranked)
@@ -1468,3 +1683,13 @@ This revision aligns the plan with the real desktop implementation (v0.1.5) and 
 | Signing (2026-10-29, second revision) | Owner decision: the first beta APK is debug-signed; no release keystore, no Actions secrets. M-08 deferred to section 8 (id kept) and removed from M-09's blockers, the graph and I-2; M-09 builds `gonq-android-debug-signed-<sha>.apk` with no fingerprint pin; M-32 attaches it as a labelled beta, debug-signed asset; M-13/M-34 use the debug-signed APK (uninstall between builds); R-5 rewritten. |
 | M-34 | Checklist adds the non-`gonq/` commit warning, the empty Branch-to-merge list after force-stop, the sign-in Start screen, and theme via the ⋯ menu. |
 | Section 5, 6, 7 | Cross-cutting rules added (desktop wins, registry labels, 44 px tap targets, no silent clipping, global error banner, no shared commands for mobile chrome, opener allow-list); risk R-11 added; "not building" list extended with the mockup-only features. |
+
+### Revision 2026-11-26: menu, Save button and home redesign
+
+| Story | What changed, and why |
+|---|---|
+| Section 2 | Decisions D11 to D17 added (owner, 2026-11-26). |
+| M-37 to M-42 | New Epic J. GitHub menu; File > Open Recent; Save button first in the editing toolbars; mobile ☰ drawer and Back leaving the app from the editor; mobile Gonq home; desktop Gonq home. |
+| M-25 | Criteria 1 and 2 change with M-37, M-38 and M-40: new menus, and Close Tab excluded on mobile. Criterion 4 (disabled shown, never hidden) stands. |
+| M-35 | Criterion 3 is replaced by M-40 criterion 6 (D12). |
+| Section 5 | The rule against shared commands for mobile chrome now notes that shared menus (D13, D14) are not mobile chrome. |
