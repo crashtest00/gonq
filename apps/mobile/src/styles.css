@@ -77,6 +77,10 @@ body {
 /* The editor screen: the editor fills the space above the keyboard accessory bar. */
 .m-editor-screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .m-editor-screen .gonq-editor { flex: 1; padding: 0 var(--space-4); }
+.m-addcomment { flex: none; height: 0; overflow: hidden; visibility: hidden; display: flex; justify-content: flex-end; padding: 0 var(--space-2); background-color: var(--background); border-top: 1px solid transparent; transition: height .18s ease, visibility 0s .18s; }
+.m-addcomment[data-visible='true'] { height: 44px; visibility: visible; border-top-color: var(--border); transition: height .18s ease, visibility 0s; }
+.m-addcomment-btn { gap: var(--space-1); padding: 0 var(--space-3); color: var(--primary); font-weight: var(--weight-semibold); }
+@media (prefers-reduced-motion: reduce) { .m-addcomment, .m-addcomment[data-visible='true'] { transition: none; } }
 .m-accessory {
   display: flex; align-items: center; flex: none; background-color: var(--background); border-top: 1px solid var(--border);
   flex-wrap: nowrap; gap: var(--space-1); padding: 0 var(--space-2);

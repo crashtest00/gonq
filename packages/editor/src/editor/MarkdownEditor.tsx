@@ -92,6 +92,8 @@ interface Props {
   onTable: (target: TableTarget | null) => void;
   /** Right-click in the text; the caret has already moved there unless it hit the selection. */
   onContextMenu: (x: number, y: number) => void;
+  /** Leave the browser's own context menu / long-press selection alone: no preventDefault, no caret move, no onContextMenu call (the phone app). Default false: the desktop right-click menu. */
+  nativeContextMenu?: boolean;
 }
 
 /** Said when a text-changing operation reaches a read-only tab (the facet only guards user input, not dispatches). */
@@ -347,6 +349,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
 
   const onContextMenu = (e: React.MouseEvent) => {
     const v = view.current;
+    if (latest.current.nativeContextMenu) return;
     if (!v || !(e.target instanceof Node) || !v.contentDOM.contains(e.target)) return;
     e.preventDefault();
     let at: number | null = null;

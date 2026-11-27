@@ -1,6 +1,6 @@
 /**
- * The mobile CommandContext: <CommandHostProvider/> builds the full registry context the ⋯ menu and the long-press
- * sheet run commands against (document session, GitHub controller, theme, the screens Settings…/Agent skill…/About
+ * The mobile CommandContext: <CommandHostProvider/> builds the full registry context the ⋯ menu and the
+ * AddCommentBar run commands against (document session, GitHub controller, theme, the screens Settings…/Agent skill…/About
  * push) and owns the editor handle and the editor's selection. useCommandHost() hands { ctx, editor, setSelection } to
  * screens; the editor screen fills the editor ref and reports selection and caret through setSelection.
  * Add Comment starts the new-comment draft in the Comments sheet (shell/comments), or focuses the draft already open.

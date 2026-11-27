@@ -1,5 +1,5 @@
 /** Covers creating comment threads on mobile through renderMobileApp, porting NewThread: Add comment in the Comments sheet on a selection or at the caret (enabled only where commenting is allowed), the "New comment" draft box (label, placeholder, quoted anchor, focus), what Submit writes, the unsaved dot, no button (disabled Add comment) for an empty, block-spanning, table-cell or marker-containing selection, a saved thread reopening as the same thread, blank submit, Cancel, a draft already open, undo, the author from get_author_name, no Add Comment in the accessory bar. */
-import { cleanup, createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 vi.hoisted(() => ((window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}));
@@ -16,7 +16,6 @@ vi.mock('@tauri-apps/plugin-fs', async (orig) => ({
 
 import { parseCommentThreads } from '@gonq/editor/comment-threads';
 import { at, docText, select, selectText, settleEditors } from '@gonq/editor/testing/editor';
-import { LONG_PRESS_MS } from './EditorSheet';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 const ID = /c\d{14}[0-9a-f]{12}/;
@@ -127,26 +126,12 @@ it('blank submit does nothing; Cancel discards and returns to the list', async (
   expect(docText()).not.toContain('💬');
 });
 
-async function longPress() {
-  const content = document.querySelector<HTMLElement>('.cm-content')!;
-  const down = createEvent('pointerdown', content, { bubbles: true, cancelable: true });
-  Object.defineProperties(down, { pointerType: { value: 'touch' }, isPrimary: { value: true }, clientX: { value: 10 }, clientY: { value: 10 } });
-  fireEvent(content, down);
-  await new Promise((r) => setTimeout(r, LONG_PRESS_MS + 100));
-  return screen.findByRole('dialog', { name: 'Editor' });
-}
-
-it('Add Comment from the long-press sheet starts the draft; with a draft open it focuses it and keeps what was typed', async () => {
+it('Add Comment from the selection bar starts the draft', async () => {
   const { user } = await openDoc(DOC);
   selectText('holds');
-  const menu = await longPress();
-  await user.click(within(menu).getByRole('menuitem', { name: /^Add Comment/ }));
+  await user.click(await screen.findByRole('button', { name: /^Add Comment/ }));
   await user.type(box(), 'half');
   expect(inSheet().getByText('New comment')).toBeInTheDocument();
-  (document.activeElement as HTMLElement).blur();
-  const again = await longPress();
-  await user.click(within(again).getByRole('menuitem', { name: /^Add Comment/ }));
-  expect(box()).toHaveFocus();
   expect(box().value).toBe('half');
 });
 

@@ -1,5 +1,5 @@
 /** Covers the mobile commit sheet, the commit conflict sheet and the read-only PR banner through renderMobileApp, porting the desktop commit.test.tsx and readOnly.test.tsx: sheet content and warning, the three actions, the commit call and outcomes (success, no changes, conflict, GitHub's error), the open-PR refusals before the sheet, the read-only editor and its disabled commands, the Open PR link through openExternal and the exact opener allow-list. */
-import { createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.hoisted(() => ((window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}));
@@ -14,7 +14,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { docText, editorView, select, settleEditors, type as typeText } from '@gonq/editor/testing/editor';
 import { clearSessionBranches, listSessionBranches } from '@gonq/editor/features/github/sessionBranches';
-import { LONG_PRESS_MS } from './EditorSheet';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 type Handler = (args: Record<string, unknown>) => unknown;
@@ -253,15 +252,9 @@ describe('open pull request', () => {
     await waitFor(() => expect(openUrl).toHaveBeenCalledWith('https://github.com/o/r/pull/12'));
     expect(await menuItem(user, /^Commit…/)).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Close sheet' }));
-    // Add Comment is disabled in the long-press sheet.
-    const content = document.querySelector<HTMLElement>('.cm-content')!;
-    const down = createEvent('pointerdown', content, { bubbles: true, cancelable: true });
-    Object.defineProperties(down, { pointerType: { value: 'touch' }, isPrimary: { value: true }, clientX: { value: 10 }, clientY: { value: 10 } });
-    fireEvent(content, down);
-    await new Promise((r) => setTimeout(r, LONG_PRESS_MS + 100));
-    const editorSheet = await screen.findByRole('dialog', { name: 'Editor' });
-    expect(within(editorSheet).getByRole('menuitem', { name: /^Add Comment/ })).toBeDisabled();
-    await user.click(within(editorSheet).getByRole('button', { name: 'Close' }));
+    // Add Comment is disabled in the selection bar, as on desktop.
+    select(0, 3);
+    expect(await screen.findByRole('button', { name: /^Add Comment/ })).toBeDisabled();
     await user.click(screen.getByRole('switch', { name: 'Raw Markdown' }));
     expect(screen.getByRole('switch', { name: 'Raw Markdown' })).toBeChecked();
     expect(screen.getByTestId('read-only-banner')).toBeInTheDocument();

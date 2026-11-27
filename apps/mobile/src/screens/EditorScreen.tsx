@@ -1,10 +1,10 @@
 /**
- * The mobile editor screen: the shared MarkdownEditor on the active tab (its handle, selection and table target live in the CommandHost; a long press on the text opens the EditorSheet), the keyboard AccessoryBar below it (swapped for the TableBar while the caret is in a table, via the editor's onTable target) and the tab strip above the editor (and, on a read-only GitHub tab, the ReadOnlyBanner), the Outline drawer over it and (as
+ * The mobile editor screen: the shared MarkdownEditor on the active tab (its handle, selection and table target live in the CommandHost; a long press on the text is left to the OS, whose native selection handles then drive the AddCommentBar above the AccessoryBar), the keyboard AccessoryBar below it (swapped for the TableBar while the caret is in a table, via the editor's onTable target) and the tab strip above the editor (and, on a read-only GitHub tab, the ReadOnlyBanner), the Outline drawer over it and (as
  * the screen's top-bar actions) the Outline and Comments buttons, the Raw switch and the ⋯ menu. The docked CommentsSheet replaces the accessory bar while open; a tapped comment marker opens its thread, and the open thread's anchor is revealed (also on keyboard changes). useVisualViewport keeps the shell above the virtual keyboard and, after
  * each visual-viewport change, calls the editor handle's scrollCaretIntoView (CodeMirror's EditorView.scrollIntoView
  * effect) so the caret stays visible. editorScreen(title) builds the navigator Screen; EditorBridge pushes it when a document opens.
  */
-import { createElement, Fragment, useEffect, useRef, useState } from 'react';
+import { createElement, Fragment, useEffect, useRef } from 'react';
 import { parseCommentMarkers } from '@gonq/editor/comment-threads';
 import { listThreads, threadKey } from '@gonq/editor/model/threads';
 import { MarkdownEditor } from '@gonq/editor/editor/MarkdownEditor';
@@ -17,7 +17,7 @@ import { useVisualViewport } from '../shell/useVisualViewport';
 import { AccessoryBar } from './AccessoryBar';
 import { CommentsButton, CommentsSheet } from './CommentsSheet';
 import { FolderButton } from './FolderSheet';
-import { EditorSheet, useLongPress } from './EditorSheet';
+import { AddCommentBar } from './AddCommentBar';
 import { OutlineButton, OutlineDrawer } from './OutlineDrawer';
 import { MoreMenu } from './MoreMenu';
 import { RawSwitch } from './RawSwitch';
@@ -36,8 +36,6 @@ function revealThread(editor: ReturnType<typeof useCommandHost>['editor'], text:
 export function EditorScreen({ readOnly = false }: { readOnly?: boolean }) {
   const { session } = useDocuments();
   const { ctx, editor, setSelection, setTable } = useCommandHost();
-  const [sheet, setSheet] = useState(false);
-  const { releasing, ...press } = useLongPress(() => setSheet(true));
   const comments = useComments();
   const { readOnlyPull } = useGithub();
   const open = comments.open;
@@ -56,7 +54,7 @@ export function EditorScreen({ readOnly = false }: { readOnly?: boolean }) {
   }, [open, selectedKey, editor]);
   if (session.meta === null || session.activeId === null) return null;
   return (
-    <div className="m-editor-screen" {...press}>
+    <div className="m-editor-screen">
       <TabStrip />
       {readOnlyPull !== null && <ReadOnlyBanner pull={readOnlyPull} />}
       <MarkdownEditor
@@ -77,13 +75,14 @@ export function EditorScreen({ readOnly = false }: { readOnly?: boolean }) {
         }}
         onTable={setTable}
         onContextMenu={noop}
+        nativeContextMenu
         onChange={session.edited}
         onSelection={setSelection}
       />
       <OutlineDrawer />
       <CommentsSheet />
+      {!open && <AddCommentBar />}
       {!open && <AccessoryBar editor={editor} canUndo={session.canUndo} canRedo={session.canRedo} table={ctx.tableTarget} />}
-      <EditorSheet open={sheet} onClose={() => setSheet(false)} releasing={releasing} />
     </div>
   );
 }
