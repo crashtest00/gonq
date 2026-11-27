@@ -330,3 +330,14 @@ describe('resolve and reopen', () => {
     expect(await save(user)).toBe(doc.replace('✅', '💬'));
   });
 });
+
+it('the top-bar Comments button shows its on/off state', async () => {
+  const { user } = await openDoc(`A [💬](#md-thread-${A}) b.\n\n${blk(A, 'open', 'Where from?')}\n`);
+  const off = screen.getByRole('button', { name: 'Comments' });
+  expect(off).toHaveAttribute('data-on', 'false');
+  await openList(user);
+  const button = off;
+  expect(button).toHaveAttribute('data-on', 'true');
+  await user.click(button);
+  expect(button).toHaveAttribute('data-on', 'false');
+});

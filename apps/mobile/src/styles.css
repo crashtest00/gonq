@@ -89,6 +89,7 @@ body {
 
 /* Raw / Formatted: one switch drawn as two 44px segments. */
 .m-raw { display: inline-flex; flex: none; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-control); background: transparent; color: var(--muted-foreground); font: inherit; font-size: var(--text-caption); font-weight: var(--weight-semibold); cursor: pointer; overflow: hidden; }
+.m-tap[data-on='true'] { background: var(--primary); color: var(--primary-foreground); border-radius: var(--radius-control); }
 .m-raw:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .m-raw > span { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 var(--space-2); }
 .m-raw > span[data-active='true'] { background: var(--primary); color: var(--primary-foreground); }
