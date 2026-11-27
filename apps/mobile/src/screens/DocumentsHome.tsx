@@ -1,8 +1,8 @@
 /**
- * The Documents home: the entry points (Open Repo… = the shared controller's openRepo (sign-in, then the picker), Open Folder… = the shared FolderProvider's openFolder (the system folder picker; cancel is silent), and the "+" button = File > New), the interim "Sign in to GitHub" row, and the recent
+ * The Gonq home (the documents screen, shown while no tab is open): the entry points (Open Repo… = the shared controller's openRepo (sign-in, then the picker), Open Folder… = the shared FolderProvider's openFolder (the system folder picker; cancel is silent), and the "+" button = File > New), and the recent
  * documents (listRecents through the document controller, at most MAX_RECENTS) with an icon per source, the file
  * name, "owner/repo @ branch" for GitHub files and the relative time. Tapping a row reopens it
- * (allowRecentDocument first); each row has a "Remove <name> from recent documents" button. Loading and errors go
+ * (allowRecentDocument first); long names truncate. There is no sign-in row (Open Repo… starts sign-in) and no remove button. Loading and errors go
  * to the shell banner.
  */
 import type { ReactNode } from 'react';
@@ -10,11 +10,9 @@ import { basename, githubDetail, localDetail, relativeTime } from '@gonq/editor/
 import { isLocalFolderRoot, isLocalPath, localDisplayPath } from '@gonq/editor/platform/local';
 import { MAX_RECENTS } from '@gonq/editor/platform/recents';
 import { parseGithubPath } from '@gonq/editor/platform/github';
-import { githubSignInScreen } from './GitHubSignIn';
 import { useFolder } from '../shell/folder';
 import { useGithub } from '../shell/github';
 import { runFileCommand, useDocuments } from '../shell/documents';
-import { useNavigator } from '../shell/StackNavigator';
 
 const Svg = ({ children }: { children: ReactNode }) => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -40,11 +38,6 @@ const BranchIcon = () => (
     <path d="M6 7v10M18 9c0 5-12 3-12 8" />
   </Svg>
 );
-const XIcon = () => (
-  <Svg>
-    <path d="M6 6l12 12M18 6L6 18" />
-  </Svg>
-);
 const PlusIcon = () => (
   <Svg>
     <path d="M12 5v14M5 12h14" />
@@ -54,7 +47,6 @@ const PlusIcon = () => (
 const outline = { border: '1px solid var(--border)' } as const;
 
 export function DocumentsHome() {
-  const { push } = useNavigator();
   const doc = useDocuments();
 
   const gh = useGithub();
@@ -70,14 +62,6 @@ export function DocumentsHome() {
           Open Folder…
         </button>
       </div>
-      <button
-        type="button"
-        className="m-tap"
-        style={{ width: '100%', justifyContent: 'flex-start', borderRadius: 0, marginTop: 'var(--space-2)' }}
-        onClick={() => push(githubSignInScreen)}
-      >
-        Sign in to GitHub
-      </button>
       <div className="m-label">Recent documents</div>
       {doc.recents.length === 0 ? (
         <div className="m-empty">
@@ -108,15 +92,6 @@ export function DocumentsHome() {
                     </span>
                     <span style={{ display: 'block', fontSize: 12, color: 'var(--muted-foreground)' }}>{relativeTime(r.openedAt)}</span>
                   </span>
-                </button>
-                <button
-                  type="button"
-                  className="m-tap"
-                  aria-label={`Remove ${name} from recent documents`}
-                  style={{ color: 'var(--muted-foreground)' }}
-                  onClick={() => void doc.forgetRecent(r.path)}
-                >
-                  <XIcon />
                 </button>
               </li>
             );

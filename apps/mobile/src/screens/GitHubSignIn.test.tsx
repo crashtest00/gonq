@@ -48,10 +48,19 @@ beforeEach(() => {
   });
 });
 
+/** Open Repo… (ensureSignedIn) reads the status once and sees signed out; the sign-in screen's own read then sees `next`. */
+async function signedInAfterFirstRead(next: unknown) {
+  let reads = 0;
+  const base = invoke.getMockImplementation()!;
+  invoke.mockImplementation((cmd: string, ...rest: unknown[]) =>
+    cmd === 'github_status' && ++reads > 1 ? Promise.resolve(next) : base(cmd, ...rest),
+  );
+}
+
 async function toIdle() {
   native();
   const r = await renderMobileApp();
-  await r.user.click(screen.getByRole('button', { name: 'Sign in to GitHub' }));
+  await r.user.click(screen.getByRole('button', { name: 'Open Repo…' }));
   await screen.findByRole('button', { name: 'Start' });
   return r;
 }
@@ -74,7 +83,7 @@ it('idle: the desktop sentence, Cancel and Start, and no code is requested befor
 it('Cancel on idle goes back to the Documents home', async () => {
   const { user } = await toIdle();
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
-  expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
 });
 
 it('starting: shows "Asking GitHub for a code…" with Cancel', async () => {
@@ -83,7 +92,7 @@ it('starting: shows "Asking GitHub for a code…" with Cancel', async () => {
   );
   native();
   const { user } = await renderMobileApp();
-  await user.click(screen.getByRole('button', { name: 'Sign in to GitHub' }));
+  await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
   await user.click(await screen.findByRole('button', { name: 'Start' }));
   expect(await screen.findByText('Asking GitHub for a code…')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
@@ -157,7 +166,7 @@ it('approved with keychain: title, login, Done, and no session-only notice', asy
   expect(screen.getByText('Approved. Signed in as octo.')).toBeInTheDocument();
   expect(screen.queryByText(/session only/)).toBeNull();
   await user.click(screen.getByRole('button', { name: 'Done' }));
-  expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
 });
 
 it('approved without a login says "You are signed in." and session_only adds the notice', async () => {
@@ -168,10 +177,11 @@ it('approved without a login says "You are signed in." and session_only adds the
 });
 
 it('already signed in shows @login only, no avatar or badge, and can sign out', async () => {
-  status = { signed_in: true, login: 'octo', storage: 'keychain' };
+  status = out;
   native();
   const { user } = await renderMobileApp();
-  await user.click(screen.getByRole('button', { name: 'Sign in to GitHub' }));
+  await signedInAfterFirstRead({ signed_in: true, login: 'octo', storage: 'keychain' });
+  await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
   expect(await screen.findByText('@octo')).toBeInTheDocument();
   expect(screen.queryByRole('img')).toBeNull();
   expect(screen.queryByText(/session only/)).toBeNull();
@@ -181,10 +191,11 @@ it('already signed in shows @login only, no avatar or badge, and can sign out', 
 });
 
 it('already signed in with session_only shows the notice', async () => {
-  status = { signed_in: true, login: 'octo', storage: 'session_only' };
+  status = out;
   native();
   const { user } = await renderMobileApp();
-  await user.click(screen.getByRole('button', { name: 'Sign in to GitHub' }));
+  await signedInAfterFirstRead({ signed_in: true, login: 'octo', storage: 'session_only' });
+  await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
   expect(await screen.findByText('@octo')).toBeInTheDocument();
   expect(screen.getByText(/session only/)).toBeInTheDocument();
 });
@@ -218,8 +229,10 @@ it('ensureSignedIn resolves false when the user cancels', async () => {
 
 it('on mobile web, Start shows the "Gonq app" error in the shell banner and stays retryable', async () => {
   const { user } = await renderMobileApp();
-  await user.click(screen.getByRole('button', { name: 'Sign in to GitHub' }));
-  await user.click(screen.getByRole('button', { name: 'Start' }));
+  await user.click(screen.getByRole('button', { name: 'More' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Settings…' }));
+  await user.click(await screen.findByRole('button', { name: 'Sign In' }));
+  await user.click(await screen.findByRole('button', { name: 'Start' }));
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Signing in to GitHub needs the Gonq app'));
   expect(screen.getByRole('alert')).not.toHaveTextContent('desktop');
   expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();

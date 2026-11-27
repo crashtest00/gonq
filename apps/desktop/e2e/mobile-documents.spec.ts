@@ -13,10 +13,12 @@ const recents = [
 test('Documents home rows, entry points and tap targets', async ({ page }) => {
   await page.addInitScript((rows) => localStorage.setItem('gonq.recentDocuments', JSON.stringify(rows)), recents);
   await page.goto('/mobile/');
-  await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Gonq', exact: true })).toBeVisible();
   await expect(page.getByText('northwind/platform-docs @ main')).toBeVisible();
   await expect(page.getByText('5 min ago')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Remove notes.md from recent documents' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /from recent documents/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Sign in to GitHub' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Documents' })).toHaveCount(0);
   for (const name of ['Open Repo…', 'Open Folder…', 'New']) await expect(page.getByRole('button', { name })).toBeVisible();
 
   const boxes = await page.locator('button, a[href], input, [role=button]').evaluateAll((els) =>
@@ -25,20 +27,11 @@ test('Documents home rows, entry points and tap targets', async ({ page }) => {
       .filter(({ r }) => r.width > 0 && r.height > 0)
       .map(({ el, r }) => ({ el, w: r.width, h: r.height })),
   );
-  expect(boxes.length).toBeGreaterThanOrEqual(9);
+  expect(boxes.length).toBeGreaterThanOrEqual(7);
   for (const b of boxes) {
     expect(b.w, b.el).toBeGreaterThanOrEqual(44);
     expect(b.h, b.el).toBeGreaterThanOrEqual(44);
   }
-});
-
-test('removing a recent drops its row and the stored entry', async ({ page }) => {
-  await page.addInitScript((rows) => localStorage.getItem('seeded') || (localStorage.setItem('seeded', '1'), localStorage.setItem('gonq.recentDocuments', JSON.stringify(rows))), recents);
-  await page.goto('/mobile/');
-  await page.getByRole('button', { name: 'Remove old.md from recent documents' }).click();
-  await expect(page.getByText('old.md')).toHaveCount(0);
-  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('gonq.recentDocuments')!));
-  expect(stored).toHaveLength(2);
 });
 
 test('Open Folder… in the browser shows the platform error and stays enabled', async ({ page }) => {

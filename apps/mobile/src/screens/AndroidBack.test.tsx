@@ -70,7 +70,7 @@ describe('overlays close first and leave the screen as it was', () => {
     await openMenu(user);
     await back();
     expect(screen.queryByRole('dialog', { name: 'Menu' })).toBeNull();
-    expect(heading('Documents')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
     expect(leaveApp).not.toHaveBeenCalled();
   });
 
@@ -80,7 +80,7 @@ describe('overlays close first and leave the screen as it was', () => {
     expect(await screen.findByRole('dialog', { name: 'Folder navigator' })).toBeVisible();
     await back();
     expect(screen.getByRole('dialog', { name: 'Folder navigator', hidden: true }).parentElement).toHaveAttribute('hidden');
-    expect(heading('Documents')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
   });
 
   it('closes the comments sheet and the outline drawer in the editor, and stays on the editor', async () => {
@@ -147,7 +147,7 @@ describe('screens go back as their own control does', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Settings…' }));
     await screen.findByRole('form', { name: 'Settings' });
     await back();
-    expect(heading('Documents')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
   });
 
   it('returns from the repository picker, and from the repository screen, one screen at a time', async () => {
@@ -155,12 +155,12 @@ describe('screens go back as their own control does', () => {
     await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
     await screen.findByRole('button', { name: /octo\/notes/ });
     await back();
-    expect(heading('Documents')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
     await user.click(await screen.findByRole('button', { name: /octo\/notes/ }));
     await screen.findByRole('heading', { name: 'octo/notes' });
     await back();
-    expect(heading('Documents')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
     expect(leaveApp).not.toHaveBeenCalled();
   });
 
@@ -187,7 +187,7 @@ describe('screens go back as their own control does', () => {
     await user.click(await screen.findByRole('button', { name: 'Open PR' }));
     await screen.findByText(/was opened for/);
     await back();
-    expect(heading('Documents')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
   });
 
   it('cancels a pending GitHub sign-in so it can be started again', async () => {
@@ -195,13 +195,13 @@ describe('screens go back as their own control does', () => {
     handlers.github_start = () => ({ user_code: 'WDJB-MJHT', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 5 });
     handlers.github_poll = () => new Promise(() => {});
     const { user } = await renderMobileApp();
-    await user.click(screen.getByRole('button', { name: 'Sign in to GitHub' }));
+    await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
     await user.click(await screen.findByRole('button', { name: 'Start' }));
     await screen.findByText('Enter this code on GitHub:');
     await back();
-    expect(heading('Documents')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
     expect(invoke.mock.calls.some((c) => c[0] === 'github_sign_out')).toBe(true);
-    await user.click(screen.getByRole('button', { name: 'Sign in to GitHub' }));
+    await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
     expect(await screen.findByRole('button', { name: 'Start' })).toBeInTheDocument();
   });
 });
@@ -210,7 +210,7 @@ describe('the editor and the Documents screen', () => {
   it('returns to Documents when nothing is unsaved', async () => {
     await openEditor();
     await back();
-    expect(heading('Documents')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
   });
 
   it('asks the close prompt when there are unsaved changes and keeps them on Cancel', async () => {
@@ -233,7 +233,7 @@ describe('the editor and the Documents screen', () => {
     typeIntoEditor('hello');
     await back();
     await user.click(await screen.findByRole('button', { name: 'Don’t save' }));
-    await screen.findByRole('heading', { name: 'Documents' });
+    await screen.findByRole('img', { name: 'Gonq' });
   });
 
   it('leaves the app from Documents with nothing open, and asks first for a tab left unsaved', async () => {
@@ -248,7 +248,7 @@ describe('the editor and the Documents screen', () => {
     const { user } = await openEditor();
     typeIntoEditor('hello');
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(heading('Documents')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
     await back();
     expect(await screen.findByRole('dialog', { name: /Save changes to/ })).toBeInTheDocument();
     expect(leaveApp).not.toHaveBeenCalled();

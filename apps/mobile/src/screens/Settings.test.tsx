@@ -48,7 +48,7 @@ it('opens from the ⋯ menu with the default name, hint and placeholder; Cancel 
   expect(input).toHaveAttribute('placeholder', 'User');
   expect(within(f).getByText('Written on the comments and replies you add.')).toBeInTheDocument();
   await user.click(within(f).getByRole('button', { name: 'Cancel' }));
-  expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
 });
 
 it('has only the author name and GitHub: no theme, SSH keys or pane widths', async () => {
@@ -65,7 +65,7 @@ it('saving stores the trimmed name and a reopened screen shows it', async () => 
   await user.clear(input);
   await user.type(input, '  Ann Lee  ');
   await user.click(within(f).getByRole('button', { name: 'Save' }));
-  expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
   expect(localStorage.getItem(AUTHOR_KEY)).toBe('Ann Lee');
   f = await openSettings(user);
   await vi.waitFor(() => expect(within(f).getByLabelText('Author name')).toHaveValue('Ann Lee'));
@@ -88,7 +88,7 @@ it.each([
   }
   expect(within(f).getByRole('alert')).toHaveTextContent(message);
   expect(within(f).getByRole('button', { name: 'Save' })).toBeDisabled();
-  expect(screen.queryByRole('heading', { name: 'Documents' })).toBeNull();
+  expect(screen.queryByRole('img', { name: 'Gonq' })).toBeNull();
   expect(localStorage.getItem(AUTHOR_KEY)).toBeNull();
 });
 

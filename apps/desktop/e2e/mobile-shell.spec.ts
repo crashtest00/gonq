@@ -4,20 +4,32 @@ import { expect, test, type Page } from '@playwright/test';
 
 async function documentsHome(page: Page) {
   await page.goto('/mobile/');
-  await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Gonq', exact: true })).toBeVisible();
 }
 
 for (const scheme of ['light', 'dark'] as const) {
   test.describe(`mobile shell (${scheme})`, () => {
     test.use({ colorScheme: scheme });
 
-    test('serves from /mobile/, paints the splash with the logo, then the Documents home', async ({ page }) => {
+    test('serves from /mobile/, paints the splash with the logo, then the Gonq home', async ({ page }) => {
       await page.goto('/mobile/');
       await expect(page.getByRole('img', { name: 'Gonq logo' })).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible();
+      await expect(page.getByRole('banner').getByRole('img', { name: 'Gonq', exact: true })).toBeVisible();
       await expect(page.getByText('No recent documents.')).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Documents' })).toHaveCount(0);
       expect(new URL(page.url()).pathname).toBe('/mobile/');
       await expect(page.locator('html')).toHaveClass(scheme === 'dark' ? /dark/ : /^(?!.*dark)/);
+    });
+
+    test('the top bar logo is the real asset, centred, and paints in this theme', async ({ page }) => {
+      await documentsHome(page);
+      const logo = page.getByRole('banner').getByRole('img', { name: 'Gonq', exact: true });
+      await expect(logo).toHaveAttribute('src', /gonq-logo-OUTLINE/);
+      expect(await logo.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+      const box = (await logo.boundingBox())!;
+      const vw = page.viewportSize()!.width;
+      expect(Math.abs(box.x + box.width / 2 - vw / 2)).toBeLessThanOrEqual(2 * 44);
+      expect(box.height).toBeGreaterThan(24);
     });
 
     test('uses the phone viewport meta and does not scroll sideways', async ({ page }) => {
