@@ -1,8 +1,9 @@
 <!doctype html>
 <!--
   Clickable prototype of the Gonq mobile hamburger menu (2026-11-26 discussion): ☰ drawer replacing the back arrow
-  and the ⋯ menu, Documents as the Open modal (open tabs first), a top-bar Save button, a GitHub menu, and Android
-  Back leaving the app. Self-contained: open the file in a browser (phone size via DevTools device mode). Not shipped.
+  and the ⋯ menu, a "Gonq" home screen (centred logo) shown only while no tab is open, File > Open Recent, a top-bar
+  Save button, a GitHub menu, and Android Back leaving the app. Open it from a checkout (it loads
+  ../assets/gonq-logo-OUTLINE.svg) in a browser; phone size via DevTools device mode. Not shipped.
 -->
 <html lang="en">
 <head>
@@ -64,6 +65,7 @@ textarea.raw{font:14px/1.55 ui-monospace,Menlo,monospace}
 dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
 dt{color:var(--muted)}dd{margin:0}
 .note{font-size:13.5px;color:var(--muted);margin:0}
+.logo{height:44px;width:auto;display:block}
 .toast{position:absolute;left:16px;right:16px;bottom:64px;z-index:30;background:#27272a;color:#fff;padding:11px 14px;border-radius:10px;font-size:13.5px;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
 .closed{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#111;color:#ddd;text-align:center;padding:30px}
@@ -87,7 +89,6 @@ dt{color:var(--muted)}dd{margin:0}
   </div>
   <div class="card">
     <h2>Try the open questions</h2>
-    <label><input type="checkbox" id="optFile" checked> <span>Keep a <b>File ›</b> menu in the drawer (New, Open…, Open Folder…, Save, Save As…, Close Tab)</span></label>
     <label><input type="radio" name="gh" value="drill" checked> <span>GitHub <b>drills in</b> like the other menus (decision 2, option a)</span></label>
     <label><input type="radio" name="gh" value="modal"> <span>GitHub opens a <b>modal</b> with a sign-in status line (decision 2, option b)</span></label>
     <label><input type="checkbox" id="optTable"> <span>Caret is in a table (enables Format › Table actions)</span></label>
@@ -96,8 +97,9 @@ dt{color:var(--muted)}dd{margin:0}
   <div class="card">
     <h2>Things to try</h2>
     <ol>
-      <li>Tap a recent file. Type something: the tab gets a ●.</li>
-      <li>Tap ☰ › <b>Documents</b>. Switch tabs or tap × to go straight back to the editor.</li>
+      <li>The <b>Gonq</b> home shows only while no tab is open. Tap a recent file, then type: the tab gets a ●.</li>
+      <li>Tap ☰ › File › <b>Open Recent</b> to open another file. Switch tabs in the tab strip.</li>
+      <li>Close every tab with ✕: you land back on the Gonq home.</li>
       <li>Tap <b>Save</b> on a local file, then on README.md (a GitHub tab): it opens Commit.</li>
       <li>Open ☰ › GitHub, then flip the GitHub option on the left and compare.</li>
       <li>Change ☰ › View › Theme.</li>
@@ -112,13 +114,14 @@ const S = {
   tabs: [], active: null, nextId: 1,
   drawer: false, level: null, sub: null, modal: null, confirm: null,
   signedIn: false, raw: false, theme: 'auto', inTable: false,
-  showFile: true, ghMode: 'drill', folderOpen: false, closed: false,
+  ghMode: 'drill', folderOpen: false, closed: false,
+  recents: [
+    { name: '2026-11-20.md', where: 'notes', gh: false },
+    { name: 'README.md', where: 'acme/handbook @ main', gh: true },
+    { name: 'roadmap.md', where: 'Documents', gh: false },
+  ],
 };
-const RECENTS = [
-  { name: '2026-11-20.md', where: 'notes', gh: false },
-  { name: 'README.md', where: 'acme/handbook @ main', gh: true },
-  { name: 'roadmap.md', where: 'Documents', gh: false },
-];
+const MAX_RECENT_MENU = 10;
 const TEXT = '# Weekly notes\n\nThis is a prototype editor. Type here to make the tab dirty.\n\n- Item one\n- Item two\n';
 const FORMATS = ['Bold', 'Italic', 'Underline', 'Strikethrough', 'Insert link', 'Bullet list', 'Numbered list', 'Checkbox list'];
 const cur = () => S.tabs.find((t) => t.id === S.active) || null;
@@ -128,9 +131,11 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 function menus() {
   const doc = S.tabs.length > 0, t = cur(), gh = !!(t && t.gh);
   const M = [];
-  if (S.showFile) M.push({ id: 'file', label: 'File', items: [
-    it('file.new', 'New'), it('file.open', 'Open…'), it('file.openFolder', 'Open Folder…'), '-',
-    it('file.save', 'Save', doc), it('file.saveAs', 'Save As…', doc), '-', it('file.closeTab', 'Close Tab', doc)] });
+  // Mobile File menu: Close Tab is left out (each tab has ✕); desktop keeps File > Close Tab.
+  M.push({ id: 'file', label: 'File', items: [
+    it('file.new', 'New'), it('file.open', 'Open…'), { id: 'sub.recent', label: 'Open Recent', sub: 'recent', enabled: S.recents.length > 0 },
+    it('file.openFolder', 'Open Folder…'), '-',
+    it('file.save', 'Save', doc), it('file.saveAs', 'Save As…', doc)] });
   M.push({ id: 'github', label: 'GitHub', items: [
     it('gh.sign', S.signedIn ? 'Sign Out' : 'Sign In'), '-',
     it('github.openRepo', 'Open Repo…'), it('file.commit', 'Commit…', gh), it('github.openPr', 'Open PR…', gh && S.signedIn)] });
@@ -159,22 +164,21 @@ function rowsHTML(items) {
   }).join('');
 }
 
-function docsBody() {
-  let h = '';
-  if (S.tabs.length) {
-    h += '<div class="sec">Open tabs</div>' + S.tabs.map((t) => `<button class="row" data-a="tab:${t.id}"><span class="lbl"><span>${esc(t.name)} ${t.dirty ? '<span class="dot">●</span>' : ''}</span><span class="sub">${t.gh ? 'acme/handbook @ main' : 'On this device'}</span></span><span class="mk">${t.id === S.active ? '✓' : ''}</span></button>`).join('');
-  }
-  h += '<div class="sec">Start</div>' + rowsHTML([it('file.new', 'New'), it('file.open', 'Open…'), it('file.openFolder', 'Open Folder…'), it('github.openRepo', 'Open Repo…')]);
-  h += '<div class="sec">Recent</div>' + RECENTS.map((r, i) => `<button class="row" data-a="recent:${i}"><span class="lbl"><span>${r.gh ? '⎇ ' : '📄 '}${r.name}</span><span class="sub">${r.where}</span></span><span class="mk"></span></button>`).join('');
-  return h;
+const recentRows = (list) => list.map((r, i) => `<button class="row" data-a="recent:${i}"><span class="lbl"><span>${r.gh ? '⎇ ' : '📄 '}${esc(r.name)}</span><span class="sub">${esc(r.where)}</span></span><span class="mk"></span></button>`).join('');
+
+// The "Gonq" home: shown only while no tab is open. Same entry points as File and GitHub, plus the recents.
+function homeHTML() {
+  return `<div class="topbar"><button class="ic" aria-label="Menu" data-a="drawer">☰</button>
+      <div class="ttl" style="display:flex;justify-content:center"><img class="logo" src="../assets/gonq-logo-OUTLINE.svg" alt="Gonq logo"></div><div style="width:44px"></div></div>
+    <div class="body">
+      <div class="sec">Start</div>${rowsHTML([it('file.new', 'New'), it('file.open', 'Open…'), it('file.openFolder', 'Open Folder…'), it('github.openRepo', 'Open Repo…')])}
+      ${S.recents.length ? `<div class="sec">Recent</div>${recentRows(S.recents)}` : ''}
+    </div>`;
 }
 
 function editorHTML() {
   const t = cur();
   const tabs = S.tabs.map((x) => `<div class="tab ${x.id === S.active ? 'cur' : ''}"><button data-a="tab:${x.id}">${esc(x.name)}${x.dirty ? ' <span class="dot">●</span>' : ''}</button><button class="x" aria-label="Close ${esc(x.name)}" data-a="tabclose:${x.id}">✕</button></div>`).join('');
-  const acc = S.inTable
-    ? '<button data-a="note:Table bar replaces this bar (unchanged)">⊞ Table</button>'
-    : '';
   return `
   <div class="topbar">
     <button class="ic" aria-label="Menu" data-a="drawer">☰</button>
@@ -197,14 +201,16 @@ function drawerHTML() {
   if (S.sub === 'table') {
     head = `<button class="ic" data-a="up">‹</button><div class="t1">Table</div>`;
     body = rowsHTML(tableItems());
+  } else if (S.sub === 'recent') {
+    head = `<button class="ic" data-a="up">‹</button><div class="t1">Open Recent</div>`;
+    body = recentRows(S.recents.slice(0, MAX_RECENT_MENU));
   } else if (S.level) {
     const m = menus().find((x) => x.id === S.level);
     head = `<button class="ic" data-a="up">‹</button><div class="t1">${m.label}</div>`;
     body = rowsHTML(m.items);
   } else {
     head = `<div class="t1" style="padding-left:14px;flex:1">Menu</div><button class="ic" data-a="scrim">✕</button>`;
-    body = `<button class="row" data-a="docs"><span class="lbl"><span><b>Documents</b></span><span class="sub">Open tabs, recent files, New, Open…</span></span><span class="mk">›</span></button><div class="sep"></div>` +
-      menus().map((m) => `<button class="row" ${m.enabled === false ? 'disabled' : ''} data-a="menu:${m.id}"><span>${m.label}</span><span class="mk">›</span></button>`).join('');
+    body = menus().map((m) => `<button class="row" ${m.enabled === false ? 'disabled' : ''} data-a="menu:${m.id}"><span>${m.label}</span><span class="mk">›</span></button>`).join('');
   }
   return `<div class="scrim" data-a="scrim"></div><div class="drawer"><div class="head">${head}</div><div class="body">${body}</div></div>`;
 }
@@ -216,9 +222,6 @@ function modalHTML() {
     return `<div class="scrim"></div><div class="sheet"><div class="head"><div class="t1">Save changes to ${esc(c.name)}?</div></div><div class="pad">
       <p class="note">Your changes will be lost if you don’t save them.</p>
       <button class="btn pri" data-a="confirm:save">Save</button><button class="btn danger" data-a="confirm:discard">Don’t save</button><button class="btn" data-a="confirm:cancel">Cancel</button></div></div>`;
-  }
-  if (S.modal === 'documents') {
-    return `<div class="sheet full"><div class="head"><div class="t1">Documents</div><button class="ic" aria-label="Close" data-a="closeModal">✕</button></div><div class="body">${docsBody()}</div></div>`;
   }
   if (S.modal === 'github') {
     const m = menus().find((x) => x.id === 'github');
@@ -241,9 +244,7 @@ function render() {
     phone.innerHTML = `<div class="closed"><div style="font-size:18px;font-weight:600">Gonq closed</div><div>Android Back left the app (decision 2.2).</div><button class="btn" style="color:#fff;padding:0 20px" data-a="relaunch">Relaunch</button></div>`;
     return;
   }
-  const screen = S.tabs.length
-    ? editorHTML()
-    : `<div class="topbar"><button class="ic" aria-label="Menu" data-a="drawer">☰</button><div class="ttl"><div class="t1" style="font-size:17px">Documents</div></div></div><div class="body">${docsBody()}</div>`;
+  const screen = S.tabs.length ? editorHTML() : homeHTML();
   phone.innerHTML = `<div class="status"></div>${screen}${S.drawer ? drawerHTML() : ''}${modalHTML()}<div class="toast" id="toast"></div>`;
   const ed = document.getElementById('ed');
   if (ed) ed.addEventListener('input', () => {
@@ -259,7 +260,10 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
 }
 function closeAll() { S.drawer = false; S.level = null; S.sub = null; S.modal = null; }
-function openDoc(name, gh) {
+function openDoc(name, gh, where = gh ? 'acme/handbook @ main' : 'On this device') {
+  // Opening a file moves it to the top of the recents, as the shared recents list does.
+  const prev = S.recents.find((r) => r.name === name);
+  S.recents = [{ name, gh, where: prev ? prev.where : where }, ...S.recents.filter((r) => r.name !== name)];
   const ex = S.tabs.find((t) => t.name === name);
   if (ex) S.active = ex.id;
   else { const t = { id: S.nextId++, name, gh, dirty: false, text: TEXT }; S.tabs.push(t); S.active = t.id; }
@@ -296,11 +300,10 @@ function act(a) {
     case 'menu': if (v === 'github' && S.ghMode === 'modal') { S.drawer = false; S.modal = 'github'; } else S.level = v; break;
     case 'sub': S.sub = v; break;
     case 'up': if (S.sub) S.sub = null; else S.level = null; break;
-    case 'docs': S.drawer = false; S.modal = 'documents'; break;
     case 'closeModal': S.modal = null; break;
     case 'tab': S.active = +v; closeAll(); break;
     case 'tabclose': { const t = S.tabs.find((x) => x.id === +v); if (t.dirty) askThen(t.id, () => closeTab(t.id)); else closeTab(t.id); break; }
-    case 'recent': { const r = RECENTS[+v]; if (r.gh && !S.signedIn) { msg = 'Sign in to GitHub first (Open Repo goes through sign-in).'; break; } openDoc(r.name, r.gh); break; }
+    case 'recent': { const r = S.recents[+v]; if (r.gh && !S.signedIn) { msg = 'Sign in to GitHub first (Open Repo goes through sign-in).'; break; } openDoc(r.name, r.gh); break; }
     case 'raw': S.raw = v === '1'; break;
     case 'note': msg = v; break;
     case 'relaunch': S.closed = false; break;
@@ -318,7 +321,6 @@ function act(a) {
       if (a === 'file.openFolder') { S.folderOpen = true; msg = NOTES[a]; break; }
       if (a === 'file.save') { const t = cur(); if (t) { save(t); return render(); } break; }
       if (a === 'file.commit') { S.modal = 'commit'; break; }
-      if (a === 'file.closeTab') { act('tabclose:' + S.active); return; }
       if (a === 'github.openRepo') { if (!S.signedIn) { msg = 'Not signed in: the sign-in screen opens first.'; break; } S.folderOpen = true; openDoc('README.md', true); msg = 'Repo picker (unchanged). Prototype opens README.md.'; break; }
       if (a === 'gh.sign') { S.signedIn = !S.signedIn; document.getElementById('optSigned').checked = S.signedIn; msg = S.signedIn ? 'Signed in as @you.' : 'Signed out.'; break; }
       if (a === 'view.raw') { S.raw = !S.raw; break; }
@@ -348,7 +350,6 @@ document.addEventListener('click', (e) => {
   act(b.dataset.a);
 });
 document.getElementById('androidBack').onclick = back;
-document.getElementById('optFile').onchange = (e) => { S.showFile = e.target.checked; if (!S.showFile && S.level === 'file') S.level = null; render(); };
 document.getElementById('optTable').onchange = (e) => { S.inTable = e.target.checked; render(); };
 document.getElementById('optSigned').onchange = (e) => { S.signedIn = e.target.checked; render(); };
 document.querySelectorAll('input[name=gh]').forEach((r) => (r.onchange = () => { S.ghMode = r.value; render(); }));
