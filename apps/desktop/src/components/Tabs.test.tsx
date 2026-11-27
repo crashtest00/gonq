@@ -195,7 +195,7 @@ describe('closing a tab', () => {
     await screen.findByText('first doc');
     await user.click(screen.getByRole('button', { name: 'Close a.md' }));
     expect(screen.queryAllByRole('tab')).toHaveLength(0);
-    expect(screen.getByText(/Open a document or create a new one\./)).toBeInTheDocument();
+    expect(screen.getByTestId('gonq-home')).toBeInTheDocument();
   });
 
   test('an empty untitled tab closes, and File > Close does the same', async () => {
@@ -203,7 +203,7 @@ describe('closing a tab', () => {
     await user.click(screen.getByRole('button', { name: 'New tab' }));
     await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
     expect(screen.queryAllByRole('tab')).toHaveLength(0);
-    expect(screen.getByText(/Open a document or create a new one\./)).toBeInTheDocument();
+    expect(screen.getByTestId('gonq-home')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'New tab' }));
     await user.click(screen.getByRole('menuitem', { name: 'File' }));
     await user.click(await screen.findByRole('menuitem', { name: /Close/ }));

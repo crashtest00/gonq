@@ -107,7 +107,7 @@ describe('without the desktop runtime (web build)', () => {
     const user = userEvent.setup();
     render(<App files={fakeFiles(async () => null)} />);
     await user.click(screen.getByRole('button', { name: 'Folder navigator' }));
-    await user.click(await screen.findByRole('button', { name: 'Open Folder…' }));
+    await user.click(within(await screen.findByRole('navigation')).getByRole('button', { name: 'Open Folder…' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Opening a folder needs the desktop app.');
   });
 });

@@ -618,7 +618,7 @@ describe('in the app', () => {
       uri === 'ssh://me@nas/home/me/docs' ? [{ name: 'a.md', path: 'ssh://me@nas/home/me/docs/a.md', is_dir: false }] : [];
     const user = userEvent.setup();
     render(<App files={files} />);
-    await user.click(await screen.findByRole('button', { name: 'Show folder navigator' }).catch(() => screen.getByRole('button', { name: /folder/i })));
+    await user.click(await screen.findByRole('button', { name: 'Show folder navigator' }).catch(() => screen.getByRole('button', { name: 'Folder navigator' })));
     act(() => {
       document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'K', shiftKey: true, ctrlKey: true, bubbles: true }));
     });

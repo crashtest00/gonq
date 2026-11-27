@@ -56,7 +56,7 @@ describe('branch change with a GitHub document', () => {
     const user = setup([gh('main')]);
     await openRecent(user, 'main');
     await pickBranch(user, 'main', 'dev');
-    expect(await screen.findByText('Open a document or create a new one.')).toBeInTheDocument();
+    expect(await screen.findByTestId('gonq-home')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryAllByRole('tab')).toHaveLength(0);
     expect(await screen.findByRole('button', { name: 'Branch: dev' })).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe('branch change with a GitHub document', () => {
     await user.click(screen.getByRole('button', { name: 'Close document' }));
     await waitFor(() => expect(screen.getAllByRole('tab')).toHaveLength(1));
     expect(screen.queryAllByRole('tab', { selected: true })).toHaveLength(0);
-    expect(await screen.findByText('Open a document or create a new one.')).toBeInTheDocument();
+    expect(await screen.findByTestId('gonq-home')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Branch: other' })).toBeInTheDocument();
 
     // The remaining tab can be activated and moves the navigator back to its branch.
@@ -135,5 +135,5 @@ describe('the navigator follows GitHub tabs', () => {
 
 it('shows the generic message with no tab', async () => {
   setup([]);
-  expect(await screen.findByText('Open a document or create a new one.')).toBeInTheDocument();
+  expect(await screen.findByTestId('gonq-home')).toBeInTheDocument();
 });

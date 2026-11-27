@@ -50,6 +50,7 @@ import { useGithubController } from '@gonq/editor/controllers/github';
 import { ReadOnlyBanner } from './components/ReadOnlyBanner';
 import { listenOpenPaths, takePendingOpenPaths } from '@gonq/editor/platform/openPaths';
 import { FolderSidebar } from './components/FolderSidebar';
+import { GonqHome } from './components/GonqHome';
 import { pickFolder } from '@gonq/editor/platform/folders';
 
 function parentDir(path: string): string | null {
@@ -602,7 +603,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
               onLeave={() => editor.current?.releaseTable()}
             />
           )}
-          {(error !== null || savingTo !== null || notice !== null || meta === null) && (
+          {(error !== null || savingTo !== null || notice !== null) && (
             <div className="mx-auto box-border w-full max-w-[760px] shrink-0 px-10 pt-5">
               {error !== null && (
                 <div role="alert" className="mb-5 rounded-control border border-destructive px-3 py-2 text-[13px] text-destructive">
@@ -616,10 +617,14 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
                   <button type="button" aria-label="Dismiss notice" onClick={() => setNotice(null)} className="cursor-pointer border-0 bg-transparent p-0 text-inherit">×</button>
                 </div>
               )}
-              {meta === null && (
-                <p className="text-[13px] text-muted-foreground">Open a document or create a new one.</p>
-              )}
             </div>
+          )}
+          {meta === null && (
+            <GonqHome
+              recents={recents}
+              onRun={(id) => void registry.commands().find((c) => c.id === id)?.run?.(commandContext)}
+              onOpenRecent={(path) => void openKnownPath(path, true)}
+            />
           )}
           {meta !== null && activeId !== null && (
             <MarkdownEditor
