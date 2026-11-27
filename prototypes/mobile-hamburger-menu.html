@@ -1,0 +1,359 @@
+<!doctype html>
+<!--
+  Clickable prototype of the Gonq mobile hamburger menu (2026-11-26 discussion): ☰ drawer replacing the back arrow
+  and the ⋯ menu, Documents as the Open modal (open tabs first), a top-bar Save button, a GitHub menu, and Android
+  Back leaving the app. Self-contained: open the file in a browser (phone size via DevTools device mode). Not shipped.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gonq mobile: hamburger menu prototype</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--muted:#6b6b6b;--line:#e4e4e7;--soft:#f4f4f5;--accent:#2563eb;--danger:#dc2626;--scrim:rgba(0,0,0,.38)}
+.dark{--bg:#18181b;--fg:#f4f4f5;--muted:#a1a1aa;--line:#34343a;--soft:#232327;--accent:#60a5fa;--danger:#f87171}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#d9dce1;display:flex;gap:28px;justify-content:center;align-items:flex-start;padding:24px;flex-wrap:wrap;color:#1a1a1a}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:disabled{opacity:.38;cursor:default}
+.phone{width:390px;height:800px;border:10px solid #000;border-radius:42px;overflow:hidden;position:relative;background:var(--bg);color:var(--fg);display:flex;flex-direction:column}
+.status{height:28px;flex-shrink:0}
+.topbar{display:flex;align-items:center;gap:4px;padding:0 6px;min-height:52px;border-bottom:1px solid var(--line)}
+.ic{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;font-size:20px;flex-shrink:0}
+.ic:active,.row:active,.tap:active{background:var(--soft)}
+.ttl{flex:1;min-width:0}
+.t1{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t2{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.savebtn{height:36px;padding:0 14px;border-radius:9px;background:var(--accent);color:#fff;font-weight:600;flex-shrink:0}
+.bar2{display:flex;align-items:center;gap:2px;padding:0 6px;height:48px;border-bottom:1px solid var(--line)}
+.bar2 .ic{font-size:13px;width:auto;padding:0 10px;height:38px;border:1px solid var(--line)}
+.seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-left:auto}
+.seg button{height:38px;padding:0 10px;font-size:13px}
+.seg .on{background:var(--soft);font-weight:600}
+.tabs{display:flex;align-items:center;gap:4px;padding:0 6px;height:46px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{display:flex;align-items:center;gap:4px;height:34px;padding:0 4px 0 10px;border-radius:8px;border:1px solid var(--line);white-space:nowrap;font-size:13px}
+.tab.cur{background:var(--soft);font-weight:600}
+.tab .x{width:28px;height:28px;font-size:14px}
+.dot{color:var(--accent)}
+textarea{flex:1;border:0;resize:none;padding:16px 20px;background:var(--bg);color:var(--fg);font:16px/1.55 Georgia,serif;outline:none}
+textarea.raw{font:14px/1.55 ui-monospace,Menlo,monospace}
+.acc{display:flex;gap:2px;padding:4px 6px;border-top:1px solid var(--line);overflow-x:auto;flex-shrink:0}
+.acc button{min-width:40px;height:40px;border-radius:8px;font-size:15px}
+.acc .pin{margin-left:auto;border:1px solid var(--line);padding:0 10px;font-size:13px}
+.body{flex:1;overflow-y:auto}
+.sec{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:16px 20px 6px}
+.row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;padding:0 20px;text-align:left}
+.row .sub{font-size:12.5px;color:var(--muted)}
+.row .mk{color:var(--muted);font-size:17px;min-width:16px;text-align:right}
+.row .lbl{display:flex;flex-direction:column;min-width:0}
+.sep{height:1px;background:var(--line);margin:4px 0}
+.grp{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:10px 20px 2px}
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:10}
+.drawer{position:absolute;top:0;bottom:0;left:0;width:84%;background:var(--bg);z-index:11;display:flex;flex-direction:column;box-shadow:4px 0 18px rgba(0,0,0,.18)}
+.drawer .head{display:flex;align-items:center;gap:4px;padding:28px 6px 0;min-height:80px;border-bottom:1px solid var(--line)}
+.drawer .head .t1{font-size:17px}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg);z-index:12;border-radius:18px 18px 0 0;max-height:88%;display:flex;flex-direction:column;box-shadow:0 -6px 20px rgba(0,0,0,.18)}
+.sheet.full{top:0;max-height:none;border-radius:0}
+.sheet .head{display:flex;align-items:center;gap:4px;padding:8px 6px 4px 20px;border-bottom:1px solid var(--line);min-height:56px}
+.sheet.full .head{padding-top:34px}
+.sheet .head .t1{flex:1;font-size:17px}
+.sheet .pad{padding:14px 20px 22px;display:flex;flex-direction:column;gap:8px}
+.btn{height:46px;border-radius:10px;border:1px solid var(--line);font-weight:600}
+.btn.pri{background:var(--accent);color:#fff;border-color:transparent}
+.btn.danger{color:var(--danger)}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
+dt{color:var(--muted)}dd{margin:0}
+.note{font-size:13.5px;color:var(--muted);margin:0}
+.toast{position:absolute;left:16px;right:16px;bottom:64px;z-index:30;background:#27272a;color:#fff;padding:11px 14px;border-radius:10px;font-size:13.5px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.closed{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#111;color:#ddd;text-align:center;padding:30px}
+.side{width:340px;display:flex;flex-direction:column;gap:14px}
+.card{background:#fff;border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.card h2{font-size:15px;margin:0 0 10px}
+.card label{display:flex;gap:8px;align-items:flex-start;margin:7px 0;font-size:14px}
+.card ol{margin:0;padding-left:20px;font-size:13.5px}.card li{margin:5px 0}
+.back{width:100%;height:46px;border-radius:12px;background:#111;color:#fff;font-weight:600}
+.small{font-size:12.5px;color:#666;margin:6px 0 0}
+</style>
+</head>
+<body>
+
+<div class="phone" id="phone"></div>
+
+<div class="side">
+  <div class="card">
+    <button class="back" id="androidBack">◁ Android Back</button>
+    <p class="small">Simulates the system Back gesture. Decision 2.2: in the editor it leaves the app, asking first about each unsaved tab.</p>
+  </div>
+  <div class="card">
+    <h2>Try the open questions</h2>
+    <label><input type="checkbox" id="optFile" checked> <span>Keep a <b>File ›</b> menu in the drawer (New, Open…, Open Folder…, Save, Save As…, Close Tab)</span></label>
+    <label><input type="radio" name="gh" value="drill" checked> <span>GitHub <b>drills in</b> like the other menus (decision 2, option a)</span></label>
+    <label><input type="radio" name="gh" value="modal"> <span>GitHub opens a <b>modal</b> with a sign-in status line (decision 2, option b)</span></label>
+    <label><input type="checkbox" id="optTable"> <span>Caret is in a table (enables Format › Table actions)</span></label>
+    <label><input type="checkbox" id="optSigned"> <span>Signed in to GitHub</span></label>
+  </div>
+  <div class="card">
+    <h2>Things to try</h2>
+    <ol>
+      <li>Tap a recent file. Type something: the tab gets a ●.</li>
+      <li>Tap ☰ › <b>Documents</b>. Switch tabs or tap × to go straight back to the editor.</li>
+      <li>Tap <b>Save</b> on a local file, then on README.md (a GitHub tab): it opens Commit.</li>
+      <li>Open ☰ › GitHub, then flip the GitHub option on the left and compare.</li>
+      <li>Change ☰ › View › Theme.</li>
+      <li>With unsaved tabs, press <b>Android Back</b>.</li>
+    </ol>
+    <p class="small">Prototype only. Labels follow the shared command registry. Commands that open other screens show a note instead.</p>
+  </div>
+</div>
+
+<script>
+const S = {
+  tabs: [], active: null, nextId: 1,
+  drawer: false, level: null, sub: null, modal: null, confirm: null,
+  signedIn: false, raw: false, theme: 'auto', inTable: false,
+  showFile: true, ghMode: 'drill', folderOpen: false, closed: false,
+};
+const RECENTS = [
+  { name: '2026-11-20.md', where: 'notes', gh: false },
+  { name: 'README.md', where: 'acme/handbook @ main', gh: true },
+  { name: 'roadmap.md', where: 'Documents', gh: false },
+];
+const TEXT = '# Weekly notes\n\nThis is a prototype editor. Type here to make the tab dirty.\n\n- Item one\n- Item two\n';
+const FORMATS = ['Bold', 'Italic', 'Underline', 'Strikethrough', 'Insert link', 'Bullet list', 'Numbered list', 'Checkbox list'];
+const cur = () => S.tabs.find((t) => t.id === S.active) || null;
+const it = (id, label, enabled = true) => ({ id, label, enabled });
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+function menus() {
+  const doc = S.tabs.length > 0, t = cur(), gh = !!(t && t.gh);
+  const M = [];
+  if (S.showFile) M.push({ id: 'file', label: 'File', items: [
+    it('file.new', 'New'), it('file.open', 'Open…'), it('file.openFolder', 'Open Folder…'), '-',
+    it('file.save', 'Save', doc), it('file.saveAs', 'Save As…', doc), '-', it('file.closeTab', 'Close Tab', doc)] });
+  M.push({ id: 'github', label: 'GitHub', items: [
+    it('gh.sign', S.signedIn ? 'Sign Out' : 'Sign In'), '-',
+    it('github.openRepo', 'Open Repo…'), it('file.commit', 'Commit…', gh), it('github.openPr', 'Open PR…', gh && S.signedIn)] });
+  M.push({ id: 'edit', label: 'Edit', items: [it('edit.undo', 'Undo', !!(t && t.dirty)), it('edit.redo', 'Redo', false), '-', it('edit.settings', 'Settings…')] });
+  M.push({ id: 'view', label: 'View', items: [
+    { id: 'view.raw', label: 'Raw Markdown', check: S.raw, enabled: doc }, it('view.refresh', 'Refresh Navigator', S.folderOpen),
+    { group: true, label: 'Theme' },
+    ...['Light', 'Dark', 'Auto'].map((v) => ({ id: 'theme.' + v.toLowerCase(), label: v, radio: S.theme === v.toLowerCase() }))] });
+  M.push({ id: 'insert', label: 'Insert', items: [it('insert.image', 'Image…', doc), it('insert.toc', 'Table of Contents', doc)] });
+  M.push({ id: 'format', label: 'Format', enabled: doc, items: [...FORMATS.map((f) => it('fmt.' + f, f)), '-', { id: 'sub.table', label: 'Table', sub: 'table' }] });
+  M.push({ id: 'help', label: 'Help', items: [it('help.skill', 'Agent skill…'), it('help.about', 'About Gonq')] });
+  return M;
+}
+function tableItems() {
+  const op = (l) => it('tbl.' + l, l, S.inTable);
+  return [it('tbl.insert', 'Insert table'), '-', op('Insert row above'), op('Insert row below'), op('Insert column left'), op('Insert column right'), '-',
+    op('Align column left'), op('Align column center'), op('Align column right'), '-', op('Delete row'), op('Delete column'), op('Delete table')];
+}
+
+function rowsHTML(items) {
+  return items.map((x) => {
+    if (x === '-') return '<div class="sep"></div>';
+    if (x.group) return `<div class="grp">${x.label}</div>`;
+    const mark = x.sub ? '›' : x.check !== undefined ? (x.check ? '✓' : '') : x.radio !== undefined ? (x.radio ? '●' : '○') : '';
+    return `<button class="row" ${x.enabled === false ? 'disabled' : ''} data-a="${x.sub ? 'sub:' + x.sub : x.id}"><span>${x.label}</span><span class="mk">${mark}</span></button>`;
+  }).join('');
+}
+
+function docsBody() {
+  let h = '';
+  if (S.tabs.length) {
+    h += '<div class="sec">Open tabs</div>' + S.tabs.map((t) => `<button class="row" data-a="tab:${t.id}"><span class="lbl"><span>${esc(t.name)} ${t.dirty ? '<span class="dot">●</span>' : ''}</span><span class="sub">${t.gh ? 'acme/handbook @ main' : 'On this device'}</span></span><span class="mk">${t.id === S.active ? '✓' : ''}</span></button>`).join('');
+  }
+  h += '<div class="sec">Start</div>' + rowsHTML([it('file.new', 'New'), it('file.open', 'Open…'), it('file.openFolder', 'Open Folder…'), it('github.openRepo', 'Open Repo…')]);
+  h += '<div class="sec">Recent</div>' + RECENTS.map((r, i) => `<button class="row" data-a="recent:${i}"><span class="lbl"><span>${r.gh ? '⎇ ' : '📄 '}${r.name}</span><span class="sub">${r.where}</span></span><span class="mk"></span></button>`).join('');
+  return h;
+}
+
+function editorHTML() {
+  const t = cur();
+  const tabs = S.tabs.map((x) => `<div class="tab ${x.id === S.active ? 'cur' : ''}"><button data-a="tab:${x.id}">${esc(x.name)}${x.dirty ? ' <span class="dot">●</span>' : ''}</button><button class="x" aria-label="Close ${esc(x.name)}" data-a="tabclose:${x.id}">✕</button></div>`).join('');
+  const acc = S.inTable
+    ? '<button data-a="note:Table bar replaces this bar (unchanged)">⊞ Table</button>'
+    : '';
+  return `
+  <div class="topbar">
+    <button class="ic" aria-label="Menu" data-a="drawer">☰</button>
+    <div class="ttl"><div class="t1">${esc(t.name)}</div><div class="t2">${t.gh ? '⎇ main · acme/handbook' : 'On this device'}</div></div>
+    <button class="savebtn" data-a="file.save">Save</button>
+  </div>
+  <div class="bar2">
+    <button class="ic" data-a="note:Folder sheet (unchanged)">Folder</button>
+    <button class="ic" data-a="note:Outline drawer (unchanged)">Outline</button>
+    <button class="ic" data-a="note:Comments sheet (unchanged)">Comments</button>
+    <div class="seg" role="switch" aria-label="Raw Markdown"><button class="${S.raw ? '' : 'on'}" data-a="raw:0">Formatted</button><button class="${S.raw ? 'on' : ''}" data-a="raw:1">Raw</button></div>
+  </div>
+  <div class="tabs">${tabs}<button class="ic" aria-label="New" data-a="file.new">＋</button></div>
+  <textarea id="ed" class="${S.raw ? 'raw' : ''}" spellcheck="false">${esc(t.text)}</textarea>
+  <div class="acc">${['↶', '↷', '<b>B</b>', '<i>I</i>', '<u>U</u>', '<s>S</s>', '🔗', '•', '1.', '☑', '⊞'].map((g) => `<button data-a="note:Format bar (unchanged)">${g}</button>`).join('')}${S.inTable ? '<button class="pin" data-a="note:Table bar replaces the format bar (unchanged)">⊞ Table</button>' : ''}</div>`;
+}
+
+function drawerHTML() {
+  let head, body;
+  if (S.sub === 'table') {
+    head = `<button class="ic" data-a="up">‹</button><div class="t1">Table</div>`;
+    body = rowsHTML(tableItems());
+  } else if (S.level) {
+    const m = menus().find((x) => x.id === S.level);
+    head = `<button class="ic" data-a="up">‹</button><div class="t1">${m.label}</div>`;
+    body = rowsHTML(m.items);
+  } else {
+    head = `<div class="t1" style="padding-left:14px;flex:1">Menu</div><button class="ic" data-a="scrim">✕</button>`;
+    body = `<button class="row" data-a="docs"><span class="lbl"><span><b>Documents</b></span><span class="sub">Open tabs, recent files, New, Open…</span></span><span class="mk">›</span></button><div class="sep"></div>` +
+      menus().map((m) => `<button class="row" ${m.enabled === false ? 'disabled' : ''} data-a="menu:${m.id}"><span>${m.label}</span><span class="mk">›</span></button>`).join('');
+  }
+  return `<div class="scrim" data-a="scrim"></div><div class="drawer"><div class="head">${head}</div><div class="body">${body}</div></div>`;
+}
+
+function modalHTML() {
+  const t = cur();
+  if (S.confirm) {
+    const c = S.tabs.find((x) => x.id === S.confirm.id);
+    return `<div class="scrim"></div><div class="sheet"><div class="head"><div class="t1">Save changes to ${esc(c.name)}?</div></div><div class="pad">
+      <p class="note">Your changes will be lost if you don’t save them.</p>
+      <button class="btn pri" data-a="confirm:save">Save</button><button class="btn danger" data-a="confirm:discard">Don’t save</button><button class="btn" data-a="confirm:cancel">Cancel</button></div></div>`;
+  }
+  if (S.modal === 'documents') {
+    return `<div class="sheet full"><div class="head"><div class="t1">Documents</div><button class="ic" aria-label="Close" data-a="closeModal">✕</button></div><div class="body">${docsBody()}</div></div>`;
+  }
+  if (S.modal === 'github') {
+    const m = menus().find((x) => x.id === 'github');
+    return `<div class="scrim" data-a="closeModal"></div><div class="sheet"><div class="head"><div class="t1">GitHub</div><button class="ic" data-a="closeModal">✕</button></div>
+      <p class="note" style="padding:10px 20px 0">${S.signedIn ? 'Signed in as @you.' : 'Not signed in.'}</p><div class="body" style="padding-bottom:16px">${rowsHTML(m.items)}</div></div>`;
+  }
+  if (S.modal === 'commit') {
+    return `<div class="scrim" data-a="closeModal"></div><div class="sheet"><div class="head"><div class="t1">Commit</div></div><div class="pad">
+      <dl><dt>File</dt><dd>${esc(t.name)}</dd><dt>Repository</dt><dd>acme/handbook</dd><dt>Branch</dt><dd>main</dd><dt>Message</dt><dd>Edit ${esc(t.name)} from Gonq</dd></dl>
+      <button class="btn pri" data-a="commit:do">Commit</button><button class="btn" data-a="note:Create branch sheet (unchanged)">Commit to new branch…</button><button class="btn" data-a="closeModal">Cancel</button></div></div>`;
+  }
+  return '';
+}
+
+function render() {
+  const phone = document.getElementById('phone');
+  const dark = S.theme === 'dark' || (S.theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  phone.classList.toggle('dark', dark);
+  if (S.closed) {
+    phone.innerHTML = `<div class="closed"><div style="font-size:18px;font-weight:600">Gonq closed</div><div>Android Back left the app (decision 2.2).</div><button class="btn" style="color:#fff;padding:0 20px" data-a="relaunch">Relaunch</button></div>`;
+    return;
+  }
+  const screen = S.tabs.length
+    ? editorHTML()
+    : `<div class="topbar"><button class="ic" aria-label="Menu" data-a="drawer">☰</button><div class="ttl"><div class="t1" style="font-size:17px">Documents</div></div></div><div class="body">${docsBody()}</div>`;
+  phone.innerHTML = `<div class="status"></div>${screen}${S.drawer ? drawerHTML() : ''}${modalHTML()}<div class="toast" id="toast"></div>`;
+  const ed = document.getElementById('ed');
+  if (ed) ed.addEventListener('input', () => {
+    const t = cur(); t.text = ed.value;
+    if (!t.dirty) { t.dirty = true; const pos = ed.selectionStart; render(); const e2 = document.getElementById('ed'); e2.focus(); e2.setSelectionRange(pos, pos); }
+  });
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast'); if (!el) return;
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+function closeAll() { S.drawer = false; S.level = null; S.sub = null; S.modal = null; }
+function openDoc(name, gh) {
+  const ex = S.tabs.find((t) => t.name === name);
+  if (ex) S.active = ex.id;
+  else { const t = { id: S.nextId++, name, gh, dirty: false, text: TEXT }; S.tabs.push(t); S.active = t.id; }
+  closeAll();
+}
+function closeTab(id) {
+  const i = S.tabs.findIndex((t) => t.id === id);
+  S.tabs.splice(i, 1);
+  if (S.active === id) S.active = S.tabs.length ? S.tabs[Math.max(0, i - 1)].id : null;
+}
+function askThen(id, after) { S.confirm = { id, after }; }
+function save(t, then) {
+  if (t.gh) { S.active = t.id; S.modal = 'commit'; S.afterCommit = then; return; }
+  t.dirty = false; render(); toast('Saved ' + t.name + '.'); then && then();
+}
+
+const NOTES = {
+  'file.open': 'Opens the system file picker (same as desktop Open…). Prototype opens roadmap.md.',
+  'file.openFolder': 'Opens the system folder picker. Prototype marks a folder as open.',
+  'file.saveAs': 'Save As… sheet (unchanged).',
+  'github.openPr': 'Opens the Open PR screen (unchanged).',
+  'edit.undo': 'Undo.', 'edit.settings': 'Opens Settings (author name and GitHub).',
+  'view.refresh': 'Refreshes the folder or repo navigator.',
+  'insert.image': 'Image… picker (unchanged).', 'insert.toc': 'Inserts a table of contents.',
+  'help.skill': 'Opens the Agent skill screen.', 'help.about': 'Opens About Gonq.',
+};
+
+function act(a) {
+  const [k, v] = a.split(/:(.*)/s);
+  let msg = null;
+  switch (k) {
+    case 'drawer': S.drawer = true; S.level = null; S.sub = null; break;
+    case 'scrim': closeAll(); break;
+    case 'menu': if (v === 'github' && S.ghMode === 'modal') { S.drawer = false; S.modal = 'github'; } else S.level = v; break;
+    case 'sub': S.sub = v; break;
+    case 'up': if (S.sub) S.sub = null; else S.level = null; break;
+    case 'docs': S.drawer = false; S.modal = 'documents'; break;
+    case 'closeModal': S.modal = null; break;
+    case 'tab': S.active = +v; closeAll(); break;
+    case 'tabclose': { const t = S.tabs.find((x) => x.id === +v); if (t.dirty) askThen(t.id, () => closeTab(t.id)); else closeTab(t.id); break; }
+    case 'recent': { const r = RECENTS[+v]; if (r.gh && !S.signedIn) { msg = 'Sign in to GitHub first (Open Repo goes through sign-in).'; break; } openDoc(r.name, r.gh); break; }
+    case 'raw': S.raw = v === '1'; break;
+    case 'note': msg = v; break;
+    case 'relaunch': S.closed = false; break;
+    case 'confirm': {
+      const c = S.confirm; S.confirm = null; const t = S.tabs.find((x) => x.id === c.id);
+      if (v === 'save') { save(t, c.after); return render(); }
+      if (v === 'discard') { t.dirty = false; c.after && c.after(); }
+      break;
+    }
+    case 'commit': { const t = cur(); t.dirty = false; S.modal = null; render(); toast('Committed ' + t.name + ' to main.'); const f = S.afterCommit; S.afterCommit = null; f && f(); return render(); }
+    default: {
+      closeAll();
+      if (a === 'file.new') { const n = S.tabs.filter((t) => t.name.startsWith('Untitled')).length; openDoc(n ? `Untitled-${n + 1}.md` : 'Untitled.md', false); break; }
+      if (a === 'file.open') { openDoc('roadmap.md', false); msg = NOTES[a]; break; }
+      if (a === 'file.openFolder') { S.folderOpen = true; msg = NOTES[a]; break; }
+      if (a === 'file.save') { const t = cur(); if (t) { save(t); return render(); } break; }
+      if (a === 'file.commit') { S.modal = 'commit'; break; }
+      if (a === 'file.closeTab') { act('tabclose:' + S.active); return; }
+      if (a === 'github.openRepo') { if (!S.signedIn) { msg = 'Not signed in: the sign-in screen opens first.'; break; } S.folderOpen = true; openDoc('README.md', true); msg = 'Repo picker (unchanged). Prototype opens README.md.'; break; }
+      if (a === 'gh.sign') { S.signedIn = !S.signedIn; document.getElementById('optSigned').checked = S.signedIn; msg = S.signedIn ? 'Signed in as @you.' : 'Signed out.'; break; }
+      if (a === 'view.raw') { S.raw = !S.raw; break; }
+      if (a.startsWith('theme.')) { S.theme = a.slice(6); break; }
+      if (a.startsWith('fmt.') || a.startsWith('tbl.')) { msg = 'Runs ' + a.slice(4) + '.'; break; }
+      msg = NOTES[a] || a;
+    }
+  }
+  render();
+  if (msg) toast(msg);
+}
+
+function back() {
+  if (S.closed) return;
+  if (S.confirm) { S.confirm = null; return render(); }
+  if (S.modal) { S.modal = null; return render(); }
+  if (S.drawer) { if (S.sub) S.sub = null; else if (S.level) S.level = null; else S.drawer = false; return render(); }
+  // Decision 2.2: Back leaves the app, asking first about each unsaved tab.
+  const dirty = S.tabs.find((t) => t.dirty);
+  if (dirty) { S.active = dirty.id; askThen(dirty.id, () => setTimeout(back, 0)); return render(); }
+  S.closed = true; render();
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('#phone [data-a]');
+  if (!b || b.disabled) return;
+  act(b.dataset.a);
+});
+document.getElementById('androidBack').onclick = back;
+document.getElementById('optFile').onchange = (e) => { S.showFile = e.target.checked; if (!S.showFile && S.level === 'file') S.level = null; render(); };
+document.getElementById('optTable').onchange = (e) => { S.inTable = e.target.checked; render(); };
+document.getElementById('optSigned').onchange = (e) => { S.signedIn = e.target.checked; render(); };
+document.querySelectorAll('input[name=gh]').forEach((r) => (r.onchange = () => { S.ghMode = r.value; render(); }));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+render();
+</script>
+</body>
+</html>
