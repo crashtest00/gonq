@@ -27,8 +27,12 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(logo).toHaveAttribute('src', /gonq-logo-OUTLINE/);
       expect(await logo.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
       const box = (await logo.boundingBox())!;
-      const vw = page.viewportSize()!.width;
-      expect(Math.abs(box.x + box.width / 2 - vw / 2)).toBeLessThanOrEqual(2 * 44);
+      const bar = (await page.getByRole('banner').boundingBox())!;
+      expect(Math.abs(box.x + box.width / 2 - (bar.x + bar.width / 2))).toBeLessThanOrEqual(2);
+      for (const b of await page.getByRole('banner').getByRole('button').all()) {
+        const bb = (await b.boundingBox())!;
+        expect(bb.x + bb.width <= box.x || bb.x >= box.x + box.width).toBe(true);
+      }
       expect(box.height).toBeGreaterThan(24);
     });
 
