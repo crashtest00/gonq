@@ -77,7 +77,7 @@ There is one deliberate exception. SSH is not a mobile feature (decision 2), so 
    - **D8 Conflict dialog:** the real Cancel/Overwrite dialog, GitHub only; the "File changed on disk" dialog is deleted from the design. M-22, M-28.
    - **D9 Sign-in killed mid-flow:** if Android kills the app during sign-in, it relaunches at the idle "Start" screen with no extra wording. The device code lives only in memory, as on desktop, and there is no "interrupted" state. M-11, M-12, M-17.
    - **D10 Find in document:** excluded. Desktop has no menu command for it (Ctrl+F is CodeMirror's own search), so mobile adds no touch entry. M-25.
-   - **Menu redesign decisions D11 to D17 (owner, 2026-11-26).** Stories M-37 to M-42. D3 still holds: Theme stays in the menu (View > Theme), which is now the ☰ drawer.
+   - **Menu redesign decisions D11 to D18 (owner, 2026-11-26).** Stories M-37 to M-43. D3 still holds: Theme stays in the menu (View > Theme), which is now the ☰ drawer.
    - **D11 ☰ menu:** ☰ replaces ⋯ and moves to the top bar's leading slot. On the editor it takes the back arrow's place. It opens a left side drawer that drills down: menus, then items, then submenus. M-40.
    - **D12 Android Back in the editor:** it leaves the app, after asking about each unsaved tab as that tab's close control does. This replaces M-35 criterion 3. M-40.
    - **D13 GitHub menu (desktop and mobile):** Sign In, Sign Out, Open Repo…, Commit… and Open PR… form a new top-level GitHub menu, and the last three leave File. M-37.
@@ -85,6 +85,7 @@ There is one deliberate exception. SSH is not a mobile feature (decision 2), so 
    - **D15 Save button:** a Save icon button comes first in the editing toolbar, left of Undo, on desktop and mobile. On mobile it is also pinned first in the table bar. The mobile top bar loses its Raw switch; View > Raw Markdown stays. M-39.
    - **D16 Gonq home:** the home shows the logo, centred, instead of the title "Documents", and appears only while no tab is open. Its "Sign in to GitHub" row goes, because Open Repo… already starts sign-in. Desktop's no-tab state becomes the same home. M-41, M-42.
    - **D17 Close Tab:** mobile leaves it out of the menu, since each tab has a close control. Desktop keeps File > Close Tab. M-40.
+   - **D18 One navigator on mobile:** the top-bar navigator button opens the GitHub repo tree (as a sheet) when a repo is open, and the local folder otherwise, as desktop's one navigator pane does. View > Refresh Navigator is enabled whenever either is open and refreshes it. This keeps the repo tree reachable once the editor loses its back arrow. M-43, which blocks M-40.
 
 ### Inputs still needed from the owner
 
@@ -1344,14 +1345,14 @@ No `invoke` outside `packages/editor/src/platform/`. No `keydown` handlers (CLAU
 
 ### Epic J: Menu, Save button and home redesign (owner, 2026-11-26)
 
-M-37 to M-42 implement decisions D11 to D17 (section 2). The owner tested the APK and found the ⋯ menu far too long. These stories change four things:
+M-37 to M-43 implement decisions D11 to D18 (section 2). The owner tested the APK and found the ⋯ menu far too long. These stories change four things:
 
 - the shared command registry (M-37, M-38);
 - both editing toolbars (M-39);
-- mobile navigation (M-40, M-41);
+- mobile navigation (M-40, M-41, M-43);
 - the desktop empty state (M-42).
 
-**Order.** No story blocks another. M-40's drawer shows whatever the registry holds, so the menus from M-37 and M-38 appear in it as soon as they merge.
+**Order.** M-43 blocks M-40; no other story blocks another. M-40's drawer shows whatever the registry holds, so the menus from M-37 and M-38 appear in it as soon as they merge.
 
 #### M-37 GitHub menu (desktop and mobile)
 
@@ -1497,6 +1498,8 @@ M-37 to M-42 implement decisions D11 to D17 (section 2). The owner tested the AP
 
 **Out of scope.** Menu contents (M-37, M-38) and the home screen (M-41).
 
+**Depends on.** M-43. The repo tree must be reachable from the navigator button before the editor loses its back arrow.
+
 **Verification.** Jenkins. Beta: `/mobile/`. Android Back on the emulator in the next M-34 pass.
 
 ---
@@ -1546,6 +1549,58 @@ M-37 to M-42 implement decisions D11 to D17 (section 2). The owner tested the AP
 **Out of scope.** Mobile (M-41).
 
 **Verification.** Jenkins. Beta: desktop web.
+
+---
+
+#### M-43 Mobile navigator button covers the GitHub repo; Refresh Navigator parity
+
+**Goal.** The mobile top-bar navigator button opens the GitHub repo tree when a repo is open, and the local folder otherwise, as desktop's one navigator pane does. View > Refresh Navigator works for both (D18).
+
+**Why.** Three problems, one fix:
+
+- **M-40 would strand the repo tree.** On mobile the repo tree is a screen below the editor: Open Repo… pushes it (`shell/github.tsx:82`, `onRepoChosen`), and opening a file pushes the editor on top. The editor's Back is the only way back to it. M-40 removes that Back, which would cut off branch switching, Create branch and opening other files.
+- **Desktop has one navigator for both.** It shows "the GitHub repo navigator when `repo` is set" (`FolderSidebar.tsx:2-3`), and the local folder otherwise.
+- **Mobile's Refresh Navigator is broken for local folders.**
+  - It is enabled only while the repo screen is on the stack (`commandContext.tsx:105`).
+  - The Folder sheet ignores the menu's refresh signal (`useNavigatorRefresh()` with no signal, `FolderSheet.tsx:95`).
+
+**Acceptance criteria.**
+
+1. With a GitHub repo open, the navigator button opens a sheet with the repo tree. It has everything today's repo screen has (M-19, M-20), with the same strings, states and rules:
+   - the repository name;
+   - the branch button and Branches sheet;
+   - Create branch;
+   - Refresh, with its error line and Retry;
+   - the lazy folder tree;
+   - opening a file, which closes the sheet and shows the editor.
+2. With a local folder open and no repo, the button opens today's folder sheet. With neither, it shows today's "No folder open" state.
+3. When both have been opened in a session, the repo shows while one is set, as on desktop.
+4. Choosing a repository in the Open Repo… picker returns to the screen the picker was opened from and opens the navigator sheet on that repository. No repo screen is left under the editor.
+5. The repo tree stays mounted while the sheet is closed, as the folder tree does, so expanded folders survive.
+6. View > Refresh Navigator:
+   - is enabled whenever a local folder or a repo is open (desktop's rule, `App.tsx:530`, without its pane-visible condition, because the mobile tree stays mounted);
+   - refreshes the open navigator through the same signal desktop uses (`navRefresh`);
+   - leaves the sheet's own Refresh button working as today.
+7. Tests:
+   - component tests for both sources;
+   - a menu refresh while the sheet is closed;
+   - the picker flow;
+   - the mobile Playwright repo spec, updated.
+
+**FE/BE contract.** None.
+
+**Edge cases.**
+
+- The branch is deleted on the server during a refresh: today's behaviour, switching to the default branch with the change-branch warning.
+- Refresh pressed while a listing is in flight: busy, one at a time.
+- Android Back with the sheet open closes the sheet (M-35).
+
+**Out of scope.**
+
+- Reloading the open document on refresh: a held item in the owner's backlog.
+- Any desktop change.
+
+**Verification.** Jenkins. Beta: `/mobile/`. This story blocks M-40.
 
 ---
 
@@ -1693,3 +1748,4 @@ This revision aligns the plan with the real desktop implementation (v0.1.5) and 
 | M-25 | Criteria 1 and 2 change with M-37, M-38 and M-40: new menus, and Close Tab excluded on mobile. Criterion 4 (disabled shown, never hidden) stands. |
 | M-35 | Criterion 3 is replaced by M-40 criterion 6 (D12). |
 | Section 5 | The rule against shared commands for mobile chrome now notes that shared menus (D13, D14) are not mobile chrome. |
+| M-43, D18 | New story: the mobile navigator button covers the GitHub repo (as a sheet), and Refresh Navigator matches desktop. It blocks M-40, which would otherwise strand the repo tree. |
