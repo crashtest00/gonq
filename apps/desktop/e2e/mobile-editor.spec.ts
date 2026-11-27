@@ -47,6 +47,10 @@ test('accessory bar buttons and Raw segments are at least 44x44 and the bar neve
   await newDocument(page);
   const buttons = await size(page.getByRole('toolbar', { name: 'Editing' }).getByRole('button'));
   expect(buttons).toHaveLength(11);
+  const save = await size(page.getByRole('toolbar', { name: 'Editing' }).getByRole('button', { name: 'Save' }));
+  expect(save).toHaveLength(1);
+  expect(save[0].w).toBeGreaterThanOrEqual(44);
+  expect(save[0].h).toBeGreaterThanOrEqual(44);
   const segments = await size(page.locator('[data-segment]'));
   expect(segments).toHaveLength(2);
   for (const b of [...buttons, ...segments]) {
