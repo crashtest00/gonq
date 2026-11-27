@@ -136,7 +136,26 @@ async function call<T>(run: () => Promise<T>, unavailable = GITHUB_UNAVAILABLE):
 export const startSignIn = (): Promise<DeviceStart> => call(commands.githubStart);
 
 /** Waits until the code is approved (resolves signed in), refused (denied), or expired. */
-export const pollSignIn = (): Promise<GitHubStatus> => call(commands.githubPoll);
+export const pollSignIn = (): Promise<GitHubStatus> => call(commands.githubPoll).then(noteStatus);
+
+// What the app last learned about being signed in, so the GitHub menu can grey Sign In / Sign Out without asking
+// again: every status read, an approved poll and a sign-out update it.
+let knownSignedIn = false;
+const signedInListeners = new Set<() => void>();
+function noteStatus(status: GitHubStatus): GitHubStatus {
+  const now = status?.signed_in === true;
+  if (now !== knownSignedIn) {
+    knownSignedIn = now;
+    signedInListeners.forEach((l) => l());
+  }
+  return status;
+}
+/** useSyncExternalStore pair for the last known signed-in state (false until the first status read). */
+export const subscribeSignedIn = (l: () => void): (() => void) => {
+  signedInListeners.add(l);
+  return () => void signedInListeners.delete(l);
+};
+export const knownSignedInState = (): boolean => knownSignedIn;
 
 /** Whether a device code is outstanding (not expired by the wall clock) and when it expires, in ms since the epoch. */
 export interface PendingSignIn {
@@ -147,10 +166,14 @@ export interface PendingSignIn {
 /** Asks Rust whether a sign-in is still being waited on; false after the process was killed or the code expired. */
 export const pendingSignIn = (): Promise<PendingSignIn> => call(commands.githubPending);
 
-export const signInStatus = (): Promise<GitHubStatus> => call(commands.githubStatus);
+export const signInStatus = (): Promise<GitHubStatus> => call(commands.githubStatus).then(noteStatus);
 
 /** Deletes the stored token (and stops a sign-in being polled). Fine when already signed out. */
-export const signOut = (): Promise<void> => call(commands.githubSignOut) as Promise<unknown> as Promise<void>;
+export const signOut = (): Promise<void> =>
+  (call(commands.githubSignOut) as Promise<unknown>).then((r) => {
+    noteStatus({ signed_in: false, login: null, storage: null });
+    return r as void;
+  });
 
 export interface RepoSummary {
   owner: string;

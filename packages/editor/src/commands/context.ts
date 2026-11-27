@@ -38,6 +38,11 @@ export interface CommandContext {
   closeTab: Action;
   openFolder: Action;
   openConnect: Action;
+  /** Signed in to GitHub (last known): GitHub > Sign In is for when this is false, Sign Out for when it is true. */
+  githubSignedIn: boolean;
+  /** Shows the GitHub sign-in (a no-op that resolves when already signed in). */
+  githubSignIn: Action;
+  githubSignOut: Action;
   openRepo: Action;
   /** A repository is open in the navigator or a GitHub tab is open: File > Open PR… has a repository to work on. */
   canOpenPr: boolean;

@@ -172,7 +172,7 @@ it('Cancel and Escape close', async () => {
 // --- through the app ---
 
 const openRepo = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(screen.getByRole('menuitem', { name: 'File' }));
+  await user.click(screen.getByRole('menuitem', { name: 'GitHub' }));
   await user.click(await screen.findByRole('menuitem', { name: 'Open Repo…' }));
 };
 

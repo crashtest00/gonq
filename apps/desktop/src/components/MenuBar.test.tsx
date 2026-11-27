@@ -131,11 +131,11 @@ test('Format is disabled with no document open', () => {
   expect(screen.getByRole('menuitem', { name: 'Format' })).toBeDisabled();
 });
 
-test('File > Open Repo… is always enabled and calls onOpenRepo', async () => {
+test('GitHub > Open Repo… is always enabled and calls onOpenRepo', async () => {
   const onOpenRepo = vi.fn();
   setup({ onOpenRepo, hasDocument: false });
   const user = userEvent.setup();
-  await user.click(screen.getByRole('menuitem', { name: 'File' }));
+  await user.click(screen.getByRole('menuitem', { name: 'GitHub' }));
   const item = screen.getByRole('menuitem', { name: 'Open Repo…' });
   expect(item).not.toHaveAttribute('data-disabled');
   await user.click(item);

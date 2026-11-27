@@ -23,9 +23,9 @@ is that broad. The signed-in user needs write access to the repository.
    beside it), choose **Open github.com/login/device** (or copy the address), paste the code on that GitHub page and
    approve. It says "Waiting for approval on github.com…" and finishes by itself once you approve; the section then shows
    "Signed in as <login>." with a **Sign Out** button. Gonq never sees your password. If you are signed out when you
-   choose **File > Open Repo…** or **Open PR…**, Settings opens already at this step and the command continues once
+   choose **GitHub > Open Repo…** or **Open PR…**, Settings opens already at this step and the command continues once
    you are signed in.
-2. **File > Open Repo…** lists your repositories; filter and pick one. The folder sidebar becomes the repository
+2. **GitHub > Open Repo…** lists your repositories; filter and pick one. The folder sidebar becomes the repository
    navigator: the repository name, a **branch dropdown** (with a filter box) and a folder tree of Markdown files.
    Picking another branch reloads the tree.
    **Refresh** (the circular-arrow icon in the navigator header, or **View > Refresh Navigator**) re-lists the tree and
@@ -34,7 +34,7 @@ is that broad. The signed-in user needs write access to the repository.
    deleted on GitHub, Refresh switches the navigator to the repository's default branch (with the usual "Change
    branch?" warning if the open document has uncommitted changes).
 3. Click a file to open it in a tab. Edit as usual.
-4. **File > Commit…** commits the tab's file to the tab's branch with the message `Edit <path> from Gonq`, after a
+4. **GitHub > Commit…** commits the tab's file to the tab's branch with the message `Edit <path> from Gonq`, after a
    confirmation showing file, repository, branch and message. **Ctrl+S** does the same on a GitHub tab, because there
    is no local file to save to. Local tabs still save normally.
 5. **Create branch** (the icon in the navigator header) makes `gonq/<name>` from the current branch; the `gonq/`
@@ -42,7 +42,7 @@ is that broad. The signed-in user needs write access to the repository.
 6. On a branch that is not a `gonq/` branch, the Commit dialog warns: "This commits directly to <branch>. Branch
    protection and review rules are GitHub's; Gonq does not check them." Its **Commit to new branch…** button creates
    a `gonq/` branch instead.
-7. **File > Open PR…** (greyed until a repository or GitHub tab is open) has three steps, left to right: **Branch to
+7. **GitHub > Open PR…** (greyed until a repository or GitHub tab is open) has three steps, left to right: **Branch to
    merge**, **Merge into**, and **Review changes** (the changed files). **Open PR** then shows an editable title and
    body, pre-filled by Gonq; its **Open PR** button creates the pull request, and the result offers **Open in
    browser**. Gonq also labels the new pull request `gonq-editor` (a fixed name, not a setting; if the repository

@@ -127,7 +127,7 @@ describe('commit dialog', () => {
     const { user } = setup([{ branch: 'main', path: 'a.md', content: '# A\n' }]);
     await openRecent(user, /^a\.md/);
     type('!');
-    await menu(user, 'File', /^Commit…/);
+    await menu(user, 'GitHub', /^Commit…/);
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 });
@@ -233,24 +233,24 @@ describe('other tabs and the web', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('the Commit… item is in the File menu on the web and is off without a GitHub tab', async () => {
+  it('the Commit… item is in the GitHub menu on the web and is off without a GitHub tab', async () => {
     delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
     const { user } = renderApp({ docs: testDoc('# L\n') });
     await openDocument(user);
-    await user.click(screen.getByRole('menuitem', { name: 'File' }));
+    await user.click(screen.getByRole('menuitem', { name: 'GitHub' }));
     expect(await screen.findByRole('menuitem', { name: /^Commit…/ })).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('File menu lists Save, Save As…, Commit… in that order', async () => {
+  it('File menu lists Save, Save As… and no Commit…; Commit… is in the GitHub menu', async () => {
     delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
     const { user } = renderApp({ docs: testDoc('# L\n') });
     await openDocument(user);
     await user.click(screen.getByRole('menuitem', { name: 'File' }));
-    await screen.findByRole('menuitem', { name: /^Commit…/ });
+    await screen.findByRole('menuitem', { name: /^Save As…/ });
     const names = screen.getAllByRole('menuitem').map((e) => e.textContent ?? '');
     const at = (re: RegExp) => names.findIndex((n) => re.test(n));
     expect(at(/^Save As…/)).toBe(at(/^Save(?! As)/) + 1);
-    expect(at(/^Commit…/)).toBe(at(/^Save As…/) + 1);
+    expect(at(/^Commit…/)).toBe(-1);
   });
 
   it('commitFile throws the clear desktop-app error on the web', async () => {
