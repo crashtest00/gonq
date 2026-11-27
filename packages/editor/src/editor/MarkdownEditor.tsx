@@ -15,7 +15,7 @@ import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCom
 import { commentThreadCreationChanges } from '../comment-threads/editor/codemirror';
 import { createEditorState, modeCompartment, modeExtension, readOnlyCompartment, readOnlyExtension } from './extensions';
 import { editorHost } from './host';
-import { threadEdit } from './threads';
+import { activeThread, setActiveThread, threadEdit } from './threads';
 import { refreshToc } from './toc';
 import { tocChange } from '../model/toc';
 
@@ -88,6 +88,8 @@ interface Props {
   docPath: string | null;
   /** A 💬 / ✅ marker was clicked. */
   onOpenThread: (id: string, ordinal: number) => void;
+  /** PROTOTYPE: key (`id#ordinal`) of the thread open in the Comments panel; its marker is drawn active. */
+  activeThreadKey?: string | null;
   /** The focused table cell changed: null when the caret is not in a table. */
   onTable: (target: TableTarget | null) => void;
   /** Right-click in the text; the caret has already moved there unless it hit the selection. */
@@ -205,6 +207,14 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     if (readOnlyCompartment.get(v.state) === want) return;
     v.dispatch({ effects: readOnlyCompartment.reconfigure(want) });
   }, [props.readOnly, props.tabId]);
+
+  // The open thread's marker is drawn active (after the tab-switch effect, so a restored state gets the current value too).
+  useLayoutEffect(() => {
+    const v = view.current;
+    const want = props.activeThreadKey ?? null;
+    if (!v || v.state.field(activeThread) === want) return;
+    v.dispatch({ effects: setActiveThread.of(want) });
+  }, [props.activeThreadKey, props.tabId]);
 
   // Closed tabs release their state.
   useEffect(() => {

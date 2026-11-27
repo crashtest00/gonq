@@ -15,7 +15,7 @@ import { livePreview } from './livePreview';
 import { renumberAfter } from './renumber';
 import { openLink } from './openLink';
 import { tocWidgets } from './toc';
-import { keepCaretOutOfTocMarker, protectThreadBlocks, separateThreadBlocks } from './threads';
+import { activeThread, keepCaretOutOfTocMarker, protectThreadBlocks, separateThreadBlocks } from './threads';
 
 export const PLACEHOLDER = 'Click here to start writing.';
 
@@ -110,6 +110,7 @@ export function editorExtensions(raw: boolean, extra: Extension = [], readOnly =
     history(),
     // Four spaces, so Tab nests every list marker up to "99. ": a child must start at or past its parent's content column.
     indentUnit.of('    '),
+    activeThread,
     protectThreadBlocks,
     separateThreadBlocks,
     keepCaretOutOfTocMarker,

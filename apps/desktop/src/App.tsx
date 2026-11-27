@@ -624,6 +624,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
               readOnly={readOnlyPull !== null}
               tabIds={session.tabIds}
               docPath={meta.path}
+              activeThreadKey={commentsOpen ? selectedKey : null}
               onOpenThread={(id, ordinal) => {
                 const key = threadKey(id, ordinal);
                 if (!listThreads(textRef.current).some((t) => t.key === key)) return;

@@ -3,7 +3,7 @@
  * hidden in Formatted mode and protected from edits that cover them.
  */
 import { ensureSyntaxTree } from '@codemirror/language';
-import { Annotation, EditorState, type Extension, StateField, type Text, Transaction, type TransactionSpec } from '@codemirror/state';
+import { Annotation, EditorState, type Extension, StateEffect, StateField, type Text, Transaction, type TransactionSpec } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view';
 import { AGENT_GUIDANCE, OPEN_COMMENT_LABEL, parseCommentMarkers, parseCommentThreads } from '../comment-threads';
 import { findToc } from '../model/toc';
@@ -15,17 +15,36 @@ import { editorHost } from './host';
 /** Set on transactions that rewrite thread blocks on purpose (create, reply, resolve, edit, delete). */
 export const threadEdit = Annotation.define<boolean>();
 
+/** PROTOTYPE: the key (`id#ordinal`, see model/threads threadKey) of the thread open in the Comments panel, or null. */
+export const setActiveThread = StateEffect.define<string | null>();
+export const activeThread = StateField.define<string | null>({
+  create: () => null,
+  update(value, tr) {
+    for (const e of tr.effects) if (e.is(setActiveThread)) return e.value;
+    return value;
+  },
+});
+
+const markerCache = new WeakMap<Text, ReturnType<typeof parseCommentMarkers>>();
+/** Ordinal of the marker at `from` among the markers sharing `id`; the parse is cached per document. */
+export function markerOrdinal(doc: Text, id: string, from: number): number {
+  let all = markerCache.get(doc);
+  if (all === undefined) markerCache.set(doc, (all = parseCommentMarkers(doc.toString())));
+  return Math.max(0, (all.get(id) ?? []).findIndex((m) => m.from === from));
+}
+
 export class ThreadMarker extends WidgetType {
-  constructor(readonly id: string, readonly glyph: string) {
+  constructor(readonly id: string, readonly glyph: string, readonly active = false) {
     super();
   }
   eq(other: ThreadMarker) {
-    return other.id === this.id && other.glyph === this.glyph;
+    return other.id === this.id && other.glyph === this.glyph && other.active === this.active;
   }
   toDOM(view: EditorView) {
     const el = document.createElement('span');
     const open = this.glyph === OPEN_COMMENT_LABEL;
-    el.className = `cm-thread-marker ${open ? 'cm-thread-open' : 'cm-thread-resolved'}`;
+    el.className = `cm-thread-marker ${open ? 'cm-thread-open' : 'cm-thread-resolved'}${this.active ? ' cm-thread-active' : ''}`;
+    if (this.active) el.setAttribute('aria-current', 'true');
     el.textContent = this.glyph;
     el.setAttribute('role', 'button');
     el.setAttribute('aria-label', open ? 'Open comment thread' : 'Resolved comment thread');
