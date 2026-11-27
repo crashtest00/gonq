@@ -1,9 +1,10 @@
 /**
  * <PhoneShell/>: the frame every screen sits in: a safe-area top bar (env(safe-area-inset-*)) with a Back button when
- * the stack is deeper than one and the screen's title and actions, the NoticeBanner, and the scrolling content area. A screen with
+ * the stack is deeper than one and the screen's title (or, for a screen with `logo`, the real Gonq logo, centred, named "Gonq") and actions, the NoticeBanner, and the scrolling content area. A screen with
  * no title (the splash) gets no top bar.
  */
 import type { ReactNode } from 'react';
+import logo from '@repo-assets/gonq-logo-OUTLINE.svg';
 import { NoticeBanner } from './notices';
 import { useNavigator } from './StackNavigator';
 
@@ -18,7 +19,13 @@ export function PhoneShell({ children }: { children: ReactNode }) {
               ←
             </button>
           )}
-          <h1>{top.title}</h1>
+          {top.logo ? (
+            <div className="m-topbar-logo">
+              <img src={logo} alt="Gonq" />
+            </div>
+          ) : (
+            <h1>{top.title}</h1>
+          )}
           {top.actions?.()}
         </header>
       )}

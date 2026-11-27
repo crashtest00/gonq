@@ -1,4 +1,4 @@
-/** Covers the mobile Documents home through renderMobileApp: recent rows (icon, name, owner/repo @ branch, time), the 10 cap, tap-to-reopen order (allowRecentDocument, then the read), remove, the empty text, Open Repo through ensureSignedIn to the picker, and "+" = File > New. */
+/** Covers the mobile Documents home through renderMobileApp: recent rows (icon, name, owner/repo @ branch, time), the 10 cap, tap-to-reopen order (allowRecentDocument, then the read), the Gonq top bar (logo, no title, no Sign in row, no Remove buttons), the empty text, Open Repo through ensureSignedIn to the picker, and "+" = File > New. */
 import { screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
@@ -28,14 +28,24 @@ beforeEach(() => {
   store = [];
   signedIn = false;
   calls.length = 0;
-  invoke.mockReset().mockImplementation((cmd: string, args?: { path?: string }) => {
+  invoke.mockReset().mockImplementation((cmd: string) => {
     if (cmd === 'github_status') return Promise.resolve({ signed_in: signedIn, login: 'a', storage: 'keychain' });
     if (cmd === 'recent_documents_list') return Promise.resolve(store);
-    if (cmd === 'recent_documents_remove') return Promise.resolve((store = store.filter((r) => r.path !== args?.path)));
     if (cmd === 'allow_recent_document') calls.push('allow');
     if (cmd === 'path_exists') return Promise.resolve(true);
     return Promise.resolve(undefined);
   });
+});
+
+it('shows the real logo named Gonq in the top bar, with no Documents title, Sign in row or Remove buttons', async () => {
+  seed([{ path: '/d/a.md', openedAt: NOW }]);
+  await renderMobileApp();
+  await screen.findAllByRole('listitem');
+  const logo = within(screen.getByRole('banner')).getByRole('img', { name: 'Gonq' });
+  expect(logo).toHaveAttribute('src', expect.stringContaining('gonq-logo-OUTLINE.svg'));
+  expect(screen.queryByRole('heading', { name: 'Documents' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Sign in to GitHub' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /from recent documents/ })).toBeNull();
 });
 
 it('shows the empty text and always shows Open Repo…, Open Folder… and New', async () => {
@@ -47,7 +57,7 @@ it('shows the empty text and always shows Open Repo…, Open Folder… and New',
   expect(document.body.textContent).not.toMatch(/server/i);
 });
 
-it('lists local and GitHub recents with desktop row content and an accessible remove control', async () => {
+it('lists local and GitHub recents with desktop row content and no remove control', async () => {
   seed([
     { path: '/docs/a.md', openedAt: NOW - 5 * 60_000 },
     { path: 'github://northwind/platform-docs@main/docs/arch.md', openedAt: NOW - 3 * 3_600_000 },
@@ -62,7 +72,7 @@ it('lists local and GitHub recents with desktop row content and an accessible re
   expect(within(items[1]).getByText('northwind/platform-docs @ main')).toBeInTheDocument();
   expect(within(items[1]).getByText('3 h ago')).toBeInTheDocument();
   expect(within(items[2]).getByText('2 d ago')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Remove arch.md from recent documents' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull();
 });
 
 it('shows at most 10 recents', async () => {
@@ -71,15 +81,12 @@ it('shows at most 10 recents', async () => {
   expect(await screen.findAllByRole('listitem')).toHaveLength(10);
 });
 
-it('removes a recent through removeRecent', async () => {
-  seed([
-    { path: '/d/a.md', openedAt: NOW },
-    { path: '/d/b.md', openedAt: NOW - 1000 },
-  ]);
-  const { user } = await renderMobileApp();
-  await user.click(await screen.findByRole('button', { name: 'Remove a.md from recent documents' }));
-  await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1));
-  expect(invoke).toHaveBeenCalledWith('recent_documents_remove', { path: '/d/a.md' });
+it('keeps a long recent name inside its row', async () => {
+  seed([{ path: `/d/${'long-'.repeat(40)}.md`, openedAt: NOW }]);
+  await renderMobileApp();
+  const row = await screen.findByRole('listitem');
+  const name = within(row).getByText(/^long-/);
+  expect(name).toHaveStyle({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
 });
 
 it('reopens a local recent: allowRecentDocument first, then the read', async () => {

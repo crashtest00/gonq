@@ -51,7 +51,7 @@ it('shows the real logo, the name and the repository link, and Close returns', a
   expect(link).toHaveAttribute('href', REPO_URL);
   expect(link).toHaveClass('m-tap');
   await user.click(screen.getByRole('button', { name: 'Close' }));
-  expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
 });
 
 it('has no tagline, release notes or licences', async () => {

@@ -1,6 +1,6 @@
 /**
  * renderMobileApp: renders the mobile <App/> with a user-event session, for the per-feature mobile tests (the
- * counterpart of apps/desktop/src/testing/renderApp.tsx). Defaults to the Documents home (splashMs 0 plus
+ * counterpart of apps/desktop/src/testing/renderApp.tsx). Defaults to the Gonq home (splashMs 0 plus
  * waiting for it); pass `splash: true` to stay on the splash. Also renderInShell() for a bare screen.
  */
 import { render, screen } from '@testing-library/react';
@@ -17,7 +17,7 @@ export type User = ReturnType<typeof userEvent.setup>;
 export async function renderMobileApp({ splash = false }: { splash?: boolean } = {}) {
   const user = userEvent.setup();
   const result = render(<App splashMs={splash ? 3_600_000 : 0} />);
-  if (!splash) await screen.findByRole('heading', { name: 'Documents' });
+  if (!splash) await screen.findByRole('img', { name: 'Gonq' });
   return { ...result, user };
 }
 

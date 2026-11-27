@@ -45,7 +45,7 @@ async function openRecent(user: User, path: string) {
 }
 async function back(user: User) {
   await user.click(screen.getByRole('button', { name: 'Back' }));
-  await screen.findByRole('heading', { name: 'Documents' });
+  await screen.findByRole('img', { name: 'Gonq' });
 }
 async function openNew(user: User) {
   await user.click(screen.getByRole('button', { name: 'New' }));
@@ -109,7 +109,7 @@ it('closes a clean tab without asking; closing the last one goes back to Documen
   expect(screen.queryByRole('dialog', { name: /Save changes/ })).toBeNull();
   expect(tabs()).toHaveLength(1);
   await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
-  expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(await screen.findByRole('img', { name: 'Gonq' })).toBeInTheDocument();
 });
 
 it('closing a dirty tab always asks; Cancel keeps it, Don’t save closes it', async () => {
@@ -125,7 +125,7 @@ it('closing a dirty tab always asks; Cancel keeps it, Don’t save closes it', a
   expect(tabs()).toHaveLength(1);
   await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
   await user.click(await screen.findByRole('button', { name: 'Don’t save' }));
-  expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(await screen.findByRole('img', { name: 'Gonq' })).toBeInTheDocument();
 });
 
 it('Save on the sheet writes the file, then closes the tab', async () => {
@@ -138,7 +138,7 @@ it('Save on the sheet writes the file, then closes the tab', async () => {
   await user.click(screen.getByRole('button', { name: 'Close a.md' }));
   await user.click(within(await screen.findByRole('dialog', { name: /Save changes/ })).getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(fs.written).toEqual([['/x/a.md', 'plain a!']]));
-  expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(await screen.findByRole('img', { name: 'Gonq' })).toBeInTheDocument();
 });
 
 it('the Outline button is a top-bar button, not a registry command', async () => {

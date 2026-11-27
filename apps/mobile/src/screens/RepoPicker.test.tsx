@@ -152,17 +152,17 @@ it('a revoked token closes the picker and shows the sign-in-again notice in the 
   await renderMobileApp().then(async (r) => r.user.click(screen.getByRole('button', { name: 'Open Repo…' })));
   expect(await screen.findByText('GitHub sign-in is no longer valid. Sign in again to open a repository.')).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: 'Open repository' })).toBeNull();
-  expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
 });
 
 it('Cancel and the Back button close the picker', async () => {
   const { user } = await openPicker();
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
-  expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(await screen.findByRole('img', { name: 'Gonq' })).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
   await screen.findByRole('heading', { name: 'Open repository' });
   await user.click(screen.getByRole('button', { name: 'Back' }));
-  expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(await screen.findByRole('img', { name: 'Gonq' })).toBeInTheDocument();
   expect(calls('github_list_folder')).toHaveLength(0);
 });
 
@@ -196,6 +196,6 @@ it('cancelling the sign-in does not open the picker', async () => {
   await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
   await screen.findByRole('button', { name: 'Start' });
   await user.click(screen.getByRole('button', { name: 'Back' }));
-  expect(await screen.findByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(await screen.findByRole('img', { name: 'Gonq' })).toBeInTheDocument();
   expect(calls('github_list_repos')).toHaveLength(0);
 });

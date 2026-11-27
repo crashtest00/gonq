@@ -84,5 +84,5 @@ it('Close returns to Documents', async () => {
   const { user } = await renderMobileApp();
   await openSkill(user);
   await user.click(screen.getByRole('button', { name: 'Close' }));
-  expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
 });

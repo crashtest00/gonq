@@ -317,7 +317,7 @@ describe('details screen', () => {
     expect((screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement).value).toContain('Merging gonq/one-fix into main');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('button', { name: 'Open PR' })).toBeNull();
-    expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
     expect(calls('github_create_pull')).toHaveLength(0);
   });
 
@@ -372,7 +372,7 @@ describe('result screen', () => {
     await user.click(screen.getByRole('button', { name: 'Open in browser' }));
     expect(openUrl).toHaveBeenCalledWith(pullUrl(12));
     await user.click(screen.getByRole('button', { name: 'Close' }));
-    expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
   });
 
   it('also shows the label note when the label step failed', async () => {
@@ -414,7 +414,7 @@ describe('navigation and layout', () => {
     await user.click(screen.getByRole('button', { name: 'Open PR' }));
     expect(screen.getByRole('heading', { name: 'Open pull request' })).toBeInTheDocument();
     await user.click(within(document.querySelector('header')!).getByRole('button', { name: 'Back' }));
-    expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
     // The controller's promise is over: Open PR works again.
     await openPr(user);
     expect(await screen.findByRole('option', { name: 'gonq/one' })).toBeInTheDocument();

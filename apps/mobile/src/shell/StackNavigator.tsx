@@ -9,6 +9,8 @@ export interface Screen {
   key: string;
   /** Shown in the top bar; null shows no top bar (the splash). */
   title: string | null;
+  /** Show the Gonq logo, centred, in the top bar in place of the title (the home). */
+  logo?: boolean;
   render(): ReactNode;
   /** Controls shown at the end of the top bar (the editor's Raw switch). */
   actions?(): ReactNode;

@@ -20,7 +20,9 @@ async function expectTapTargets(page: Page) {
 
 test('sign-in buttons have a 44x44 hit area in the idle and failed states', async ({ page }) => {
   await page.goto('/mobile/');
-  await page.getByRole('button', { name: 'Sign in to GitHub' }).click();
+  await page.getByRole('button', { name: 'More' }).click();
+  await page.getByRole('menuitem', { name: 'Settings…' }).click();
+  await page.getByRole('button', { name: 'Sign In' }).click();
   await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
   await expectTapTargets(page);
