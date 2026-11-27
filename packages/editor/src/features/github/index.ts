@@ -5,7 +5,7 @@
  */
 import { defineCommand, defineMenu } from '../../commands/registry';
 
-defineMenu({ id: 'github', label: 'GitHub', order: 55 });
+defineMenu({ id: 'github', label: 'GitHub', order: 15 });
 
 defineCommand({ id: 'github.signIn', menu: 'github', group: 0, order: 10, label: 'Sign In', enabled: (ctx) => !ctx.githubSignedIn, run: (ctx) => ctx.githubSignIn() });
 defineCommand({ id: 'github.signOut', menu: 'github', group: 0, order: 20, label: 'Sign Out', enabled: (ctx) => ctx.githubSignedIn, run: (ctx) => ctx.githubSignOut() });

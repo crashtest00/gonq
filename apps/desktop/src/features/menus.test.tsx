@@ -26,10 +26,10 @@ function setup(over: Partial<CommandContext> = {}) {
   return ctx;
 }
 
-test('menus come in order File, Edit, View, Insert, Format, GitHub, Help', () => {
+test('menus come in order File, GitHub, Edit, View, Insert, Format, Help', () => {
   setup();
   const names = screen.getAllByRole('menuitem').map((i) => i.textContent);
-  expect(names).toEqual(['File', 'Edit', 'View', 'Insert', 'Format', 'GitHub', 'Help']);
+  expect(names).toEqual(['File', 'GitHub', 'Edit', 'View', 'Insert', 'Format', 'Help']);
 });
 
 test('View > Raw Markdown shows the mode and toggles it; disabled without a document', async () => {

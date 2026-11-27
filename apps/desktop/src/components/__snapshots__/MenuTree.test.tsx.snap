@@ -55,6 +55,40 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
     ]
   },
   {
+    "menu": "GitHub",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Sign In",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign Out",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
+      }
+    ]
+  },
+  {
     "menu": "Edit",
     "disabled": false,
     "items": [
@@ -267,40 +301,6 @@ exports[`menu tree > document open, formatted, theme auto 1`] = `
     ]
   },
   {
-    "menu": "GitHub",
-    "disabled": false,
-    "items": [
-      {
-        "kind": "item",
-        "label": "Sign In",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign Out",
-        "disabled": true
-      },
-      {
-        "kind": "separator"
-      },
-      {
-        "kind": "item",
-        "label": "Open Repo…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
-        "label": "Open PR…",
-        "disabled": true
-      }
-    ]
-  },
-  {
     "menu": "Help",
     "disabled": false,
     "items": [
@@ -369,6 +369,40 @@ exports[`menu tree > no document 1`] = `
       {
         "kind": "item",
         "label": "Close Tab",
+        "disabled": true
+      }
+    ]
+  },
+  {
+    "menu": "GitHub",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Sign In",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign Out",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Open PR…",
         "disabled": true
       }
     ]
@@ -465,40 +499,6 @@ exports[`menu tree > no document 1`] = `
     "items": null
   },
   {
-    "menu": "GitHub",
-    "disabled": false,
-    "items": [
-      {
-        "kind": "item",
-        "label": "Sign In",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign Out",
-        "disabled": true
-      },
-      {
-        "kind": "separator"
-      },
-      {
-        "kind": "item",
-        "label": "Open Repo…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
-        "label": "Open PR…",
-        "disabled": true
-      }
-    ]
-  },
-  {
     "menu": "Help",
     "disabled": false,
     "items": [
@@ -568,6 +568,40 @@ exports[`menu tree > raw mode on 1`] = `
         "kind": "item",
         "label": "Close Tab",
         "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "GitHub",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Sign In",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign Out",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
       }
     ]
   },
@@ -784,40 +818,6 @@ exports[`menu tree > raw mode on 1`] = `
     ]
   },
   {
-    "menu": "GitHub",
-    "disabled": false,
-    "items": [
-      {
-        "kind": "item",
-        "label": "Sign In",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign Out",
-        "disabled": true
-      },
-      {
-        "kind": "separator"
-      },
-      {
-        "kind": "item",
-        "label": "Open Repo…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
-        "label": "Open PR…",
-        "disabled": true
-      }
-    ]
-  },
-  {
     "menu": "Help",
     "disabled": false,
     "items": [
@@ -887,6 +887,40 @@ exports[`menu tree > table cell targeted 1`] = `
         "kind": "item",
         "label": "Close Tab",
         "disabled": false
+      }
+    ]
+  },
+  {
+    "menu": "GitHub",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Sign In",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign Out",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
       }
     ]
   },
@@ -1099,40 +1133,6 @@ exports[`menu tree > table cell targeted 1`] = `
             "disabled": false
           }
         ]
-      }
-    ]
-  },
-  {
-    "menu": "GitHub",
-    "disabled": false,
-    "items": [
-      {
-        "kind": "item",
-        "label": "Sign In",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign Out",
-        "disabled": true
-      },
-      {
-        "kind": "separator"
-      },
-      {
-        "kind": "item",
-        "label": "Open Repo…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
-        "label": "Open PR…",
-        "disabled": true
       }
     ]
   },
@@ -1210,6 +1210,40 @@ exports[`menu tree > theme dark 1`] = `
     ]
   },
   {
+    "menu": "GitHub",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Sign In",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign Out",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
+      }
+    ]
+  },
+  {
     "menu": "Edit",
     "disabled": false,
     "items": [
@@ -1418,40 +1452,6 @@ exports[`menu tree > theme dark 1`] = `
             "disabled": true
           }
         ]
-      }
-    ]
-  },
-  {
-    "menu": "GitHub",
-    "disabled": false,
-    "items": [
-      {
-        "kind": "item",
-        "label": "Sign In",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign Out",
-        "disabled": true
-      },
-      {
-        "kind": "separator"
-      },
-      {
-        "kind": "item",
-        "label": "Open Repo…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
-        "label": "Open PR…",
-        "disabled": true
       }
     ]
   },
@@ -1529,6 +1529,40 @@ exports[`menu tree > undo and redo available 1`] = `
     ]
   },
   {
+    "menu": "GitHub",
+    "disabled": false,
+    "items": [
+      {
+        "kind": "item",
+        "label": "Sign In",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Sign Out",
+        "disabled": true
+      },
+      {
+        "kind": "separator"
+      },
+      {
+        "kind": "item",
+        "label": "Open Repo…",
+        "disabled": false
+      },
+      {
+        "kind": "item",
+        "label": "Commit…",
+        "disabled": true
+      },
+      {
+        "kind": "item",
+        "label": "Open PR…",
+        "disabled": true
+      }
+    ]
+  },
+  {
     "menu": "Edit",
     "disabled": false,
     "items": [
@@ -1737,40 +1771,6 @@ exports[`menu tree > undo and redo available 1`] = `
             "disabled": true
           }
         ]
-      }
-    ]
-  },
-  {
-    "menu": "GitHub",
-    "disabled": false,
-    "items": [
-      {
-        "kind": "item",
-        "label": "Sign In",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Sign Out",
-        "disabled": true
-      },
-      {
-        "kind": "separator"
-      },
-      {
-        "kind": "item",
-        "label": "Open Repo…",
-        "disabled": false
-      },
-      {
-        "kind": "item",
-        "label": "Commit…",
-        "disabled": true
-      },
-      {
-        "kind": "item",
-        "label": "Open PR…",
-        "disabled": true
       }
     ]
   },
