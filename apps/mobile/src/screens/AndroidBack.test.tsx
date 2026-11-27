@@ -1,5 +1,5 @@
 /** Covers the Android system Back key (M-35) through renderMobileApp with a simulated Back press on the platform hook: overlays close first (menu, folder navigator, comments sheet, outline drawer, unsaved and conflict dialogs, commit sheet), screens go back as their own Back/Cancel control does (Settings, Open Repository, the Open PR steps, GitHub sign-in), the editor never drops unsaved changes, the Documents screen leaves the app, repeated presses do not skip or double-prompt, and no hook is registered outside Android. */
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.hoisted(() => ((window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}));
@@ -171,7 +171,7 @@ describe('screens go back as their own control does', () => {
     await user.click(screen.getByRole('button', { name: 'Open Repo…' }));
     await user.click(await screen.findByRole('button', { name: /octo\/notes/ }));
     await screen.findByRole('heading', { name: 'octo/notes' });
-    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'octo/notes' })).getByRole('button', { name: 'Close' }));
     await openMenu(user);
     await user.click(await screen.findByRole('menuitem', { name: 'Open PR…' }));
     await user.click(await screen.findByRole('option', { name: 'gonq/one' }));

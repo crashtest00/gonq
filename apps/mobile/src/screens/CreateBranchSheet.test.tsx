@@ -49,14 +49,14 @@ async function openRepoTree() {
   return r;
 }
 
-/** Opens a.md, edits it (dirty) and goes back to the repo tree. */
+/** Opens a.md, edits it (dirty) and reopens the repo navigator. */
 async function dirtyTab(user: User) {
   await user.click(screen.getByRole('button', { name: 'a.md' }));
   await screen.findByRole('toolbar', { name: 'Editing' });
   settleEditors(document.body);
   select(0);
   typeText('!');
-  await user.click(screen.getByRole('button', { name: 'Back' }));
+  await user.click(screen.getByRole('button', { name: 'Repository navigator' }));
   await screen.findByRole('heading', { name: 'o/r' });
 }
 
@@ -77,7 +77,7 @@ it('opens from the repo screen with a fixed gonq/ prefix, "From <branch>" and Ca
   expect(createBtn(d)).toHaveClass('m-tap');
   expect(within(d).queryByText(/Letters, numbers/)).toBeNull();
   await user.click(within(d).getByRole('button', { name: 'Cancel' }));
-  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('dialog', { name: /branch/i })).toBeNull();
 });
 
 it('Create is inactive while empty or invalid, with the desktop reason beside the field', async () => {
@@ -143,7 +143,7 @@ it('two quick taps create once, and Create is disabled while the request is in f
   await user.dblClick(createBtn(d));
   expect(createBtn(d)).toBeDisabled();
   release();
-  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: /branch/i })).toBeNull());
   expect(calls('github_create_branch')).toHaveLength(1);
 });
 
@@ -166,7 +166,7 @@ it('a clean state: creates gonq/<name> from the navigator branch, nothing moves,
   expect(within(d).queryByText(/will also commit/)).toBeNull();
   await user.type(nameBox(d), 'new/one');
   await user.click(createBtn(d));
-  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: /branch/i })).toBeNull());
   expect(calls('github_create_branch')[0][1]).toEqual({ ...loc, source: 'main', name: 'new/one' });
   expect(calls('github_commit_file')).toHaveLength(0);
   expect(listSessionBranches()).toEqual([{ ...loc, branch: 'gonq/new/one' }]);
@@ -181,7 +181,7 @@ it('a dirty GitHub tab: says it will commit, checks the file first, commits, and
   expect(within(d).getByText('Creating this branch will also commit your changes in a.md to it.')).toBeInTheDocument();
   await user.type(nameBox(d), 'save');
   await user.click(createBtn(d));
-  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: /branch/i })).toBeNull());
   const order = invoke.mock.calls.map((c) => c[0]).filter((c) => ['github_read_file', 'github_create_branch', 'github_commit_file'].includes(c as string));
   expect(order.slice(-3)).toEqual(['github_read_file', 'github_create_branch', 'github_commit_file']);
   expect(calls('github_commit_file')[0][1]).toEqual({ ...loc, branch: 'gonq/save', path: 'a.md', text: '!# A\n', sha: 'blob1' });
@@ -221,6 +221,6 @@ it('a commit failing after creation names the branch and the step, keeps the bra
   expect(createBtn(d)).toBeDisabled();
   expect(within(d).queryByRole('button', { name: 'Cancel' })).toBeNull();
   await user.click(within(d).getByRole('button', { name: 'Close' }));
-  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('dialog', { name: /branch/i })).toBeNull();
   expect(screen.getByRole('button', { name: 'Branch: main' })).toBeInTheDocument();
 });
