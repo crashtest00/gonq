@@ -61,7 +61,7 @@ async function openFile() {
   await r.user.click(await screen.findByRole('button', { name: /o\/r/ }));
   await screen.findByRole('heading', { name: 'o/r' });
   await r.user.click(await screen.findByRole('button', { name: 'a.md' }));
-  await screen.findByRole('switch', { name: 'Raw Markdown' });
+  await screen.findByRole('toolbar', { name: 'Editing' });
   await settleEditors(document.body);
   return r;
 }
@@ -255,8 +255,11 @@ describe('open pull request', () => {
     // Add Comment is disabled in the selection bar, as on desktop.
     select(0, 3);
     expect(await screen.findByRole('button', { name: /^Add Comment/ })).toBeDisabled();
-    await user.click(screen.getByRole('switch', { name: 'Raw Markdown' }));
-    expect(screen.getByRole('switch', { name: 'Raw Markdown' })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }));
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Raw Markdown' })).toBeChecked();
+    await user.keyboard('{Escape}');
     expect(screen.getByTestId('read-only-banner')).toBeInTheDocument();
   });
 

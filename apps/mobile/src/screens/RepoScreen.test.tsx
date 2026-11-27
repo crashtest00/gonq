@@ -245,7 +245,7 @@ it('tapping a file opens it as a github:// document in the editor', async () => 
   handlers.github_read_file = () => ({ path: 'a.md', name: 'a.md', content: '# Hello', sha: 's1', commit_sha: 'c1' });
   const { user } = await openRepoTree();
   await user.click(await screen.findByRole('button', { name: 'a.md' }));
-  expect(await screen.findByRole('switch', { name: 'Raw Markdown' })).toBeInTheDocument();
+  expect(await screen.findByRole('toolbar', { name: 'Editing' })).toBeInTheDocument();
   expect(calls('github_read_file')[0][1]).toEqual({ owner: 'o', repo: 'r', branch: 'main', path: 'a.md' });
   await user.click(screen.getByRole('button', { name: 'Back' }));
   const row = await screen.findByRole('button', { name: 'a.md' });

@@ -59,7 +59,7 @@ test('review, details and result screens keep every tap target at 44x44 or more'
   await page.getByRole('button', { name: 'Open Repo…' }).click();
   await page.getByRole('button', { name: /octo\/notes/ }).click();
   await page.getByRole('button', { name: 'a.md' }).click();
-  await expect(page.getByRole('switch', { name: 'Raw Markdown' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'More' })).toBeVisible();
   await page.getByRole('button', { name: 'More' }).click();
   await page.getByRole('menuitem', { name: 'Open PR…' }).click();
 

@@ -48,7 +48,7 @@ it('shows the Table button only while the caret is in a table, and swaps the bar
   await user.click(screen.getByRole('button', { name: 'Table' }));
   const bar = screen.getByRole('toolbar', { name: 'Table' });
   expect(screen.queryByRole('toolbar', { name: 'Editing' })).toBeNull();
-  expect(within(bar).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Formatting toolbar', ...OPS]);
+  expect(within(bar).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Save', 'Formatting toolbar', ...OPS]);
   await user.click(within(bar).getByRole('button', { name: 'Formatting toolbar' }));
   expect(screen.getByRole('toolbar', { name: 'Editing' })).toBeInTheDocument();
   expect(within(screen.getByRole('toolbar', { name: 'Editing' })).getByRole('button', { name: 'Bold' })).toBeInTheDocument();

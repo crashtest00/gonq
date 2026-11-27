@@ -37,11 +37,11 @@ test('Format lists every formatting action of the toolbar, with the same names',
   await openFormat();
   const menu = screen.getByRole('menu');
   const items = names(within(menu).getAllByRole('menuitem'));
-  render(<EditToolbar canUndo={false} canRedo={false} onUndo={noop} onRedo={noop} onFormat={noop} />);
+  render(<EditToolbar onSave={noop} canUndo={false} canRedo={false} onUndo={noop} onRedo={noop} onFormat={noop} />);
   const toolbar = within(screen.getByRole('toolbar', { name: 'Editing' }))
     .getAllByRole('button')
     .map((b) => b.getAttribute('aria-label'))
-    .filter((n) => n !== 'Undo' && n !== 'Redo' && n !== 'Insert table');
+    .filter((n) => n !== 'Save' && n !== 'Undo' && n !== 'Redo' && n !== 'Insert table');
   expect(items.slice(0, toolbar.length)).toEqual(toolbar);
   expect(items[items.length - 1]).toMatch(/^Table/);
 });

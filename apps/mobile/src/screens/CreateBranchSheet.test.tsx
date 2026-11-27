@@ -52,7 +52,7 @@ async function openRepoTree() {
 /** Opens a.md, edits it (dirty) and goes back to the repo tree. */
 async function dirtyTab(user: User) {
   await user.click(screen.getByRole('button', { name: 'a.md' }));
-  await screen.findByRole('switch', { name: 'Raw Markdown' });
+  await screen.findByRole('toolbar', { name: 'Editing' });
   settleEditors(document.body);
   select(0);
   typeText('!');

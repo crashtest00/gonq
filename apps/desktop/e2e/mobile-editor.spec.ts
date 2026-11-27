@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
+/** Flips Raw Markdown through the More menu (the top-bar switch is gone). */
+async function toggleRaw(page: Page) {
+  await page.getByRole('button', { name: 'More' }).tap();
+  await page.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }).tap();
+}
+
 // The mobile editor screen on the Pixel 7 profile against /mobile/: typing, bold from the accessory bar, the Raw switch, and the 44px hit areas.
 
 async function newDocument(page: Page) {
@@ -31,13 +37,9 @@ test('Raw switch shows the markers and back', async ({ page }) => {
   await page.keyboard.type('hello');
   await page.keyboard.press('Shift+Home');
   await page.getByRole('button', { name: 'Bold' }).click();
-  const sw = page.getByRole('switch', { name: 'Raw Markdown' });
-  await expect(sw).toHaveAttribute('aria-checked', 'false');
-  await sw.getByText('Raw', { exact: true }).click();
-  await expect(sw).toHaveAttribute('aria-checked', 'true');
+  await toggleRaw(page);
   await expect(content).toContainText('**hello**');
-  await sw.getByText('Formatted').click();
-  await expect(sw).toHaveAttribute('aria-checked', 'false');
+  await toggleRaw(page);
   await expect(content).toContainText('hello');
 });
 

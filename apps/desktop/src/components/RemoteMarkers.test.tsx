@@ -127,7 +127,7 @@ test('Ctrl+S while the conflict dialog is open joins the pending save; closing t
   await screen.findByText('body');
   await editBody(user);
   await user.click(screen.getByRole('button', { name: /close notes\.md/i }));
-  await user.click(await screen.findByRole('button', { name: 'Save' }));
+  await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Save' }));
   await screen.findByText('notes.md changed on the server since you opened it.');
   await user.keyboard('{Control>}s{/Control}');
   expect(save).toHaveBeenCalledTimes(1);

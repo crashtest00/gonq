@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
+/** Flips Raw Markdown through the More menu (the top-bar switch is gone). */
+async function toggleRaw(page: Page) {
+  await page.getByRole('button', { name: 'More' }).tap();
+  await page.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }).tap();
+}
+
 // The Add Comment bar on the Pixel 7 profile against /mobile/: hidden with a caret, slides in above the accessory bar for a selection, hides when it collapses, and a tap starts the draft. No emulator: the OS long-press handles are not exercised, the selection is a DOM range the editor reports.
 
 const DOC = 'The estimate holds through Q3 but not beyond.\n';
@@ -8,11 +14,10 @@ async function newDocument(page: Page) {
   await page.goto('/mobile/');
   await page.getByRole('button', { name: 'New' }).click();
   await expect(page.getByRole('toolbar', { name: 'Editing' })).toBeVisible();
-  const sw = page.getByRole('switch', { name: 'Raw Markdown' });
-  await sw.getByText('Raw', { exact: true }).click();
+  await toggleRaw(page);
   await page.locator('.cm-content').click();
   await page.keyboard.insertText(DOC);
-  await sw.getByText('Formatted').click();
+  await toggleRaw(page);
 }
 
 const select = (page: Page, word: string | null) =>

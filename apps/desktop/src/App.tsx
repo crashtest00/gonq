@@ -592,7 +592,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {readOnlyPull !== null && <ReadOnlyBanner pull={readOnlyPull} />}
-          {meta !== null && <EditToolbar canUndo={session.canUndo} canRedo={session.canRedo} onUndo={undo} onRedo={redo} onFormat={(f, url) => editor.current?.format(f, url)} />}
+          {meta !== null && <EditToolbar onSave={() => void doc.save()} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={undo} onRedo={redo} onFormat={(f, url) => editor.current?.format(f, url)} />}
           {meta !== null && tableTarget !== null && (
             <TableToolbar
               target={tableTarget}

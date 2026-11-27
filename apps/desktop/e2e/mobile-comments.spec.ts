@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
+/** Flips Raw Markdown through the More menu (the top-bar switch is gone). */
+async function toggleRaw(page: Page) {
+  await page.getByRole('button', { name: 'More' }).tap();
+  await page.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }).tap();
+}
+
 // The mobile Comments sheet on the Pixel 7 profile against /mobile/: top-bar button, 44x44 tap targets, and the docked sheet never covering the open thread's anchor (also with the on-screen keyboard's smaller visual viewport).
 
 const ID = 'c20260910143022a3f9c1';
@@ -10,11 +16,10 @@ async function documentWithThread(page: Page) {
   await page.goto('/mobile/');
   await page.getByRole('button', { name: 'New' }).click();
   await expect(page.getByRole('toolbar', { name: 'Editing' })).toBeVisible();
-  const sw = page.getByRole('switch', { name: 'Raw Markdown' });
-  await sw.getByText('Raw', { exact: true }).click();
+  await toggleRaw(page);
   await page.locator('.cm-content').click();
   await page.keyboard.insertText(DOC);
-  await sw.getByText('Formatted').click();
+  await toggleRaw(page);
   await expect(page.locator('.cm-thread-marker')).toHaveCount(1);
 }
 

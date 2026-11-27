@@ -91,13 +91,8 @@ body {
 .m-sep { flex: none; width: 1px; height: 24px; background: var(--border); }
 .m-accessory .contents { display: contents; }
 
-/* Raw / Formatted: one switch drawn as two 44px segments. */
-.m-raw { display: inline-flex; flex: none; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-control); background: transparent; color: var(--muted-foreground); font: inherit; font-size: var(--text-caption); font-weight: var(--weight-semibold); cursor: pointer; overflow: hidden; }
 /* Comments button on state: primary fill on the top bar (--surface). Fill vs bar: 6.46:1 light (#146872 on #FFFFFF), 3.02:1 dark (#177A59 on #1D2229, kept: it is the shared --primary token the Raw switch uses, still over 3:1). Glyph vs fill: 6.46:1 light, 5.30:1 dark. */
 .m-comments-btn[data-active='true'] { background: var(--primary); color: var(--primary-foreground); border-radius: var(--radius-control); }
-.m-raw:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-.m-raw > span { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 var(--space-2); }
-.m-raw > span[data-active='true'] { background: var(--primary); color: var(--primary-foreground); }
 
 /* Repo picker and repo tree (M-19). */
 .m-field { width: calc(100% - 2 * var(--space-4)); margin: 0 var(--space-4); box-sizing: border-box; justify-content: flex-start; border: 1px solid var(--border); background: var(--background); }

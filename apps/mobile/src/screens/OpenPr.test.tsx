@@ -123,7 +123,7 @@ describe('review screen', () => {
     handlers.github_list_folder = () => ({ entries: [{ name: 'a.md', path: 'a.md', kind: 'file' }], truncated: false });
     const { user } = await openRepo();
     await user.click(await screen.findByRole('button', { name: 'a.md' }));
-    await screen.findByRole('switch', { name: 'Raw Markdown' });
+    await screen.findByRole('toolbar', { name: 'Editing' });
     await settleEditors(document.body);
     await openPr(user);
     expect(await screen.findByRole('option', { name: 'main' })).toBeInTheDocument();
@@ -392,7 +392,7 @@ describe('result screen', () => {
     handlers.github_list_repos = () => ({ repos: [{ ...repoRow('notes'), default_branch: 'gonq/one' }], next_page: null });
     const { user } = await openRepo();
     await user.click(await screen.findByRole('button', { name: 'a.md' }));
-    await screen.findByRole('switch', { name: 'Raw Markdown' });
+    await screen.findByRole('toolbar', { name: 'Editing' });
     await settleEditors(document.body);
     expect(screen.queryByTestId('read-only-banner')).toBeNull();
     await openPr(user);
