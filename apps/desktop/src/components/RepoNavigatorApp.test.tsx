@@ -31,7 +31,7 @@ afterEach(() => {
 
 it('choosing a repository opens the navigator on its default branch and clicking a file opens nothing yet', async () => {
   const { user, pickDocument } = renderApp();
-  await menu(user, 'File', 'Open Repo…');
+  await menu(user, 'GitHub', 'Open Repo…');
   await user.click(await screen.findByRole('button', { name: /octo\/notes/ }));
   expect(await screen.findByRole('complementary', { name: 'Folder navigator' })).toBeInTheDocument();
   expect(screen.getByText('octo/notes')).toBeInTheDocument();

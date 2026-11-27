@@ -164,11 +164,11 @@ const openSettings = async (user: ReturnType<typeof userEvent.setup>) => {
   return screen.findByRole('dialog', { name: 'Settings' });
 };
 
-it('File menu no longer lists the GitHub sign-in items', async () => {
+it('the File menu does not list the GitHub items (they are in the GitHub menu)', async () => {
   render(<App />);
   await userEvent.setup().click(screen.getByRole('menuitem', { name: 'File' }));
-  await screen.findByRole('menuitem', { name: /Open Repo/ });
-  expect(screen.queryByRole('menuitem', { name: /Sign (in|out)/ })).toBeNull();
+  await screen.findByRole('menuitem', { name: /^Save As/ });
+  expect(screen.queryByRole('menuitem', { name: /Sign (in|out)|Open Repo|Open PR|Commit/ })).toBeNull();
 });
 
 it('Settings > Sign In runs the device flow inside Settings and ends signed in with a Sign Out', async () => {

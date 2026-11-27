@@ -6,12 +6,12 @@
  * shell injects each choice as an async callback (`GithubDialogs`) and shows banners from `onError` / `onNotice`.
  * The navigator's deleted-branch fallback ends in `changeBranch(defaultBranch)`, so it warns like any change.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { DocumentMeta, useDocument } from '../document/useDocument';
 import { PULL_CHECK_FAILED, openPullMessage, useOpenPulls } from '../features/github/openPulls';
 import type { CreateOutcome, PendingCommit } from '../features/github/createBranch';
 import { addSessionBranch, listSessionBranches, type SessionBranch } from '../features/github/sessionBranches';
-import { commitFile, ensureSignedIn, setSignInHandler, type GithubDocument } from '../platform/github';
+import { commitFile, ensureSignedIn, knownSignedInState, setSignInHandler, signInStatus, signOut as githubSignOut, subscribeSignedIn, type GithubDocument } from '../platform/github';
 
 /** The repository and branch the navigator shows. */
 export interface RepoState {
@@ -226,6 +226,28 @@ export function useGithubController(options: GithubControllerOptions) {
     [session.activeId, session.peek, session.closeSelectingNone],
   );
 
+  // The GitHub menu's Sign In / Sign Out: greyed by the last known state, read once at start and kept by platform/github.
+  const signedIn = useSyncExternalStore(subscribeSignedIn, knownSignedInState);
+  useEffect(() => {
+    signInStatus().catch(() => {});
+  }, []);
+  const signIn = useCallback(async () => {
+    try {
+      if (await ensureSignedIn()) opts.current.onError(null);
+    } catch (e) {
+      failed(e);
+    }
+  }, [failed]);
+  const signOut = useCallback(async () => {
+    try {
+      await githubSignOut();
+      opts.current.onError(null);
+      opts.current.onNotice(SIGNED_OUT_NOTICE);
+    } catch (e) {
+      failed(e);
+    }
+  }, [failed]);
+
   // File > Open Repo…: sign in first if needed, then the picker.
   const openRepo = useCallback(async () => {
     try {
@@ -278,5 +300,9 @@ export function useGithubController(options: GithubControllerOptions) {
     openCreateBranch,
     openRepo,
     openPr,
+    /** The last known GitHub sign-in state. */
+    signedIn,
+    signIn,
+    signOut,
   };
 }

@@ -75,7 +75,7 @@ async function openRecent(user: User, name: RegExp, navigatorOpen = false) {
 }
 const banner = () => screen.queryByTestId('read-only-banner');
 const commitItem = async (user: User) => {
-  await user.click(screen.getByRole('menuitem', { name: 'File' }));
+  await user.click(screen.getByRole('menuitem', { name: 'GitHub' }));
   return screen.findByRole('menuitem', { name: /^Commit…/ });
 };
 

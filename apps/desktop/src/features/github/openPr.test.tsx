@@ -53,12 +53,12 @@ afterEach(() => {
 });
 
 async function openRepo(user: User) {
-  await menu(user, 'File', 'Open Repo…');
+  await menu(user, 'GitHub', 'Open Repo…');
   await user.click(await screen.findByRole('button', { name: /octo\/notes/ }));
   await screen.findByRole('complementary', { name: 'Folder navigator' });
 }
 async function openPrDialog(user: User) {
-  await menu(user, 'File', 'Open PR…');
+  await menu(user, 'GitHub', 'Open PR…');
   return screen.findByRole('dialog', { name: 'Open pull request' });
 }
 const option = (d: HTMLElement, name: string) => within(d).getByRole('option', { name });
@@ -78,11 +78,11 @@ describe('File > Open PR… while signed out', () => {
       signedIn = true;
       return { signed_in: true, login: 'octo', storage: 'keychain' };
     };
-    await menu(user, 'File', 'Open PR…');
+    await menu(user, 'GitHub', 'Open PR…');
     let settings = await screen.findByRole('dialog', { name: 'Settings' });
     await user.click(within(settings).getAllByRole('button', { name: 'Cancel' })[0]);
     expect(screen.queryByRole('dialog')).toBeNull();
-    await menu(user, 'File', 'Open PR…');
+    await menu(user, 'GitHub', 'Open PR…');
     settings = await screen.findByRole('dialog', { name: 'Settings' });
     await user.click(await within(settings).findByRole('button', { name: 'Start' }));
     await user.click(await within(settings).findByRole('button', { name: 'Done' }));
@@ -94,11 +94,11 @@ describe('File > Open PR… while signed out', () => {
 describe('File > Open PR…', () => {
   it('is greyed when no repository or GitHub tab is open, and enabled once a repo is open', async () => {
     const { user } = renderApp();
-    await user.click(screen.getByRole('menuitem', { name: 'File' }));
+    await user.click(screen.getByRole('menuitem', { name: 'GitHub' }));
     expect(await screen.findByRole('menuitem', { name: 'Open PR…' })).toHaveAttribute('aria-disabled', 'true');
     await user.keyboard('{Escape}');
     await openRepo(user);
-    await user.click(screen.getByRole('menuitem', { name: 'File' }));
+    await user.click(screen.getByRole('menuitem', { name: 'GitHub' }));
     expect(await screen.findByRole('menuitem', { name: 'Open PR…' })).not.toHaveAttribute('aria-disabled', 'true');
   });
 
@@ -322,7 +322,7 @@ describe('File > Open PR…', () => {
   it('on the web the menu item is present (greyed by state) and the platform calls throw the clear error', async () => {
     delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
     const { user } = renderApp();
-    await user.click(screen.getByRole('menuitem', { name: 'File' }));
+    await user.click(screen.getByRole('menuitem', { name: 'GitHub' }));
     expect(await screen.findByRole('menuitem', { name: 'Open PR…' })).toBeInTheDocument();
     for (const run of [
       () => branchesExist('o', 'r', ['b']),
