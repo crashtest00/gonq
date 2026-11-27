@@ -69,7 +69,11 @@ export function EditorScreen({ readOnly = false }: { readOnly?: boolean }) {
         docPath={session.meta.path}
         onOpenThread={(id, ordinal) => {
           const key = threadKey(id, ordinal);
-          if (listThreads(text).some((t) => t.key === key)) comments.openThread(key);
+          if (!listThreads(text).some((t) => t.key === key)) return;
+          // Reading a thread needs no keyboard: drop the editor's focus so the soft keyboard closes.
+          const active = document.activeElement;
+          if (active instanceof HTMLElement && active.closest('.cm-editor')) active.blur();
+          comments.openThread(key);
         }}
         onTable={setTable}
         onContextMenu={noop}

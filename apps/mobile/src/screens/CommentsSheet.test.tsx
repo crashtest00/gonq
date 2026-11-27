@@ -120,6 +120,17 @@ it('tapping a comment marker opens its thread', async () => {
   expect(inSheet().getAllByRole('listitem')).toHaveLength(2);
 });
 
+it('tapping a comment marker drops the editor focus so the soft keyboard stays hidden', async () => {
+  const { user } = await openDoc(DOC);
+  await waitFor(() => expect(editor().querySelectorAll('.cm-thread-marker')).toHaveLength(1));
+  const content = editor();
+  content.focus();
+  expect(document.activeElement).toBe(content);
+  await user.click(editor().querySelector('.cm-thread-marker')!);
+  expect(await inSheet().findByRole('button', { name: 'Close thread' })).toBeInTheDocument();
+  expect(content.contains(document.activeElement)).toBe(false);
+});
+
 it('the sheet is docked (no scrim, not modal) and its controls have 44px hit areas', async () => {
   const { user } = await openDoc(DOC);
   await openThread(user);
