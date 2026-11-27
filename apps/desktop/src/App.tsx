@@ -548,6 +548,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
     addComment,
   };
   // The one keydown handler is generated from the registered shortcuts and reads the latest context.
+  const saveCommand = registry.commands().find((c) => c.id === 'file.save');
   const commandContextRef = useRef(commandContext);
   commandContextRef.current = commandContext;
   useEffect(() => registry.installShortcuts(() => commandContextRef.current), []);
@@ -592,7 +593,7 @@ export default function App({ files = defaultFiles }: { files?: FileAccess }) {
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {readOnlyPull !== null && <ReadOnlyBanner pull={readOnlyPull} />}
-          {meta !== null && <EditToolbar onSave={() => void doc.save()} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={undo} onRedo={redo} onFormat={(f, url) => editor.current?.format(f, url)} />}
+          {meta !== null && <EditToolbar onSave={() => void saveCommand?.run?.(commandContext)} canSave={saveCommand?.enabled?.(commandContext) ?? true} canUndo={session.canUndo} canRedo={session.canRedo} onUndo={undo} onRedo={redo} onFormat={(f, url) => editor.current?.format(f, url)} />}
           {meta !== null && tableTarget !== null && (
             <TableToolbar
               target={tableTarget}

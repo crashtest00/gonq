@@ -13,6 +13,7 @@ const button =
 export function EditToolbar({
   canUndo,
   canRedo,
+  canSave,
   onSave,
   onUndo,
   onRedo,
@@ -20,6 +21,8 @@ export function EditToolbar({
 }: {
   canUndo: boolean;
   canRedo: boolean;
+  /** The enabled rule of the registry's file.save command. */
+  canSave: boolean;
   onSave: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -31,7 +34,7 @@ export function EditToolbar({
       <div role="toolbar" aria-label="Editing" className="flex h-[42px] shrink-0 items-center overflow-x-auto px-3">
         {/* Auto margins centre the group when it fits and collapse to zero when it overflows, so it scrolls from the left edge. */}
         <div className="mx-auto flex shrink-0 items-center gap-1">
-        <button type="button" aria-label="Save" title="Save (Ctrl+S)" onClick={onSave} className={button}>
+        <button type="button" aria-label="Save" title="Save (Ctrl+S)" disabled={!canSave} onClick={onSave} className={button}>
           <Save size={16} aria-hidden />
         </button>
         <button type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo} className={button}>
