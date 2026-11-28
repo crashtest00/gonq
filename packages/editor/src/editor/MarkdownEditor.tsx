@@ -1,7 +1,7 @@
 /**
  * The one CodeMirror 6 editor for the document: one EditorView whose state is swapped per tab. Exposes
  * EditorHandle (format, replace text, threads, images, TOC, clipboard, scroll) and reports changes,
- * selection and table target to App.tsx.
+ * selection and table target to App.tsx; shows the marker of `activeThreadKey` as active.
  */
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands';
 import { EditorState, type Extension, type StateEffect } from '@codemirror/state';
@@ -15,7 +15,7 @@ import { createCommentThread, formatCommentMarker, normalizeAnchor, serializeCom
 import { commentThreadCreationChanges } from '../comment-threads/editor/codemirror';
 import { createEditorState, modeCompartment, modeExtension, readOnlyCompartment, readOnlyExtension } from './extensions';
 import { editorHost } from './host';
-import { threadEdit } from './threads';
+import { activeThread, setActiveThread, threadEdit } from './threads';
 import { refreshToc } from './toc';
 import { tocChange } from '../model/toc';
 
@@ -94,6 +94,8 @@ interface Props {
   onContextMenu: (x: number, y: number) => void;
   /** Leave the browser's own context menu / long-press selection alone: no preventDefault, no caret move, no onContextMenu call (the phone app). Default false: the desktop right-click menu. */
   nativeContextMenu?: boolean;
+  /** `threadKey(id, ordinal)` of the thread shown in detail in the Comments panel, or null/absent: that marker looks active. The app decides; the editor never clears it. */
+  activeThreadKey?: string | null;
 }
 
 /** Said when a text-changing operation reaches a read-only tab (the facet only guards user input, not dispatches). */
@@ -181,6 +183,13 @@ export const MarkdownEditor = forwardRef<EditorHandle, Props>(function MarkdownE
     saved.current.delete(props.tabId);
     v.focus();
   }, [props.tabId, props.text, props.raw]);
+
+  // The active thread's marker. After the tab swap: a restored state carries the value it was parked with.
+  useLayoutEffect(() => {
+    const v = view.current;
+    const want = props.activeThreadKey ?? null;
+    if (v && v.state.field(activeThread) !== want) v.dispatch({ effects: setActiveThread.of(want) });
+  }, [props.activeThreadKey, props.tabId]);
 
   // Formatted / Raw: the same state, a different mode extension.
   useLayoutEffect(() => {
