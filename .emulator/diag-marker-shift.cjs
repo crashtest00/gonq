@@ -462,7 +462,7 @@ async function kbFrame() {
     try {
       let q = await prep(key);
       const mi = await markerIdx(q, key); if (mi < 0) throw new Error('marker not found');
-      if (setup) await setup(q, key, rec);
+      if (setup) await setup(q, key, mi, rec);
       q = await P();
       await q.evaluate((i) => document.querySelectorAll('.cm-thread-marker')[i].scrollIntoView({ block: 'center' }), mi); await sleep(700);
       rec.ime0 = IME();
@@ -488,12 +488,6 @@ async function kbFrame() {
   if (!MAP || fixErr) { note('DIAG cannot run: ' + fixErr); saveD(); process.exit(0); }
   for (const k of KEYS) await scn('S1-baseline', k, null, tapMarker);
   for (const k of KEYS) await scn('S2-focus-first', k, tapElsewhere, tapMarker);
-  for (const k of KEYS) await scn('S3-hover-off', k, async (q) => { await q.evaluate(() => { let s = document.getElementById('__diag_style'); if (!s) { s = document.createElement('style'); s.id = '__diag_style'; s.textContent = '.gonq-editor .cm-thread-marker:hover{display:inline !important;transform:none !important;filter:none !important}'; document.head.appendChild(s); } }); }, tapMarker);
-  await (await P()).evaluate(() => { const s = document.getElementById('__diag_style'); if (s) s.remove(); });
-  for (const k of KEYS) await scn('S4-focus-no-tap', k, null, async (q, key) => { await q.evaluate((w) => { window.__g.focus(); const i = window.__g.idx(w); window.__g.select(i + 2); }, WORD[key]); });
-  for (const k of KEYS) await scn('S5-keyboard-only', k, async (q) => { await q.evaluate(() => { let e = document.getElementById('__diag_in'); if (!e) { e = document.createElement('input'); e.id = '__diag_in'; e.style.cssText = 'position:fixed;top:0;left:0;width:160px;height:40px;z-index:2147483647;font-size:16px;background:#fff;border:1px solid red'; document.body.appendChild(e); } }); },
-    async (q, key, mi, rec) => { const r = await rect(q, '#__diag_in'); tapCss((r.l + r.r) / 2, (r.t + r.b) / 2); });
-  await (await P()).evaluate(() => { const e = document.getElementById('__diag_in'); if (e) e.remove(); });
   await hideIme(); saveD();
   console.log('[diag] DONE'); process.exit(0);
 })().catch((e) => { console.error('FATAL', e); try { saveD(); } catch (x) {} process.exit(0); });
