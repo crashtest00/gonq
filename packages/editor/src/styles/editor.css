@@ -80,9 +80,9 @@
 .gonq-editor .cm-table [contenteditable]:focus { outline: 2px solid var(--primary-text); outline-offset: -2px; }
 
 /* Comment-thread markers: literal glyphs, clickable; the thread blocks themselves are hidden. */
-/* text-indent 0: :hover makes it inline-block, which would otherwise take the item's negative hanging indent (.cm-li-first) and jump left. The :hover rule is deliberately not scoped to (hover: hover): the reset fixes the cause for any pointer, and the hover scale is the same cosmetic feedback on touch. */
+/* text-indent 0: :hover makes it inline-block, which would otherwise take the item's negative hanging indent (.cm-li-first) and jump left. The hover effect is limited to devices that can hover: on touch :hover sticks after a tap and the scale/inline-block shifted the line by ~1.5px. */
 .gonq-editor .cm-thread-marker { text-indent: 0; cursor: pointer; font-size: 0.85em; padding: 0 2px; vertical-align: baseline; user-select: none; }
-.gonq-editor .cm-thread-marker:hover { filter: brightness(1.15); transform: scale(1.15); display: inline-block; }
+@media (hover: hover) { .gonq-editor .cm-thread-marker:hover { filter: brightness(1.15); transform: scale(1.15); display: inline-block; } }
 .gonq-editor .cm-thread-block { height: 0; overflow: hidden; }
 .gonq-editor .cm-thread-block-only { height: 1.6em; }
 
