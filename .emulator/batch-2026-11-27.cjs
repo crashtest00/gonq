@@ -408,88 +408,6 @@ async function kbFrame() {
   });
   if (!results.length || results[0].status !== 'PASS') { note('install failed'); process.exit(1); }
 
-  // ---------- 1 launcher icon ----------
-  await chk('1-launcher-icon', 'Launcher icon (a50176a8 crit 2 / 266b9882 crit 5)', async () => {
-    const info = []; const W = sh('adb shell wm size').match(/(\d+)x(\d+)/g).pop().split('x').map(Number);
-    const findIcon = async (tag) => {
-      sh('adb shell input keyevent 3'); await sleep(1500);
-      sh(`adb shell input swipe ${W[0] >> 1} ${Math.round(W[1] * 0.88)} ${W[0] >> 1} ${Math.round(W[1] * 0.2)} 350`); await sleep(1800);
-      for (let i = 0; i < 10; i++) {
-        const nodes = uiNodes(); const n = nodes.find((x) => /^gonq$/i.test(x.text) || /^gonq$/i.test(x.desc));
-        if (n) { fs.writeFileSync(`${EV}/ui-launcher-${tag}.xml`, fs.readFileSync(`${EV}/ui.xml`)); await shot(`launcher-drawer-${tag}`); return n; }
-        sh(`adb shell input swipe ${W[0] >> 1} ${Math.round(W[1] * 0.75)} ${W[0] >> 1} ${Math.round(W[1] * 0.3)} 350`); await sleep(900);
-      }
-      await shot(`launcher-drawer-${tag}-notfound`); return null;
-    };
-    const n1 = await findIcon('light');
-    info.push(n1 ? `light: node bounds ${n1.bounds} (cell ${'' + n1.h}px high, centre ${n1.x},${n1.y})` : 'light: Gonq icon NOT found in drawer');
-    sh('adb shell cmd uimode night yes'); await sleep(2500);
-    const n2 = await findIcon('dark'); info.push(n2 ? `dark: bounds ${n2.bounds}` : 'dark: not found');
-    sh('adb shell cmd uimode night no'); await sleep(1500);
-    // mask variants the system image offers
-    let ov = ''; try { ov = sh("adb shell cmd overlay list --user 0 | grep -i -E 'icon|shape' || true"); } catch (e) {}
-    info.push(`overlays: ${ov.replace(/\n/g, ' ').slice(0, 300) || 'none'}`);
-    const shapes = [...ov.matchAll(/(com\.android\.theme\.icon\.(\w+))/g)].map((m) => [m[1], m[2]]).filter(([, s]) => /circle|squircle|roundedrect|teardrop/.test(s)).slice(0, 4);
-    for (const [pkgo, s] of shapes) {
-      try {
-        sh(`adb shell cmd overlay enable-exclusive --user 0 --category ${pkgo}`); await sleep(2500);
-        sh('adb shell am force-stop com.google.android.apps.nexuslauncher || true'); sh('adb shell am force-stop com.android.launcher3 || true'); await sleep(2000);
-        const n = await findIcon(`mask-${s}`); info.push(`mask ${s}: ${n ? 'icon at ' + n.bounds : 'not found'}`);
-      } catch (e) { info.push(`mask ${s}: failed ${String(e.message).split('\n')[0].slice(0, 80)}`); }
-    }
-    for (const [pkgo] of shapes) { try { sh(`adb shell cmd overlay disable --user 0 ${pkgo}`); } catch (e) {} }
-    // resource analysis of the installed APK: adaptive icon safe zone
-    try {
-      fs.writeFileSync('/tmp/icon_an.py', `
-import sys, zipfile, io, json, math
-try:
-    from PIL import Image
-except Exception:
-    import subprocess, importlib; subprocess.check_call([sys.executable,'-m','pip','install','-q','--target','/tmp/pil','pillow']); sys.path.insert(0,'/tmp/pil'); importlib.invalidate_caches(); from PIL import Image
-z = zipfile.ZipFile(sys.argv[1]); out = sys.argv[2]
-names = [n for n in z.namelist() if 'ic_launcher' in n or 'anydpi' in n]
-print('entries:', names[:40])
-def load(n): return Image.open(io.BytesIO(z.read(n))).convert('RGBA')
-fg = [n for n in names if n.endswith('.png') and 'foreground' in n]
-bg = [n for n in names if n.endswith('.png') and 'background' in n]
-rnd = [n for n in names if n.endswith('.png') and 'round' in n]
-legacy = [n for n in names if n.endswith('.png') and 'foreground' not in n and 'background' not in n and 'round' not in n]
-print('fg', fg, 'bg', bg, 'round', rnd, 'legacy', legacy)
-def pick(l):
-    return sorted(l, key=lambda n: load(n).size[0])[-1] if l else None
-f = pick(fg)
-if f:
-    im = load(f); W, H = im.size; a = im.split()[3]; bb = a.point(lambda v: 255 if v > 16 else 0).getbbox()
-    px = im.load(); mx = 0.0; cnt = 0; out_safe = 0; out_vis = 0
-    for y in range(0, H, 2):
-        for x in range(0, W, 2):
-            if px[x, y][3] > 16:
-                r = math.hypot(x - W / 2, y - H / 2) / W; cnt += 1
-                mx = max(mx, r)
-                if r > 33 / 108: out_safe += 1
-                if r > 36 / 108: out_vis += 1
-    print(f'FOREGROUND {f} size {W}x{H} opaque bbox {bb} max_radius/W {mx:.4f} (safe zone 0.3056, visible circle 0.3333) opaque px outside safe zone {out_safe}/{cnt}, outside visible circle {out_vis}/{cnt}')
-    b = pick(bg)
-    base = load(b).resize((W, H)) if b else Image.new('RGBA', (W, H), (255, 255, 255, 255))
-    comp = Image.alpha_composite(base, im); comp.save(out + '/icon-composite-full.png')
-    for shape in ['circle', 'squircle', 'roundedrect']:
-        m = Image.new('L', (W, H), 0); mp = m.load(); R = 36 / 108 * W
-        for y in range(H):
-            for x in range(W):
-                dx = abs(x - W / 2) / R; dy = abs(y - H / 2) / R
-                inside = (dx ** 2 + dy ** 2 <= 1) if shape == 'circle' else (dx ** 4 + dy ** 4 <= 1) if shape == 'squircle' else (dx <= 1 and dy <= 1 and (min(1, max(0, (dx - 0.7) / 0.3)) ** 2 + min(1, max(0, (dy - 0.7) / 0.3)) ** 2 <= 1))
-                if inside: mp[x, y] = 255
-        c = Image.new('RGBA', (W, H), (128, 128, 128, 255)); c.paste(comp, (0, 0), m); c.crop((int(W/2-R), int(H/2-R), int(W/2+R), int(H/2+R))).save(f'{out}/icon-mask-{shape}.png')
-else:
-    for n in legacy[:3]:
-        im = load(n); print('LEGACY', n, im.size, im.split()[3].getbbox())
-`);
-      const o = sh(`python3 /tmp/icon_an.py "${process.env.APK_PATH}" ${EV} 2>&1 | tail -12`);
-      info.push('apk: ' + o.replace(/\n/g, ' ; ').slice(0, 900));
-    } catch (e) { info.push('apk analysis failed: ' + String(e.message).split('\n')[0].slice(0, 150)); }
-    return { verdict: n1 ? 'REVIEW (see screenshots)' : 'UNVERIFIABLE (harness)', detail: info.join(' || ') };
-  });
-
   // ---------- fixture ----------
   let p = null; let fixErr = '';
   try { p = await ensureFixture(); await stage('fixture-ready'); p = await cur(); if (!(await p.locator('.cm-content').count())) throw new Error('fixture-ready but editor not showing'); await calibrate(p); } catch (e) { fixErr = String(e.message || e).split('\n')[0]; note('fixture failed: ' + fixErr); }
@@ -671,6 +589,88 @@ else:
     const left = !/gonq/.test(after); sh('adb shell input keyevent 3');
     return { verdict: left && /gonq/.test(before) ? 'PASS' : 'FAIL', detail: `Documents home, no tabs: before [${before.slice(0, 110)}] after Back [${after.slice(0, 110)}] left app=${left}` };
   });
+  // ---------- 1 launcher icon ----------
+  await chk('1-launcher-icon', 'Launcher icon (a50176a8 crit 2 / 266b9882 crit 5)', async () => {
+    const info = []; const W = sh('adb shell wm size').match(/(\d+)x(\d+)/g).pop().split('x').map(Number);
+    const findIcon = async (tag) => {
+      sh('adb shell input keyevent 3'); await sleep(1500);
+      sh(`adb shell input swipe ${W[0] >> 1} ${Math.round(W[1] * 0.88)} ${W[0] >> 1} ${Math.round(W[1] * 0.2)} 350`); await sleep(1800);
+      for (let i = 0; i < 10; i++) {
+        const nodes = uiNodes(); const n = nodes.find((x) => /^gonq$/i.test(x.text) || /^gonq$/i.test(x.desc));
+        if (n) { fs.writeFileSync(`${EV}/ui-launcher-${tag}.xml`, fs.readFileSync(`${EV}/ui.xml`)); await shot(`launcher-drawer-${tag}`); return n; }
+        sh(`adb shell input swipe ${W[0] >> 1} ${Math.round(W[1] * 0.75)} ${W[0] >> 1} ${Math.round(W[1] * 0.3)} 350`); await sleep(900);
+      }
+      await shot(`launcher-drawer-${tag}-notfound`); return null;
+    };
+    const n1 = await findIcon('light');
+    info.push(n1 ? `light: node bounds ${n1.bounds} (cell ${'' + n1.h}px high, centre ${n1.x},${n1.y})` : 'light: Gonq icon NOT found in drawer');
+    sh('adb shell cmd uimode night yes'); await sleep(2500);
+    const n2 = await findIcon('dark'); info.push(n2 ? `dark: bounds ${n2.bounds}` : 'dark: not found');
+    sh('adb shell cmd uimode night no'); await sleep(1500);
+    // mask variants the system image offers
+    let ov = ''; try { ov = sh("adb shell cmd overlay list --user 0 | grep -i -E 'icon|shape' || true"); } catch (e) {}
+    info.push(`overlays: ${ov.replace(/\n/g, ' ').slice(0, 300) || 'none'}`);
+    const shapes = !process.env.EMU_SHAPES ? [] : [...ov.matchAll(/(com\.android\.theme\.icon\.(\w+))/g)].map((m) => [m[1], m[2]]).filter(([, s]) => /circle|squircle|roundedrect|teardrop/.test(s)).slice(0, 4);
+    for (const [pkgo, s] of shapes) {
+      try {
+        sh(`adb shell cmd overlay enable-exclusive --user 0 --category ${pkgo}`); await sleep(2500);
+        sh('adb shell am force-stop com.google.android.apps.nexuslauncher || true'); sh('adb shell am force-stop com.android.launcher3 || true'); await sleep(2000);
+        const n = await findIcon(`mask-${s}`); info.push(`mask ${s}: ${n ? 'icon at ' + n.bounds : 'not found'}`);
+      } catch (e) { info.push(`mask ${s}: failed ${String(e.message).split('\n')[0].slice(0, 80)}`); }
+    }
+    for (const [pkgo] of shapes) { try { sh(`adb shell cmd overlay disable --user 0 ${pkgo}`); } catch (e) {} }
+    // resource analysis of the installed APK: adaptive icon safe zone
+    try {
+      fs.writeFileSync('/tmp/icon_an.py', `
+import sys, zipfile, io, json, math
+try:
+    from PIL import Image
+except Exception:
+    import subprocess, importlib; subprocess.check_call([sys.executable,'-m','pip','install','-q','--target','/tmp/pil','pillow']); sys.path.insert(0,'/tmp/pil'); importlib.invalidate_caches(); from PIL import Image
+z = zipfile.ZipFile(sys.argv[1]); out = sys.argv[2]
+names = [n for n in z.namelist() if 'ic_launcher' in n or 'anydpi' in n]
+print('entries:', names[:40])
+def load(n): return Image.open(io.BytesIO(z.read(n))).convert('RGBA')
+fg = [n for n in names if n.endswith('.png') and 'foreground' in n]
+bg = [n for n in names if n.endswith('.png') and 'background' in n]
+rnd = [n for n in names if n.endswith('.png') and 'round' in n]
+legacy = [n for n in names if n.endswith('.png') and 'foreground' not in n and 'background' not in n and 'round' not in n]
+print('fg', fg, 'bg', bg, 'round', rnd, 'legacy', legacy)
+def pick(l):
+    return sorted(l, key=lambda n: load(n).size[0])[-1] if l else None
+f = pick(fg)
+if f:
+    im = load(f); W, H = im.size; a = im.split()[3]; bb = a.point(lambda v: 255 if v > 16 else 0).getbbox()
+    px = im.load(); mx = 0.0; cnt = 0; out_safe = 0; out_vis = 0
+    for y in range(0, H, 2):
+        for x in range(0, W, 2):
+            if px[x, y][3] > 16:
+                r = math.hypot(x - W / 2, y - H / 2) / W; cnt += 1
+                mx = max(mx, r)
+                if r > 33 / 108: out_safe += 1
+                if r > 36 / 108: out_vis += 1
+    print(f'FOREGROUND {f} size {W}x{H} opaque bbox {bb} max_radius/W {mx:.4f} (safe zone 0.3056, visible circle 0.3333) opaque px outside safe zone {out_safe}/{cnt}, outside visible circle {out_vis}/{cnt}')
+    b = pick(bg)
+    base = load(b).resize((W, H)) if b else Image.new('RGBA', (W, H), (255, 255, 255, 255))
+    comp = Image.alpha_composite(base, im); comp.save(out + '/icon-composite-full.png')
+    for shape in ['circle', 'squircle', 'roundedrect']:
+        m = Image.new('L', (W, H), 0); mp = m.load(); R = 36 / 108 * W
+        for y in range(H):
+            for x in range(W):
+                dx = abs(x - W / 2) / R; dy = abs(y - H / 2) / R
+                inside = (dx ** 2 + dy ** 2 <= 1) if shape == 'circle' else (dx ** 4 + dy ** 4 <= 1) if shape == 'squircle' else (dx <= 1 and dy <= 1 and (min(1, max(0, (dx - 0.7) / 0.3)) ** 2 + min(1, max(0, (dy - 0.7) / 0.3)) ** 2 <= 1))
+                if inside: mp[x, y] = 255
+        c = Image.new('RGBA', (W, H), (128, 128, 128, 255)); c.paste(comp, (0, 0), m); c.crop((int(W/2-R), int(H/2-R), int(W/2+R), int(H/2+R))).save(f'{out}/icon-mask-{shape}.png')
+else:
+    for n in legacy[:3]:
+        im = load(n); print('LEGACY', n, im.size, im.split()[3].getbbox())
+`);
+      const o = sh(`python3 /tmp/icon_an.py "${process.env.APK_PATH}" ${EV} 2>&1 | tail -12`);
+      info.push('apk: ' + o.replace(/\n/g, ' ; ').slice(0, 900));
+    } catch (e) { info.push('apk analysis failed: ' + String(e.message).split('\n')[0].slice(0, 150)); }
+    return { verdict: n1 ? 'REVIEW (see screenshots)' : 'UNVERIFIABLE (harness)', detail: info.join(' || ') };
+  });
+
   saveV();
   console.log('[batch] DONE'); console.log(JSON.stringify(VERD.map((v) => [v.id, v.verdict]), null, 0)); process.exit(0);
 })().catch((e) => { console.error('FATAL', e); saveV(); process.exit(0); });
