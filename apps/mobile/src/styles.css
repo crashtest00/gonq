@@ -175,3 +175,19 @@ body {
 .m-pr-heading { margin-top: var(--space-3); }
 .m-pr-foot { position: sticky; bottom: 0; display: flex; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--background); border-top: 1px solid var(--border); }
 .m-pr-foot > .m-tap { flex: 1 1 0; min-width: 44px; }
+
+/* The ☰ menu drawer: unlike the plain Outline drawer it has a filled primary header band, a wider panel and slides in. */
+.m-menu-drawer {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 22; width: min(340px, 90%); display: flex; flex-direction: column;
+  background: var(--background); color: var(--foreground); border-right: 3px solid var(--primary); box-shadow: var(--shadow-dialog);
+  animation: m-menu-in var(--duration-base) var(--ease-standard);
+}
+.m-menu-drawer-head {
+  flex: none; display: flex; align-items: center; gap: var(--space-1); background: var(--primary); color: var(--primary-foreground);
+  padding: env(safe-area-inset-top) var(--space-1) 0 var(--space-1); min-height: calc(56px + env(safe-area-inset-top));
+}
+.m-menu-drawer-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 17px; font-weight: var(--weight-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-menu-drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: env(safe-area-inset-bottom); }
+.m-menu-row { width: 100%; justify-content: space-between; border-radius: 0; text-align: left; border-bottom: 1px solid var(--border); }
+@keyframes m-menu-in { from { transform: translateX(-100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .m-menu-drawer { animation: none; } }

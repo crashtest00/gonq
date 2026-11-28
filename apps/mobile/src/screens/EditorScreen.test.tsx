@@ -9,6 +9,7 @@ vi.mock('@gonq/editor/platform/bindings', async () =>
   (await import('@gonq/editor/testing/mockBindings')).bindingsMock((c, a) => invoke(c, a)),
 );
 
+import { openMenu } from '../testing/menu';
 import { renderMobileApp } from '../testing/renderMobileApp';
 import { DocumentProvider } from '../shell/documents';
 import { CommandHostProvider } from '../shell/commandContext';
@@ -107,7 +108,7 @@ it('keeps Raw Markdown in the More menu working on a read-only tab', async () =>
     </NoticesProvider>,
   );
   await screen.findByRole('toolbar', { name: 'Editing' });
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'View');
   await user.click(screen.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }));
   expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false');
 });

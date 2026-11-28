@@ -28,6 +28,7 @@ vi.mock('@gonq/editor/comment-threads', async (importActual) => {
 import { AGENT_GUIDANCE_TITLE, parseCommentThreads } from '@gonq/editor/comment-threads';
 import { preview } from '@gonq/editor/model/threads';
 import { settleEditors } from '@gonq/editor/testing/editor';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 const A = 'c20260910143022a3f9c1';
@@ -69,14 +70,14 @@ async function openThread(user: User, name: RegExp = /First\?/) {
   await user.click(await inSheet().findByRole('button', { name }));
 }
 async function save(user: User) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'File');
   await user.click(await screen.findByRole('menuitem', { name: /^Save(?! As)/ }));
   await waitFor(() => expect(disk.saved.length).toBeGreaterThan(0));
   const text = disk.saved[disk.saved.length - 1];
   return text;
 }
 async function undo(user: User) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'Edit');
   await user.click(await screen.findByRole('menuitem', { name: 'Undo' }));
 }
 const box = () => screen.getByRole('textbox', { name: 'Reply' }) as HTMLTextAreaElement;

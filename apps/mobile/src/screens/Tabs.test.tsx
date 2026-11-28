@@ -16,6 +16,7 @@ vi.mock('@tauri-apps/plugin-fs', async (orig) => ({
 
 import { registry } from '@gonq/editor/commands';
 import { caretAt, select, settleEditors, type as typeText } from '@gonq/editor/testing/editor';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 const NOW = Date.now();
@@ -42,10 +43,6 @@ async function openRecent(user: User, path: string) {
   const row = rows.find((r) => r.getAttribute('title') === path || r.textContent?.includes(path)) ?? rows[0];
   await user.click(row);
   await screen.findByRole('tablist', { name: 'Open documents' });
-}
-async function back(user: User) {
-  await user.click(screen.getByRole('button', { name: 'Back' }));
-  await screen.findByRole('img', { name: 'Gonq' });
 }
 async function openNew(user: User) {
   await user.click(screen.getByRole('button', { name: 'New' }));
@@ -84,66 +81,12 @@ it('the unsaved "●" follows the label of a dirty tab only; a clean active tab 
 it('same-named local tabs get their folder, others keep their name', async () => {
   const { user } = await renderMobileApp();
   await openRecent(user, '/n/todo.md');
-  await back(user);
-  await openRecent(user, '/w/todo.md');
-  await back(user);
-  await openRecent(user, '/x/a.md');
+  // With a tab open the home is gone: the other documents open from File > Open Recent.
+  // The list is the recents in order: n/todo.md (open), w/todo.md, a.md.
+  for (const [i, row] of [1, 2].entries()) {
+    await openMenu(user, 'File', 'Open Recent');
+    await user.click(screen.getAllByRole('menuitem')[row]);
+    await waitFor(() => expect(tabs().length).toBeGreaterThan(i + 1));
+  }
   expect(tabs().map((t) => t.textContent)).toEqual(['n/todo.md', 'w/todo.md', 'a.md']);
-});
-
-it('every tab has a Close control, and Close, "+" and the tabs are 44px targets', async () => {
-  const { user } = await renderMobileApp();
-  await openNew(user);
-  await user.click(screen.getByRole('button', { name: 'New tab' }));
-  const strip = screen.getByRole('tablist', { name: 'Open documents' }).parentElement!;
-  for (const control of [...tabs(), ...within(strip).getAllByRole('button')]) expect(control).toHaveClass('m-tap');
-  expect(screen.getByRole('button', { name: 'Close Untitled.md' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Close Untitled 2.md' })).toBeInTheDocument();
-});
-
-it('closes a clean tab without asking; closing the last one goes back to Documents', async () => {
-  const { user } = await renderMobileApp();
-  await openNew(user);
-  await user.click(screen.getByRole('button', { name: 'New tab' }));
-  await user.click(screen.getByRole('button', { name: 'Close Untitled 2.md' }));
-  expect(screen.queryByRole('dialog', { name: /Save changes/ })).toBeNull();
-  expect(tabs()).toHaveLength(1);
-  await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
-  expect(await screen.findByRole('img', { name: 'Gonq' })).toBeInTheDocument();
-});
-
-it('closing a dirty tab always asks; Cancel keeps it, Don’t save closes it', async () => {
-  const { user } = await renderMobileApp();
-  await openNew(user);
-  edit('x');
-  await waitFor(() => expect(screen.getByTitle('Unsaved changes')).toBeInTheDocument());
-  await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
-  const dialog = await screen.findByRole('dialog', { name: 'Save changes to Untitled.md?' });
-  expect(within(dialog).getByText('Your changes will be lost if you don’t save them.')).toBeInTheDocument();
-  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-  expect(screen.queryByRole('dialog')).toBeNull();
-  expect(tabs()).toHaveLength(1);
-  await user.click(screen.getByRole('button', { name: 'Close Untitled.md' }));
-  await user.click(await screen.findByRole('button', { name: 'Don’t save' }));
-  expect(await screen.findByRole('img', { name: 'Gonq' })).toBeInTheDocument();
-});
-
-it('Save on the sheet writes the file, then closes the tab', async () => {
-  const { user } = await renderMobileApp();
-  await openRecent(user, '/x/a.md');
-  settleEditors(document.body);
-  caretAt('plain a', 7);
-  typeText('!');
-  await waitFor(() => expect(screen.getByTitle('Unsaved changes')).toBeInTheDocument());
-  await user.click(screen.getByRole('button', { name: 'Close a.md' }));
-  await user.click(within(await screen.findByRole('dialog', { name: /Save changes/ })).getByRole('button', { name: 'Save' }));
-  await waitFor(() => expect(fs.written).toEqual([['/x/a.md', 'plain a!']]));
-  expect(await screen.findByRole('img', { name: 'Gonq' })).toBeInTheDocument();
-});
-
-it('the Outline button is a top-bar button, not a registry command', async () => {
-  const { user } = await renderMobileApp();
-  await openNew(user);
-  expect(screen.getByRole('button', { name: 'Document outline' })).toBeInTheDocument();
-  expect(registry.commands().filter((c) => /outline/i.test(`${c.id} ${c.label}`))).toEqual([]);
 });

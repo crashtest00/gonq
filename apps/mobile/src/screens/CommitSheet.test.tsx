@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { docText, editorView, select, settleEditors, type as typeText } from '@gonq/editor/testing/editor';
 import { clearSessionBranches, listSessionBranches } from '@gonq/editor/features/github/sessionBranches';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 type Handler = (args: Record<string, unknown>) => unknown;
@@ -70,7 +71,7 @@ const edit = (extra = '!') => {
   typeText(extra);
 };
 async function menuItem(user: User, name: RegExp) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, name.source.startsWith('^Commit') ? 'GitHub' : 'File');
   return screen.findByRole('menuitem', { name });
 }
 async function save(user: User) {
@@ -251,13 +252,13 @@ describe('open pull request', () => {
     await user.click(link);
     await waitFor(() => expect(openUrl).toHaveBeenCalledWith('https://github.com/o/r/pull/12'));
     expect(await menuItem(user, /^Commit…/)).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: 'Close sheet' }));
+    await user.click(screen.getByRole('button', { name: 'Close menu' }));
     // Add Comment is disabled in the selection bar, as on desktop.
     select(0, 3);
     expect(await screen.findByRole('button', { name: /^Add Comment/ })).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: 'More' }));
+    await openMenu(user, 'View');
     await user.click(screen.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }));
-    await user.click(screen.getByRole('button', { name: 'More' }));
+    await openMenu(user, 'View');
     expect(screen.getByRole('menuitemcheckbox', { name: 'Raw Markdown' })).toBeChecked();
     await user.keyboard('{Escape}');
     expect(screen.getByTestId('read-only-banner')).toBeInTheDocument();

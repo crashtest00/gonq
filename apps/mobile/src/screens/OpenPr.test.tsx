@@ -12,6 +12,7 @@ vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl }));
 
 import { settleEditors } from '@gonq/editor/testing/editor';
 import { addSessionBranch, clearSessionBranches } from '@gonq/editor/features/github/sessionBranches';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 type Handler = (args: Record<string, unknown>) => unknown;
@@ -55,7 +56,7 @@ async function openRepo() {
 /** The navigator sheet covers the ⋯ menu, so it is closed first (the repository stays open). */
 async function openPr(user: User) {
   if (screen.queryByRole('dialog', { name: 'octo/notes' })) await user.click(within(screen.getByRole('dialog', { name: 'octo/notes' })).getByRole('button', { name: 'Close' }));
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'GitHub');
   await user.click(await screen.findByRole('menuitem', { name: 'Open PR…' }));
   return screen.findByRole('heading', { name: 'Open pull request' });
 }
@@ -76,7 +77,7 @@ async function ready(source = 'gonq/one', target = 'main') {
 describe('entry', () => {
   it('is greyed in the ⋯ menu with no repository or GitHub tab', async () => {
     const { user } = await renderMobileApp();
-    await user.click(screen.getByRole('button', { name: 'More' }));
+    await openMenu(user, 'GitHub');
     expect(await screen.findByRole('menuitem', { name: 'Open PR…' })).toBeDisabled();
   });
 

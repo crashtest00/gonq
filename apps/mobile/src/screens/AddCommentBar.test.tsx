@@ -10,6 +10,7 @@ vi.mock('@gonq/editor/platform/bindings', async () =>
 );
 
 import { docText, editorView, select, selectText, settleEditors } from '@gonq/editor/testing/editor';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp } from '../testing/renderMobileApp';
 
 beforeEach(() => {
@@ -29,7 +30,7 @@ async function openNew() {
 }
 /** Flips Raw Markdown through the More menu (the top-bar switch is gone). */
 async function toggleRaw(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'View');
   await user.click(screen.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }));
 }
 const bar = () => document.querySelector<HTMLElement>('.m-addcomment')!;

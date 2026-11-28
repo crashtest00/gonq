@@ -8,6 +8,7 @@ vi.mock('@gonq/editor/platform/bindings', async () =>
 );
 
 import { AUTHOR_KEY } from '@gonq/editor/platform/settings';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 let status: unknown;
@@ -35,7 +36,7 @@ beforeEach(() => {
 });
 
 async function openSettings(user: User) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'Edit');
   await user.click(await screen.findByRole('menuitem', { name: 'Settings…' }));
   return screen.findByRole('form', { name: 'Settings' });
 }

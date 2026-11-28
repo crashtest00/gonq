@@ -11,6 +11,7 @@ vi.mock('@gonq/editor/platform/files', async (orig) => ({
 }));
 
 import { AGENT_SKILL, AGENT_SKILL_BODY } from '@gonq/editor/agent-skill/skill';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 vi.setConfig({ testTimeout: 30000 });
@@ -21,7 +22,7 @@ beforeEach(() => {
 });
 
 async function openSkill(user: User) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'Help');
   await user.click(await screen.findByRole('menuitem', { name: 'Agent skill…' }));
   return screen.findByRole('region', { name: 'SKILL.md' });
 }

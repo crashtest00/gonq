@@ -2,6 +2,7 @@
 import { screen } from '@testing-library/react';
 import { beforeEach, expect, it } from 'vitest';
 import { THEME_KEY } from '@gonq/editor/platform/settings';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp } from '../testing/renderMobileApp';
 
 beforeEach(() => {
@@ -11,11 +12,11 @@ beforeEach(() => {
 
 it('Dark applies at once and persists; Light undoes it; the choice is checked', async () => {
   const { user } = await renderMobileApp();
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'View', 'Theme');
   await user.click(screen.getByRole('menuitemradio', { name: /Dark/ }));
   expect(document.documentElement).toHaveClass('dark');
   expect(localStorage.getItem(THEME_KEY)).toBe('dark');
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'View', 'Theme');
   expect(screen.getByRole('menuitemradio', { name: /Dark/ })).toHaveAttribute('aria-checked', 'true');
   await user.click(screen.getByRole('menuitemradio', { name: /Light/ }));
   expect(document.documentElement).not.toHaveClass('dark');
@@ -24,6 +25,6 @@ it('Dark applies at once and persists; Light undoes it; the choice is checked', 
 
 it('offers exactly Light, Dark and Auto', async () => {
   const { user } = await renderMobileApp();
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'View', 'Theme');
   expect(screen.getAllByRole('menuitemradio').map((r) => r.textContent?.replace('✓', ''))).toEqual(['Light', 'Dark', 'Auto']);
 });

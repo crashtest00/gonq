@@ -32,6 +32,7 @@ vi.mock('@gonq/editor/comment-threads', async (importActual) => {
 
 import { parseCommentThreads } from '@gonq/editor/comment-threads';
 import { settleEditors } from '@gonq/editor/testing/editor';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 afterEach(() => {
@@ -63,7 +64,7 @@ async function openDoc(text: string) {
 const sheet = () => screen.getByRole('dialog', { name: 'Comments' });
 const inSheet = () => within(sheet());
 async function save(user: User) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'File');
   await user.click(await screen.findByRole('menuitem', { name: /^Save(?! As)/ }));
   await waitFor(() => expect(disk.saved.length).toBeGreaterThan(0));
   return disk.saved[disk.saved.length - 1];
@@ -119,7 +120,7 @@ it('an edit is undone in one step', async () => {
   const { user } = await setup();
   await editFirst(user, 'Reworded');
   await user.click(inSheet().getByRole('button', { name: 'Save' }));
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'Edit');
   await user.click(await screen.findByRole('menuitem', { name: 'Undo' }));
   expect(await save(user)).toBe(DOC);
 });
@@ -175,7 +176,7 @@ const blk = (id: string, body: string, author = 'User', stamp = '2026-09-10T14:3
   `<!--\n@thread ${id}\n@status open\n\n[${author} | ${stamp}]\n${body}\n-->`;
 const TWO = `One [💬](#md-thread-${A}) two [💬](#md-thread-${B}).\n\n${blk(A, 'First?')}\n\n${blk(B, 'Second?')}\n`;
 async function undo(user: User) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'Edit');
   await user.click(await screen.findByRole('menuitem', { name: 'Undo' }));
 }
 async function openThread(doc: string, name: RegExp) {

@@ -3,8 +3,8 @@ import { registry } from '@gonq/editor/commands';
 import { EXCLUDED_COMMAND_IDS } from './excludedCommands';
 
 describe('EXCLUDED_COMMAND_IDS', () => {
-  it('is exactly the Connect to Server command', () => {
-    expect(EXCLUDED_COMMAND_IDS).toEqual(['file.connect']);
+  it('is exactly Connect to Server and Close Tab', () => {
+    expect(EXCLUDED_COMMAND_IDS).toEqual(['file.connect', 'file.closeTab']);
   });
 
   it('names registered commands', () => {
@@ -13,6 +13,8 @@ describe('EXCLUDED_COMMAND_IDS', () => {
     const connect = all.find((c) => c.id === 'file.connect');
     expect(connect?.menu).toBe('file');
     expect(connect?.label).toBe('Connect to Server…');
+    // Close Tab stays in the desktop menu; mobile leaves it out because each tab has its own close control.
+    expect(all.find((c) => c.id === 'file.closeTab')?.menu).toBe('file');
   });
 
   it('leaves no other SSH, server or remote-folder command in the registry', () => {
@@ -20,6 +22,6 @@ describe('EXCLUDED_COMMAND_IDS', () => {
       .commands()
       .filter((c) => /ssh|remote|server|connect/i.test(`${c.id} ${c.label}`))
       .map((c) => c.id);
-    expect(sshLike).toEqual(EXCLUDED_COMMAND_IDS);
+    expect(sshLike).toEqual(['file.connect']);
   });
 });

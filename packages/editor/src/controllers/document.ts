@@ -233,6 +233,8 @@ export function useDocumentController(options: DocumentControllerOptions) {
     /** Closes the active tab (asking about unsaved changes); does nothing without one. */
     closeTab,
     closeTabById,
+    /** Asks about every unsaved tab in turn, as each tab's close control would; false when any answer is Cancel. */
+    confirmAllTabs: confirmWindowClose,
     openKnownPath,
     recents,
     remember,

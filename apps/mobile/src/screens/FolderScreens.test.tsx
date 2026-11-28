@@ -13,6 +13,7 @@ vi.mock('@gonq/editor/platform/bindings', async () =>
   (await import('@gonq/editor/testing/mockBindings')).bindingsMock((c, a) => invoke(c, a)),
 );
 
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 const TREE = 'content://com.android.externalstorage.documents/tree/primary%3ADocuments%2Fnotes';
@@ -36,7 +37,7 @@ beforeEach(() => {
 
 const sheet = () => screen.getByRole('dialog', { name: 'Folder navigator' });
 async function menu(user: User, item: string) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'File');
   await user.click(await screen.findByRole('menuitem', { name: item }));
 }
 /** Opens the folder through Open Folder… and the file `name` from the sheet. */

@@ -1,6 +1,6 @@
 /**
  * The mobile editor screen: the shared MarkdownEditor on the active tab (its handle, selection and table target live in the CommandHost; a long press on the text is left to the OS, whose native selection handles then drive the AddCommentBar above the AccessoryBar), the keyboard AccessoryBar below it (swapped for the TableBar while the caret is in a table, via the editor's onTable target) and the tab strip above the editor (and, on a read-only GitHub tab, the ReadOnlyBanner), the Outline drawer over it and (as
- * the screen's top-bar actions) the Outline and Comments buttons, and the ⋯ menu. The docked CommentsSheet replaces the accessory bar while open; a tapped comment marker opens its thread, and the open thread's anchor is revealed (also on keyboard changes). useVisualViewport keeps the shell above the virtual keyboard and, after
+ * the screen's top-bar actions) the Outline and Comments buttons, with ☰ (the menu drawer) in its leading slot. The docked CommentsSheet replaces the accessory bar while open; a tapped comment marker opens its thread, and the open thread's anchor is revealed (also on keyboard changes). useVisualViewport keeps the shell above the virtual keyboard and, after
  * each visual-viewport change, calls the editor handle's scrollCaretIntoView (CodeMirror's EditorView.scrollIntoView
  * effect) so the caret stays visible. editorScreen(title) builds the navigator Screen; EditorBridge pushes it when a document opens.
  */
@@ -19,7 +19,7 @@ import { CommentsButton, CommentsSheet } from './CommentsSheet';
 import { FolderButton } from './FolderSheet';
 import { AddCommentBar } from './AddCommentBar';
 import { OutlineButton, OutlineDrawer } from './OutlineDrawer';
-import { MoreMenu } from './MoreMenu';
+import { MenuDrawer } from './MenuDrawer';
 import { ReadOnlyBanner } from './ReadOnlyBanner';
 import { TabStrip } from './TabStrip';
 
@@ -92,7 +92,8 @@ export const editorScreen = (title: string): Screen => ({
   key: EDITOR_SCREEN_KEY,
   title,
   render: () => createElement(EditorScreen),
-  actions: () => createElement(Fragment, null, createElement(FolderButton), createElement(OutlineButton), createElement(CommentsButton), createElement(MoreMenu)),
+  actions: () => createElement(Fragment, null, createElement(FolderButton), createElement(OutlineButton), createElement(CommentsButton)),
+  leading: () => createElement(MenuDrawer),
 });
 
 /**
