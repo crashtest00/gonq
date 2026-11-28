@@ -1,0 +1,74 @@
+name: e2e
+
+# Full Playwright suite (apps/desktop/e2e, projects chromium and mobile). Not run per PR and not in
+# Jenkins. Runs at release time (called by release-desktop.yml, which will not publish the Release
+# unless it passes) and on demand by sha via workflow_dispatch. Never add pull_request/push/schedule triggers.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full commit SHA to test
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      sha:
+        description: Full commit SHA to test
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: e2e (chromium + mobile)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out requested SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Verify checkout matches requested SHA
+        shell: bash
+        env:
+          REQUESTED_SHA: ${{ inputs.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$REQUESTED_SHA" ]; then
+            echo "::error::Checked out $actual but $REQUESTED_SHA was requested"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts starts both webServers (desktop on 4173, mobile on 4174 under /mobile/).
+      - name: Run e2e suite
+        run: npm run test:e2e -- --reporter=list,html
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ inputs.sha }}
+          path: apps/desktop/playwright-report
+          if-no-files-found: ignore
+
+      - name: Upload traces and test results
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-${{ inputs.sha }}
+          path: apps/desktop/test-results
+          if-no-files-found: ignore
