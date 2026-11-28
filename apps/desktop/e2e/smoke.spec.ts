@@ -20,6 +20,7 @@ test('Settings > GitHub > Sign In shows the desktop-app error in the banner on t
   await page.getByRole('menuitem', { name: 'Edit' }).click();
   await page.getByRole('menuitem', { name: /Settings/ }).click();
   await page.getByRole('button', { name: 'Sign In' }).click();
+  await page.getByRole('button', { name: 'Start' }).click();
   await expect(page.getByText('Signing in to GitHub needs the Gonq desktop app').first()).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Sign in to GitHub' })).toHaveCount(0);
 });
