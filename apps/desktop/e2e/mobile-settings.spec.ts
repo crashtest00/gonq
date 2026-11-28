@@ -51,7 +51,7 @@ test('Settings: author name, GitHub row and buttons are at least 44x44', async (
 test('About: link and Close are at least 44x44; no tagline', async ({ page }) => {
   await openFromMenu(page, 'Help', 'About Gonq');
   await expect(page.getByRole('img', { name: 'Gonq logo' })).toBeVisible();
-  await expect(page.getByText(/^Version 0\.1\.\d+$/)).toBeVisible();
+  await expect(page.getByText(/^Version \d+\.\d+\.\d+$/)).toBeVisible();
   await expectTapTargets(page);
 });
 

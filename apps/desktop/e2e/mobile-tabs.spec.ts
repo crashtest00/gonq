@@ -78,6 +78,7 @@ test('the Outline button opens a drawer that lists headings and jumps to one', a
   await page.locator('.cm-content').click();
   await page.keyboard.type('# Top');
   await page.keyboard.press('Enter');
+  await expect(page.locator('.cm-content .cm-line')).toHaveCount(2);
   await page.keyboard.type('## Next');
   const button = page.getByRole('button', { name: 'Document outline' });
   expect((await sizes(button))[0].w).toBeGreaterThanOrEqual(44);

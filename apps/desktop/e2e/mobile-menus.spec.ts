@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// The mobile long-press editor sheet and the ☰ menu drawer on the Pixel 7 profile against /mobile/: a real held touch
+// The mobile long press (left to the OS, no Editor sheet) and the ☰ menu drawer on the Pixel 7 profile against /mobile/: a real held touch
 // (CDP touch events), the registry-generated menus, and the hit area of every row.
 
 async function editor(page: Page) {
@@ -22,20 +22,12 @@ async function hold(page: Page, x: number, y: number, ms: number) {
 const sizes = (loc: ReturnType<Page['locator']>) =>
   loc.evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return { n: el.textContent, w: r.width, h: r.height }; }));
 
-test('a long press on the text opens the Editor sheet with the desktop items; every row is at least 44x44', async ({ page }) => {
+test('a long press on the text leaves selection to the OS: no Editor sheet opens', async ({ page }) => {
   await editor(page);
   const box = (await page.locator('.cm-line').first().boundingBox())!;
   await hold(page, box.x + 20, box.y + box.height / 2, 800);
-  const sheet = page.getByRole('dialog', { name: 'Editor' });
-  await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole('menuitem')).toHaveText(['Add Comment', 'Cut', 'Copy', 'Paste', 'Select All', 'Bold', 'Italic']);
-  await expect(sheet.getByRole('menuitem', { name: /Insert link/ })).toHaveCount(0);
-  for (const b of await sizes(sheet.getByRole('menuitem'))) {
-    expect(b.w, b.n ?? '').toBeGreaterThanOrEqual(44);
-    expect(b.h, b.n ?? '').toBeGreaterThanOrEqual(44);
-  }
-  await sheet.getByRole('menuitem', { name: 'Select All' }).tap();
-  await expect(sheet).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Editor' })).toHaveCount(0);
+  await expect(page.getByRole('toolbar', { name: 'Editing' })).toBeVisible();
 });
 
 test('a short touch does not open the sheet', async ({ page }) => {

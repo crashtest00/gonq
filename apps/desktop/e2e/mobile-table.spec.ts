@@ -32,7 +32,7 @@ test('table bar buttons are at least 44x44 and the bar never clips the page', as
   await page.getByRole('button', { name: 'Table', exact: true }).tap();
   const bar = page.getByRole('toolbar', { name: 'Table' });
   const buttons = await size(bar.getByRole('button'));
-  expect(buttons).toHaveLength(11);
+  expect(buttons).toHaveLength(12);
   for (const b of buttons) {
     expect(b.w).toBeGreaterThanOrEqual(44);
     expect(b.h).toBeGreaterThanOrEqual(44);
