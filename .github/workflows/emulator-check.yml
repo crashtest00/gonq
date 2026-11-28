@@ -55,7 +55,7 @@ jobs:
           target: google_apis
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          script: node .emulator/accept.cjs
+          script: node .emulator/batch-2026-11-27.cjs
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
