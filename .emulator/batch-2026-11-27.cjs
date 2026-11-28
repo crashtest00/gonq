@@ -396,6 +396,7 @@ async function kbFrame() {
 }
 
 (async () => {
+  if (process.env.EMU_SCRIPT) { require("./" + process.env.EMU_SCRIPT); return; }
   [device] = await _android.devices();
   global.info = { model: sh('adb shell getprop ro.product.model'), android: sh('adb shell getprop ro.build.version.release'), sdk: sh('adb shell getprop ro.build.version.sdk'), repo: REPO, apk: process.env.APK_PATH };
   sh('adb shell settings put secure show_ime_with_hard_kb 1'); sh('adb shell cmd uimode night no');
