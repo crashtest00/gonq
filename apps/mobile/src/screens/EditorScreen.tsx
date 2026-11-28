@@ -64,6 +64,7 @@ export function EditorScreen({ readOnly = false }: { readOnly?: boolean }) {
         readOnly={readOnly || ctx.readOnly}
         tabIds={session.tabIds}
         docPath={session.meta.path}
+        activeThreadKey={open ? selectedKey : null}
         onOpenThread={(id, ordinal) => {
           const key = threadKey(id, ordinal);
           if (!listThreads(text).some((t) => t.key === key)) return;

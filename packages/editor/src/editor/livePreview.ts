@@ -1,6 +1,6 @@
 /**
  * Live preview: syntax-tree decorations for the visible range that style Markdown in place and hide its syntax
- * until the caret touches it; list depth lines, bullets, task checkbox, images and thread-marker glyphs.
+ * until the caret touches it; list depth lines, bullets, task checkbox, images and thread-marker glyphs (the active thread's marker is rebuilt when the active key changes).
  */
 import { syntaxTree } from '@codemirror/language';
 import { type Extension, type Range, RangeSet } from '@codemirror/state';
@@ -9,7 +9,8 @@ import type { SyntaxNode } from '@lezer/common';
 import { OPEN_COMMENT_LABEL, RESOLVED_COMMENT_LABEL, parseCommentMarkerFragment, parseCommentMarkers } from '../comment-threads';
 import { ImageWidget } from './images';
 import { tables } from './tables';
-import { hideThreadBlocks, ThreadMarker } from './threads';
+import { activeThread, hideThreadBlocks, markerOrdinal, ThreadMarker } from './threads';
+import { threadKey } from '../model/threads';
 
 /**
  * Live preview: styles the Markdown constructs in place and hides their syntax characters
@@ -156,7 +157,9 @@ function build(view: EditorView): Built {
             const source = doc.sliceString(n.from, n.to);
             const found = [...parseCommentMarkers(source)];
             if (found.length === 1 && found[0][1][0].from === 0 && found[0][1][0].to === source.length) {
-              hide(n.from, n.to, Decoration.replace({ widget: new ThreadMarker(found[0][0], found[0][1][0].status === 'resolved' ? RESOLVED_COMMENT_LABEL : OPEN_COMMENT_LABEL) }));
+              const id = found[0][0];
+              const active = state.field(activeThread) === threadKey(id, markerOrdinal(doc, id, n.from));
+              hide(n.from, n.to, Decoration.replace({ widget: new ThreadMarker(id, found[0][1][0].status === 'resolved' ? RESOLVED_COMMENT_LABEL : OPEN_COMMENT_LABEL, active) }));
             }
             return false;
           }
@@ -299,7 +302,7 @@ const plugin = ViewPlugin.fromClass(
       this.built = build(view);
     }
     update(u: ViewUpdate) {
-      if (u.docChanged || u.viewportChanged || u.selectionSet || syntaxTree(u.startState) !== syntaxTree(u.state)) this.built = build(u.view);
+      if (u.docChanged || u.viewportChanged || u.selectionSet || u.startState.field(activeThread) !== u.state.field(activeThread) || syntaxTree(u.startState) !== syntaxTree(u.state)) this.built = build(u.view);
     }
   },
   {

@@ -83,6 +83,9 @@
 /* text-indent 0: :hover makes it inline-block, which would otherwise take the item's negative hanging indent (.cm-li-first) and jump left. The hover effect is limited to devices that can hover: on touch :hover sticks after a tap and the scale/inline-block shifted the line by ~1.5px. */
 .gonq-editor .cm-thread-marker { text-indent: 0; cursor: pointer; font-size: 0.85em; padding: 0 2px; vertical-align: baseline; user-select: none; }
 @media (hover: hover) { .gonq-editor .cm-thread-marker:hover { filter: brightness(1.15); transform: scale(1.15); display: inline-block; } }
+/* The thread open in the Comments panel: a static ring and tint (paint only, no layout change, no hover needed). */
+.gonq-editor .cm-thread-marker.cm-thread-active { background: color-mix(in srgb, var(--primary-text) 22%, transparent); box-shadow: 0 0 0 2px var(--primary-text); border-radius: 6px; }
+@media (forced-colors: active) { .gonq-editor .cm-thread-marker.cm-thread-active { outline: 2px solid Highlight; outline-offset: 0; } }
 .gonq-editor .cm-thread-block { height: 0; overflow: hidden; }
 .gonq-editor .cm-thread-block-only { height: 1.6em; }
 
