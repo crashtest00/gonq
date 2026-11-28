@@ -20,6 +20,7 @@ vi.mock('@gonq/editor/platform/external', async (orig) => ({
 
 import { REPO_URL } from '@gonq/editor/platform/external';
 import { APP_VERSION } from './AboutScreen';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 beforeEach(() => {
@@ -28,7 +29,7 @@ beforeEach(() => {
 });
 
 async function openAbout(user: User) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'Help');
   await user.click(await screen.findByRole('menuitem', { name: 'About Gonq' }));
   return screen.findByRole('heading', { name: 'Gonq' });
 }

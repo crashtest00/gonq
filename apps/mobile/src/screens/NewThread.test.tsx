@@ -16,6 +16,7 @@ vi.mock('@tauri-apps/plugin-fs', async (orig) => ({
 
 import { parseCommentThreads } from '@gonq/editor/comment-threads';
 import { at, docText, select, selectText, settleEditors } from '@gonq/editor/testing/editor';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 const ID = /c\d{14}[0-9a-f]{12}/;
@@ -43,7 +44,7 @@ async function openDoc(text: string) {
 const sheet = () => screen.getByRole('dialog', { name: 'Comments' });
 const inSheet = () => within(sheet());
 async function save(user: User) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'File');
   await user.click(await screen.findByRole('menuitem', { name: /^Save(?! As)/ }));
   await waitFor(() => expect(disk.saved.length).toBeGreaterThan(0));
   return disk.saved[disk.saved.length - 1];
@@ -143,7 +144,7 @@ it('undo removes marker and block in one step', async () => {
   await user.type(box(), 'note');
   await user.click(inSheet().getByRole('button', { name: 'Submit' }));
   expect(docText()).toContain('💬');
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'Edit');
   await user.click(await screen.findByRole('menuitem', { name: 'Undo' }));
   expect(docText()).not.toContain('💬');
   expect(await save(user)).toBe('Hello brave world.\n');

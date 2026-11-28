@@ -14,6 +14,7 @@ vi.mock('@tauri-apps/plugin-fs', async (orig) => ({
   }),
 }));
 
+import { openMenu } from '../testing/menu';
 import { renderMobileApp } from '../testing/renderMobileApp';
 
 type Row = { path: string; opened_at: number };
@@ -38,21 +39,21 @@ beforeEach(() => {
 });
 
 const fileMenu = () => screen.getByRole('menu', { name: 'File' });
-const recentGroup = () => within(fileMenu()).getByRole('group', { name: 'Open Recent' });
+const recentGroup = () => screen.getByRole('menu', { name: 'Open Recent' });
 
 it('sits right after Open… and is shown disabled with no recents', async () => {
   const { user } = await renderMobileApp();
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'File');
   const ids = [...fileMenu().querySelectorAll('[data-command]')].map((e) => e.getAttribute('data-command'));
   expect(ids.slice(0, 2)).toEqual(['file.new', 'file.open']);
-  expect(recentGroup()).toHaveAttribute('aria-disabled', 'true');
+  expect(screen.getByRole('menuitem', { name: 'Open Recent' })).toBeDisabled();
 });
 
 it('lists the home recents in order, at most 10, with the home detail', async () => {
   seed(['/d/a.md', 'github://octo/docs@main/x/b.md', ...Array.from({ length: 12 }, (_, i) => `/d/f${i}.md`)]);
   const { user } = await renderMobileApp();
   await screen.findAllByRole('listitem');
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'File', 'Open Recent');
   const labels = within(recentGroup()).getAllByRole('menuitem').map((e) => e.textContent);
   expect(labels).toHaveLength(10);
   expect(labels.slice(0, 3)).toEqual(['a.md', 'b.md — octo/docs @ main', 'f0.md']);
@@ -63,7 +64,7 @@ it('opens a recent as the home row does: allowRecentDocument first, then the rea
   seed(['/d/a.md', '/d/b.md']);
   const { user } = await renderMobileApp();
   await screen.findAllByRole('listitem');
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'File', 'Open Recent');
   await user.click(within(recentGroup()).getByRole('menuitem', { name: 'b.md' }));
   await waitFor(() => expect(calls).toEqual(['allow', 'read']));
   await waitFor(() => expect(store[0].path).toBe('/d/b.md'));

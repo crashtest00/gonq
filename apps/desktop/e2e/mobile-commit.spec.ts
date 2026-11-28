@@ -42,7 +42,7 @@ async function openFile(page: Page) {
   await page.getByRole('button', { name: 'Open Repo…' }).click();
   await page.getByRole('button', { name: /octo\/notes/ }).click();
   await page.getByRole('button', { name: 'a.md' }).click();
-  await expect(page.getByRole('button', { name: 'More' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Menu' })).toBeVisible();
 }
 
 /** Every button and link inside `scope` is at least 44x44 CSS px. */
@@ -61,7 +61,8 @@ test('commit sheet and conflict sheet keep every tap target at 44x44 or more', a
   await openFile(page);
   await page.locator('.cm-content').click();
   await page.keyboard.type('!');
-  await page.getByRole('button', { name: 'More' }).click();
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.getByRole('menuitem', { name: 'File' }).click();
   await page.getByRole('menuitem', { name: /^Save(?! As)/ }).click();
   const sheet = page.getByRole('dialog', { name: 'Commit a.md?' });
   await expect(sheet.getByRole('note')).toContainText('This commits directly to main.');

@@ -12,6 +12,8 @@ export interface Screen {
   /** Show the Gonq logo, centred, in the top bar in place of the title (the home). */
   logo?: boolean;
   render(): ReactNode;
+  /** Replaces the Back control in the top bar's leading slot (the ☰ menu on the home and the editor). */
+  leading?(): ReactNode;
   /** Controls shown at the end of the top bar (the editor's Raw switch). */
   actions?(): ReactNode;
 }

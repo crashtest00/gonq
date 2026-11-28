@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// The mobile long-press editor sheet and the ⋯ overflow menu on the Pixel 7 profile against /mobile/: a real held touch
+// The mobile long-press editor sheet and the ☰ menu drawer on the Pixel 7 profile against /mobile/: a real held touch
 // (CDP touch events), the registry-generated menus, and the hit area of every row.
 
 async function editor(page: Page) {
@@ -45,31 +45,35 @@ test('a short touch does not open the sheet', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: 'Editor' })).toHaveCount(0);
 });
 
-test('the ⋯ menu scrolls, lists every menu, and every row is at least 44x44', async ({ page }) => {
+test('the ☰ drawer lists every menu and each level has rows of at least 44x44', async ({ page }) => {
   await editor(page);
-  await page.getByRole('button', { name: 'More' }).tap();
-  const sheet = page.getByRole('dialog', { name: 'Menu' });
-  await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole('menu')).toHaveCount(6);
-  await expect(sheet.getByRole('menuitem', { name: /Connect to Server/ })).toHaveCount(0);
-  const rows = await sizes(sheet.locator('[data-command]'));
-  expect(rows.length).toBeGreaterThan(30);
+  await page.getByRole('button', { name: 'Menu' }).tap();
+  const drawer = page.getByRole('dialog', { name: 'Menu' });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('menuitem')).toHaveText(['File›', 'GitHub›', 'Edit›', 'View›', 'Insert›', 'Format›', 'Help›']);
+  for (const b of await sizes(drawer.getByRole('button'))) {
+    expect(b.w, b.n ?? '').toBeGreaterThanOrEqual(44);
+    expect(b.h, b.n ?? '').toBeGreaterThanOrEqual(44);
+  }
+  await drawer.getByRole('menuitem', { name: 'File' }).tap();
+  await expect(drawer.getByRole('menuitem', { name: /Connect to Server|Close Tab/ })).toHaveCount(0);
+  const rows = await sizes(drawer.locator('[data-command]'));
+  expect(rows.length).toBeGreaterThan(3);
   for (const b of rows) {
     expect(b.w, b.n ?? '').toBeGreaterThanOrEqual(44);
     expect(b.h, b.n ?? '').toBeGreaterThanOrEqual(44);
   }
-  // The sheet stays inside the screen and scrolls to the last menu.
   const vp = page.viewportSize()!;
-  const sb = (await sheet.boundingBox())!;
+  const sb = (await drawer.boundingBox())!;
   expect(sb.y + sb.height).toBeLessThanOrEqual(vp.height);
-  await sheet.getByRole('menuitem', { name: 'About Gonq' }).scrollIntoViewIfNeeded();
-  await expect(sheet.getByRole('menuitem', { name: 'About Gonq' })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 });
 
-test('Theme radio rows apply Dark from the ⋯ menu', async ({ page }) => {
+test('Theme radio rows apply Dark from the ☰ menu (View > Theme)', async ({ page }) => {
   await editor(page);
-  await page.getByRole('button', { name: 'More' }).tap();
+  await page.getByRole('button', { name: 'Menu' }).tap();
+  await page.getByRole('menuitem', { name: 'View' }).tap();
+  await page.getByRole('menuitem', { name: 'Theme' }).tap();
   await page.getByRole('menuitemradio', { name: 'Dark' }).tap();
   await expect(page.locator('html')).toHaveClass(/dark/);
 });

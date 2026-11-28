@@ -26,6 +26,7 @@ import { addSessionBranch, clearSessionBranches } from '@gonq/editor/features/gi
 import { BackProvider } from '../shell/back';
 import { DialogsProvider, useDialogs } from '../shell/dialogs';
 import { CommitSheet } from './CommitSheet';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 type Handler = (args: Record<string, unknown>) => unknown;
@@ -53,8 +54,8 @@ beforeEach(() => {
   invoke.mockReset().mockImplementation(async (cmd: string, args: Record<string, unknown>) => handlers[cmd]?.(args ?? {}));
 });
 
-async function openMenu(user: User) {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+async function openDrawer(user: User) {
+  await openMenu(user);
   return screen.findByRole('dialog', { name: 'Menu' });
 }
 async function openEditor() {
@@ -67,7 +68,7 @@ async function openEditor() {
 describe('overlays close first and leave the screen as it was', () => {
   it('closes the overflow menu', async () => {
     const { user } = await renderMobileApp();
-    await openMenu(user);
+    await openDrawer(user);
     await back();
     expect(screen.queryByRole('dialog', { name: 'Menu' })).toBeNull();
     expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
@@ -100,7 +101,7 @@ describe('overlays close first and leave the screen as it was', () => {
     const { user } = await openEditor();
     await user.click(screen.getByRole('button', { name: /comments/i }));
     await screen.findByRole('dialog', { name: 'Comments' });
-    await openMenu(user);
+    await openDrawer(user);
     await back();
     expect(screen.queryByRole('dialog', { name: 'Menu' })).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Comments' })).toBeInTheDocument();
@@ -143,7 +144,7 @@ describe('overlays close first and leave the screen as it was', () => {
 describe('screens go back as their own control does', () => {
   it('returns from Settings to Documents', async () => {
     const { user } = await renderMobileApp();
-    await openMenu(user);
+    await openMenu(user, 'Edit');
     await user.click(await screen.findByRole('menuitem', { name: 'Settings…' }));
     await screen.findByRole('form', { name: 'Settings' });
     await back();
@@ -172,7 +173,7 @@ describe('screens go back as their own control does', () => {
     await user.click(await screen.findByRole('button', { name: /octo\/notes/ }));
     await screen.findByRole('heading', { name: 'octo/notes' });
     await user.click(within(screen.getByRole('dialog', { name: 'octo/notes' })).getByRole('button', { name: 'Close' }));
-    await openMenu(user);
+    await openMenu(user, 'GitHub');
     await user.click(await screen.findByRole('menuitem', { name: 'Open PR…' }));
     await user.click(await screen.findByRole('option', { name: 'gonq/one' }));
     await user.click(await screen.findByRole('option', { name: 'main' }));
@@ -207,14 +208,17 @@ describe('screens go back as their own control does', () => {
 });
 
 describe('the editor and the Documents screen', () => {
-  it('returns to Documents when nothing is unsaved', async () => {
+  it('leaves the app from the editor when nothing is unsaved, and the editor has no Back control', async () => {
     await openEditor();
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Menu' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
     await back();
-    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
+    expect(leaveApp).toHaveBeenCalledTimes(1);
   });
 
-  it('asks the close prompt when there are unsaved changes and keeps them on Cancel', async () => {
-    const { user } = await openEditor();
+  it('asks the close prompt for an unsaved tab, keeps the app open on Cancel, and a second Back does not double the prompt', async () => {
+    await openEditor();
     typeIntoEditor('hello');
     await back();
     const dialog = await screen.findByRole('dialog', { name: /Save changes to/ });
@@ -225,33 +229,22 @@ describe('the editor and the Documents screen', () => {
     expect(screen.getByRole('toolbar', { name: 'Editing' })).toBeInTheDocument();
     expect(screen.getByLabelText('unsaved changes')).toBeInTheDocument();
     expect(leaveApp).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Back' }));
   });
 
-  it('discards only when the prompt says Don’t save', async () => {
+  it('leaves the app after Don’t save', async () => {
     const { user } = await openEditor();
     typeIntoEditor('hello');
     await back();
     await user.click(await screen.findByRole('button', { name: 'Don’t save' }));
-    await screen.findByRole('img', { name: 'Gonq' });
+    await waitFor(() => expect(leaveApp).toHaveBeenCalledTimes(1));
   });
 
-  it('leaves the app from Documents with nothing open, and asks first for a tab left unsaved', async () => {
+  it('leaves the app from Documents with nothing open', async () => {
     await renderMobileApp();
     await back();
     expect(leaveApp).toHaveBeenCalledTimes(1);
     await back();
     expect(leaveApp).toHaveBeenCalledTimes(2);
-  });
-
-  it('asks about a tab left unsaved instead of leaving', async () => {
-    const { user } = await openEditor();
-    typeIntoEditor('hello');
-    await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByRole('img', { name: 'Gonq' })).toBeInTheDocument();
-    await back();
-    expect(await screen.findByRole('dialog', { name: /Save changes to/ })).toBeInTheDocument();
-    expect(leaveApp).not.toHaveBeenCalled();
   });
 });
 

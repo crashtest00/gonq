@@ -12,6 +12,7 @@ vi.mock('@gonq/editor/platform/bindings', async () =>
   (await import('@gonq/editor/testing/mockBindings')).bindingsMock((c, a) => invoke(c, a)),
 );
 
+import { openMenu } from '../testing/menu';
 import { renderMobileApp, type User } from '../testing/renderMobileApp';
 
 const TREE = 'content://com.android.externalstorage.documents/tree/primary%3ADocuments%2Fnotes';
@@ -46,7 +47,7 @@ async function openRepo(user: User) {
 }
 const closeSheet = (user: User, name: string) => user.click(within(screen.getByRole('dialog', { name })).getByRole('button', { name: 'Close' }));
 const refreshItem = async (user: User) => {
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'View');
   return screen.findByRole('menuitem', { name: 'Refresh Navigator' });
 };
 

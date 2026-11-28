@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 // The mobile Settings, About and Agent skill screens on the mobile web build (Pixel 7 profile): every interactive
-// element is at least 44x44 CSS px, and the ⋯ menu reaches them and the theme choice.
+// element is at least 44x44 CSS px, and the ☰ menu reaches them and the theme choice.
 
 async function expectTapTargets(page: Page, scope = 'main') {
   const boxes = await page
@@ -19,22 +19,26 @@ async function expectTapTargets(page: Page, scope = 'main') {
   }
 }
 
-async function openFromMenu(page: Page, item: string) {
+async function openFromMenu(page: Page, menu: string, item: string) {
   await page.goto('/mobile/');
-  await page.getByRole('button', { name: 'More' }).click();
-  await page.getByRole('button', { name: item }).click();
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.getByRole('menuitem', { name: menu }).click();
+  await page.getByRole('menuitem', { name: item }).click();
 }
 
-test('the ⋯ menu buttons and theme choices have 44x44 hit areas, and Dark applies at once', async ({ page }) => {
+test('the ☰ menu rows and theme choices have 44x44 hit areas, and Dark applies at once', async ({ page }) => {
   await page.goto('/mobile/');
-  await page.getByRole('button', { name: 'More' }).click();
+  await page.getByRole('button', { name: 'Menu' }).click();
   await expectTapTargets(page, '[role="dialog"]');
-  await page.getByRole('radio', { name: /Dark/ }).click();
+  await page.getByRole('menuitem', { name: 'View' }).click();
+  await page.getByRole('menuitem', { name: 'Theme' }).click();
+  await expectTapTargets(page, '[role="dialog"]');
+  await page.getByRole('menuitemradio', { name: /Dark/ }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
 });
 
 test('Settings: author name, GitHub row and buttons are at least 44x44', async ({ page }) => {
-  await openFromMenu(page, 'Settings…');
+  await openFromMenu(page, 'Edit', 'Settings…');
   await expect(page.getByLabel('Author name')).toBeVisible();
   await expect(page.getByText('GitHub sign-in needs the Gonq app.')).toBeVisible();
   await expectTapTargets(page);
@@ -45,14 +49,14 @@ test('Settings: author name, GitHub row and buttons are at least 44x44', async (
 });
 
 test('About: link and Close are at least 44x44; no tagline', async ({ page }) => {
-  await openFromMenu(page, 'About Gonq');
+  await openFromMenu(page, 'Help', 'About Gonq');
   await expect(page.getByRole('img', { name: 'Gonq logo' })).toBeVisible();
   await expect(page.getByText(/^Version 0\.1\.\d+$/)).toBeVisible();
   await expectTapTargets(page);
 });
 
 test('Agent skill: Copy, Save as… and Close are at least 44x44 and nothing clips off screen', async ({ page }) => {
-  await openFromMenu(page, 'Agent skill…');
+  await openFromMenu(page, 'Help', 'Agent skill…');
   await expect(page.getByRole('region', { name: 'SKILL.md' })).toBeVisible();
   await expectTapTargets(page);
   const strip = page.getByRole('group', { name: 'Agent skill actions' });

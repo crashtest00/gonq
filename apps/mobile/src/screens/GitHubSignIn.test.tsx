@@ -18,6 +18,7 @@ vi.mock('@gonq/editor/platform/external', () => ({
 }));
 
 import { ensureSignedIn } from '@gonq/editor/platform/github';
+import { openMenu } from '../testing/menu';
 import { renderMobileApp } from '../testing/renderMobileApp';
 
 const begun = {
@@ -229,7 +230,7 @@ it('ensureSignedIn resolves false when the user cancels', async () => {
 
 it('on mobile web, Start shows the "Gonq app" error in the shell banner and stays retryable', async () => {
   const { user } = await renderMobileApp();
-  await user.click(screen.getByRole('button', { name: 'More' }));
+  await openMenu(user, 'Edit');
   await user.click(await screen.findByRole('menuitem', { name: 'Settings…' }));
   await user.click(await screen.findByRole('button', { name: 'Sign In' }));
   await user.click(await screen.findByRole('button', { name: 'Start' }));

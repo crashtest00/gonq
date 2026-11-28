@@ -90,9 +90,10 @@ test('choosing a repository returns to the Gonq home with the navigator sheet op
   await expect(page.getByRole('img', { name: 'Gonq' })).toBeVisible();
   await sheet.getByRole('button', { name: 'Close' }).click();
   await expect(sheet).toBeHidden();
-  await page.getByRole('button', { name: 'More' }).click();
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.getByRole('menuitem', { name: 'View' }).click();
   await expect(page.getByRole('menuitem', { name: 'Refresh Navigator' })).toBeEnabled();
-  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Close menu' }).click();
   await page.getByRole('button', { name: 'Repository navigator' }).click();
   await expect(sheet.getByRole('button', { name: 'a.md' })).toBeVisible();
 });

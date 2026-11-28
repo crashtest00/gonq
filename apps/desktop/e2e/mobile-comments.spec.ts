@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 
-/** Flips Raw Markdown through the More menu (the top-bar switch is gone). */
+/** Flips Raw Markdown through the ☰ menu (View) (the top-bar switch is gone). */
 async function toggleRaw(page: Page) {
-  await page.getByRole('button', { name: 'More' }).tap();
+  await page.getByRole('button', { name: 'Menu' }).tap();
+  await page.getByRole('menuitem', { name: 'View' }).tap();
   await page.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }).tap();
 }
 
