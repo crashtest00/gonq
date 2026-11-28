@@ -295,6 +295,7 @@ const INSTALL = () => {
     return null;
   };
   window.__keys = () => { const c = document.querySelector('.cm-content'); return c ? Object.getOwnPropertyNames(c).join(',') : 'no .cm-content'; };
+  if (!window.__baseH) window.__baseH = innerHeight;
   window.__g = {
     ok: () => !!find(),
     sel: () => { const s = find().state.selection.main; return [s.anchor, s.head]; },
@@ -309,6 +310,10 @@ const INSTALL = () => {
     },
   };
 };
+async function stage(label) {
+  try { const q = await cur(); const t = await q.evaluate(() => [document.querySelector('.cm-content') ? 'editor' : 'noeditor', 'markers=' + document.querySelectorAll('.cm-thread-marker').length, 'innerH=' + innerHeight, 'base=' + window.__baseH, document.body.innerText.slice(0, 70).replace(/\n/g, '|')].join(' ')); note(`stage ${label}: ${t} | ${focusPkg().replace(/.*\{|\}/g, '')} | ime[${IME()}]`); } catch (e) { note(`stage ${label}: err ${String(e.message).split('\n')[0]}`); }
+  await shot(`stage-${label}`);
+}
 const P = async () => { const p = await cur(); await p.evaluate(INSTALL); return p; };
 let MAP = null;
 async function calibrate(p) {
@@ -342,7 +347,15 @@ async function closeComments(p) {
     await sleep(500);
   }
 }
-async function hideIme() { for (let i = 0; i < 2 && imeShown(); i++) { sh('adb shell input keyevent 4'); await sleep(900); } }
+async function hideIme() {
+  if (!imeShown()) return;
+  for (let i = 0; i < 2; i++) {
+    sh('adb shell input keyevent 4'); await sleep(900);
+    const q = await cur().catch(() => null); if (!q) return;
+    const sh2 = await q.evaluate(() => (window.__baseH || innerHeight) - innerHeight).catch(() => 0);
+    if (sh2 < 60) return;
+  }
+}
 async function showImeViaEditor(p) {
   const r = await rect(p, '.cm-line:last-of-type'); 
   for (let i = 0; i < 3 && !imeShown(); i++) { const ls = await p.locator('.cm-line').count(); await realTapEl(p, '.cm-line', ls - 1); await sleep(1200); }
@@ -367,10 +380,10 @@ async function newDoc2() {
 async function ensureFixture() {
   let p = await cur();
   if (await p.locator('.cm-content').count()) { await p.evaluate(INSTALL); if ((await markerCount(p)) >= 4) return p; }
-  p = await newDoc2(); await p.evaluate(INSTALL);
+  p = await newDoc2(); await p.evaluate(INSTALL); await stage('newdoc');
   if (!(await p.evaluate(() => window.__g.ok()))) throw new Error('CodeMirror view not reachable; cm-content own props: ' + (await p.evaluate(() => window.__keys())));
   await p.evaluate((t) => window.__g.setText(t), FIX_TEXT); await sleep(600);
-  for (const [w, , b] of WORDS) await addComment(p, w, `note ${b}`);
+  for (const [w, , b] of WORDS) { await addComment(p, w, `note ${b}`); await stage('after-' + w); }
   await hideIme(); await closeComments(p);
   const n = await markerCount(p); if (n < 4) throw new Error(`fixture has ${n} markers, expected 4`);
   return p;
@@ -432,7 +445,7 @@ import sys, zipfile, io, json, math
 try:
     from PIL import Image
 except Exception:
-    import subprocess, importlib; subprocess.check_call([sys.executable,'-m','pip','install','-q','--break-system-packages','pillow']); importlib.invalidate_caches(); from PIL import Image
+    import subprocess, importlib; subprocess.check_call([sys.executable,'-m','pip','install','-q','--target','/tmp/pil','pillow']); sys.path.insert(0,'/tmp/pil'); importlib.invalidate_caches(); from PIL import Image
 z = zipfile.ZipFile(sys.argv[1]); out = sys.argv[2]
 names = [n for n in z.namelist() if 'ic_launcher' in n or 'anydpi' in n]
 print('entries:', names[:40])
@@ -479,7 +492,7 @@ else:
 
   // ---------- fixture ----------
   let p = null; let fixErr = '';
-  try { p = await ensureFixture(); await shot('fixture-ready'); await calibrate(p); } catch (e) { fixErr = String(e.message || e).split('\n')[0]; note('fixture failed: ' + fixErr); }
+  try { p = await ensureFixture(); await stage('fixture-ready'); p = await cur(); if (!(await p.locator('.cm-content').count())) throw new Error('fixture-ready but editor not showing'); await calibrate(p); } catch (e) { fixErr = String(e.message || e).split('\n')[0]; note('fixture failed: ' + fixErr); }
   const need = async () => { if (!MAP || fixErr) throw new Error('fixture/calibration unavailable: ' + fixErr); const q = await ensureFixture(); return q; };
 
   // ---------- 2 marker keyboard ----------
