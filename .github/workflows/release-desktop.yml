@@ -10,6 +10,13 @@ permissions:
   contents: read
 
 jobs:
+  # Full Playwright suite on the tagged commit; publish below waits for it.
+  e2e:
+    name: e2e
+    uses: ./.github/workflows/e2e.yml
+    with:
+      sha: ${{ github.sha }}
+
   build:
     name: build (${{ matrix.label }})
     strategy:
@@ -76,8 +83,8 @@ jobs:
 
   publish:
     name: publish GitHub Release
-    # Only runs when every platform leg succeeded: no partial releases.
-    needs: build
+    # Only runs when every platform leg and the e2e suite succeeded: no partial releases.
+    needs: [build, e2e]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
