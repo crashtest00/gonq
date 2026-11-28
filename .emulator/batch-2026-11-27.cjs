@@ -281,7 +281,20 @@ const IME = () => sh("adb shell dumpsys input_method | grep -E 'mInputShown|mIsI
 const imeShown = () => /mInputShown=true/.test(IME());
 const resumed = () => sh("adb shell dumpsys activity activities | grep -m1 -E 'mResumedActivity|ResumedActivity' || true");
 const INSTALL = () => {
-  const find = () => { const c = document.querySelector('.cm-content'); const cv = c && c.cmView; return cv && (cv.view || (cv.rootView && cv.rootView.view)) || null; };
+  const find = () => {
+    for (const c of [document.querySelector('.cm-content'), document.querySelector('.cm-editor'), document.querySelector('.cm-scroller')]) {
+      if (!c) continue;
+      for (const k of Object.getOwnPropertyNames(c)) {
+        let o; try { o = c[k]; } catch (e) { continue; }
+        if (!o || typeof o !== 'object') continue;
+        if (o.state && o.dispatch && o.coordsAtPos) return o;
+        if (o.view && o.view.state && o.view.dispatch && o.view.coordsAtPos) return o.view;
+        if (o.rootView && o.rootView.view && o.rootView.view.dispatch) return o.rootView.view;
+      }
+    }
+    return null;
+  };
+  window.__keys = () => { const c = document.querySelector('.cm-content'); return c ? Object.getOwnPropertyNames(c).join(',') : 'no .cm-content'; };
   window.__g = {
     ok: () => !!find(),
     sel: () => { const s = find().state.selection.main; return [s.anchor, s.head]; },
@@ -355,7 +368,7 @@ async function ensureFixture() {
   let p = await cur();
   if (await p.locator('.cm-content').count()) { await p.evaluate(INSTALL); if ((await markerCount(p)) >= 4) return p; }
   p = await newDoc2(); await p.evaluate(INSTALL);
-  if (!(await p.evaluate(() => window.__g.ok()))) throw new Error('CodeMirror view not reachable via .cm-content.cmView');
+  if (!(await p.evaluate(() => window.__g.ok()))) throw new Error('CodeMirror view not reachable; cm-content own props: ' + (await p.evaluate(() => window.__keys())));
   await p.evaluate((t) => window.__g.setText(t), FIX_TEXT); await sleep(600);
   for (const [w, , b] of WORDS) await addComment(p, w, `note ${b}`);
   await hideIme(); await closeComments(p);
@@ -419,7 +432,7 @@ import sys, zipfile, io, json, math
 try:
     from PIL import Image
 except Exception:
-    import subprocess; subprocess.check_call([sys.executable,'-m','pip','install','-q','--break-system-packages','pillow']); from PIL import Image
+    import subprocess, importlib; subprocess.check_call([sys.executable,'-m','pip','install','-q','--break-system-packages','pillow']); importlib.invalidate_caches(); from PIL import Image
 z = zipfile.ZipFile(sys.argv[1]); out = sys.argv[2]
 names = [n for n in z.namelist() if 'ic_launcher' in n or 'anydpi' in n]
 print('entries:', names[:40])
@@ -646,5 +659,5 @@ else:
     return { verdict: left && /gonq/.test(before) ? 'PASS' : 'FAIL', detail: `Documents home, no tabs: before [${before.slice(0, 110)}] after Back [${after.slice(0, 110)}] left app=${left}` };
   });
   saveV();
-  console.log('[batch] DONE'); console.log(JSON.stringify(VERD.map((v) => [v.id, v.verdict]), null, 0));
+  console.log('[batch] DONE'); console.log(JSON.stringify(VERD.map((v) => [v.id, v.verdict]), null, 0)); process.exit(0);
 })().catch((e) => { console.error('FATAL', e); saveV(); process.exit(0); });
