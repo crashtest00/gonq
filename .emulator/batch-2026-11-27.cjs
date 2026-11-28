@@ -437,20 +437,21 @@ async function kbFrame() {
   });
 
   // ---------- 3 marker shift ----------
+  const SNAP = (i) => { const m = document.querySelectorAll('.cm-thread-marker')[i]; const ln = m.closest('.cm-line'); const L = (e) => e ? +e.getBoundingClientRect().left.toFixed(2) : null; const tw = document.createTreeWalker(ln, NodeFilter.SHOW_TEXT); let first = null, after = null, n; while ((n = tw.nextNode())) { if (!n.textContent.trim()) continue; const pos = m.compareDocumentPosition(n); if (pos & Node.DOCUMENT_POSITION_FOLLOWING) { if (!after) after = n; } else if (!first) first = n; } const tl = (t) => { if (!t) return null; const r = document.createRange(); r.setStart(t, 0); r.setEnd(t, 1); return +r.getBoundingClientRect().left.toFixed(2); }; const sc = document.querySelector('.cm-scroller'); return { marker: L(m), line: L(ln), content: L(document.querySelector('.cm-content')), firstText: tl(first), textAfterMarker: tl(after), scrollerScrollLeft: sc ? sc.scrollLeft : null, docScrollLeft: document.scrollingElement.scrollLeft, markerClass: m.className, lineClass: ln.className, vvOffsetLeft: visualViewport.offsetLeft }; };
   await chk('3-marker-shift', 'Marker does not shift on real tap (2ba1b2e6)', async () => {
     let q = await need(); const out = []; let ok = true;
     for (const key of ['Numbered', 'Bullet', 'Task', 'Paragraph']) {
       q = await P(); await closeComments(q); await hideIme(); await q.evaluate(() => window.__g.select(0)); await sleep(300);
       const mi = await markerIdx(q, key); if (mi < 0) { out.push(`${key}: marker not found`); ok = false; continue; }
       await q.evaluate((i) => document.querySelectorAll('.cm-thread-marker')[i].scrollIntoView({ block: 'center' }), mi); await sleep(400);
-      const r0 = await rect(q, '.cm-thread-marker', mi);
+      const r0 = await rect(q, '.cm-thread-marker', mi); const sn0 = await q.evaluate(SNAP, mi);
       await q.evaluate((i) => { window.__s = []; const t0 = performance.now(); window.__iv = setInterval(() => { const m = document.querySelectorAll('.cm-thread-marker')[i]; window.__s.push(m ? m.getBoundingClientRect().left : null); }, 20); }, mi);
       await realTapEl(q, '.cm-thread-marker', mi, false); await sleep(300);
-      const r1 = await rect(q, '.cm-thread-marker', mi); await sleep(500);
+      const r1 = await rect(q, '.cm-thread-marker', mi); const sn1 = await q.evaluate(SNAP, mi).catch(() => null); await sleep(500);
       const s = await q.evaluate(() => { clearInterval(window.__iv); return window.__s.filter((v) => v !== null); });
       const d = r1 ? r1.l - r0.l : NaN; const spread = s.length ? Math.max(...s) - Math.min(...s) : NaN;
       const good = Math.abs(d) <= 1; ok = ok && good;
-      out.push(`${key}: left0=${r0.l.toFixed(2)} left@300ms=${r1 ? r1.l.toFixed(2) : 'n/a'} delta=${d.toFixed(2)}px (samples min..max spread ${spread.toFixed(2)}px over ${s.length}) => ${good ? 'ok' : 'SHIFTED'}`);
+      out.push(`${key}: left0=${r0.l.toFixed(2)} left@300ms=${r1 ? r1.l.toFixed(2) : 'n/a'} delta=${d.toFixed(2)}px (samples min..max spread ${spread.toFixed(2)}px over ${s.length}) => ${good ? 'ok' : 'SHIFTED'} | refs before ${JSON.stringify(sn0)} after ${JSON.stringify(sn1)}`);
       await shot(`marker-shift-${key}`);
     }
     await closeComments(q);
