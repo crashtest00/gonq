@@ -346,10 +346,15 @@ async function addComment(p, word, body) {
   await hideIme(); await closeComments(p);
 }
 const markerCount = (p) => p.locator('.cm-thread-marker').count();
+async function newDoc2() {
+  let p = await cur(); await goHome(p); p = await cur();
+  await domTap(p.getByRole('button', { name: 'New', exact: true }));
+  await p.locator('.cm-content').waitFor({ timeout: 30000 }); await sleep(800); return p;
+}
 async function ensureFixture() {
   let p = await cur();
   if (await p.locator('.cm-content').count()) { await p.evaluate(INSTALL); if ((await markerCount(p)) >= 4) return p; }
-  p = await newDoc(''); await p.evaluate(INSTALL);
+  p = await newDoc2(); await p.evaluate(INSTALL);
   if (!(await p.evaluate(() => window.__g.ok()))) throw new Error('CodeMirror view not reachable via .cm-content.cmView');
   await p.evaluate((t) => window.__g.setText(t), FIX_TEXT); await sleep(600);
   for (const [w, , b] of WORDS) await addComment(p, w, `note ${b}`);
@@ -414,7 +419,7 @@ import sys, zipfile, io, json, math
 try:
     from PIL import Image
 except Exception:
-    import subprocess; subprocess.check_call([sys.executable,'-m','pip','install','-q','pillow']); from PIL import Image
+    import subprocess; subprocess.check_call([sys.executable,'-m','pip','install','-q','--break-system-packages','pillow']); from PIL import Image
 z = zipfile.ZipFile(sys.argv[1]); out = sys.argv[2]
 names = [n for n in z.namelist() if 'ic_launcher' in n or 'anydpi' in n]
 print('entries:', names[:40])
