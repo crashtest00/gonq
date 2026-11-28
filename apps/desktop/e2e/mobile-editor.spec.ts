@@ -7,7 +7,7 @@ async function toggleRaw(page: Page) {
   await page.getByRole('menuitemcheckbox', { name: 'Raw Markdown' }).tap();
 }
 
-// The mobile editor screen on the Pixel 7 profile against /mobile/: typing, bold from the accessory bar, the Raw switch, and the 44px hit areas.
+// The mobile editor screen on the Pixel 7 profile against /mobile/: typing, bold from the accessory bar, Raw Markdown from the ☰ menu, and the 44px hit areas.
 
 async function newDocument(page: Page) {
   await page.goto('/mobile/');
@@ -44,17 +44,15 @@ test('Raw switch shows the markers and back', async ({ page }) => {
   await expect(content).toContainText('hello');
 });
 
-test('accessory bar buttons and Raw segments are at least 44x44 and the bar never clips the page', async ({ page }) => {
+test('accessory bar buttons are at least 44x44 and the bar never clips the page', async ({ page }) => {
   await newDocument(page);
   const buttons = await size(page.getByRole('toolbar', { name: 'Editing' }).getByRole('button'));
-  expect(buttons).toHaveLength(11);
+  expect(buttons).toHaveLength(12);
   const save = await size(page.getByRole('toolbar', { name: 'Editing' }).getByRole('button', { name: 'Save' }));
   expect(save).toHaveLength(1);
   expect(save[0].w).toBeGreaterThanOrEqual(44);
   expect(save[0].h).toBeGreaterThanOrEqual(44);
-  const segments = await size(page.locator('[data-segment]'));
-  expect(segments).toHaveLength(2);
-  for (const b of [...buttons, ...segments]) {
+  for (const b of buttons) {
     expect(b.w).toBeGreaterThanOrEqual(44);
     expect(b.h).toBeGreaterThanOrEqual(44);
   }
